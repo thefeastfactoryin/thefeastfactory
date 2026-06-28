@@ -38,4 +38,15 @@ export class CreatePackageDto {
   @IsBoolean()
   isActive?: boolean;
 
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  isFeatured?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  featuredOrder?: number;
+
 }

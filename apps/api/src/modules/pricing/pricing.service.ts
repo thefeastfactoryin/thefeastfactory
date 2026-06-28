@@ -192,10 +192,15 @@ export class PricingService {
     const includedRows = version.packageMenuItems.filter(
       (row) => row.role === PackageMenuItemRole.INCLUDED,
     );
-    const includedById = new Map(includedRows.map((row) => [row.menuItemId, row]));
+    const includedById = new Map(
+      includedRows.map((row) => [row.menuItemId, row]),
+    );
     const swaps = new Map<string, SelectedItemInput>();
     for (const selection of selectedItems) {
-      if (!selection.replacedMenuItemId) continue;
+      if (!selection.replacedMenuItemId) {
+        errors.push('Meal boxes only support swaps of included items');
+        continue;
+      }
       swaps.set(selection.replacedMenuItemId, selection);
     }
 

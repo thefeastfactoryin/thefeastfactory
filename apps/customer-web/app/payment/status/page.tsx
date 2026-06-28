@@ -1,5 +1,6 @@
 'use client';
 
+import type { OrderSummary } from '@aranyam/shared-types';
 import { CheckCircle, Clock3, XCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
@@ -10,29 +11,34 @@ import { useSessionStore } from '../../../store/session.store';
 export default function PaymentStatusPage() {
   const session = useSessionStore((state) => state.session);
   const [orderId, setOrderId] = useState('');
-  const [order, setOrder] = useState<any>();
-  useEffect(
-    () =>
-      setOrderId(
-        new URLSearchParams(window.location.search).get('orderId') ?? '',
-      ),
-    [],
-  );
+  const [order, setOrder] = useState<OrderSummary>();
+  const [loadError, setLoadError] = useState('');
+  useEffect(() => {
+    const nextOrderId =
+      new URLSearchParams(window.location.search).get('orderId') ?? '';
+    setOrderId(nextOrderId);
+    if (!nextOrderId) setLoadError('This payment link is missing an order ID.');
+  }, []);
   useEffect(() => {
     if (!session || !orderId) return;
     let active = true;
     let attempts = 0;
     const check = async () => {
-      const next = await apiRequest<any>(
-        `/orders/${orderId}`,
-        {},
-        session.accessToken,
-      );
-      if (!active) return;
-      setOrder(next);
-      attempts += 1;
-      if (next.paymentStatus === 'PENDING' && attempts < 10)
-        window.setTimeout(check, 2000);
+      try {
+        const next = await apiRequest<OrderSummary>(
+          `/orders/${orderId}`,
+          {},
+          session.accessToken,
+        );
+        if (!active) return;
+        setOrder(next);
+        setLoadError('');
+        attempts += 1;
+        if (next.paymentStatus === 'PENDING' && attempts < 10)
+          window.setTimeout(check, 2000);
+      } catch (error) {
+        if (active) setLoadError((error as Error).message);
+      }
     };
     check();
     return () => {
@@ -40,7 +46,7 @@ export default function PaymentStatusPage() {
     };
   }, [session, orderId]);
   const paid = order?.paymentStatus === 'PAID';
-  const failed = order?.paymentStatus === 'FAILED';
+  const failed = order?.paymentStatus === 'FAILED' || Boolean(loadError);
   const Icon = paid ? CheckCircle : failed ? XCircle : Clock3;
   return (
     <main className="mx-auto flex max-w-xl flex-col items-center px-5 py-20 text-center">
@@ -58,13 +64,15 @@ export default function PaymentStatusPage() {
         {paid
           ? 'Your order is confirmed.'
           : failed
-            ? 'Your order is saved and payment can be retried.'
+            ? loadError || 'Your order is saved and payment can be retried.'
             : 'We are waiting for secure confirmation from Razorpay. This can take a few moments.'}
       </p>
       <div className="mt-8 flex gap-3">
-        <Button asChild>
-          <Link href={`/orders/${orderId}`}>View order</Link>
-        </Button>
+        {orderId && (
+          <Button asChild>
+            <Link href={`/orders/${orderId}`}>View order</Link>
+          </Button>
+        )}
         {failed && (
           <Button asChild variant="outline">
             <Link href="/checkout">Retry payment</Link>

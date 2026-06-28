@@ -25,6 +25,7 @@ const businessKeys = [
   'tax_sac_code',
   'invoice_legal_footer',
 ];
+type PlatformSetting = { key: string; value: string };
 export default function Settings() {
   const session = useAdminSessionStore((state) => state.session);
   const [values, setValues] = useState<Record<string, string>>({});
@@ -33,7 +34,7 @@ export default function Settings() {
   useEffect(() => {
     if (!session) return;
     Promise.all([
-      apiRequest<any[]>('/admin/settings', {}, session.accessToken),
+      apiRequest<PlatformSetting[]>('/admin/settings', {}, session.accessToken),
       apiRequest<IntegrationReadiness>(
         '/admin/integrations/readiness',
         {},

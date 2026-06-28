@@ -1,19 +1,17 @@
 'use client';
 
-import { OperatingRegion, refundReasonOptions } from '@aranyam/shared-types';
+import { type AdminPayment, OperatingRegion, refundReasonOptions } from '@aranyam/shared-types';
 import { useEffect, useState } from 'react';
 import { StatusBadge } from '../../../components/status-badge';
 import { Button } from '../../../components/ui/button';
 import { Field, Select, Textarea } from '../../../components/ui/form';
-import { Input } from '../../../components/ui/input';
 import { apiRequest } from '../../../lib/api';
 import { useAdminSessionStore } from '../../../store/session.store';
 
 export default function Payments() {
   const session = useAdminSessionStore((state) => state.session);
-  const [rows, setRows] = useState<any[]>([]);
-  const [selected, setSelected] = useState<any>();
-  const [amount, setAmount] = useState('');
+  const [rows, setRows] = useState<AdminPayment[]>([]);
+  const [selected, setSelected] = useState<AdminPayment>();
   const [reason, setReason] = useState('Customer request');
   const [customReason, setCustomReason] = useState('');
   const [regions, setRegions] = useState<OperatingRegion[]>([]);
@@ -25,7 +23,7 @@ export default function Payments() {
       : regionId;
   const load = () =>
     session &&
-    apiRequest<any[]>(
+    apiRequest<AdminPayment[]>(
       `/admin/payments${effectiveRegionId ? `?regionId=${effectiveRegionId}` : ''}`,
       {},
       session.accessToken,
@@ -46,21 +44,20 @@ export default function Payments() {
 
   async function refund(event: React.FormEvent) {
     event.preventDefault();
+    if (!selected) return;
     setError('');
     try {
       await apiRequest(
-        `/admin/payments/${selected.id}/refunds`,
+        `/admin/payments/${selected.id}/full-refund`,
         {
           method: 'POST',
           body: JSON.stringify({
-            amount,
             reason: reason === 'Other' ? customReason : reason,
           }),
         },
         session!.accessToken,
       );
       setSelected(undefined);
-      setAmount('');
       setReason('Customer request');
       setCustomReason('');
       await load();
@@ -131,7 +128,7 @@ export default function Payments() {
                 <td>{row.paymentMethod || '—'}</td>
                 <td>
                   {row.refunds.length
-                    ? row.refunds.map((refund: any) => (
+                    ? row.refunds.map((refund) => (
                         <div key={refund.id} className="mb-1">
                           <StatusBadge value={refund.refundStatus} />{' '}
                           <span className="text-xs">₹{refund.amount}</span>
@@ -141,14 +138,11 @@ export default function Payments() {
                 </td>
                 <td className="text-right font-semibold">₹{row.amount}</td>
                 <td>
-                  {['PAID', 'PARTIALLY_REFUNDED'].includes(
-                    row.paymentStatus,
-                  ) && (
+                  {row.paymentStatus === 'PAID' && (
                     <Button
                       variant="outline"
                       onClick={() => {
                         setSelected(row);
-                        setAmount(row.amount);
                       }}
                     >
                       Refund
@@ -171,15 +165,10 @@ export default function Payments() {
               {selected.order.orderNumber} · paid ₹{selected.amount}
             </p>
             <div className="mt-5 space-y-3">
-              <Field label="Refund amount">
-                <Input
-                  value={amount}
-                  onChange={(event) => setAmount(event.target.value)}
-                  inputMode="decimal"
-                  placeholder="Refund amount"
-                  required
-                />
-              </Field>
+              <p className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">
+                This action refunds the full paid amount of ₹{selected.amount}.
+                Partial refunds are not supported.
+              </p>
               <Field label="Reason">
                 <Select
                   value={reason}
@@ -211,7 +200,7 @@ export default function Payments() {
                 >
                   Cancel
                 </Button>
-                <Button className="flex-1">Submit refund</Button>
+                <Button className="flex-1">Confirm full refund</Button>
               </div>
             </div>
           </form>

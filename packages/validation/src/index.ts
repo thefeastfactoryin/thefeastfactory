@@ -87,7 +87,8 @@ export const createMenuItemSchema = z.object({
   categoryId: z.string().uuid(),
   name: z.string().trim().min(1).max(150),
   description: z.string().trim().max(1000).optional().nullable(),
-  basePrice: moneyStringSchema,
+  boxPrice: moneyStringSchema,
+  generalPrice: moneyStringSchema,
   isVeg: z.boolean().default(true),
   isActive: z.boolean().default(true),
   imageUrl: z.string().url().max(500).optional().nullable(),
@@ -98,6 +99,9 @@ export const updateMenuItemSchema = createMenuItemSchema.partial();
 export const createPackageSchema = z.object({
   name: z.string().trim().min(1).max(100),
   description: z.string().trim().max(1000).optional().nullable(),
+  type: z
+    .enum(['MEAL_BOX', 'FIXED_PACKAGE', 'CUSTOM_PACKAGE'])
+    .default('FIXED_PACKAGE'),
   displayOrder: z.number().int().min(0).default(0),
   isActive: z.boolean().default(true),
 });
@@ -136,58 +140,13 @@ export const updatePackageVersionSchema = packageVersionSchema
     },
   );
 
-export const upsertPackageCategoryRuleSchema = z
-  .object({
-    categoryId: z.string().uuid(),
-    minSelections: z.number().int().min(0).default(1),
-    maxSelections: z.number().int().min(1),
-    isMandatory: z.boolean().default(true),
-  })
-  .refine((value) => value.maxSelections >= value.minSelections, {
-    message:
-      'Maximum selections must be greater than or equal to minimum selections',
-    path: ['maxSelections'],
-  });
-
 export const upsertPackageMenuItemSchema = z.object({
   categoryId: z.string().uuid(),
   menuItemId: z.string().uuid(),
+  role: z.enum(['INCLUDED', 'EXTRA', 'CUSTOM_SELECTABLE']).default('INCLUDED'),
   isAvailable: z.boolean().default(true),
-});
-
-export const upsertPackageItemPricingSchema = z.object({
-  menuItemId: z.string().uuid(),
-  itemPrice: moneyStringSchema,
-  includedValue: moneyStringSchema,
-});
-
-export const eventDraftSchema = z.object({
-  packageVersionId: z.string().uuid(),
-  addressId: z.string().uuid(),
-  eventName: z.string().max(200).optional(),
-  eventDate: z.string(),
-  eventTimeStart: z.string().optional(),
-  guestCount: z.number().int().min(1),
-  specialNotes: z.string().max(1000).optional(),
-});
-
-export const selectedMenuItemSchema = z.object({
-  categoryId: z.string().uuid(),
-  menuItemId: z.string().uuid(),
-});
-
-export const packageSelectionSchema = z.object({
-  selectedItems: z.array(selectedMenuItemSchema).min(1),
-});
-
-export const orderQuoteSchema = z.object({
-  eventId: z.string().uuid(),
-  selectedItems: z.array(selectedMenuItemSchema).min(1),
-});
-
-export const createRefundSchema = z.object({
-  amount: moneyStringSchema,
-  reason: z.string().trim().max(500).optional(),
+  isSwappable: z.boolean().default(false),
+  displayOrder: z.number().int().min(0).default(0),
 });
 
 export const createOrderNoteSchema = z.object({
@@ -221,18 +180,8 @@ export type CreatePackageVersionInput = z.infer<
 export type UpdatePackageVersionInput = z.infer<
   typeof updatePackageVersionSchema
 >;
-export type UpsertPackageCategoryRuleInput = z.infer<
-  typeof upsertPackageCategoryRuleSchema
->;
 export type UpsertPackageMenuItemInput = z.infer<
   typeof upsertPackageMenuItemSchema
 >;
-export type UpsertPackageItemPricingInput = z.infer<
-  typeof upsertPackageItemPricingSchema
->;
-export type PackageSelectionInput = z.infer<typeof packageSelectionSchema>;
-export type EventDraftInput = z.infer<typeof eventDraftSchema>;
-export type OrderQuoteInput = z.infer<typeof orderQuoteSchema>;
-export type CreateRefundInput = z.infer<typeof createRefundSchema>;
 export type CreateOrderNoteInput = z.infer<typeof createOrderNoteSchema>;
 export type UpdateSettingsInput = z.infer<typeof updateSettingsSchema>;

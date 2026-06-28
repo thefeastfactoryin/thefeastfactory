@@ -15,6 +15,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CustomerAuthGuard } from '../../common/guards/customer-auth.guard';
 import { VerifyPaymentDto } from './dto/verify-payment.dto';
 import { PaymentsService } from './payments.service';
+import type { RazorpayWebhookPayload } from './payments.service';
 
 @ApiTags('payments')
 @Controller()
@@ -37,7 +38,7 @@ export class PaymentsController {
   @Post('payments/razorpay/webhook')
   webhook(
     @Req() request: RawBodyRequest<Request>,
-    @Body() payload: Record<string, any>,
+    @Body() payload: RazorpayWebhookPayload,
     @Headers('x-razorpay-signature') signature?: string,
     @Headers('x-razorpay-event-id') eventId?: string,
   ) {

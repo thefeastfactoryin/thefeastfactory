@@ -1,34 +1,10 @@
 'use client';
 
-import MuiCheckbox from '@mui/material/Checkbox';
-import FormControl from '@mui/material/FormControl';
-import MenuItem from '@mui/material/MenuItem';
-import MuiSelect from '@mui/material/Select';
-import TextField from '@mui/material/TextField';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { TimePicker } from '@mui/x-date-pickers/TimePicker';
-import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
-import dayjs from 'dayjs';
 import * as React from 'react';
 import { cn } from '../../lib/utils';
 
-const controlSx = {
-  '& .MuiOutlinedInput-root': {
-    borderRadius: '12px',
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    fontSize: '0.875rem',
-    '& fieldset': { borderColor: 'hsl(var(--border))' },
-    '&:hover fieldset': { borderColor: 'hsl(var(--primary) / 0.35)' },
-    '&.Mui-focused fieldset': {
-      borderColor: 'hsl(var(--primary))',
-      borderWidth: '1px',
-    },
-  },
-  '& .MuiInputBase-input': {
-    color: 'hsl(var(--foreground))',
-  },
-};
+const controlClass =
+  'min-h-12 w-full rounded-xl border border-input bg-white/95 px-3 py-2 text-sm outline-none transition focus-visible:ring-2 focus-visible:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-50';
 
 export function Field({
   label,
@@ -64,89 +40,24 @@ export function Field({
 }
 
 export const Select = React.forwardRef<
-  HTMLDivElement,
+  HTMLSelectElement,
   React.SelectHTMLAttributes<HTMLSelectElement>
->(
-  (
-    { className, children, value, onChange, required, disabled, ...props },
-    ref,
-  ) => {
-    const items = React.Children.map(children, (child) => {
-      if (
-        !React.isValidElement<{
-          value?: string;
-          children?: React.ReactNode;
-          disabled?: boolean;
-        }>(child)
-      )
-        return null;
-      return (
-        <MenuItem
-          value={child.props.value ?? ''}
-          disabled={child.props.disabled}
-        >
-          {child.props.children}
-        </MenuItem>
-      );
-    });
-
-    return (
-      <FormControl
-        fullWidth
-        required={required}
-        disabled={disabled}
-        className={className}
-        ref={ref}
-      >
-        <MuiSelect
-          displayEmpty
-          value={String(value ?? '')}
-          onChange={onChange as never}
-          sx={{ ...controlSx, height: 48 }}
-          {...(props as Record<string, unknown>)}
-        >
-          {items}
-        </MuiSelect>
-      </FormControl>
-    );
-  },
-);
+>(({ className, ...props }, ref) => (
+  <select ref={ref} className={cn(controlClass, className)} {...props} />
+));
 Select.displayName = 'Select';
 
 export const Textarea = React.forwardRef<
-  HTMLDivElement,
+  HTMLTextAreaElement,
   React.TextareaHTMLAttributes<HTMLTextAreaElement>
->(
-  (
-    {
-      className,
-      value,
-      onChange,
-      placeholder,
-      required,
-      disabled,
-      maxLength,
-      ...props
-    },
-    ref,
-  ) => (
-    <TextField
-      ref={ref}
-      className={className}
-      value={value}
-      onChange={onChange}
-      placeholder={placeholder}
-      required={required}
-      disabled={disabled}
-      multiline
-      minRows={4}
-      fullWidth
-      slotProps={{ htmlInput: { maxLength } }}
-      sx={controlSx}
-      {...(props as Record<string, unknown>)}
-    />
-  ),
-);
+>(({ className, rows = 4, ...props }, ref) => (
+  <textarea
+    ref={ref}
+    rows={rows}
+    className={cn(controlClass, 'resize-y', className)}
+    {...props}
+  />
+));
 Textarea.displayName = 'Textarea';
 
 export function DateField({
@@ -160,18 +71,7 @@ export function DateField({
   onValueChange: (value: string) => void;
   required?: boolean;
 }) {
-  return (
-    <LocalizationProvider dateAdapter={AdapterDayjs}>
-      <DatePicker
-        value={value ? dayjs(value) : null}
-        minDate={min ? dayjs(min) : undefined}
-        onChange={(next) =>
-          onValueChange(next?.isValid() ? next.format('YYYY-MM-DD') : '')
-        }
-        slotProps={{ textField: { fullWidth: true, required, sx: controlSx } }}
-      />
-    </LocalizationProvider>
-  );
+  return <input className={controlClass} type="date" value={value} min={min} required={required} onChange={(event) => onValueChange(event.target.value)} />;
 }
 
 export function TimeField({
@@ -183,17 +83,7 @@ export function TimeField({
   onValueChange: (value: string) => void;
   required?: boolean;
 }) {
-  return (
-    <LocalizationProvider dateAdapter={AdapterDayjs}>
-      <TimePicker
-        value={value ? dayjs(`1970-01-01T${value}`) : null}
-        onChange={(next) =>
-          onValueChange(next?.isValid() ? next.format('HH:mm') : '')
-        }
-        slotProps={{ textField: { fullWidth: true, required, sx: controlSx } }}
-      />
-    </LocalizationProvider>
-  );
+  return <input className={controlClass} type="time" value={value} required={required} onChange={(event) => onValueChange(event.target.value)} />;
 }
 
 export function Checkbox({
@@ -220,16 +110,7 @@ export function Checkbox({
         className,
       )}
     >
-      <MuiCheckbox
-        checked={checked}
-        tabIndex={-1}
-        disableRipple
-        sx={{
-          color: 'hsl(var(--muted-foreground))',
-          '&.Mui-checked': { color: 'hsl(var(--primary))' },
-          p: 0,
-        }}
-      />
+      <input type="checkbox" checked={checked} readOnly tabIndex={-1} className="h-5 w-5 accent-primary" />
       <span className="min-w-0">
         <span className="block text-sm font-semibold">{label}</span>
         {description && (

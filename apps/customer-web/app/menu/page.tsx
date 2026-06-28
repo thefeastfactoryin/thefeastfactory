@@ -9,9 +9,7 @@ import {
   Flame,
   LayoutGrid,
   Leaf,
-  Minus,
   Package,
-  Plus,
   Search,
   ShoppingBag,
   Utensils,
@@ -21,6 +19,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { StatePanel } from '../../components/ui/state-panel';
 import { useOrderBuilderStore } from '../../store/order-builder.store';
+import { useSessionStore } from '../../store/session.store';
 import { apiRequest } from '../../lib/api';
 import { cn } from '../../lib/utils';
 
@@ -51,47 +50,6 @@ function resolveImage(item: MenuItem): string {
     if (pattern.test(haystack)) return url;
   }
   return DEFAULT_FOOD_IMG;
-}
-
-/* ─────────────────────────────────────────────────────────
-   Catering-context dish tags
-───────────────────────────────────────────────────────── */
-const DISH_TAGS = [
-  { label: 'Bestseller',         cls: 'bg-amber-500' },
-  null,
-  { label: "Chef's Pick",        cls: 'bg-emerald-600' },
-  null,
-  { label: 'Corporate Favorite', cls: 'bg-blue-700' },
-  { label: 'Most Ordered',       cls: 'bg-rose-600' },
-  { label: 'Party Favorite',     cls: 'bg-violet-700' },
-  null,
-] as const;
-
-function getTag(index: number) {
-  return DISH_TAGS[index % DISH_TAGS.length] ?? null;
-}
-
-/* ─────────────────────────────────────────────────────────
-   Prep style — inferred from dish name / category
-───────────────────────────────────────────────────────── */
-const PREP_STYLES: Array<[RegExp, string]> = [
-  [/fried|fry|65|pakora|bajji|vada|samosa|puri/, 'Deep Fried'],
-  [/grilled|tandoor|kebab|tikka|satay|seekh/,    'Tandoor Grilled'],
-  [/curry|masala|gravy|butter|makhani|korma/,    'Slow Cooked'],
-  [/biryani|pulao|dum/,                          'Dum Cooked'],
-  [/steamed|idli|dhokla|modak|momos/,            'Steamed'],
-  [/baked|oven|roast/,                           'Oven Baked'],
-  [/tossed|noodle|manchurian|chilli|stir/,       'Wok Tossed'],
-  [/soup|rasam|sambar|shorba/,                   'Simmered'],
-  [/sweet|halwa|kheer|pudding|barfi|ladoo/,      'Hand Made'],
-];
-
-function getPrepStyle(name: string, categoryName?: string | null): string | null {
-  const haystack = `${name} ${categoryName ?? ''}`.toLowerCase();
-  for (const [pattern, style] of PREP_STYLES) {
-    if (pattern.test(haystack)) return style;
-  }
-  return null;
 }
 
 /* ─────────────────────────────────────────────────────────
@@ -215,17 +173,14 @@ function FilterBar({ dietary, onDietaryChange, search, onSearchChange, itemCount
 /* ═══════════════════════════════════════════════════════
    MenuCard  — image-forward, catering-specific hierarchy
 ══════════════════════════════════════════════════════════ */
-function MenuCard({ item, index }: { item: MenuItem; index: number }) {
-  const [qty, setQty] = useState(1);
-  const tag      = getTag(index);
+function MenuCard({ item }: { item: MenuItem }) {
   const src      = resolveImage(item);
-  const prepStyle = getPrepStyle(item.name, item.category?.name);
 
   return (
     <article className="group flex flex-col overflow-hidden rounded-2xl bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] ring-1 ring-black/5 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_12px_36px_rgba(0,0,0,0.13)]">
 
       {/* Food image — 3:2 aspect (slightly shorter than 4:3, fits more cards) */}
-      <div className="relative aspect-[3/2] overflow-hidden">
+      <div className="relative aspect-[4/2.5] overflow-hidden">
         <img
           src={src}
           alt={item.name}
@@ -235,18 +190,6 @@ function MenuCard({ item, index }: { item: MenuItem; index: number }) {
         {/* Gradient for badge legibility */}
         <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/60 to-transparent" />
         <div className="absolute inset-x-0 top-0 h-10 bg-gradient-to-b from-black/30 to-transparent" />
-
-        {/* Popularity / catering tag — top-left */}
-        {tag && (
-          <span
-            className={cn(
-              'absolute left-3 top-3 rounded-full px-2.5 py-1 text-[10px] font-bold text-white shadow-sm',
-              tag.cls,
-            )}
-          >
-            {tag.label}
-          </span>
-        )}
 
         {/* Diet badge — top-right */}
         <span
@@ -259,17 +202,11 @@ function MenuCard({ item, index }: { item: MenuItem; index: number }) {
           {item.isVeg ? 'Veg' : 'Non-Veg'}
         </span>
 
-        {/* Category + prep style — bottom-left over gradient */}
+        {/* Category — bottom-left over gradient */}
         <div className="absolute bottom-2.5 left-3 flex items-center gap-1.5">
           <span className="text-[10px] font-bold uppercase tracking-widest text-white/75">
             {item.category?.name ?? 'Menu'}
           </span>
-          {prepStyle && (
-            <>
-              <span className="text-white/40">·</span>
-              <span className="text-[10px] font-semibold text-white/75">{prepStyle}</span>
-            </>
-          )}
         </div>
       </div>
 
@@ -287,56 +224,18 @@ function MenuCard({ item, index }: { item: MenuItem; index: number }) {
           </p>
         )}
 
-        {/* Catering context chips */}
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          <span className="rounded-md bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
-            Serves 20–25 Guests
-          </span>
-          <span className="rounded-md bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
-            Min 20 Portions
-          </span>
-          <span className="rounded-md bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
-            Bulk Pricing
-          </span>
-        </div>
-
         {/* Push price + controls to bottom */}
         <div className="flex-1" />
 
         {/* Price — high visual weight */}
         <div className="mt-4 flex items-baseline gap-0.5">
           <span className="text-2xl font-extrabold tracking-tight text-foreground">
-            ₹{item.basePrice}
+            ₹{item.generalPrice}
           </span>
           <span className="ml-1 text-xs font-medium text-muted-foreground">/ portion</span>
         </div>
 
-        {/* Quantity + Add — always visible */}
-        <div className="mt-3 flex items-center gap-2">
-          <div className="flex items-center rounded-lg border border-border bg-background">
-            <button
-              onClick={() => setQty((q) => Math.max(1, q - 1))}
-              className="grid h-9 w-9 place-items-center text-muted-foreground transition-colors hover:text-foreground"
-              aria-label="Decrease quantity"
-            >
-              <Minus className="h-3.5 w-3.5" />
-            </button>
-            <span className="w-8 text-center text-sm font-bold tabular-nums">{qty}</span>
-            <button
-              onClick={() => setQty((q) => q + 1)}
-              className="grid h-9 w-9 place-items-center text-muted-foreground transition-colors hover:text-foreground"
-              aria-label="Increase quantity"
-            >
-              <Plus className="h-3.5 w-3.5" />
-            </button>
-          </div>
-          <Link
-            href="/packages"
-            className="flex flex-1 items-center justify-center rounded-xl bg-primary py-2.5 text-sm font-bold text-white shadow-sm transition-all duration-200 hover:bg-primary/90 active:scale-[0.97]"
-          >
-            Add to Menu
-          </Link>
-        </div>
+        <p className="mt-3 text-xs text-muted-foreground">Available in eligible packages</p>
       </div>
     </article>
   );
@@ -520,12 +419,15 @@ function OrderSidebar() {
   );
 }
 
+// Retained as a legacy reference while the compact cart banner is active.
+void OrderSidebar;
+
 /* ═══════════════════════════════════════════════════════
    Skeleton
 ══════════════════════════════════════════════════════════ */
 function MenuSkeleton() {
   return (
-    <div className="grid gap-5 sm:grid-cols-2">
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {Array.from({ length: 6 }).map((_, i) => (
         <div key={i} className="overflow-hidden rounded-2xl bg-white shadow-md ring-1 ring-black/5">
           <div className="aspect-[3/2] animate-pulse bg-muted" />
@@ -547,6 +449,19 @@ function MenuSkeleton() {
       ))}
     </div>
   );
+}
+
+function CompactCartBanner() {
+  const [mounted, setMounted] = useState(false);
+  const session = useSessionStore((state) => state.session);
+  const pkg = useOrderBuilderStore((state) => state.package);
+  const items = useOrderBuilderStore((state) => state.selectedItems);
+  useEffect(() => setMounted(true), []);
+  const hasCart = mounted && Boolean(session) && Boolean(pkg);
+  return <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-white px-4 py-3 shadow-sm">
+    <div className="flex items-center gap-3"><span className="grid h-9 w-9 place-items-center rounded-full bg-primary/10"><ShoppingBag className="h-4 w-4 text-primary" /></span><div><p className="text-sm font-bold">{hasCart ? pkg!.packageName : 'Ready to build an order?'}</p><p className="text-xs text-muted-foreground">{hasCart ? `${items.length} menu change${items.length === 1 ? '' : 's'} selected` : 'Choose a package before adding dishes.'}</p></div></div>
+    <Link href={hasCart ? '/cart' : '/packages'} className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-xs font-bold text-white">{hasCart ? 'View cart' : 'Browse packages'}<ArrowRight className="h-3.5 w-3.5" /></Link>
+  </div>;
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -592,12 +507,9 @@ export default function PublicMenuPage() {
       {/* ① Sticky category navigation */}
       <CategoryNav categories={categories} activeId={categoryId} onChange={setCategoryId} />
 
-      {/* ② Content: food grid (left) + order sidebar (right) */}
+      {/* ② Filters, cart context, and compact food grid */}
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="lg:flex lg:items-start lg:gap-7">
-
-          {/* Left — filter bar + grid */}
-          <div className="min-w-0 flex-1 pb-24 lg:pb-12">
+          <div className="min-w-0 pb-24 lg:pb-12">
             <FilterBar
               dietary={dietary}
               onDietaryChange={setDietary}
@@ -606,6 +518,7 @@ export default function PublicMenuPage() {
               itemCount={items.length}
               loading={loading}
             />
+            <div className="mb-5"><CompactCartBanner /></div>
 
             {error && (
               <StatePanel
@@ -620,9 +533,9 @@ export default function PublicMenuPage() {
             {loading && <MenuSkeleton />}
 
             {!loading && !error && items.length > 0 && (
-              <div className="grid gap-5 sm:grid-cols-2">
-                {items.map((item, i) => (
-                  <MenuCard key={item.id} item={item} index={i} />
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {items.map((item) => (
+                  <MenuCard key={item.id} item={item} />
                 ))}
               </div>
             )}
@@ -638,11 +551,6 @@ export default function PublicMenuPage() {
             )}
           </div>
 
-          {/* Right — sticky order sidebar (desktop only) */}
-          <div className="hidden lg:block lg:w-72 xl:w-80 shrink-0 pt-3">
-            <OrderSidebar />
-          </div>
-        </div>
       </div>
     </>
   );

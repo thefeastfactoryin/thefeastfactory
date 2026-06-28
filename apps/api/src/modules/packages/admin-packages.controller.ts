@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -63,5 +64,14 @@ export class AdminPackagesController {
     @Body() dto: UpsertPackageMenuItemDto,
   ) {
     return this.packages.upsertMenuItem(id, dto);
+  }
+
+  @Delete('package-versions/:id/menu-items/:menuItemId/:role')
+  removeMenuItem(
+    @Param('id') id: string,
+    @Param('menuItemId') menuItemId: string,
+    @Param('role') role: string,
+  ) {
+    return this.packages.removeMenuItem(id, menuItemId, role);
   }
 }

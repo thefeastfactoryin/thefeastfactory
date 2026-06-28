@@ -17,13 +17,18 @@
     "build:customer": "npm run build -w @aranyam/customer-web",
     "build:admin": "npm run build -w @aranyam/admin-web",
     "lint": "npx nx run-many -t lint",
+    "test:contracts": "node scripts/check-contract-inventory.mjs",
+    "contracts:generate": "npm run contracts:generate -w @aranyam/api",
+    "contracts:check": "npm run contracts:check -w @aranyam/api",
+    "test:business": "npm run test:business -w @aranyam/api",
+    "test:api": "npm run test:api -w @aranyam/api",
+    "test:client": "npm test -w @aranyam/api-client",
     "format": "prettier --write \"{apps,packages}/**/*.{ts,tsx,js,json,css,md}\" \"*.md\"",
     "prisma:generate": "npm run prisma:generate -w @aranyam/api",
-    "db:push": "npm run db:push -w @aranyam/api",
     "db:migrate": "npm run db:migrate -w @aranyam/api",
+    "db:deploy": "npm run db:deploy -w @aranyam/api",
     "db:seed": "npm run db:seed -w @aranyam/api",
-    "db:triggers": "npm run db:triggers -w @aranyam/api",
-    "start:prod": "npm run start -w @aranyam/api"
+    "db:triggers": "npm run db:triggers -w @aranyam/api"
   },
   "overrides": {
     "postcss": "^8.5.15"
@@ -33,6 +38,7 @@
     "@types/node": "^24.0.0",
     "eslint": "^9.30.0",
     "nx": "^22.7.5",
+    "openapi-typescript": "^7.13.0",
     "prettier": "^3.6.0",
     "typescript": "^5.8.0",
     "typescript-eslint": "^8.35.0"

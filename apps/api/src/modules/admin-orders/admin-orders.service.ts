@@ -3,13 +3,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { CancellationActor, EventStatus, OrderStatus } from '@prisma/client';
+import { CancellationActor, OrderStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtPayload } from '../../common/auth/jwt-payload';
 import { OperatingRegionsService } from '../operating-regions/operating-regions.service';
 import { OrdersService } from '../orders/orders.service';
 import { PaymentsService } from '../payments/payments.service';
-import { OperationsService } from '../operations/operations.service';
 import { AdminCancelOrderDto } from './dto/admin-cancel-order.dto';
 import { AdminOrdersQueryDto } from './dto/admin-orders-query.dto';
 import { CreateRefundDto } from './dto/create-refund.dto';
@@ -31,7 +30,6 @@ export class AdminOrdersService {
     private readonly prisma: PrismaService,
     private readonly orders: OrdersService,
     private readonly payments: PaymentsService,
-    private readonly operations: OperationsService,
     private readonly regions: OperatingRegionsService,
   ) {}
 
@@ -40,43 +38,49 @@ export class AdminOrdersService {
       admin,
       query.regionId,
     );
-    const eventFilter = {
-      ...(query.dateFrom || query.dateTo
-        ? {
-            eventDate: {
-              ...(query.dateFrom ? { gte: new Date(query.dateFrom) } : {}),
-              ...(query.dateTo ? { lte: new Date(query.dateTo) } : {}),
-            },
-          }
-        : {}),
-      ...(query.city
-        ? {
-            address: {
-              city: { contains: query.city, mode: 'insensitive' as const },
-            },
-          }
-        : {}),
-    };
-    const rows = await this.prisma.order.findMany({
-      where: {
+    const where = {
         ...(regionId ? { regionId } : {}),
         ...(query.orderStatus ? { orderStatus: query.orderStatus } : {}),
         ...(query.paymentStatus ? { paymentStatus: query.paymentStatus } : {}),
         ...(query.mobileNumber
           ? { user: { mobileNumber: { contains: query.mobileNumber } } }
           : {}),
-        ...(Object.keys(eventFilter).length ? { event: eventFilter } : {}),
-      },
-      include: {
-        user: true,
-        event: { include: { address: true, region: true } },
-        region: true,
-        selectedItems: true,
-        payments: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-    return rows.map((row) => this.orders.serializeOrder(row));
+        ...(query.dateFrom || query.dateTo
+          ? {
+              eventDate: {
+                ...(query.dateFrom ? { gte: new Date(query.dateFrom) } : {}),
+                ...(query.dateTo ? { lte: new Date(query.dateTo) } : {}),
+              },
+            }
+          : {}),
+        ...(query.city
+          ? { address: { city: { contains: query.city, mode: 'insensitive' as const } } }
+          : {}),
+      };
+    const skip = (query.page - 1) * query.pageSize;
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.order.findMany({
+        where,
+        include: {
+          user: true,
+          address: true,
+          region: true,
+          selectedItems: true,
+          payments: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: query.pageSize,
+      }),
+      this.prisma.order.count({ where }),
+    ]);
+    return {
+      items: rows.map((row) => this.orders.serializeOrder(row)),
+      page: query.page,
+      pageSize: query.pageSize,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / query.pageSize)),
+    };
   }
 
   async get(admin: JwtPayload, id: string) {
@@ -85,7 +89,7 @@ export class AdminOrdersService {
       where: { id },
       include: {
         user: true,
-        event: { include: { address: true, region: true } },
+        address: true,
         region: true,
         selectedItems: true,
         payments: { include: { refunds: true } },
@@ -128,26 +132,12 @@ export class AdminOrdersService {
         },
         include: {
           user: true,
-          event: true,
+          address: true,
           selectedItems: true,
           payments: true,
           statusHistory: true,
         },
       });
-      if (dto.status === OrderStatus.DELIVERED) {
-        await tx.event.update({
-          where: { id: order.eventId },
-          data: { status: EventStatus.COMPLETED },
-        });
-      }
-      const notification = this.operations.notificationForStatus(dto.status);
-      if (notification) {
-        await this.operations.notify(tx, {
-          userId: order.userId,
-          orderId: order.id,
-          ...notification,
-        });
-      }
       return updated;
     });
     return this.orders.serializeOrder(row);
@@ -165,8 +155,7 @@ export class AdminOrdersService {
     ) {
       throw new BadRequestException('Order cannot be cancelled');
     }
-    await this.prisma.$transaction([
-      this.prisma.order.update({
+    await this.prisma.order.update({
         where: { id },
         data: {
           orderStatus: OrderStatus.CANCELLED,
@@ -183,22 +172,7 @@ export class AdminOrdersService {
             },
           },
         },
-      }),
-      this.prisma.event.update({
-        where: { id: order.eventId },
-        data: { status: EventStatus.CANCELLED },
-      }),
-      this.prisma.notification.create({
-        data: {
-          userId: order.userId,
-          orderId: order.id,
-          type: 'ORDER_CANCELLED',
-          title: 'Order cancelled',
-          message:
-            'Your catering order has been cancelled by the operations team.',
-        },
-      }),
-    ]);
+      });
     return this.get(admin, id);
   }
 
@@ -238,7 +212,6 @@ export class AdminOrdersService {
     return this.payments.createRefund(
       admin.sub,
       paymentId,
-      dto.amount,
       dto.reason,
     );
   }

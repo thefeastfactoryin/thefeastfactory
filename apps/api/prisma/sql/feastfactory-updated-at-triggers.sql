@@ -1,5 +1,5 @@
 -- FeastFactory database-owned timestamp automation.
--- Use after applying apps/api/prisma/schema.feastfactory.prisma.
+-- Use after applying migrations from apps/api/prisma/schema.prisma.
 --
 -- Prisma's @updatedAt handles normal application writes. These triggers make
 -- PostgreSQL the final source of truth when rows are inserted or updated by
@@ -60,12 +60,6 @@ EXECUTE FUNCTION public.set_timestamps_to_db_time();
 DROP TRIGGER IF EXISTS trg_package_menu_items_set_timestamps ON public.package_menu_items;
 CREATE TRIGGER trg_package_menu_items_set_timestamps
 BEFORE INSERT OR UPDATE ON public.package_menu_items
-FOR EACH ROW
-EXECUTE FUNCTION public.set_timestamps_to_db_time();
-
-DROP TRIGGER IF EXISTS trg_events_set_timestamps ON public.events;
-CREATE TRIGGER trg_events_set_timestamps
-BEFORE INSERT OR UPDATE ON public.events
 FOR EACH ROW
 EXECUTE FUNCTION public.set_timestamps_to_db_time();
 

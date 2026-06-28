@@ -8,6 +8,7 @@ import {
 import { createAddressSchema } from '@aranyam/validation';
 import { CheckCircle2, MapPin, Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '../../components/ui/button';
 import { Checkbox, Field, Select } from '../../components/ui/form';
 import { Input } from '../../components/ui/input';
@@ -31,12 +32,15 @@ const initialForm = {
 };
 
 export default function AddressesPage() {
+  const router = useRouter();
+  const [returnTo, setReturnTo] = useState<string | null>(null);
   const session = useSessionStore((state) => state.session);
   const [addresses, setAddresses] = useState<UserAddress[]>([]);
   const [form, setForm] = useState(initialForm);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  useEffect(() => setReturnTo(new URLSearchParams(window.location.search).get('returnTo')), []);
 
   async function load() {
     if (!session) return;
@@ -91,12 +95,16 @@ export default function AddressesPage() {
 
     setSubmitting(true);
     try {
-      await apiRequest(
+      const created = await apiRequest<UserAddress>(
         '/me/addresses',
         { method: 'POST', body: JSON.stringify(result.data) },
         session!.accessToken,
       );
       setForm({ ...initialForm, isDefault: false });
+      if (returnTo) {
+        router.replace(returnTo.replace('ADDRESS_ID', created.id));
+        return;
+      }
       await load();
     } catch (reason) {
       setError((reason as Error).message);

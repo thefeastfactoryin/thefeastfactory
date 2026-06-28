@@ -5,65 +5,100 @@ import {
 } from '@nestjs/common';
 import {
   CancellationActor,
-  EventStatus,
+  CartStatus,
   OrderStatus,
-  Prisma,
+} from '@prisma/client';
+import type {
+  OperatingRegion,
+  Order,
+  OrderSelectedItem,
+  OrderStatusHistory,
+  Payment,
+  Refund,
+  User,
+  UserAddress,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { OperatingRegionsService } from '../operating-regions/operating-regions.service';
 import { PricingService } from '../pricing/pricing.service';
-import { OperationsService } from '../operations/operations.service';
 import { CancelOrderDto } from './dto/cancel-order.dto';
 import { OrderSelectionDto } from './dto/order-selection.dto';
+
+type SerializableOrder = Order & {
+  address?: UserAddress | null;
+  region?: OperatingRegion | null;
+  selectedItems?: OrderSelectedItem[];
+  payments?: Array<Payment & { refunds?: Refund[] }>;
+  statusHistory?: OrderStatusHistory[];
+  user?: User;
+};
 
 @Injectable()
 export class OrdersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly pricing: PricingService,
-    private readonly operations: OperationsService,
     private readonly regions: OperatingRegionsService,
   ) {}
 
-  async quote(userId: string, dto: OrderSelectionDto) {
-    const event = await this.getEvent(userId, dto.eventId);
-    const quote = await this.quoteWithDelivery(event, dto);
-    return this.serializeQuote(quote);
-  }
-
-  async create(userId: string, dto: OrderSelectionDto, cartId?: string) {
-    const event = await this.getEvent(userId, dto.eventId);
-    const existingOrder = event.orders[0];
+  async create(userId: string, dto: OrderSelectionDto, cartId: string) {
+    const cart = await this.prisma.cart.findFirst({
+      where: { id: cartId, userId, status: CartStatus.ACTIVE },
+      include: { address: true, region: true, order: true },
+    });
+    if (!cart || !cart.address || !cart.eventDate || !cart.eventTimeStart || !cart.guestCount) {
+      throw new BadRequestException('Complete event and venue details before checkout');
+    }
+    const existingOrder = cart.order;
     if (existingOrder?.orderStatus === OrderStatus.PENDING_PAYMENT) {
       return this.get(userId, existingOrder.id);
     }
     if (existingOrder)
-      throw new BadRequestException('An order already exists for this event');
-    const quote = await this.quoteWithDelivery(event, dto);
-    const leadHours = Math.floor(
-      (event.eventDate.getTime() - Date.now()) / 3_600_000,
+      throw new BadRequestException('An order already exists for this cart');
+    const menuQuote = await this.pricing.quote(
+      cart.packageVersionId,
+      cart.guestCount,
+      dto.selectedItems,
     );
+    const assignment =
+      cart.region && cart.distanceKm !== null
+        ? {
+            region: cart.region,
+            distanceKm: cart.distanceKm,
+            deliveryFee: cart.deliveryFee,
+          }
+        : await this.regions.assign(cart.address.latitude, cart.address.longitude);
+    const totalAmount = menuQuote.totalAmount.plus(assignment.deliveryFee);
+    const eventDate = cart.eventDate;
+    const addressId = cart.addressId!;
+    const eventInstant = new Date(eventDate);
+    eventInstant.setUTCHours(cart.eventTimeStart.getUTCHours(), cart.eventTimeStart.getUTCMinutes(), 0, 0);
+    const leadHours = Math.floor((eventInstant.getTime() - Date.now()) / 3_600_000);
     return this.prisma.$transaction(async (tx) => {
       const order = await tx.order.create({
         data: {
           orderNumber: this.orderNumber(),
           userId,
-          eventId: event.id,
-          cartId: cartId ?? null,
-          regionId: quote.region.id,
-          guestCount: quote.guestCount,
-          basePerPlatePrice: quote.basePerPlatePrice,
-          totalCustomizationCharges: quote.totalCustomizationCharges,
-          finalPerPlatePrice: quote.finalPerPlatePrice,
-          totalAmount: quote.totalAmount,
-          distanceKm: quote.distanceKm,
-          deliveryFee: quote.deliveryFee,
-          packageName: quote.packageName,
-          packageVersionNo: quote.packageVersionNo,
+          cartId,
+          regionId: assignment.region.id,
+          addressId,
+          eventName: cart.eventName,
+          eventDate,
+          eventTimeStart: cart.eventTimeStart,
+          specialNotes: cart.specialNotes,
+          guestCount: menuQuote.guestCount,
+          basePerPlatePrice: menuQuote.basePerPlatePrice,
+          totalCustomizationCharges: menuQuote.totalCustomizationCharges,
+          finalPerPlatePrice: menuQuote.finalPerPlatePrice,
+          totalAmount,
+          distanceKm: assignment.distanceKm,
+          deliveryFee: assignment.deliveryFee,
+          packageName: menuQuote.packageName,
+          packageVersionNo: menuQuote.packageVersionNo,
           orderStatus: OrderStatus.PENDING_PAYMENT,
           bookingLeadHours: leadHours,
           selectedItems: {
-            create: quote.items.map((item) => ({
+            create: menuQuote.items.map((item) => ({
               categoryId: item.categoryId,
               menuItemId: item.menuItemId,
               replacedMenuItemId: item.replacedMenuItemId ?? null,
@@ -84,16 +119,7 @@ export class OrdersService {
             },
           },
         },
-        include: { selectedItems: true, statusHistory: true, region: true },
-      });
-      await tx.event.update({
-        where: { id: event.id },
-        data: {
-          status: EventStatus.CONFIRMED,
-          regionId: quote.region.id,
-          distanceKm: quote.distanceKm,
-          deliveryFee: quote.deliveryFee,
-        },
+        include: { selectedItems: true, statusHistory: true, region: true, address: true },
       });
       return this.serializeOrder(order);
     });
@@ -103,7 +129,7 @@ export class OrdersService {
     const orders = await this.prisma.order.findMany({
       where: { userId },
       include: {
-        event: { include: { region: true } },
+        address: true,
         region: true,
         selectedItems: true,
         payments: true,
@@ -117,7 +143,7 @@ export class OrdersService {
     const order = await this.prisma.order.findFirst({
       where: { id, userId },
       include: {
-        event: { include: { address: true, region: true } },
+        address: true,
         region: true,
         selectedItems: true,
         payments: { include: { refunds: true } },
@@ -137,8 +163,7 @@ export class OrdersService {
     ) {
       throw new BadRequestException('Order cannot be cancelled');
     }
-    const updated = await this.prisma.$transaction(async (tx) => {
-      const row = await tx.order.update({
+    const updated = await this.prisma.order.update({
         where: { id },
         data: {
           orderStatus: OrderStatus.CANCELLED,
@@ -155,66 +180,7 @@ export class OrdersService {
         },
         include: { selectedItems: true, payments: true, statusHistory: true },
       });
-      await tx.event.update({
-        where: { id: order.eventId },
-        data: { status: EventStatus.CANCELLED },
-      });
-      const notification = this.operations.notificationForStatus(
-        OrderStatus.CANCELLED,
-      );
-      if (notification) {
-        await this.operations.notify(tx, {
-          userId,
-          orderId: id,
-          ...notification,
-        });
-      }
-      return row;
-    });
     return this.serializeOrder(updated);
-  }
-
-  private async getEvent(userId: string, eventId: string) {
-    const event = await this.prisma.event.findFirst({
-      where: { id: eventId, userId },
-      include: { address: true, region: true, orders: true },
-    });
-    if (!event) throw new NotFoundException('Event not found');
-    return event;
-  }
-
-  private async quoteWithDelivery(
-    event: Awaited<ReturnType<OrdersService['getEvent']>>,
-    dto: OrderSelectionDto,
-  ) {
-    const menuQuote = await this.pricing.quote(
-      event.packageVersionId,
-      event.guestCount,
-      dto.selectedItems,
-    );
-    const assignment =
-      event.region && event.distanceKm !== null
-        ? {
-            region: event.region!,
-            distanceKm: event.distanceKm,
-            billableDistanceKm: Math.ceil(Number(event.distanceKm)),
-            deliveryFee: event.deliveryFee,
-          }
-        : await this.regions.assign(
-            event.address.latitude,
-            event.address.longitude,
-          );
-    const subtotalAmount = menuQuote.totalAmount;
-    return {
-      ...menuQuote,
-      region: assignment.region,
-      distanceKm: assignment.distanceKm,
-      billableDistanceKm: assignment.billableDistanceKm,
-      deliveryFeePerKm: assignment.region.deliveryFeePerKm,
-      deliveryFee: assignment.deliveryFee,
-      subtotalAmount,
-      totalAmount: subtotalAmount.plus(assignment.deliveryFee),
-    };
   }
 
   private orderNumber() {
@@ -222,59 +188,44 @@ export class OrdersService {
     return `ORD-${date}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
   }
 
-  serializeOrder(order: Record<string, any>) {
-    const moneyFields = [
-      'basePerPlatePrice',
-      'totalCustomizationCharges',
-      'finalPerPlatePrice',
-      'distanceKm',
-      'deliveryFee',
-      'totalAmount',
-    ];
-    const result: Record<string, any> = { ...order };
-    for (const field of moneyFields)
-      if (result[field] instanceof Prisma.Decimal)
-        result[field] = result[field].toFixed(2);
-    if (result.selectedItems) {
-      result.selectedItems = result.selectedItems.map((item: any) => ({
+  serializeOrder(order: SerializableOrder) {
+    const region = order.region ? this.regions.serialize(order.region) : null;
+    const selectedItems = order.selectedItems?.map((item) => ({
         ...item,
         itemPrice: item.itemPrice.toFixed(2),
         includedValue: item.includedValue.toFixed(2),
         adjustmentAmount: item.adjustmentAmount.toFixed(2),
       }));
-    }
-    if (result.payments) {
-      result.payments = result.payments.map((payment: any) => ({
+    const payments = order.payments?.map((payment) => ({
         ...payment,
         amount: payment.amount.toFixed(2),
-        refunds: payment.refunds?.map((refund: any) => ({
+        refunds: payment.refunds?.map((refund) => ({
           ...refund,
           amount: refund.amount.toFixed(2),
         })),
       }));
-    }
-    if (result.region) result.region = this.regions.serialize(result.region);
-    if (result.event?.region)
-      result.event.region = this.regions.serialize(result.event.region);
-    if (result.event?.distanceKm instanceof Prisma.Decimal)
-      result.event.distanceKm = result.event.distanceKm.toFixed(2);
-    if (result.event?.deliveryFee instanceof Prisma.Decimal)
-      result.event.deliveryFee = result.event.deliveryFee.toFixed(2);
-    return result;
-  }
-
-  private serializeQuote(
-    quote: Awaited<ReturnType<OrdersService['quoteWithDelivery']>>,
-  ) {
+    const distanceKm = order.distanceKm?.toFixed(2) ?? null;
+    const deliveryFee = order.deliveryFee.toFixed(2);
     return {
-      ...this.pricing.serialize(quote),
-      region: this.regions.serialize(quote.region),
-      distanceKm: quote.distanceKm.toFixed(2),
-      billableDistanceKm: quote.billableDistanceKm,
-      deliveryFeePerKm: quote.deliveryFeePerKm.toFixed(2),
-      deliveryFee: quote.deliveryFee.toFixed(2),
-      subtotalAmount: quote.subtotalAmount.toFixed(2),
-      totalAmount: quote.totalAmount.toFixed(2),
+      ...order,
+      basePerPlatePrice: order.basePerPlatePrice.toFixed(2),
+      totalCustomizationCharges: order.totalCustomizationCharges.toFixed(2),
+      finalPerPlatePrice: order.finalPerPlatePrice.toFixed(2),
+      distanceKm,
+      deliveryFee,
+      totalAmount: order.totalAmount.toFixed(2),
+      selectedItems,
+      payments,
+      region,
+      event: {
+        eventName: order.eventName,
+        eventDate: order.eventDate,
+        eventTimeStart: order.eventTimeStart,
+        address: order.address,
+        region,
+        distanceKm,
+        deliveryFee,
+      },
     };
   }
 }

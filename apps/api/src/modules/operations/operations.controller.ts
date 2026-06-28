@@ -28,39 +28,6 @@ import { OperationsService } from './operations.service';
 export class OperationsController {
   constructor(private readonly operations: OperationsService) {}
 
-  @Get('public/settings')
-  publicSettings() {
-    return this.operations.publicSettings();
-  }
-
-  @Get('me/notifications')
-  @ApiBearerAuth()
-  @UseGuards(CustomerAuthGuard)
-  notifications(@CurrentUser() user: JwtPayload) {
-    return this.operations.notifications(user.sub);
-  }
-
-  @Get('me/notifications/unread-count')
-  @ApiBearerAuth()
-  @UseGuards(CustomerAuthGuard)
-  unread(@CurrentUser() user: JwtPayload) {
-    return this.operations.unreadCount(user.sub);
-  }
-
-  @Post('me/notifications/:id/read')
-  @ApiBearerAuth()
-  @UseGuards(CustomerAuthGuard)
-  markRead(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
-    return this.operations.markNotificationRead(user.sub, id);
-  }
-
-  @Post('me/notifications/read-all')
-  @ApiBearerAuth()
-  @UseGuards(CustomerAuthGuard)
-  markAllRead(@CurrentUser() user: JwtPayload) {
-    return this.operations.markAllNotificationsRead(user.sub);
-  }
-
   @Get('orders/:orderId/documents')
   @ApiBearerAuth()
   @UseGuards(CustomerAuthGuard)

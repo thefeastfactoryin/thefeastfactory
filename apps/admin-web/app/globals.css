@@ -34,6 +34,11 @@ textarea {
   outline-color: hsl(var(--primary));
 }
 
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 3px solid hsl(var(--primary));
+  outline-offset: 3px;
+}
+
 @layer components {
   .admin-page {
     @apply mx-auto max-w-[1500px] p-5 md:p-8;

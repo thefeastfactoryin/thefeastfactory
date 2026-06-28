@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import { Nunito_Sans } from 'next/font/google';
 import './globals.css';
-import { QueryProvider } from '../lib/query-provider';
 import { AdminShell } from '../components/admin-shell';
 
 const nunitoSans = Nunito_Sans({
@@ -20,9 +19,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${nunitoSans.variable} font-sans antialiased`}>
-        <QueryProvider>
-          <AdminShell>{children}</AdminShell>
-        </QueryProvider>
+        <AdminShell>{children}</AdminShell>
       </body>
     </html>
   );

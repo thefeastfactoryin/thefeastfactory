@@ -4,7 +4,6 @@ import { JwtPayload } from '../../common/auth/jwt-payload';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CustomerAuthGuard } from '../../common/guards/customer-auth.guard';
 import { CancelOrderDto } from './dto/cancel-order.dto';
-import { OrderSelectionDto } from './dto/order-selection.dto';
 import { OrdersService } from './orders.service';
 
 @ApiTags('orders')
@@ -13,18 +12,6 @@ import { OrdersService } from './orders.service';
 @Controller('orders')
 export class OrdersController {
   constructor(private readonly orders: OrdersService) {}
-  @Post('quote') quote(
-    @CurrentUser() user: JwtPayload,
-    @Body() dto: OrderSelectionDto,
-  ) {
-    return this.orders.quote(user.sub, dto);
-  }
-  @Post() create(
-    @CurrentUser() user: JwtPayload,
-    @Body() dto: OrderSelectionDto,
-  ) {
-    return this.orders.create(user.sub, dto);
-  }
   @Get() list(@CurrentUser() user: JwtPayload) {
     return this.orders.list(user.sub);
   }

@@ -5,7 +5,6 @@ import { HealthModule } from './health/health.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AdminOrdersModule } from './modules/admin-orders/admin-orders.module';
 import { MenuModule } from './modules/menu/menu.module';
-import { EventsModule } from './modules/events/events.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { PackagesModule } from './modules/packages/packages.module';
 import { PaymentsModule } from './modules/payments/payments.module';
@@ -16,6 +15,7 @@ import { StorageModule } from './modules/storage/storage.module';
 import { OperationsModule } from './modules/operations/operations.module';
 import { OperatingRegionsModule } from './modules/operating-regions/operating-regions.module';
 import { CartModule } from './modules/cart/cart.module';
+import { CatalogModule } from './modules/catalog/catalog.module';
 
 @Module({
   imports: [
@@ -29,7 +29,6 @@ import { CartModule } from './modules/cart/cart.module';
     UsersModule,
     MenuModule,
     PackagesModule,
-    EventsModule,
     OrdersModule,
     PaymentsModule,
     AdminOrdersModule,
@@ -38,6 +37,7 @@ import { CartModule } from './modules/cart/cart.module';
     OperationsModule,
     OperatingRegionsModule,
     CartModule,
+    CatalogModule,
   ],
 })
 export class AppModule {}

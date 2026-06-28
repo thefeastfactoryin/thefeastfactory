@@ -29,7 +29,14 @@ export default function OtpPage() {
         { method: 'POST', body: JSON.stringify({ mobileNumber, otp }) },
       );
       setSession(session);
-      router.push('/packages');
+      const requestedReturnTo = sessionStorage.getItem('customerReturnTo');
+      const returnTo =
+        requestedReturnTo?.startsWith('/') &&
+        !requestedReturnTo.startsWith('//')
+          ? requestedReturnTo
+          : '/packages';
+      sessionStorage.removeItem('customerReturnTo');
+      router.push(returnTo);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -66,6 +73,7 @@ export default function OtpPage() {
           className="mt-7"
         >
           <Input
+            aria-label="OTP code"
             className="text-center text-xl font-semibold tracking-[0.45em]"
             value={otp}
             onChange={(event) =>

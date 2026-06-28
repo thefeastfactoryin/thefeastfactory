@@ -1,8 +1,8 @@
 'use client';
 
+import { adminCopy, appBrand } from '@aranyam/shared-types';
 import {
   BarChart3,
-  CalendarDays,
   ChevronRight,
   ClipboardList,
   CreditCard,
@@ -20,14 +20,12 @@ import { useAdminSessionStore } from '../store/session.store';
 import { cn } from '../lib/utils';
 
 const links = [
-  ['Dashboard', '/admin/dashboard', BarChart3],
-  ['Operations', '/admin/operations', CalendarDays],
-  ['Orders', '/admin/orders', ClipboardList],
-  ['Menu', '/admin/menu/categories', Utensils],
-  ['Packages', '/admin/packages', Package],
-  ['Payments', '/admin/payments', CreditCard],
-  ['Reports', '/admin/reports', BarChart3],
-  ['Settings', '/admin/settings', Settings],
+  [adminCopy.navigation.dashboard, '/admin/dashboard', BarChart3],
+  [adminCopy.navigation.orders, '/admin/orders', ClipboardList],
+  [adminCopy.navigation.menu, '/admin/menu/items', Utensils],
+  [adminCopy.navigation.packages, '/admin/packages', Package],
+  [adminCopy.navigation.payments, '/admin/payments', CreditCard],
+  [adminCopy.navigation.settings, '/admin/settings', Settings],
 ] as const;
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
@@ -55,11 +53,11 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         onClick={() => setOpen(false)}
       >
         <span className="grid h-10 w-10 place-items-center rounded-2xl bg-primary text-lg font-bold text-white">
-          F
+          {appBrand.logoInitial}
         </span>
         <span>
           <span className="block font-serif text-xl font-semibold text-primary">
-            The Feast Factory
+            {appBrand.name}
           </span>
           <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
             Operations

@@ -1,8 +1,7 @@
 // =============================================================================
-// FeastFactory Revised Prisma Schema
-// Purpose: Proposal/reference schema for the new feastfactory database design.
+// FeastFactory canonical Prisma schema
+// Purpose: Source of truth for the FeastFactory PostgreSQL database.
 // Database target: postgresql://USER:PASSWORD@HOST:PORT/feastfactory?schema=public
-// NOTE: This file does not replace the live schema.prisma yet.
 // =============================================================================
 
 generator client {
@@ -33,7 +32,6 @@ enum PaymentStatus {
   PAID
   FAILED
   REFUNDED
-  PARTIALLY_REFUNDED
 }
 
 enum RefundStatus {
@@ -55,26 +53,9 @@ enum AddressType {
   OTHER
 }
 
-enum EventStatus {
-  DRAFT
-  CONFIRMED
-  COMPLETED
-  CANCELLED
-}
-
 enum CancellationActor {
   CUSTOMER
   ADMIN
-}
-
-enum NotificationType {
-  ORDER_CONFIRMED
-  ORDER_IN_PROGRESS
-  ORDER_READY
-  ORDER_DELIVERED
-  ORDER_CANCELLED
-  PAYMENT_FAILED
-  REFUND_UPDATED
 }
 
 enum DocumentType {
@@ -87,6 +68,12 @@ enum PackageType {
   MEAL_BOX
   FIXED_PACKAGE
   CUSTOM_PACKAGE
+}
+
+enum OrderingOfferingCode {
+  MEAL_BOX
+  PACKAGES
+  CUSTOM_MENU
 }
 
 enum PackageMenuItemRole {
@@ -123,12 +110,10 @@ model User {
   updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at")
   deletedAt    DateTime? @map("deleted_at")
 
-  addresses     UserAddress[]
-  events        Event[]
-  carts         Cart[]
-  orders        Order[]
-  notifications Notification[]
-  documents     OrderDocument[]
+  addresses UserAddress[]
+  carts     Cart[]
+  orders    Order[]
+  documents OrderDocument[]
 
   @@index([mobileNumber])
   @@index([isActive])
@@ -153,7 +138,8 @@ model UserAddress {
   updatedAt    DateTime    @default(now()) @updatedAt @map("updated_at")
 
   user   User    @relation(fields: [userId], references: [id])
-  events Event[]
+  carts  Cart[]
+  orders Order[]
 
   @@index([userId])
   @@index([userId, isDefault])
@@ -196,12 +182,12 @@ model MenuItem {
   updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at")
   deletedAt    DateTime? @map("deleted_at")
 
-  category                   MenuCategory       @relation(fields: [categoryId], references: [id])
-  packageMenuItems           PackageMenuItem[]
-  cartItems                  CartItem[]         @relation("CartItemMenuItem")
-  replacedInCartItems        CartItem[]         @relation("CartItemReplacedMenuItem")
-  orderSelectedItems         OrderSelectedItem[] @relation("OrderSelectedMenuItem")
-  replacedInOrderSelections  OrderSelectedItem[] @relation("OrderSelectedReplacedMenuItem")
+  category                  MenuCategory        @relation(fields: [categoryId], references: [id])
+  packageMenuItems          PackageMenuItem[]
+  cartItems                 CartItem[]          @relation("CartItemMenuItem")
+  replacedInCartItems       CartItem[]          @relation("CartItemReplacedMenuItem")
+  orderSelectedItems        OrderSelectedItem[] @relation("OrderSelectedMenuItem")
+  replacedInOrderSelections OrderSelectedItem[] @relation("OrderSelectedReplacedMenuItem")
 
   @@unique([categoryId, name])
   @@index([categoryId])
@@ -220,6 +206,8 @@ model Package {
   type         PackageType @default(FIXED_PACKAGE)
   isActive     Boolean     @default(true) @map("is_active")
   displayOrder Int         @default(0) @map("display_order")
+  isFeatured  Boolean      @default(false) @map("is_featured")
+  featuredOrder Int?       @map("featured_order")
   createdAt    DateTime    @default(now()) @map("created_at")
   updatedAt    DateTime    @default(now()) @updatedAt @map("updated_at")
   deletedAt    DateTime?   @map("deleted_at")
@@ -228,7 +216,22 @@ model Package {
 
   @@index([type])
   @@index([isActive])
+  @@index([isFeatured, featuredOrder])
   @@map("packages")
+}
+
+model OrderingOffering {
+  id           String               @id @default(uuid())
+  code         OrderingOfferingCode @unique
+  title        String               @db.VarChar(100)
+  description  String               @db.VarChar(500)
+  displayOrder Int                  @default(0) @map("display_order")
+  isActive     Boolean              @default(true) @map("is_active")
+  createdAt    DateTime             @default(now()) @map("created_at")
+  updatedAt    DateTime             @default(now()) @updatedAt @map("updated_at")
+
+  @@index([isActive, displayOrder])
+  @@map("ordering_offerings")
 }
 
 model PackageVersion {
@@ -245,7 +248,6 @@ model PackageVersion {
 
   package          Package           @relation(fields: [packageId], references: [id])
   packageMenuItems PackageMenuItem[]
-  events           Event[]
   carts            Cart[]
 
   @@unique([packageId, versionNo])
@@ -276,60 +278,39 @@ model PackageMenuItem {
 }
 
 // =============================================================================
-// EVENT AND CART DOMAIN
+// CART DOMAIN
 // =============================================================================
-
-model Event {
-  id               String      @id @default(uuid())
-  userId           String      @map("user_id")
-  packageVersionId String      @map("package_version_id")
-  addressId        String      @map("address_id")
-  regionId         String?     @map("region_id")
-  eventName        String?     @map("event_name") @db.VarChar(200)
-  eventDate        DateTime    @map("event_date") @db.Date
-  eventTimeStart   DateTime?   @map("event_time_start") @db.Time
-  guestCount       Int         @map("guest_count")
-  distanceKm       Decimal?    @map("distance_km") @db.Decimal(8, 2)
-  deliveryFee      Decimal     @default(0) @map("delivery_fee") @db.Decimal(10, 2)
-  status           EventStatus @default(DRAFT)
-  specialNotes     String?     @map("special_notes") @db.VarChar(1000)
-  createdAt        DateTime    @default(now()) @map("created_at")
-  updatedAt        DateTime    @default(now()) @updatedAt @map("updated_at")
-
-  user           User             @relation(fields: [userId], references: [id])
-  packageVersion PackageVersion   @relation(fields: [packageVersionId], references: [id])
-  address        UserAddress      @relation(fields: [addressId], references: [id])
-  region         OperatingRegion? @relation(fields: [regionId], references: [id])
-  carts          Cart[]
-  orders         Order[]
-
-  @@index([userId])
-  @@index([eventDate, status])
-  @@index([regionId, eventDate])
-  @@index([userId, eventDate])
-  @@map("events")
-}
 
 model Cart {
   id               String     @id @default(uuid())
   userId           String     @map("user_id")
   packageVersionId String     @map("package_version_id")
-  eventId          String?    @map("event_id")
+  addressId        String?    @map("address_id")
+  regionId         String?    @map("region_id")
+  eventName        String?    @map("event_name") @db.VarChar(200)
+  eventDate        DateTime?  @map("event_date") @db.Date
+  eventTimeStart   DateTime?  @map("event_time_start") @db.Time
+  guestCount       Int?       @map("guest_count")
+  distanceKm       Decimal?   @map("distance_km") @db.Decimal(8, 2)
+  deliveryFee      Decimal    @default(0) @map("delivery_fee") @db.Decimal(10, 2)
+  specialNotes     String?    @map("special_notes") @db.VarChar(1000)
   status           CartStatus @default(ACTIVE)
   expiresAt        DateTime?  @map("expires_at")
   lastQuotedAt     DateTime?  @map("last_quoted_at")
   createdAt        DateTime   @default(now()) @map("created_at")
   updatedAt        DateTime   @default(now()) @updatedAt @map("updated_at")
 
-  user           User           @relation(fields: [userId], references: [id])
-  packageVersion PackageVersion @relation(fields: [packageVersionId], references: [id])
-  event          Event?         @relation(fields: [eventId], references: [id])
+  user           User             @relation(fields: [userId], references: [id])
+  packageVersion PackageVersion   @relation(fields: [packageVersionId], references: [id])
+  address        UserAddress?     @relation(fields: [addressId], references: [id])
+  region         OperatingRegion? @relation(fields: [regionId], references: [id])
   items          CartItem[]
   order          Order?
 
   @@index([userId, status])
   @@index([packageVersionId])
-  @@index([eventId])
+  @@index([addressId])
+  @@index([regionId, eventDate])
   @@index([expiresAt])
   @@map("carts")
 }
@@ -366,17 +347,22 @@ model Order {
   id          String  @id @default(uuid())
   orderNumber String  @unique @map("order_number") @db.VarChar(20)
   userId      String  @map("user_id")
-  eventId     String  @map("event_id")
   cartId      String? @unique @map("cart_id")
   regionId    String? @map("region_id")
+  addressId   String  @map("address_id")
 
-  guestCount                Int     @map("guest_count")
-  basePerPlatePrice         Decimal @map("base_per_plate_price") @db.Decimal(10, 2)
-  totalCustomizationCharges Decimal @default(0) @map("total_customization_charges") @db.Decimal(10, 2)
-  finalPerPlatePrice        Decimal @map("final_per_plate_price") @db.Decimal(10, 2)
-  totalAmount               Decimal @map("total_amount") @db.Decimal(10, 2)
+  eventName      String?   @map("event_name") @db.VarChar(200)
+  eventDate      DateTime  @map("event_date") @db.Date
+  eventTimeStart DateTime? @map("event_time_start") @db.Time
+  specialNotes   String?   @map("special_notes") @db.VarChar(1000)
+
+  guestCount                Int      @map("guest_count")
+  basePerPlatePrice         Decimal  @map("base_per_plate_price") @db.Decimal(10, 2)
+  totalCustomizationCharges Decimal  @default(0) @map("total_customization_charges") @db.Decimal(10, 2)
+  finalPerPlatePrice        Decimal  @map("final_per_plate_price") @db.Decimal(10, 2)
+  totalAmount               Decimal  @map("total_amount") @db.Decimal(10, 2)
   distanceKm                Decimal? @map("distance_km") @db.Decimal(8, 2)
-  deliveryFee               Decimal @default(0) @map("delivery_fee") @db.Decimal(10, 2)
+  deliveryFee               Decimal  @default(0) @map("delivery_fee") @db.Decimal(10, 2)
 
   packageName      String @map("package_name") @db.VarChar(100)
   packageVersionNo Int    @map("package_version_no")
@@ -384,29 +370,29 @@ model Order {
   orderStatus   OrderStatus   @default(DRAFT) @map("order_status")
   paymentStatus PaymentStatus @default(PENDING) @map("payment_status")
 
-  cancelledAt          DateTime?          @map("cancelled_at")
-  cancelledBy          CancellationActor? @map("cancelled_by")
-  cancellationReason   String?            @map("cancellation_reason") @db.VarChar(500)
-  cancelledByAdminId   String?            @map("cancelled_by_admin_id")
-  bookingLeadHours     Int?               @map("booking_lead_hours")
-  createdAt            DateTime           @default(now()) @map("created_at")
-  updatedAt            DateTime           @default(now()) @updatedAt @map("updated_at")
+  cancelledAt        DateTime?          @map("cancelled_at")
+  cancelledBy        CancellationActor? @map("cancelled_by")
+  cancellationReason String?            @map("cancellation_reason") @db.VarChar(500)
+  cancelledByAdminId String?            @map("cancelled_by_admin_id")
+  bookingLeadHours   Int?               @map("booking_lead_hours")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @default(now()) @updatedAt @map("updated_at")
 
   user             User                 @relation(fields: [userId], references: [id])
-  event            Event                @relation(fields: [eventId], references: [id])
+  address          UserAddress          @relation(fields: [addressId], references: [id])
   cart             Cart?                @relation(fields: [cartId], references: [id])
   region           OperatingRegion?     @relation(fields: [regionId], references: [id])
   selectedItems    OrderSelectedItem[]
   payments         Payment[]
   statusHistory    OrderStatusHistory[]
   notes            OrderNote[]
-  notifications    Notification[]
   documents        OrderDocument[]
   cancelledByAdmin AdminUser?           @relation("OrderCancelledByAdmin", fields: [cancelledByAdminId], references: [id])
 
   @@index([orderNumber])
   @@index([userId])
-  @@index([eventId])
+  @@index([addressId])
+  @@index([eventDate])
   @@index([orderStatus])
   @@index([paymentStatus])
   @@index([createdAt])
@@ -424,13 +410,13 @@ model OrderSelectedItem {
   replacedMenuItemId String?          @map("replaced_menu_item_id")
   role               SelectedItemRole
 
-  menuItemName         String  @map("menu_item_name") @db.VarChar(150)
-  categoryName         String  @map("category_name") @db.VarChar(100)
-  replacedMenuItemName String? @map("replaced_menu_item_name") @db.VarChar(150)
-  isVeg                Boolean @map("is_veg")
-  itemPrice            Decimal @map("item_price") @db.Decimal(10, 2)
-  includedValue        Decimal @map("included_value") @db.Decimal(10, 2)
-  adjustmentAmount     Decimal @default(0) @map("adjustment_amount") @db.Decimal(10, 2)
+  menuItemName         String   @map("menu_item_name") @db.VarChar(150)
+  categoryName         String   @map("category_name") @db.VarChar(100)
+  replacedMenuItemName String?  @map("replaced_menu_item_name") @db.VarChar(150)
+  isVeg                Boolean  @map("is_veg")
+  itemPrice            Decimal  @map("item_price") @db.Decimal(10, 2)
+  includedValue        Decimal  @map("included_value") @db.Decimal(10, 2)
+  adjustmentAmount     Decimal  @default(0) @map("adjustment_amount") @db.Decimal(10, 2)
   createdAt            DateTime @default(now()) @map("created_at")
 
   order            Order        @relation(fields: [orderId], references: [id])
@@ -456,15 +442,15 @@ model Payment {
   amount        Decimal       @db.Decimal(10, 2)
   paymentStatus PaymentStatus @default(PENDING) @map("payment_status")
 
-  razorpayOrderId   String? @map("razorpay_order_id") @db.VarChar(100)
-  razorpayPaymentId String? @map("razorpay_payment_id") @db.VarChar(100)
-  razorpaySignature String? @map("razorpay_signature") @db.VarChar(500)
-  gatewayResponse   Json?   @map("gateway_response")
-  paymentMethod     String? @map("payment_method") @db.VarChar(50)
+  razorpayOrderId   String?   @map("razorpay_order_id") @db.VarChar(100)
+  razorpayPaymentId String?   @map("razorpay_payment_id") @db.VarChar(100)
+  razorpaySignature String?   @map("razorpay_signature") @db.VarChar(500)
+  gatewayResponse   Json?     @map("gateway_response")
+  paymentMethod     String?   @map("payment_method") @db.VarChar(50)
   paidAt            DateTime? @map("paid_at")
-  failureReason     String? @map("failure_reason") @db.VarChar(500)
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at")
+  failureReason     String?   @map("failure_reason") @db.VarChar(500)
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at")
 
   order     Order           @relation(fields: [orderId], references: [id])
   refunds   Refund[]
@@ -505,16 +491,16 @@ model Refund {
 // =============================================================================
 
 model AdminUser {
-  id           String     @id @default(uuid())
-  email        String     @unique @db.VarChar(255)
-  name         String     @db.VarChar(100)
+  id           String    @id @default(uuid())
+  email        String    @unique @db.VarChar(255)
+  name         String    @db.VarChar(100)
   role         AdminRole
-  regionId     String?    @map("region_id")
-  passwordHash String     @map("password_hash") @db.VarChar(255)
-  isActive     Boolean    @default(true) @map("is_active")
-  lastLoginAt  DateTime?  @map("last_login_at")
-  createdAt    DateTime   @default(now()) @map("created_at")
-  updatedAt    DateTime   @default(now()) @updatedAt @map("updated_at")
+  regionId     String?   @map("region_id")
+  passwordHash String    @map("password_hash") @db.VarChar(255)
+  isActive     Boolean   @default(true) @map("is_active")
+  lastLoginAt  DateTime? @map("last_login_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at")
 
   orderStatusHistory OrderStatusHistory[]
   cancelledOrders    Order[]              @relation("OrderCancelledByAdmin")
@@ -540,7 +526,7 @@ model OperatingRegion {
   updatedAt        DateTime @default(now()) @updatedAt @map("updated_at")
 
   admins AdminUser[]
-  events Event[]
+  carts  Cart[]
   orders Order[]
 
   @@index([isActive])
@@ -591,24 +577,6 @@ model OrderNote {
 
   @@index([orderId, createdAt])
   @@map("order_notes")
-}
-
-model Notification {
-  id        String           @id @default(uuid())
-  userId    String           @map("user_id")
-  orderId   String?          @map("order_id")
-  type      NotificationType
-  title     String           @db.VarChar(150)
-  message   String           @db.VarChar(500)
-  readAt    DateTime?        @map("read_at")
-  createdAt DateTime         @default(now()) @map("created_at")
-
-  user  User   @relation(fields: [userId], references: [id])
-  order Order? @relation(fields: [orderId], references: [id])
-
-  @@index([userId, readAt, createdAt])
-  @@index([orderId])
-  @@map("notifications")
 }
 
 model OrderDocument {

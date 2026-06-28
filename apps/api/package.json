@@ -6,17 +6,19 @@
     "dev": "nest start --watch",
     "build": "nest build",
     "start": "node dist/main.js",
-    "start:prod": "node dist/main.js",
     "lint": "eslint \"src/**/*.ts\"",
     "prisma:generate": "prisma generate --schema=prisma/schema.prisma",
-    "db:push": "prisma db push --schema=prisma/schema.prisma",
     "db:migrate": "prisma migrate dev --schema=prisma/schema.prisma",
+    "db:deploy": "prisma migrate deploy --schema=prisma/schema.prisma",
     "db:seed": "tsx prisma/seed.ts",
-    "db:triggers": "prisma db execute --schema=prisma/schema.prisma --file=prisma/sql/feastfactory-updated-at-triggers.sql"
+    "db:triggers": "prisma db execute --schema=prisma/schema.prisma --file=prisma/sql/feastfactory-updated-at-triggers.sql",
+    "test:business": "tsx prisma/verify-business-rules.ts",
+    "test:api": "tsx --test tests/**/*.test.ts",
+    "contracts:generate": "nest build && node scripts/generate-openapi-contracts.mjs",
+    "contracts:check": "nest build && node scripts/generate-openapi-contracts.mjs --check"
   },
   "dependencies": {
     "@aranyam/shared-types": "*",
-    "@aranyam/validation": "*",
     "@google-cloud/storage": "^7.21.0",
     "@nestjs/common": "^11.0.0",
     "@nestjs/config": "^4.0.0",

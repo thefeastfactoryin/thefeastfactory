@@ -1,8 +1,7 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger';
+import { IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class CreateRefundDto {
-  @ApiProperty() @Matches(/^\d+(\.\d{1,2})?$/) amount!: string;
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()

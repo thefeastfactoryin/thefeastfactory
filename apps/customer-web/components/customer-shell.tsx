@@ -1,7 +1,6 @@
 'use client';
 
 import {
-  Bell,
   BookOpen,
   ClipboardList,
   Home,
@@ -11,20 +10,36 @@ import {
   User,
 } from 'lucide-react';
 import Link from 'next/link';
+import type { CartSummary } from '@aranyam/shared-types';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useOrderBuilderStore } from '../store/order-builder.store';
 import { useSessionStore } from '../store/session.store';
-import { apiRequest } from '../lib/api';
 import { cn } from '../lib/utils';
 import { Footer } from './home/footer';
+import { apiRequest } from '../lib/api';
 
 const navLinks = [
   { href: '/', label: 'Home', activeKey: '/', icon: Home },
   { href: '/menu', label: 'Menu', activeKey: '/menu', icon: BookOpen },
-  { href: '/packages', label: 'Packages', activeKey: '/packages', icon: Package },
-  { href: '/packages/meal-boxes', label: 'Meal Boxes', activeKey: '/packages/meal-boxes', icon: Package },
-  { href: '/orders', label: 'Orders', activeKey: '/orders', icon: ClipboardList },
+  {
+    href: '/packages',
+    label: 'Packages',
+    activeKey: '/packages',
+    icon: Package,
+  },
+  {
+    href: '/packages/meal-boxes',
+    label: 'Meal Boxes',
+    activeKey: '/packages/meal-boxes',
+    icon: Package,
+  },
+  {
+    href: '/orders',
+    label: 'Orders',
+    activeKey: '/orders',
+    icon: ClipboardList,
+  },
   { href: '/about', label: 'About Us', activeKey: '/about', icon: Home },
 ];
 
@@ -41,17 +56,35 @@ export function CustomerShell({
   const session = useSessionStore((s) => s.session);
   const selectedItems = useOrderBuilderStore((s) => s.selectedItems);
   const cartPackage = useOrderBuilderStore((s) => s.package);
+  const hydrateFromCart = useOrderBuilderStore((s) => s.hydrateFromCart);
+  const setDbCartId = useOrderBuilderStore((s) => s.setDbCartId);
   const [mounted, setMounted] = useState(false);
-  const [unread, setUnread] = useState(0);
 
   useEffect(() => setMounted(true), []);
-
   useEffect(() => {
-    if (!session) { setUnread(0); return; }
-    apiRequest<{ count: number }>('/me/notifications/unread-count', {}, session.accessToken)
-      .then((r) => setUnread(r.count))
-      .catch(() => undefined);
-  }, [session, pathname]);
+    if (!session) return;
+    apiRequest<CartSummary | null>('/cart', {}, session.accessToken)
+      .then(async (cart) => {
+        if (cart) {
+          hydrateFromCart(cart);
+          return;
+        }
+        if (cartPackage?.packageVersionId) {
+          const created = await apiRequest<CartSummary>(
+            '/cart',
+            {
+              method: 'PUT',
+              body: JSON.stringify({
+                packageVersionId: cartPackage.packageVersionId,
+              }),
+            },
+            session.accessToken,
+          );
+          setDbCartId(created.id);
+        }
+      })
+      .catch(() => {});
+  }, [session, cartPackage?.packageVersionId, hydrateFromCart, setDbCartId]);
 
   const cartCount = mounted ? selectedItems.length : 0;
   const cartActive = mounted && (Boolean(cartPackage) || pathname === '/cart');
@@ -81,14 +114,19 @@ export function CustomerShell({
           {/* Desktop nav */}
           <nav className="hidden items-center gap-0 md:flex">
             {navLinks.map(({ href, label, activeKey }) => {
-              const selfMatch = activeKey === '/' ? pathname === '/' : pathname.startsWith(activeKey);
+              const selfMatch =
+                activeKey === '/'
+                  ? pathname === '/'
+                  : pathname.startsWith(activeKey);
               // If a more specific nav entry also matches, this one is not active
-              const moreSpecificMatch = selfMatch && navLinks.some(
-                (other) =>
-                  other.activeKey !== activeKey &&
-                  other.activeKey.startsWith(activeKey) &&
-                  pathname.startsWith(other.activeKey),
-              );
+              const moreSpecificMatch =
+                selfMatch &&
+                navLinks.some(
+                  (other) =>
+                    other.activeKey !== activeKey &&
+                    other.activeKey.startsWith(activeKey) &&
+                    pathname.startsWith(other.activeKey),
+                );
               const active = selfMatch && !moreSpecificMatch;
               return (
                 <Link
@@ -109,40 +147,27 @@ export function CustomerShell({
 
           {/* Right actions */}
           <div className="flex items-center gap-2">
+            {/* Cart */}
             {session && (
               <Link
-                href="/notifications"
-                className="relative grid h-9 w-9 place-items-center rounded-lg text-muted-foreground hover:text-foreground"
-                aria-label={`${unread} unread notifications`}
+                href="/cart"
+                aria-label={`Cart — ${cartCount} items selected`}
+                className={cn(
+                  'relative flex h-9 items-center gap-2 rounded-full px-4 text-sm font-bold transition-all',
+                  cartActive
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'border border-border bg-card text-foreground hover:border-primary/40 hover:text-primary',
+                )}
               >
-                <Bell className="h-4 w-4" />
-                {unread > 0 && (
-                  <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-accent px-1 text-[9px] font-extrabold text-accent-foreground">
-                    {unread}
+                <ShoppingBag className="h-4 w-4 shrink-0" />
+                <span className="hidden sm:inline">Your cart</span>
+                {cartCount > 0 && (
+                  <span className="grid h-5 min-w-5 place-items-center rounded-full bg-accent px-1 text-[10px] font-extrabold text-accent-foreground">
+                    {cartCount}
                   </span>
                 )}
               </Link>
             )}
-
-            {/* Cart */}
-            <Link
-              href="/cart"
-              aria-label={`Cart — ${cartCount} items selected`}
-              className={cn(
-                'relative flex h-9 items-center gap-2 rounded-full px-4 text-sm font-bold transition-all',
-                cartActive
-                  ? 'bg-primary text-primary-foreground shadow-sm'
-                  : 'border border-border bg-card text-foreground hover:border-primary/40 hover:text-primary',
-              )}
-            >
-              <ShoppingBag className="h-4 w-4 shrink-0" />
-              <span className="hidden sm:inline">Your cart</span>
-              {cartCount > 0 && (
-                <span className="grid h-5 min-w-5 place-items-center rounded-full bg-accent px-1 text-[10px] font-extrabold text-accent-foreground">
-                  {cartCount}
-                </span>
-              )}
-            </Link>
 
             {/* Login / Profile */}
             <Link
@@ -150,7 +175,11 @@ export function CustomerShell({
               aria-label={session ? 'Profile' : 'Sign in'}
               className="grid h-9 w-9 place-items-center rounded-full text-muted-foreground hover:text-foreground transition-colors"
             >
-              {session ? <User className="h-5 w-5" /> : <LogIn className="h-5 w-5" />}
+              {session ? (
+                <User className="h-5 w-5" />
+              ) : (
+                <LogIn className="h-5 w-5" />
+              )}
             </Link>
           </div>
         </div>
@@ -161,13 +190,22 @@ export function CustomerShell({
       <Footer />
 
       {/* ─── Mobile bottom nav ─── */}
-      <nav className="fixed inset-x-0 bottom-0 z-50 grid grid-cols-5 border-t border-border bg-card/97 backdrop-blur md:hidden">
+      <nav
+        className={`fixed inset-x-0 bottom-0 z-50 grid ${session ? 'grid-cols-5' : 'grid-cols-4'} border-t border-border bg-card/97 backdrop-blur md:hidden`}
+      >
         {[
           ...mobileLinks,
-          { href: '/cart', label: 'Cart', icon: ShoppingBag },
-          { href: session ? '/profile' : '/login', label: session ? 'Profile' : 'Login', icon: session ? User : LogIn },
+          ...(session
+            ? [{ href: '/cart', label: 'Cart', icon: ShoppingBag }]
+            : []),
+          {
+            href: session ? '/profile' : '/login',
+            label: session ? 'Profile' : 'Login',
+            icon: session ? User : LogIn,
+          },
         ].map(({ href, label, icon: Icon }) => {
-          const active = href === '/' ? pathname === '/' : pathname.startsWith(href);
+          const active =
+            href === '/' ? pathname === '/' : pathname.startsWith(href);
           return (
             <Link
               key={href + label}

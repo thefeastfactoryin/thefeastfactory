@@ -56,7 +56,7 @@ export class AdminOrdersController {
   ) {
     return this.service.listPayments(admin, regionId);
   }
-  @Post('payments/:id/refunds') refund(
+  @Post('payments/:id/full-refund') refund(
     @CurrentAdmin() admin: JwtPayload,
     @Param('id') id: string,
     @Body() dto: CreateRefundDto,

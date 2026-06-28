@@ -5,7 +5,6 @@ import {
   ArrowLeft,
   ChefHat,
   CheckCircle2,
-  Circle,
   Sparkles,
   Users,
 } from 'lucide-react';
@@ -17,12 +16,15 @@ import { Button } from '../../../components/ui/button';
 import { StatePanel } from '../../../components/ui/state-panel';
 import { apiRequest } from '../../../lib/api';
 import { useOrderBuilderStore } from '../../../store/order-builder.store';
+import { useSessionStore } from '../../../store/session.store';
 import { cn } from '../../../lib/utils';
 
 export default function PackagePage() {
   const { packageId } = useParams<{ packageId: string }>();
   const router = useRouter();
   const setPackage = useOrderBuilderStore((s) => s.setPackage);
+  const setDbCartId = useOrderBuilderStore((s) => s.setDbCartId);
+  const session = useSessionStore((s) => s.session);
   const [version, setVersion] = useState<
     (PackageConfiguration & { packageName: string }) | null
   >(null);
@@ -39,18 +41,23 @@ export default function PackagePage() {
       .catch((reason) => setError(reason.message));
   }, [packageId]);
 
-  function startOrder() {
+  async function startOrder() {
     if (!version) return;
     setPackage({
       packageId,
       packageVersionId: version.id,
       packageName: version.packageName,
+      packageType: version.packageType,
       isCustom: version.isCustom,
       basePricePerPlate: version.basePricePerPlate,
       minGuestCount: version.minGuestCount,
       maxGuestCount: version.maxGuestCount,
     });
-    router.push(`/events/new?packageVersionId=${version.id}`);
+    if (session) {
+      const cart = await apiRequest<{ id: string }>('/cart', { method: 'PUT', body: JSON.stringify({ packageVersionId: version.id }) }, session.accessToken);
+      setDbCartId(cart.id);
+    }
+    router.push('/menu/select');
   }
 
   if (error)

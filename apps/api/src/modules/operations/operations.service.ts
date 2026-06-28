@@ -6,8 +6,6 @@ import {
 import { ConfigService } from '@nestjs/config';
 import {
   DocumentType,
-  NotificationType,
-  OrderStatus,
   PaymentStatus,
   Prisma,
   RefundStatus,
@@ -53,6 +51,39 @@ const publicSettingDefaults = {
   supportPhone: '+91 90000 00000',
 };
 
+type PdfSnapshot = {
+  business: {
+    legalName: string;
+    tradeName: string;
+    address: string;
+    gstin: string;
+    sacCode: string;
+    legalFooter: string;
+  };
+  order: {
+    orderNumber: string;
+    packageName: string;
+    guestCount: number;
+    finalPerPlatePrice: string;
+    basePerPlatePrice: string;
+    customizationCharges: string;
+    deliveryFee: string;
+    totalAmount: string;
+    eventDate: string | Date;
+    address: {
+      addressLine1: string;
+      city: string;
+      state: string;
+      pincode: string;
+    };
+    customer: { name?: string | null; mobileNumber: string; email?: string | null };
+    payment?: { reference?: string | null; method?: string | null; paidAt?: string | Date | null } | null;
+    items: Array<{ name: string; category: string; role: string; itemPrice: string; adjustmentAmount: string }>;
+  };
+  tax: { cgstRate: string; sgstRate: string; igstRate: string };
+  refund?: { amount: string; reason?: string | null };
+};
+
 @Injectable()
 export class OperationsService {
   constructor(
@@ -60,52 +91,6 @@ export class OperationsService {
     private readonly config: ConfigService,
     private readonly regions: OperatingRegionsService,
   ) {}
-
-  notifications(userId: string) {
-    return this.prisma.notification.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-      take: 100,
-    });
-  }
-
-  async unreadCount(userId: string) {
-    return {
-      count: await this.prisma.notification.count({
-        where: { userId, readAt: null },
-      }),
-    };
-  }
-
-  async markNotificationRead(userId: string, id: string) {
-    const result = await this.prisma.notification.updateMany({
-      where: { id, userId },
-      data: { readAt: new Date() },
-    });
-    if (!result.count) throw new NotFoundException('Notification not found');
-    return { success: true };
-  }
-
-  async markAllNotificationsRead(userId: string) {
-    await this.prisma.notification.updateMany({
-      where: { userId, readAt: null },
-      data: { readAt: new Date() },
-    });
-    return { success: true };
-  }
-
-  notify(
-    tx: Prisma.TransactionClient,
-    input: {
-      userId: string;
-      orderId?: string;
-      type: NotificationType;
-      title: string;
-      message: string;
-    },
-  ) {
-    return tx.notification.create({ data: input });
-  }
 
   async notes(orderId: string) {
     await this.assertOrder(orderId);
@@ -137,7 +122,7 @@ export class OperationsService {
     );
     const start = from ? new Date(from) : new Date();
     const end = to ? new Date(to) : new Date(start.getTime() + 30 * 86_400_000);
-    return this.prisma.event.findMany({
+    const orders = await this.prisma.order.findMany({
       where: {
         eventDate: { gte: start, lte: end },
         ...(regionId ? { regionId } : {}),
@@ -149,17 +134,18 @@ export class OperationsService {
         address: true,
         region: true,
         user: { select: { id: true, name: true, mobileNumber: true } },
-        orders: {
-          select: {
-            id: true,
-            orderNumber: true,
-            orderStatus: true,
-            paymentStatus: true,
-          },
-        },
       },
       orderBy: [{ eventDate: 'asc' }, { eventTimeStart: 'asc' }],
     });
+    return orders.map((order) => ({
+      ...order,
+      orders: [{
+        id: order.id,
+        orderNumber: order.orderNumber,
+        orderStatus: order.orderStatus,
+        paymentStatus: order.paymentStatus,
+      }],
+    }));
   }
 
   async queue(admin: JwtPayload, requestedRegionId?: string) {
@@ -170,13 +156,13 @@ export class OperationsService {
     const now = new Date();
     const upcoming = new Date(now.getTime() + 7 * 86_400_000);
     const [events, failedPayments, pendingRefunds] = await Promise.all([
-      this.prisma.event.findMany({
+      this.prisma.order.findMany({
         where: {
           eventDate: { gte: now, lte: upcoming },
-          status: { not: 'CANCELLED' },
+          orderStatus: { not: 'CANCELLED' },
           ...(regionId ? { regionId } : {}),
         },
-        include: { address: true, region: true, orders: true, user: true },
+        include: { address: true, region: true, user: true },
         orderBy: { eventDate: 'asc' },
         take: 30,
       }),
@@ -203,7 +189,19 @@ export class OperationsService {
         take: 20,
       }),
     ]);
-    return { upcomingEvents: events, failedPayments, pendingRefunds };
+    return {
+      upcomingEvents: events.map((order) => ({
+        ...order,
+        orders: [{
+          id: order.id,
+          orderNumber: order.orderNumber,
+          orderStatus: order.orderStatus,
+          paymentStatus: order.paymentStatus,
+        }],
+      })),
+      failedPayments,
+      pendingRefunds,
+    };
   }
 
   settings() {
@@ -329,7 +327,7 @@ export class OperationsService {
       where: { id: orderId, ...(admin ? {} : { userId }) },
       include: {
         user: true,
-        event: { include: { address: true } },
+        address: true,
         selectedItems: true,
         payments: { include: { refunds: true } },
       },
@@ -344,7 +342,6 @@ export class OperationsService {
     const paid = order.payments.find(
       (payment) =>
         payment.paymentStatus === PaymentStatus.PAID ||
-        payment.paymentStatus === PaymentStatus.PARTIALLY_REFUNDED ||
         payment.paymentStatus === PaymentStatus.REFUNDED,
     );
     if (!paid) return;
@@ -361,7 +358,7 @@ export class OperationsService {
       baseSnapshot,
       settings.receipt_prefix || 'RCT',
     );
-    if (this.taxSettingsComplete(settings)) {
+    if (settings.business_gstin && settings.tax_sac_code) {
       await this.ensureDocument(
         order.id,
         order.userId,
@@ -394,6 +391,16 @@ export class OperationsService {
     }
   }
 
+  async generateOrderDocuments(orderId: string) {
+    const owner = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      select: { userId: true },
+    });
+    if (!owner) throw new NotFoundException('Order not found');
+    const order = await this.loadDocumentOrder(orderId, owner.userId, false);
+    await this.ensureDocuments(order);
+  }
+
   private async ensureDocument(
     orderId: string,
     userId: string,
@@ -421,7 +428,10 @@ export class OperationsService {
     });
   }
 
-  private snapshot(order: any, settings: Record<string, string>) {
+  private snapshot(
+    order: Awaited<ReturnType<OperationsService['loadDocumentOrder']>>,
+    settings: Record<string, string>,
+  ) {
     return {
       business: {
         legalName:
@@ -441,18 +451,28 @@ export class OperationsService {
         packageName: order.packageName,
         guestCount: order.guestCount,
         finalPerPlatePrice: order.finalPerPlatePrice.toFixed(2),
+        basePerPlatePrice: order.basePerPlatePrice.toFixed(2),
+        customizationCharges: order.totalCustomizationCharges.toFixed(2),
+        deliveryFee: order.deliveryFee.toFixed(2),
         totalAmount: order.totalAmount.toFixed(2),
         createdAt: order.createdAt,
-        eventDate: order.event.eventDate,
-        address: order.event.address,
+        eventDate: order.eventDate,
+        address: order.address,
         customer: {
           name: order.user.name,
           mobileNumber: order.user.mobileNumber,
           email: order.user.email,
         },
-        items: order.selectedItems.map((item: any) => ({
+        payment: order.payments[0] ? {
+          reference: order.payments[0].razorpayPaymentId,
+          method: order.payments[0].paymentMethod,
+          paidAt: order.payments[0].paidAt,
+        } : null,
+        items: order.selectedItems.map((item) => ({
           name: item.menuItemName,
           category: item.categoryName,
+          role: item.role,
+          itemPrice: item.itemPrice.toFixed(2),
           adjustmentAmount: item.adjustmentAmount.toFixed(2),
         })),
       },
@@ -462,15 +482,6 @@ export class OperationsService {
         igstRate: settings.tax_igst_rate || '0',
       },
     };
-  }
-
-  private taxSettingsComplete(settings: Record<string, string>) {
-    return Boolean(
-      settings.business_legal_name &&
-      settings.business_address &&
-      settings.business_gstin &&
-      settings.business_state_code,
-    );
   }
 
   private renderPdf(
@@ -484,7 +495,7 @@ export class OperationsService {
       document.on('data', (chunk: Buffer) => chunks.push(chunk));
       document.on('end', () => resolve(Buffer.concat(chunks)));
       document.on('error', reject);
-      const data = snapshot as any;
+      const data = snapshot as unknown as PdfSnapshot;
       document
         .fontSize(20)
         .text(data.business.tradeName || data.business.legalName);
@@ -496,12 +507,14 @@ export class OperationsService {
         .moveDown()
         .fillColor('#111')
         .fontSize(16)
-        .text(type.replaceAll('_', ' '));
+        .text(type === DocumentType.PAYMENT_RECEIPT ? 'INVOICE / PAYMENT RECEIPT' : type.replaceAll('_', ' '));
       document.fontSize(10).text(`Document: ${number}`);
       document.text(`Order: ${data.order.orderNumber}`);
       document.text(
         `Customer: ${data.order.customer.name || data.order.customer.mobileNumber}`,
       );
+      document.text(`Mobile: ${data.order.customer.mobileNumber}`);
+      if (data.order.customer.email) document.text(`Email: ${data.order.customer.email}`);
       document.text(
         `Event date: ${new Date(data.order.eventDate).toLocaleDateString('en-IN')}`,
       );
@@ -509,7 +522,17 @@ export class OperationsService {
         .moveDown()
         .fontSize(12)
         .text(`${data.order.packageName} for ${data.order.guestCount} guests`);
+      document.fontSize(10).text(`Venue: ${data.order.address.addressLine1}, ${data.order.address.city}, ${data.order.address.state} ${data.order.address.pincode}`);
+      document.moveDown().fontSize(11).text('Selected items');
+      for (const item of data.order.items) {
+        document.fontSize(9).text(`${item.name} — ${item.category} (${item.role}) — INR ${item.itemPrice}`);
+      }
+      document.moveDown().fontSize(10).text(`Base per pax: INR ${data.order.basePerPlatePrice}`);
+      document.text(`Customization per pax: INR ${data.order.customizationCharges}`);
+      document.text(`Final per pax: INR ${data.order.finalPerPlatePrice}`);
+      document.text(`Delivery fee: INR ${data.order.deliveryFee}`);
       document.text(`Total paid: INR ${data.order.totalAmount}`);
+      if (data.order.payment?.reference) document.text(`Payment reference: ${data.order.payment.reference}`);
       if (data.refund) document.text(`Refund: INR ${data.refund.amount}`);
       if (type === DocumentType.GST_INVOICE) {
         document.moveDown().fontSize(10).text(`GSTIN: ${data.business.gstin}`);
@@ -534,39 +557,4 @@ export class OperationsService {
     if (!order) throw new NotFoundException('Order not found');
   }
 
-  notificationForStatus(status: OrderStatus) {
-    const map: Partial<
-      Record<
-        OrderStatus,
-        { type: NotificationType; title: string; message: string }
-      >
-    > = {
-      CONFIRMED: {
-        type: NotificationType.ORDER_CONFIRMED,
-        title: 'Order confirmed',
-        message: 'Your catering order has been confirmed.',
-      },
-      IN_PROGRESS: {
-        type: NotificationType.ORDER_IN_PROGRESS,
-        title: 'Preparation started',
-        message: 'Your catering order is now being prepared.',
-      },
-      READY_FOR_DELIVERY: {
-        type: NotificationType.ORDER_READY,
-        title: 'Order ready',
-        message: 'Your order is ready for delivery.',
-      },
-      DELIVERED: {
-        type: NotificationType.ORDER_DELIVERED,
-        title: 'Order delivered',
-        message: 'Your catering order has been delivered.',
-      },
-      CANCELLED: {
-        type: NotificationType.ORDER_CANCELLED,
-        title: 'Order cancelled',
-        message: 'Your catering order has been cancelled.',
-      },
-    };
-    return map[status];
-  }
 }

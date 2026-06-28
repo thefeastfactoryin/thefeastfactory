@@ -7,6 +7,7 @@ import FormControlLabel from '@mui/material/FormControlLabel';
 import Radio from '@mui/material/Radio';
 import RadioGroup from '@mui/material/RadioGroup';
 import Switch from '@mui/material/Switch';
+import type { MenuCategory, MenuItem } from '@aranyam/shared-types';
 import {
   ImagePlus,
   Pencil,
@@ -18,8 +19,6 @@ import {
   X,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import type { MenuCategory, MenuItem } from '@aranyam/shared-types';
-import { StatusBadge } from '../../../../components/status-badge';
 import { Button } from '../../../../components/ui/button';
 import { Field, Select, Textarea } from '../../../../components/ui/form';
 import { Input } from '../../../../components/ui/input';
@@ -33,7 +32,8 @@ type MenuForm = {
   categoryId: string;
   name: string;
   description: string;
-  basePrice: string;
+  boxPrice: string;
+  generalPrice: string;
   isVeg: boolean;
   isActive: boolean;
   imageUrl: string;
@@ -43,11 +43,19 @@ const emptyForm: MenuForm = {
   categoryId: '',
   name: '',
   description: '',
-  basePrice: '',
+  boxPrice: '',
+  generalPrice: '',
   isVeg: true,
   isActive: true,
   imageUrl: '',
 };
+
+function formatMoney(value: string) {
+  const normalized = value.trim().replace(/[₹,\s]/g, '');
+  if (!normalized) return '';
+  const amount = Number(normalized);
+  return Number.isFinite(amount) ? amount.toFixed(2) : value.trim();
+}
 
 export default function MenuItems() {
   const session = useAdminSessionStore((state) => state.session);
@@ -97,32 +105,32 @@ export default function MenuItems() {
     });
   }, [rows, search, categoryFilter]);
 
-  const activeCategories = categories.filter((category) => category.isActive);
-
   function openCreate() {
-    setError('');
-    setMessage('');
+    const firstCategory = categories.find((category) => category.isActive);
     setForm({
       ...emptyForm,
-      categoryId: activeCategories[0]?.id ?? categories[0]?.id ?? '',
+      categoryId: firstCategory?.id ?? categories[0]?.id ?? '',
     });
     setEditorOpen(true);
+    setMessage('');
+    setError('');
   }
 
   function openEdit(item: MenuItemWithCategory) {
-    setError('');
-    setMessage('');
     setForm({
       id: item.id,
       categoryId: item.categoryId,
       name: item.name,
       description: item.description ?? '',
-      basePrice: item.basePrice,
+      boxPrice: item.boxPrice,
+      generalPrice: item.generalPrice,
       isVeg: item.isVeg,
       isActive: item.isActive,
       imageUrl: item.imageUrl ?? '',
     });
     setEditorOpen(true);
+    setMessage('');
+    setError('');
   }
 
   async function upload(file?: File) {
@@ -152,27 +160,28 @@ export default function MenuItems() {
         categoryId: form.categoryId,
         name: form.name.trim(),
         description: form.description.trim() || undefined,
-        basePrice: form.basePrice,
+        boxPrice: formatMoney(form.boxPrice),
+        generalPrice: formatMoney(form.generalPrice),
         isVeg: form.isVeg,
         isActive: form.isActive,
         imageUrl: form.imageUrl.trim() || undefined,
       };
-      if (form.id) {
-        await apiRequest(
-          `/admin/menu/items/${form.id}`,
-          { method: 'PATCH', body: JSON.stringify(payload) },
-          session.accessToken,
-        );
-        setMessage(`${payload.name} updated.`);
-      } else {
-        await apiRequest(
-          '/admin/menu/items',
-          { method: 'POST', body: JSON.stringify(payload) },
-          session.accessToken,
-        );
-        setMessage(`${payload.name} created.`);
+      if (
+        Number.isNaN(Number(payload.boxPrice)) ||
+        Number.isNaN(Number(payload.generalPrice))
+      ) {
+        throw new Error('Both menu prices must be valid amounts.');
       }
+      await apiRequest(
+        form.id ? `/admin/menu/items/${form.id}` : '/admin/menu/items',
+        {
+          method: form.id ? 'PATCH' : 'POST',
+          body: JSON.stringify(payload),
+        },
+        session.accessToken,
+      );
       setEditorOpen(false);
+      setMessage(`${payload.name} saved.`);
       await load();
     } catch (reason) {
       setError((reason as Error).message);
@@ -205,17 +214,17 @@ export default function MenuItems() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-primary">
-            Catalogue
+            Menu
           </p>
-          <h1 className="admin-title mt-2">Menu item manager</h1>
+          <h1 className="admin-title mt-2">Menu manager</h1>
           <p className="mt-2 text-muted-foreground">
-            Create dishes, upload real menu images, and keep live prices synced
-            to the database.
+            Maintain the actual item price, image, category, and availability.
+            Package add-ons are managed from the package screen.
           </p>
         </div>
         <Button onClick={openCreate} disabled={!categories.length}>
           <Plus className="mr-2 h-4 w-4" />
-          New item
+          Add menu item
         </Button>
       </div>
 
@@ -225,7 +234,7 @@ export default function MenuItems() {
           <Input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search dishes, categories, descriptions"
+            placeholder="Search item, category, description"
             className="border-0 shadow-none"
           />
         </div>
@@ -253,69 +262,80 @@ export default function MenuItems() {
         </p>
       )}
 
-      <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {filtered.map((item) => (
-          <article key={item.id} className="admin-card overflow-hidden p-0">
-            <div className="aspect-[16/9] bg-muted">
-              {item.imageUrl ? (
-                <img
-                  src={item.imageUrl}
-                  alt={item.name}
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <div className="grid h-full place-items-center text-muted-foreground">
-                  <ImagePlus className="h-8 w-8" />
-                </div>
-              )}
-            </div>
-            <div className="p-5">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h2 className="text-lg font-semibold">{item.name}</h2>
-                  <p className="text-sm text-muted-foreground">
-                    {item.category.name} ·{' '}
-                    {item.isVeg ? 'Vegetarian' : 'Non-vegetarian'}
-                  </p>
-                </div>
-                <StatusBadge value={item.isActive ? 'ACTIVE' : 'INACTIVE'} />
-              </div>
-              {item.description && (
-                <p className="mt-3 line-clamp-2 text-sm text-muted-foreground">
-                  {item.description}
-                </p>
-              )}
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                <strong className="text-xl">₹{item.basePrice}</strong>
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => openEdit(item)}
-                    aria-label={`Edit ${item.name}`}
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => remove(item)}
-                    aria-label={`Remove ${item.name}`}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </article>
-        ))}
-      </div>
-
-      {!filtered.length && (
-        <div className="admin-card mt-5 text-center text-muted-foreground">
-          No menu items match the current filters.
-        </div>
-      )}
+      <section className="admin-card mt-5 overflow-x-auto p-0">
+        <table className="admin-table">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Category</th>
+              <th>Menu price</th>
+              <th>Food type</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((item) => (
+              <tr key={item.id}>
+                <td>
+                  <div className="flex items-center gap-3">
+                    <div className="grid h-12 w-16 shrink-0 place-items-center overflow-hidden rounded-lg bg-muted">
+                      {item.imageUrl ? (
+                        <img
+                          src={item.imageUrl}
+                          alt={item.name}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <ImagePlus className="h-5 w-5 text-muted-foreground" />
+                      )}
+                    </div>
+                    <div>
+                      <p className="font-semibold">{item.name}</p>
+                      {item.description && (
+                        <p className="line-clamp-1 text-xs text-muted-foreground">
+                          {item.description}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </td>
+                <td>{item.category.name}</td>
+                <td className="font-semibold">
+                  ₹{item.boxPrice} / ₹{item.generalPrice}
+                </td>
+                <td>{item.isVeg ? 'Vegetarian' : 'Non-vegetarian'}</td>
+                <td>{item.isActive ? 'Active' : 'Hidden'}</td>
+                <td>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => openEdit(item)}
+                    >
+                      <Pencil className="mr-2 h-4 w-4" />
+                      Edit
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => remove(item)}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Remove
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {!filtered.length && (
+          <div className="p-8 text-center text-muted-foreground">
+            No menu items match the current filters.
+          </div>
+        )}
+      </section>
 
       <Dialog
         open={editorOpen}
@@ -324,7 +344,7 @@ export default function MenuItems() {
         maxWidth="md"
       >
         <DialogTitle className="flex items-center justify-between">
-          {form.id ? 'Edit menu item' : 'Create menu item'}
+          {form.id ? 'Edit menu item' : 'Add menu item'}
           <button
             type="button"
             onClick={() => setEditorOpen(false)}
@@ -337,7 +357,7 @@ export default function MenuItems() {
         <DialogContent>
           <form
             onSubmit={save}
-            className="grid gap-6 py-2 lg:grid-cols-[280px_1fr]"
+            className="grid gap-6 py-2 lg:grid-cols-[260px_1fr]"
           >
             <div>
               <div className="aspect-[4/3] overflow-hidden rounded-xl border bg-muted">
@@ -377,9 +397,10 @@ export default function MenuItems() {
                 />
               </Field>
             </div>
+
             <div className="grid gap-4">
               <div className="grid gap-4 md:grid-cols-2">
-                <Field label="Dish name">
+                <Field label="Item name">
                   <Input
                     value={form.name}
                     onChange={(event) =>
@@ -397,9 +418,6 @@ export default function MenuItems() {
                     }
                     required
                   >
-                    <option value="" disabled>
-                      Select category
-                    </option>
                     {categories.map((category) => (
                       <option value={category.id} key={category.id}>
                         {category.name}
@@ -410,16 +428,38 @@ export default function MenuItems() {
                 </Field>
               </div>
               <div className="grid gap-4 md:grid-cols-2">
-                <Field label="Base price">
+                <Field label="Meal-box price">
                   <Input
-                    value={form.basePrice}
+                    value={form.boxPrice}
+                    onBlur={(event) =>
+                      setForm({
+                        ...form,
+                        boxPrice: formatMoney(event.target.value),
+                      })
+                    }
                     onChange={(event) =>
-                      setForm({ ...form, basePrice: event.target.value })
+                      setForm({ ...form, boxPrice: event.target.value })
                     }
                     required
                     inputMode="decimal"
                     placeholder="120.00"
-                    pattern="^\\d+(\\.\\d{1,2})?$"
+                  />
+                </Field>
+                <Field label="Package/custom price">
+                  <Input
+                    value={form.generalPrice}
+                    onBlur={(event) =>
+                      setForm({
+                        ...form,
+                        generalPrice: formatMoney(event.target.value),
+                      })
+                    }
+                    onChange={(event) =>
+                      setForm({ ...form, generalPrice: event.target.value })
+                    }
+                    required
+                    inputMode="decimal"
+                    placeholder="120.00"
                   />
                 </Field>
                 <Field label="Food type">
@@ -432,12 +472,12 @@ export default function MenuItems() {
                   >
                     <FormControlLabel
                       value="veg"
-                      control={<Radio color="success" />}
-                      label="Vegetarian"
+                      control={<Radio />}
+                      label="Veg"
                     />
                     <FormControlLabel
                       value="nonveg"
-                      control={<Radio color="error" />}
+                      control={<Radio />}
                       label="Non-veg"
                     />
                   </RadioGroup>
@@ -450,24 +490,19 @@ export default function MenuItems() {
                     setForm({ ...form, description: event.target.value })
                   }
                   maxLength={1000}
-                  placeholder="Customer-facing dish details, ingredients, allergens, or service notes"
                 />
               </Field>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={form.isActive}
-                    onChange={(event) =>
-                      setForm({ ...form, isActive: event.target.checked })
-                    }
-                  />
-                }
-                label={
-                  form.isActive
-                    ? 'Visible to customers'
-                    : 'Hidden from customers'
-                }
-              />
+              <label className="flex items-center justify-between rounded-xl border px-3 py-2">
+                <span className="font-medium">
+                  {form.isActive ? 'Visible to customers' : 'Hidden'}
+                </span>
+                <Switch
+                  checked={form.isActive}
+                  onChange={(event) =>
+                    setForm({ ...form, isActive: event.target.checked })
+                  }
+                />
+              </label>
               <div className="flex justify-end gap-3">
                 <Button
                   type="button"
@@ -478,7 +513,7 @@ export default function MenuItems() {
                 </Button>
                 <Button type="submit" disabled={saving}>
                   <Save className="mr-2 h-4 w-4" />
-                  {saving ? 'Saving...' : 'Save item'}
+                  Save item
                 </Button>
               </div>
             </div>

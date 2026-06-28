@@ -88,6 +88,5 @@ export const paymentStatusOptions = [
   'PENDING',
   'PAID',
   'FAILED',
-  'PARTIALLY_REFUNDED',
   'REFUNDED',
 ] as const;

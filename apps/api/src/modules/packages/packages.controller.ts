@@ -1,6 +1,5 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Controller, Get, Param } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { PackageSelectionDto } from './dto/package-selection.dto';
 import { PackagesService } from './packages.service';
 
 @ApiTags('packages')
@@ -23,13 +22,4 @@ export class PackagesController {
     return this.packages.getConfiguration(id);
   }
 
-  @Post('package-versions/:id/validate-selection')
-  validateSelection(@Param('id') id: string, @Body() dto: PackageSelectionDto) {
-    return this.packages.validateSelection(id, dto);
-  }
-
-  @Post('package-versions/:id/price-selection')
-  priceSelection(@Param('id') id: string, @Body() dto: PackageSelectionDto) {
-    return this.packages.priceSelection(id, dto);
-  }
 }

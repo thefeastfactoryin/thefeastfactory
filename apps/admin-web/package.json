@@ -6,12 +6,11 @@
     "dev": "next dev -p 3001",
     "build": "next build --webpack",
     "start": "next start -p 3001",
-    "lint": "next lint"
+    "lint": "eslint \"app/**/*.{ts,tsx}\" \"components/**/*.{ts,tsx}\" \"lib/**/*.ts\" \"store/**/*.ts\""
   },
   "dependencies": {
     "@aranyam/api-client": "*",
     "@aranyam/shared-types": "*",
-    "@aranyam/validation": "*",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
     "@hookform/resolvers": "^5.1.0",
@@ -19,7 +18,6 @@
     "@mui/material": "^9.1.1",
     "@mui/x-date-pickers": "^9.5.0",
     "@radix-ui/react-slot": "^1.2.3",
-    "@tanstack/react-query": "^5.81.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dayjs": "^1.11.21",

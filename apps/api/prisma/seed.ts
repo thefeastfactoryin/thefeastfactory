@@ -2,6 +2,7 @@ import {
   AdminRole,
   PackageMenuItemRole,
   PackageType,
+  OrderingOfferingCode,
   Prisma,
   PrismaClient,
 } from '@prisma/client';
@@ -28,6 +29,7 @@ async function main() {
   await seedSettings();
   await seedRegions();
   await seedAdmin();
+  await seedOrderingOfferings();
 
   const menuRows = readMenuRows();
   const categoryByName = await seedCategories(menuRows);
@@ -35,7 +37,37 @@ async function main() {
 
   await seedFixedPackages(menuItems);
   await seedMealBoxes(menuItems);
-  await seedCustomPackage();
+  await seedCustomPackage(menuItems);
+}
+
+async function seedOrderingOfferings() {
+  const offerings = [
+    [
+      OrderingOfferingCode.MEAL_BOX,
+      'Meal Boxes',
+      'One box per person with a complete, portioned meal.',
+      1,
+    ],
+    [
+      OrderingOfferingCode.PACKAGES,
+      'Packages',
+      'Curated menus with clear inclusions and per-person pricing.',
+      2,
+    ],
+    [
+      OrderingOfferingCode.CUSTOM_MENU,
+      'Build Your Menu',
+      'Choose dishes and build a menu around your event.',
+      3,
+    ],
+  ] as const;
+  for (const [code, title, description, displayOrder] of offerings) {
+    await prisma.orderingOffering.upsert({
+      where: { code },
+      update: { title, description, displayOrder, isActive: true },
+      create: { code, title, description, displayOrder },
+    });
+  }
 }
 
 async function seedSettings() {
@@ -168,7 +200,9 @@ function money(value?: string) {
 async function seedCategories(
   rows: ReturnType<typeof readMenuRows>,
 ): Promise<Map<string, { id: string; name: string }>> {
-  const names = [...new Set(rows.map((row) => row.categoryName))];
+  const names = [
+    ...new Set(rows.map((row) => normalizeCategory(row.categoryName))),
+  ];
   const categoryByName = new Map<string, { id: string; name: string }>();
 
   for (const [index, name] of names.entries()) {
@@ -196,7 +230,8 @@ async function seedMenuItems(
   const menuItems: SeedMenuItem[] = [];
 
   for (const row of rows) {
-    const category = categoryByName.get(row.categoryName);
+    const normalizedCategoryName = normalizeCategory(row.categoryName);
+    const category = categoryByName.get(normalizedCategoryName);
     if (!category || !row.boxPrice || !row.generalPrice) continue;
 
     const item = await prisma.menuItem.upsert({
@@ -226,7 +261,7 @@ async function seedMenuItems(
       id: item.id,
       name: item.name,
       categoryId: item.categoryId,
-      categoryName: row.categoryName,
+      categoryName: normalizedCategoryName,
       isVeg: item.isVeg,
       boxPrice: item.boxPrice,
       generalPrice: item.generalPrice,
@@ -234,6 +269,12 @@ async function seedMenuItems(
   }
 
   return menuItems;
+}
+
+function normalizeCategory(name: string) {
+  if (name === 'Veg Starters' || name === 'Non Veg Starters') return 'Starters';
+  if (name === 'Veg Curry' || name === 'Non Veg Curry') return 'Curry';
+  return name;
 }
 
 function isVeg(categoryName: string, itemName: string) {
@@ -244,22 +285,73 @@ function isVeg(categoryName: string, itemName: string) {
 }
 
 async function seedFixedPackages(menuItems: SeedMenuItem[]) {
+  await prisma.package.updateMany({
+    where: {
+      name: { in: ['Silver Package', 'Gold Package', 'Premium Package'] },
+    },
+    data: { isActive: false, deletedAt: new Date() },
+  });
+
   const fixedPackages = [
-    ['Silver Package', '499.00'],
-    ['Gold Package', '699.00'],
-    ['Premium Package', '899.00'],
+    [
+      'Pooja Package',
+      '499.00',
+      8,
+      20,
+      500,
+      'A traditional vegetarian menu for poojas, housewarmings, and religious ceremonies.',
+    ],
+    [
+      'Farm House Celebration',
+      '599.00',
+      12,
+      20,
+      200,
+      'A generous celebration menu for birthdays, family gatherings, and weekend parties.',
+    ],
+    [
+      'Corporate Gathering',
+      '649.00',
+      16,
+      20,
+      1000,
+      'A premium, crowd-friendly menu for team lunches, client meets, and office events.',
+    ],
   ] as const;
 
-  for (const [index, [name, price]] of fixedPackages.entries()) {
+  for (const [
+    index,
+    [name, price, includedCount, minGuests, maxGuests, description],
+  ] of fixedPackages.entries()) {
     const version = await upsertPackageVersion({
       name,
-      description: `${name} fixed catering selection. Items are not editable; customers can add extras for all guests.`,
+      description,
       type: PackageType.FIXED_PACKAGE,
       displayOrder: index + 1,
       price,
+      minGuests,
+      maxGuests,
+      isFeatured: true,
+      featuredOrder: index + 1,
     });
 
-    await upsertPackageItems(version.id, menuItems, PackageMenuItemRole.EXTRA, {
+    const eligibleItems =
+      name === 'Pooja Package'
+        ? menuItems.filter((item) => item.isVeg)
+        : menuItems;
+    const included = selectBalancedItems(eligibleItems, includedCount);
+    const includedIds = new Set(included.map((item) => item.id));
+    const extras = eligibleItems.filter((item) => !includedIds.has(item.id));
+    await prisma.packageMenuItem.deleteMany({
+      where: { packageVersionId: version.id },
+    });
+    await upsertPackageItems(
+      version.id,
+      included,
+      PackageMenuItemRole.INCLUDED,
+      { isSwappable: false },
+    );
+    await upsertPackageItems(version.id, extras, PackageMenuItemRole.EXTRA, {
       isSwappable: false,
     });
   }
@@ -283,18 +375,25 @@ async function seedMealBoxes(menuItems: SeedMenuItem[]) {
       type: PackageType.MEAL_BOX,
       displayOrder: 20 + index,
       price,
+      isFeatured: false,
     });
     const included = selectMealBoxItems(menuItems, count, vegOnly);
-    await upsertPackageItems(
-      version.id,
-      included,
-      PackageMenuItemRole.INCLUDED,
-      { isSwappable: true },
-    );
+    await prisma.packageMenuItem.deleteMany({
+      where: { packageVersionId: version.id },
+    });
+    for (const [itemIndex, item] of included.entries()) {
+      await upsertPackageItems(
+        version.id,
+        [item],
+        PackageMenuItemRole.INCLUDED,
+        { isSwappable: itemIndex > 0 },
+        itemIndex + 1,
+      );
+    }
   }
 }
 
-async function seedCustomPackage() {
+async function seedCustomPackage(menuItems: SeedMenuItem[]) {
   await prisma.package.updateMany({
     where: { name: 'Custom Package' },
     data: {
@@ -303,13 +402,23 @@ async function seedCustomPackage() {
     },
   });
 
-  await upsertPackageVersion({
+  const version = await upsertPackageVersion({
     name: 'Custom Menu',
     description: 'Build your own package from any available dish.',
     type: PackageType.CUSTOM_PACKAGE,
     displayOrder: 100,
     price: '0.00',
+    isFeatured: false,
   });
+  await prisma.packageMenuItem.deleteMany({
+    where: { packageVersionId: version.id },
+  });
+  await upsertPackageItems(
+    version.id,
+    menuItems,
+    PackageMenuItemRole.CUSTOM_SELECTABLE,
+    { isSwappable: false },
+  );
 }
 
 async function upsertPackageVersion(input: {
@@ -318,6 +427,10 @@ async function upsertPackageVersion(input: {
   type: PackageType;
   displayOrder: number;
   price: string;
+  minGuests?: number;
+  maxGuests?: number;
+  isFeatured?: boolean;
+  featuredOrder?: number;
 }) {
   const pkg = await prisma.package.upsert({
     where: { name: input.name },
@@ -327,12 +440,16 @@ async function upsertPackageVersion(input: {
       displayOrder: input.displayOrder,
       isActive: true,
       deletedAt: null,
+      isFeatured: input.isFeatured ?? false,
+      featuredOrder: input.featuredOrder ?? null,
     },
     create: {
       name: input.name,
       description: input.description,
       type: input.type,
       displayOrder: input.displayOrder,
+      isFeatured: input.isFeatured ?? false,
+      featuredOrder: input.featuredOrder ?? null,
     },
   });
 
@@ -340,8 +457,8 @@ async function upsertPackageVersion(input: {
     where: { packageId_versionNo: { packageId: pkg.id, versionNo: 1 } },
     update: {
       basePricePerPlate: new Prisma.Decimal(input.price),
-      minGuestCount: 10,
-      maxGuestCount: 500,
+      minGuestCount: input.minGuests ?? 10,
+      maxGuestCount: input.maxGuests ?? 500,
       isActive: true,
       publishedAt: new Date(),
     },
@@ -349,8 +466,8 @@ async function upsertPackageVersion(input: {
       packageId: pkg.id,
       versionNo: 1,
       basePricePerPlate: new Prisma.Decimal(input.price),
-      minGuestCount: 10,
-      maxGuestCount: 500,
+      minGuestCount: input.minGuests ?? 10,
+      maxGuestCount: input.maxGuests ?? 500,
       isActive: true,
       publishedAt: new Date(),
     },
@@ -363,11 +480,11 @@ function selectMealBoxItems(
   vegOnly: boolean,
 ) {
   const preferredCategories = vegOnly
-    ? ['Veg Starters', 'Indian Breads', 'Veg Curry', 'Rice Items', 'Desserts']
+    ? ['Starters', 'Indian Breads', 'Curry', 'Rice Items', 'Desserts']
     : [
-        'Non Veg Starters',
+        'Starters',
         'Indian Breads',
-        'Non Veg Curry',
+        'Curry',
         'Biryani',
         'Rice Items',
         'Desserts',
@@ -379,6 +496,9 @@ function selectMealBoxItems(
       (candidate) =>
         candidate.categoryName === categoryName &&
         (!vegOnly || candidate.isVeg) &&
+        (vegOnly ||
+          !['Starters', 'Curry'].includes(categoryName) ||
+          !candidate.isVeg) &&
         !selected.some((selectedItem) => selectedItem.id === candidate.id),
     );
     if (item) selected.push(item);
@@ -396,11 +516,36 @@ function selectMealBoxItems(
   return selected;
 }
 
+function selectBalancedItems(menuItems: SeedMenuItem[], count: number) {
+  const selected: SeedMenuItem[] = [];
+  const categoryNames = [
+    ...new Set(menuItems.map((item) => item.categoryName)),
+  ];
+  for (const categoryName of categoryNames) {
+    const item = menuItems.find(
+      (candidate) =>
+        candidate.categoryName === categoryName &&
+        !selected.some((selectedItem) => selectedItem.id === candidate.id),
+    );
+    if (item) selected.push(item);
+    if (selected.length === count) return selected;
+  }
+  selected.push(
+    ...menuItems
+      .filter(
+        (item) => !selected.some((selectedItem) => selectedItem.id === item.id),
+      )
+      .slice(0, count - selected.length),
+  );
+  return selected;
+}
+
 async function upsertPackageItems(
   packageVersionId: string,
   menuItems: SeedMenuItem[],
   role: PackageMenuItemRole,
   options: { isSwappable: boolean },
+  displayOrderOffset = 1,
 ) {
   for (const [index, item] of menuItems.entries()) {
     await prisma.packageMenuItem.upsert({
@@ -415,7 +560,7 @@ async function upsertPackageItems(
         categoryId: item.categoryId,
         isAvailable: true,
         isSwappable: options.isSwappable,
-        displayOrder: index + 1,
+        displayOrder: displayOrderOffset + index,
       },
       create: {
         packageVersionId,
@@ -424,7 +569,7 @@ async function upsertPackageItems(
         role,
         isAvailable: true,
         isSwappable: options.isSwappable,
-        displayOrder: index + 1,
+        displayOrder: displayOrderOffset + index,
       },
     });
   }

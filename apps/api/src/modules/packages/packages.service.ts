@@ -59,6 +59,8 @@ export class PackagesService {
       name: pkg.name,
       description: pkg.description,
       displayOrder: pkg.displayOrder,
+      isFeatured: pkg.isFeatured,
+      featuredOrder: pkg.featuredOrder,
       type: pkg.type,
       isCustom: pkg.type === PackageType.CUSTOM_PACKAGE,
       activeVersion: pkg.versions[0]
@@ -139,6 +141,8 @@ export class PackagesService {
         type: dto.type ?? PackageType.FIXED_PACKAGE,
         displayOrder: dto.displayOrder ?? 0,
         isActive: dto.isActive ?? true,
+        isFeatured: dto.isFeatured ?? false,
+        featuredOrder: dto.featuredOrder,
       },
     });
   }
@@ -157,6 +161,10 @@ export class PackagesService {
           ? { displayOrder: dto.displayOrder }
           : {}),
         ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
+        ...(dto.isFeatured !== undefined ? { isFeatured: dto.isFeatured } : {}),
+        ...(dto.featuredOrder !== undefined
+          ? { featuredOrder: dto.featuredOrder }
+          : {}),
       },
     });
   }
@@ -164,7 +172,7 @@ export class PackagesService {
   async createVersion(packageId: string, dto: CreatePackageVersionDto) {
     await this.assertPackage(packageId);
     this.assertGuestRange(dto.minGuestCount ?? 10, dto.maxGuestCount);
-    return this.prisma.packageVersion.create({
+    const version = await this.prisma.packageVersion.create({
       data: {
         packageId,
         versionNo: dto.versionNo,
@@ -172,8 +180,14 @@ export class PackagesService {
         minGuestCount: dto.minGuestCount ?? 10,
         maxGuestCount: dto.maxGuestCount,
         isActive: dto.isActive ?? true,
-        publishedAt: dto.publishedAt ? new Date(dto.publishedAt) : null,
+        publishedAt: null,
       },
+    });
+    if (!dto.publishedAt) return version;
+    await this.assertPublishable(version.id, version.basePricePerPlate);
+    return this.prisma.packageVersion.update({
+      where: { id: version.id },
+      data: { publishedAt: new Date(dto.publishedAt) },
     });
   }
 
@@ -183,6 +197,14 @@ export class PackagesService {
       dto.minGuestCount ?? current.minGuestCount,
       dto.maxGuestCount ?? current.maxGuestCount,
     );
+    if (dto.publishedAt) {
+      await this.assertPublishable(
+        id,
+        dto.basePricePerPlate !== undefined
+          ? new Prisma.Decimal(dto.basePricePerPlate)
+          : current.basePricePerPlate,
+      );
+    }
     return this.prisma.packageVersion.update({
       where: { id },
       data: {
@@ -244,6 +266,22 @@ export class PackagesService {
     });
   }
 
+  async removeMenuItem(versionId: string, menuItemId: string, role: string) {
+    if (
+      !Object.values(PackageMenuItemRole).includes(role as PackageMenuItemRole)
+    ) {
+      throw new BadRequestException('Invalid package menu role');
+    }
+    await this.prisma.packageMenuItem.deleteMany({
+      where: {
+        packageVersionId: versionId,
+        menuItemId,
+        role: role as PackageMenuItemRole,
+      },
+    });
+    return { success: true };
+  }
+
   private async loadVersionConfiguration(
     versionId: string,
     publicOnly: boolean,
@@ -291,8 +329,9 @@ export class PackagesService {
       basePricePerPlate: version.basePricePerPlate.toFixed(2),
       minGuestCount: version.minGuestCount,
       maxGuestCount: version.maxGuestCount,
-      categoryRules:
-        version.package.type === PackageType.CUSTOM_PACKAGE
+      categoryRules: !publicOnly
+        ? this.configuredCategoryRules(version)
+        : version.package.type === PackageType.CUSTOM_PACKAGE
           ? await this.customCategoryRules(version, publicOnly)
           : version.package.type === PackageType.MEAL_BOX
             ? await this.mealBoxCategoryRules(version)
@@ -310,8 +349,15 @@ export class PackagesService {
     >();
     const selectableRoles =
       version.package.type === PackageType.FIXED_PACKAGE
-        ? new Set<PackageMenuItemRole>([PackageMenuItemRole.EXTRA])
-        : new Set<PackageMenuItemRole>([PackageMenuItemRole.INCLUDED]);
+        ? new Set<PackageMenuItemRole>([
+            PackageMenuItemRole.INCLUDED,
+            PackageMenuItemRole.EXTRA,
+          ])
+        : version.package.type === PackageType.CUSTOM_PACKAGE
+          ? new Set<PackageMenuItemRole>([
+              PackageMenuItemRole.CUSTOM_SELECTABLE,
+            ])
+          : new Set<PackageMenuItemRole>([PackageMenuItemRole.INCLUDED]);
     for (const row of version.packageMenuItems) {
       if (!selectableRoles.has(row.role)) continue;
       const current = byCategory.get(row.categoryId) ?? {
@@ -365,7 +411,7 @@ export class PackagesService {
       byCategory.set(row.categoryId, current);
     }
 
-    return [...byCategory.values()].map(({ category, rows }) => {
+    const includedRules = [...byCategory.values()].map(({ category, rows }) => {
       const items = rows.flatMap((included) => {
         const includedItem = this.serializeConfigItem(
           included.menuItem,
@@ -410,6 +456,7 @@ export class PackagesService {
         items,
       };
     });
+    return includedRules;
   }
 
   private async customCategoryRules(
@@ -510,7 +557,7 @@ export class PackagesService {
     dto: PackageSelectionDto,
   ) {
     if (version.package.type === PackageType.CUSTOM_PACKAGE) {
-      return this.evaluateCustomSelection(dto);
+      return this.evaluateCustomSelection(version, dto);
     }
     if (version.package.type === PackageType.MEAL_BOX) {
       return this.evaluateMealBoxSelection(version, dto);
@@ -518,7 +565,10 @@ export class PackagesService {
     return this.evaluateFixedPackageSelection(version, dto);
   }
 
-  private async evaluateCustomSelection(dto: PackageSelectionDto) {
+  private async evaluateCustomSelection(
+    version: VersionConfiguration,
+    dto: PackageSelectionDto,
+  ) {
     const errors = this.duplicateErrors(dto.selectedItems);
     if (!dto.selectedItems.length) {
       errors.push('Choose at least one menu item');
@@ -526,6 +576,13 @@ export class PackagesService {
     const menuItems = await this.prisma.menuItem.findMany({
       where: {
         id: { in: dto.selectedItems.map((item) => item.menuItemId) },
+        packageMenuItems: {
+          some: {
+            packageVersionId: version.id,
+            role: PackageMenuItemRole.CUSTOM_SELECTABLE,
+            isAvailable: true,
+          },
+        },
         isActive: true,
         deletedAt: null,
       },
@@ -565,7 +622,22 @@ export class PackagesService {
         .filter((row) => row.role === PackageMenuItemRole.EXTRA)
         .map((row) => [row.menuItemId, row]),
     );
-    const items = dto.selectedItems.flatMap((selection) => {
+    const includedItems = version.packageMenuItems
+      .filter((row) => row.role === PackageMenuItemRole.INCLUDED)
+      .map((row) =>
+        this.quoteItem({
+          categoryId: row.categoryId,
+          categoryName: row.category.name,
+          menuItemId: row.menuItemId,
+          menuItemName: row.menuItem.name,
+          role: SelectedItemRole.INCLUDED,
+          isVeg: row.menuItem.isVeg,
+          itemPrice: row.menuItem.generalPrice,
+          includedValue: row.menuItem.generalPrice,
+          adjustmentAmount: new Prisma.Decimal(0),
+        }),
+      );
+    const selectedExtras = dto.selectedItems.flatMap((selection) => {
       const row = extras.get(selection.menuItemId);
       if (!row || row.categoryId !== selection.categoryId) {
         errors.push(`Menu item ${selection.menuItemId} is not a valid extra`);
@@ -585,7 +657,7 @@ export class PackagesService {
         }),
       ];
     });
-    return { errors, items };
+    return { errors, items: [...includedItems, ...selectedExtras] };
   }
 
   private async evaluateMealBoxSelection(
@@ -596,7 +668,9 @@ export class PackagesService {
     const includedRows = version.packageMenuItems.filter(
       (row) => row.role === PackageMenuItemRole.INCLUDED,
     );
-    const includedById = new Map(includedRows.map((row) => [row.menuItemId, row]));
+    const includedById = new Map(
+      includedRows.map((row) => [row.menuItemId, row]),
+    );
     const replacements = new Map<string, SelectedPackageItemDto>();
     for (const selection of dto.selectedItems) {
       if (!selection.replacedMenuItemId) continue;
@@ -680,7 +754,9 @@ export class PackagesService {
 
     for (const replacement of replacements.keys()) {
       if (!includedById.has(replacement)) {
-        errors.push(`Replacement target ${replacement} is not in this meal box`);
+        errors.push(
+          `Replacement target ${replacement} is not in this meal box`,
+        );
       }
     }
 
@@ -747,6 +823,38 @@ export class PackagesService {
     });
     if (!version) throw new NotFoundException('Package version not found');
     return version;
+  }
+
+  private async assertPublishable(id: string, basePrice: Prisma.Decimal) {
+    const version = await this.prisma.packageVersion.findUnique({
+      where: { id },
+      include: {
+        package: true,
+        packageMenuItems: { where: { isAvailable: true } },
+      },
+    });
+    if (!version) throw new NotFoundException('Package version not found');
+    const roles = new Set(version.packageMenuItems.map((row) => row.role));
+    if (
+      version.package.type === PackageType.MEAL_BOX &&
+      !roles.has(PackageMenuItemRole.INCLUDED)
+    )
+      throw new BadRequestException('Meal boxes require included items');
+    if (
+      version.package.type === PackageType.FIXED_PACKAGE &&
+      !roles.has(PackageMenuItemRole.INCLUDED)
+    )
+      throw new BadRequestException(
+        'Fixed packages require locked included items',
+      );
+    if (version.package.type === PackageType.CUSTOM_PACKAGE) {
+      if (!roles.has(PackageMenuItemRole.CUSTOM_SELECTABLE))
+        throw new BadRequestException(
+          'Custom packages require selectable items',
+        );
+      if (!basePrice.isZero())
+        throw new BadRequestException('Custom package base price must be zero');
+    }
   }
 
   private assertGuestRange(min: number, max?: number | null) {

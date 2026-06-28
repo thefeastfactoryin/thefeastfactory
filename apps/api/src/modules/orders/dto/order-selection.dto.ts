@@ -30,10 +30,6 @@ export class OrderSelectedItemDto {
 }
 
 export class OrderSelectionDto {
-  @ApiProperty()
-  @IsUUID()
-  eventId!: string;
-
   @ApiProperty({ type: [OrderSelectedItemDto] })
   @IsArray()
   @ValidateNested({ each: true })

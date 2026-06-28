@@ -2,6 +2,8 @@
 
 import {
   OperatingRegion,
+  OrderSummary,
+  PaginatedResponse,
   orderStatusOptions,
   paymentStatusOptions,
 } from '@aranyam/shared-types';
@@ -14,10 +16,17 @@ import { apiRequest } from '../../../lib/api';
 import { useAdminSessionStore } from '../../../store/session.store';
 
 const pageSize = 20;
+type AdminOrder = OrderSummary & { user?: { name?: string | null; mobileNumber: string } };
 
 export default function AdminOrders() {
   const session = useAdminSessionStore((state) => state.session);
-  const [orders, setOrders] = useState<any[]>([]);
+  const [result, setResult] = useState<PaginatedResponse<AdminOrder>>({
+    items: [],
+    page: 1,
+    pageSize,
+    total: 0,
+    totalPages: 1,
+  });
   const [status, setStatus] = useState('');
   const [paymentStatus, setPaymentStatus] = useState('');
   const [mobile, setMobile] = useState('');
@@ -40,6 +49,8 @@ export default function AdminOrders() {
     if (dateFrom) params.set('dateFrom', dateFrom);
     if (dateTo) params.set('dateTo', dateTo);
     if (effectiveRegionId) params.set('regionId', effectiveRegionId);
+    params.set('page', String(page));
+    params.set('pageSize', String(pageSize));
     return params.toString();
   }, [
     status,
@@ -49,6 +60,7 @@ export default function AdminOrders() {
     dateFrom,
     dateTo,
     effectiveRegionId,
+    page,
   ]);
 
   useEffect(() => {
@@ -63,19 +75,16 @@ export default function AdminOrders() {
   useEffect(() => {
     if (!session) return;
     const timer = window.setTimeout(() => {
-      apiRequest<any[]>(
+      apiRequest<PaginatedResponse<AdminOrder>>(
         `/admin/orders${query ? `?${query}` : ''}`,
         {},
         session.accessToken,
-      ).then(setOrders);
+      ).then(setResult);
     }, 250);
     return () => window.clearTimeout(timer);
   }, [session, query]);
 
-  useEffect(() => setPage(1), [query]);
-
-  const visibleOrders = orders.slice((page - 1) * pageSize, page * pageSize);
-  const pageCount = Math.max(1, Math.ceil(orders.length / pageSize));
+  useEffect(() => setPage(1), [status, paymentStatus, mobile, city, dateFrom, dateTo, effectiveRegionId]);
 
   if (!session) return <main className="admin-page">Sign in to continue.</main>;
 
@@ -157,7 +166,7 @@ export default function AdminOrders() {
             </tr>
           </thead>
           <tbody>
-            {visibleOrders.map((order) => (
+            {result.items.map((order) => (
               <tr key={order.id}>
                 <td>
                   <Link
@@ -184,7 +193,7 @@ export default function AdminOrders() {
                   </span>
                 </td>
                 <td>
-                  {order.region?.name || order.event?.region?.name || '—'}
+                  {order.region?.name || '—'}
                   <span className="block text-xs text-muted-foreground">
                     {order.distanceKm
                       ? `${order.distanceKm} km · ₹${order.deliveryFee}`
@@ -204,13 +213,13 @@ export default function AdminOrders() {
             ))}
           </tbody>
         </table>
-        {!orders.length && (
+        {!result.items.length && (
           <p className="p-10 text-center text-muted-foreground">
             No orders match these filters.
           </p>
         )}
       </div>
-      {orders.length > pageSize && (
+      {result.totalPages > 1 && (
         <div className="mt-4 flex items-center justify-end gap-3">
           <button
             className="rounded-lg border px-3 py-2 text-sm disabled:opacity-40"
@@ -220,11 +229,11 @@ export default function AdminOrders() {
             Previous
           </button>
           <span className="text-sm text-muted-foreground">
-            Page {page} of {pageCount}
+            Page {page} of {result.totalPages} · {result.total} orders
           </span>
           <button
             className="rounded-lg border px-3 py-2 text-sm disabled:opacity-40"
-            disabled={page === pageCount}
+            disabled={page === result.totalPages}
             onClick={() => setPage((value) => value + 1)}
           >
             Next

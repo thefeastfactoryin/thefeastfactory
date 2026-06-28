@@ -2,6 +2,7 @@
 import {
   adminTransitionOptions,
   type OrderDocument,
+  type OrderDetails,
   type OrderNote,
 } from '@aranyam/shared-types';
 import { MapPin } from 'lucide-react';
@@ -15,7 +16,7 @@ import { useAdminSessionStore } from '../../../../store/session.store';
 export default function AdminOrderDetail() {
   const { orderId } = useParams<{ orderId: string }>();
   const session = useAdminSessionStore((state) => state.session);
-  const [order, setOrder] = useState<any>();
+  const [order, setOrder] = useState<OrderDetails>();
   const [notes, setNotes] = useState<OrderNote[]>([]);
   const [documents, setDocuments] = useState<OrderDocument[]>([]);
   const [status, setStatus] = useState('IN_PROGRESS');
@@ -24,7 +25,7 @@ export default function AdminOrderDetail() {
   const load = async () => {
     if (!session) return;
     const [nextOrder, nextNotes, nextDocuments] = await Promise.all([
-      apiRequest(`/admin/orders/${orderId}`, {}, session.accessToken),
+      apiRequest<OrderDetails>(`/admin/orders/${orderId}`, {}, session.accessToken),
       apiRequest<OrderNote[]>(
         `/admin/orders/${orderId}/notes`,
         {},
@@ -120,7 +121,7 @@ export default function AdminOrderDetail() {
           <section className="admin-card">
             <h2 className="text-xl font-semibold">Selected menu</h2>
             <div className="mt-4 divide-y">
-              {order.selectedItems.map((item: any) => (
+              {order.selectedItems.map((item) => (
                 <div className="flex justify-between py-3" key={item.id}>
                   <div>
                     <p className="font-medium">{item.menuItemName}</p>
@@ -147,7 +148,7 @@ export default function AdminOrderDetail() {
           <section className="admin-card">
             <h2 className="text-xl font-semibold">Status timeline</h2>
             <div className="mt-4 space-y-4">
-              {order.statusHistory.map((entry: any) => (
+              {order.statusHistory.map((entry) => (
                 <div
                   key={entry.id}
                   className="border-l-2 border-primary/30 pl-4"

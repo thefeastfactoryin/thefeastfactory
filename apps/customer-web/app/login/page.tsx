@@ -6,7 +6,7 @@ import {
   ShieldCheck,
   Smartphone,
 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { Suspense } from 'react';
 import { Button } from '../../components/ui/button';
@@ -16,6 +16,13 @@ import { apiRequest } from '../../lib/api';
 
 function LoginContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const reason = searchParams.get('reason');
+  const requestedReturnTo = searchParams.get('returnTo');
+  const returnTo =
+    requestedReturnTo?.startsWith('/') && !requestedReturnTo.startsWith('//')
+      ? requestedReturnTo
+      : '/packages';
   const [mobileNumber, setMobileNumber] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -30,6 +37,7 @@ function LoginContent() {
         body: JSON.stringify({ mobileNumber }),
       });
       sessionStorage.setItem('customerMobile', mobileNumber);
+      sessionStorage.setItem('customerReturnTo', returnTo);
       router.push('/otp');
     } catch (e) {
       setError((e as Error).message);
@@ -78,6 +86,19 @@ function LoginContent() {
             We will send a 6-digit OTP to verify your number.
           </p>
 
+          {reason === 'catalog' && (
+            <div
+              role="status"
+              className="mt-5 flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900"
+            >
+              <AlertCircle className="mt-1 h-4 w-4 shrink-0" />
+              <span>
+                Please sign in first to browse packages and meal boxes. We’ll
+                return you to the catalog after verification.
+              </span>
+            </div>
+          )}
+
           <Field
             label="Mobile number"
             hint="Use a 10-digit Indian mobile number."
@@ -88,6 +109,7 @@ function LoginContent() {
                 +91
               </span>
               <Input
+                aria-label="Mobile number"
                 className="pl-14"
                 value={mobileNumber}
                 onChange={(event) =>

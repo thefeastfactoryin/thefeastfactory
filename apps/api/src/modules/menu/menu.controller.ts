@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { MenuItemsQueryDto } from './dto/menu-items-query.dto';
 import { MenuService } from './menu.service';
@@ -18,8 +18,4 @@ export class MenuController {
     return this.menu.listItems(query);
   }
 
-  @Get('items/:id')
-  getItem(@Param('id') id: string) {
-    return this.menu.getItem(id);
-  }
 }

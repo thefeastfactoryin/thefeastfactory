@@ -5,10 +5,19 @@ export type ApiHealth = {
 };
 
 export * from './options';
+export * from './constants';
 
 export type Money = {
   amount: string;
   currency: 'INR';
+};
+
+export type PaginatedResponse<T> = {
+  items: T[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
 };
 
 export type CustomerSession = {
@@ -71,7 +80,6 @@ export type MenuItem = {
   categoryId: string;
   name: string;
   description?: string | null;
-  basePrice: string;
   boxPrice: string;
   generalPrice: string;
   isVeg: boolean;
@@ -79,6 +87,19 @@ export type MenuItem = {
   imageUrl?: string | null;
   category?: MenuCategory;
 };
+
+export type PackageType = 'MEAL_BOX' | 'FIXED_PACKAGE' | 'CUSTOM_PACKAGE';
+export type OrderingOfferingCode = 'MEAL_BOX' | 'PACKAGES' | 'CUSTOM_MENU';
+export type OrderingOffering = {
+  id: string;
+  code: OrderingOfferingCode;
+  title: string;
+  description: string;
+  displayOrder: number;
+  isActive: boolean;
+};
+export type PackageMenuItemRole = 'INCLUDED' | 'EXTRA' | 'CUSTOM_SELECTABLE';
+export type SelectedItemRole = 'INCLUDED' | 'SWAP' | 'EXTRA' | 'CUSTOM';
 
 export type OperatingRegion = {
   id: string;
@@ -96,8 +117,10 @@ export type PackageSummary = {
   name: string;
   description?: string | null;
   displayOrder: number;
-  type: 'MEAL_BOX' | 'FIXED_PACKAGE' | 'CUSTOM_PACKAGE';
+  type: PackageType;
   isCustom: boolean;
+  isFeatured: boolean;
+  featuredOrder?: number | null;
   activeVersion?: {
     id: string;
     versionNo: number;
@@ -112,6 +135,7 @@ export type PackageConfiguration = {
   id: string;
   packageId: string;
   packageName: string;
+  packageType: PackageType;
   isCustom: boolean;
   versionNo: number;
   basePricePerPlate: string;
@@ -125,7 +149,11 @@ export type PackageConfiguration = {
     isMandatory: boolean;
     items: Array<
       MenuItem & {
-        isSwappable: boolean;
+        isAvailable?: boolean;
+        role?: PackageMenuItemRole;
+        isSwappable?: boolean;
+        swapForMenuItemId?: string | null;
+        swapForMenuItemName?: string | null;
         itemPrice: string;
         includedValue: string;
         adjustmentAmount: string;
@@ -138,13 +166,17 @@ export type PackageSelection = {
   selectedItems: Array<{
     categoryId: string;
     menuItemId: string;
+    replacedMenuItemId?: string | null;
+    role?: SelectedItemRole;
   }>;
 };
 
 export type PackageSelectionPrice = {
   valid: boolean;
   errors: string[];
-  basePricePerPlate: string;
+  packageName: string;
+  guestCount: number;
+  basePerPlatePrice: string;
   totalCustomizationCharges: string;
   finalPerPlatePrice: string;
   region?: OperatingRegion | null;
@@ -156,7 +188,11 @@ export type PackageSelectionPrice = {
   totalAmount: string;
   items: Array<{
     categoryId: string;
+    categoryName: string;
     menuItemId: string;
+    replacedMenuItemId?: string | null;
+    replacedMenuItemName?: string | null;
+    role?: SelectedItemRole;
     menuItemName: string;
     itemPrice: string;
     includedValue: string;
@@ -164,12 +200,41 @@ export type PackageSelectionPrice = {
   }>;
 };
 
-export type PaymentStatus =
-  | 'PENDING'
-  | 'PAID'
-  | 'FAILED'
-  | 'REFUNDED'
-  | 'PARTIALLY_REFUNDED';
+export type CartSummary = {
+  id: string;
+  packageVersionId: string;
+  pendingOrderId?: string | null;
+  package: {
+    id: string;
+    name: string;
+    type: PackageType;
+    versionNo: number;
+    basePricePerPlate: string;
+    minGuestCount: number;
+    maxGuestCount?: number | null;
+  };
+  event?: {
+    eventName?: string | null;
+    eventDate: string;
+    eventTimeStart?: string | null;
+    guestCount: number;
+    address?: UserAddress;
+  } | null;
+  items: Array<{
+    id: string;
+    categoryId: string;
+    categoryName: string;
+    menuItemId: string;
+    menuItemName: string;
+    replacedMenuItemId?: string | null;
+    replacedMenuItemName?: string | null;
+    role: SelectedItemRole;
+    quantity: number;
+    isVeg: boolean;
+  }>;
+};
+
+export type PaymentStatus = 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED';
 export type RefundStatus = 'INITIATED' | 'PROCESSING' | 'SUCCESS' | 'FAILED';
 export type OrderStatus =
   | 'DRAFT'
@@ -224,23 +289,48 @@ export type OrderSummary = {
     address?: UserAddress;
   };
   payments?: PaymentSummary[];
+  user?: UserProfile;
 };
 
-export type CustomerNotification = {
+export type OrderSelectedItem = {
   id: string;
-  orderId?: string | null;
-  type:
-    | 'ORDER_CONFIRMED'
-    | 'ORDER_IN_PROGRESS'
-    | 'ORDER_READY'
-    | 'ORDER_DELIVERED'
-    | 'ORDER_CANCELLED'
-    | 'PAYMENT_FAILED'
-    | 'REFUND_UPDATED';
-  title: string;
-  message: string;
-  readAt?: string | null;
-  createdAt: string;
+  menuItemId: string;
+  menuItemName: string;
+  categoryName: string;
+  role: SelectedItemRole;
+  isVeg: boolean;
+  itemPrice: string;
+  includedValue: string;
+  adjustmentAmount: string;
+};
+
+export type OrderStatusEntry = {
+  id: string;
+  fromStatus?: OrderStatus | null;
+  toStatus: OrderStatus;
+  notes?: string | null;
+  changedAt: string;
+};
+
+export type OrderDetails = OrderSummary & {
+  selectedItems: OrderSelectedItem[];
+  statusHistory: OrderStatusEntry[];
+  user: UserProfile;
+};
+
+export type GatewayOrder = {
+  paymentId: string;
+  keyId: string;
+  id: string;
+  amount: number;
+  currency: string;
+  localMode: boolean;
+  reused: boolean;
+};
+
+export type AdminPayment = Omit<PaymentSummary, 'refunds'> & {
+  refunds: RefundSummary[];
+  order: OrderSummary & { user: UserProfile };
 };
 
 export type OrderNote = {
@@ -266,3 +356,4 @@ export type IntegrationReadiness = {
   resend: 'deferred';
   sentry: 'deferred';
 };
+export type { components, operations, paths } from './generated-api';

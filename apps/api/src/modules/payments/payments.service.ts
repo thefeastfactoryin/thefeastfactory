@@ -7,7 +7,6 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
-  NotificationType,
   OrderStatus,
   PaymentStatus,
   Prisma,
@@ -26,6 +25,15 @@ type GatewayPayment = {
   status: string;
   method?: string;
   error_description?: string;
+};
+export type RazorpayWebhookPayload = {
+  event?: string;
+  payload?: {
+    payment?: { entity?: GatewayPayment };
+    refund?: {
+      entity?: { id?: string; status?: string; payment_id?: string };
+    };
+  };
 };
 
 @Injectable()
@@ -147,7 +155,7 @@ export class PaymentsService {
 
   async webhook(
     rawBody: Buffer,
-    payload: Record<string, any>,
+    payload: RazorpayWebhookPayload,
     signature?: string,
     providerEventId?: string,
   ) {
@@ -173,7 +181,7 @@ export class PaymentsService {
         data: {
           providerEventId: eventId,
           eventType,
-          payload: payload as Prisma.InputJsonValue,
+          payload: payload as unknown as Prisma.InputJsonValue,
         },
       });
     } catch (error) {
@@ -207,29 +215,26 @@ export class PaymentsService {
   async createRefund(
     adminId: string,
     paymentId: string,
-    amountInput: string,
     reason?: string,
   ) {
     const payment = await this.prisma.payment.findUnique({
       where: { id: paymentId },
       include: { refunds: true, order: true },
     });
+    if (!payment) {
+      throw new BadRequestException('Refundable payment not found');
+    }
+    const existing = payment.refunds.find(
+      (refund) => refund.refundStatus !== RefundStatus.FAILED,
+    );
+    if (existing) return this.serializeRefund(existing);
     if (
-      !payment ||
-      (payment.paymentStatus !== PaymentStatus.PAID &&
-        payment.paymentStatus !== PaymentStatus.PARTIALLY_REFUNDED) ||
+      payment.paymentStatus !== PaymentStatus.PAID ||
       !payment.razorpayPaymentId
     ) {
       throw new BadRequestException('Refundable payment not found');
     }
-
-    const amount = new Prisma.Decimal(amountInput);
-    const committed = payment.refunds
-      .filter((refund) => refund.refundStatus !== RefundStatus.FAILED)
-      .reduce((sum, refund) => sum.plus(refund.amount), new Prisma.Decimal(0));
-    if (amount.lte(0) || committed.plus(amount).gt(payment.amount)) {
-      throw new BadRequestException('Invalid refund amount');
-    }
+    const amount = payment.amount;
 
     const refund = await this.prisma.refund.create({
       data: {
@@ -295,12 +300,10 @@ export class PaymentsService {
 
   private async processWebhook(
     eventType: string,
-    payload: Record<string, any>,
+    payload: RazorpayWebhookPayload,
   ) {
     if (eventType === 'payment.captured') {
-      const entity = payload?.payload?.payment?.entity as
-        | GatewayPayment
-        | undefined;
+      const entity = payload.payload?.payment?.entity;
       if (!entity?.id || !entity.order_id) return;
       const payment = await this.prisma.payment.findFirst({
         where: { razorpayOrderId: entity.order_id },
@@ -311,9 +314,7 @@ export class PaymentsService {
     }
 
     if (eventType === 'payment.failed') {
-      const entity = payload?.payload?.payment?.entity as
-        | GatewayPayment
-        | undefined;
+      const entity = payload.payload?.payment?.entity;
       if (!entity?.order_id) return;
       const payment = await this.prisma.payment.findFirst({
         where: { razorpayOrderId: entity.order_id },
@@ -335,22 +336,12 @@ export class PaymentsService {
           where: { id: payment.orderId },
           data: { paymentStatus: PaymentStatus.FAILED },
         });
-        await this.operations.notify(tx, {
-          userId: payment.order.userId,
-          orderId: payment.orderId,
-          type: NotificationType.PAYMENT_FAILED,
-          title: 'Payment failed',
-          message:
-            'Your payment was not completed. You can retry from your order.',
-        });
       });
       return;
     }
 
     if (eventType.startsWith('refund.')) {
-      const entity = payload?.payload?.refund?.entity as
-        | { id?: string; status?: string; payment_id?: string }
-        | undefined;
+      const entity = payload.payload?.refund?.entity;
       if (!entity?.id) return;
       const refund = await this.prisma.refund.findFirst({
         where: { razorpayRefundId: entity.id },
@@ -416,14 +407,8 @@ export class PaymentsService {
           },
         },
       });
-      await this.operations.notify(tx, {
-        userId: payment.order.userId,
-        orderId: payment.orderId,
-        type: NotificationType.ORDER_CONFIRMED,
-        title: 'Order confirmed',
-        message: 'Payment received. Your catering order is confirmed.',
-      });
     });
+    await this.operations.generateOrderDocuments(payment.orderId);
   }
 
   private async reconcileRefund(paymentId: string) {
@@ -437,9 +422,7 @@ export class PaymentsService {
       .reduce((sum, refund) => sum.plus(refund.amount), new Prisma.Decimal(0));
     const paymentStatus = total.gte(payment.amount)
       ? PaymentStatus.REFUNDED
-      : total.gt(0)
-        ? PaymentStatus.PARTIALLY_REFUNDED
-        : PaymentStatus.PAID;
+      : PaymentStatus.PAID;
     await this.prisma.$transaction(async (tx) => {
       await tx.payment.update({
         where: { id: paymentId },
@@ -449,17 +432,8 @@ export class PaymentsService {
         where: { id: payment.orderId },
         data: { paymentStatus },
       });
-      await this.operations.notify(tx, {
-        userId: payment.order.userId,
-        orderId: payment.orderId,
-        type: NotificationType.REFUND_UPDATED,
-        title:
-          paymentStatus === PaymentStatus.REFUNDED
-            ? 'Refund completed'
-            : 'Refund updated',
-        message: `Refunded amount: INR ${total.toFixed(2)}.`,
-      });
     });
+    await this.operations.generateOrderDocuments(payment.orderId);
   }
 
   private async createRazorpayOrder(receipt: string, amount: number) {
