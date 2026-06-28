@@ -3,7 +3,8 @@
     "allow": [
       "PowerShell(& 'C:\\\\Program Files\\\\PostgreSQL\\\\18\\\\bin\\\\psql.exe' 'postgresql://neondb_owner:npg_6aljv8gesTty@ep-proud-base-aosy3svz-pooler.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require' -f 'C:\\\\Users\\\\USER\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-USER-TFF-thefeastfactory\\\\060c1231-7675-470d-9af4-1dffe7611669\\\\scratchpad\\\\local_dump.sql' 2>&1)",
       "PowerShell(& 'C:\\\\Program Files\\\\PostgreSQL\\\\18\\\\bin\\\\psql.exe' 'postgresql://neondb_owner:npg_6aljv8gesTty@ep-proud-base-aosy3svz-pooler.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require' -c \"SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name;\" 2>&1)",
-      "PowerShell(& 'C:\\\\Program Files\\\\PostgreSQL\\\\18\\\\bin\\\\psql.exe' 'postgresql://neondb_owner:npg_6aljv8gesTty@ep-proud-base-aosy3svz-pooler.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require' -c \"SET session_replication_role = 'replica';\" 2>&1)"
+      "PowerShell(& 'C:\\\\Program Files\\\\PostgreSQL\\\\18\\\\bin\\\\psql.exe' 'postgresql://neondb_owner:npg_6aljv8gesTty@ep-proud-base-aosy3svz-pooler.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require' -c \"SET session_replication_role = 'replica';\" 2>&1)",
+      "PowerShell(& 'C:\\\\Program Files\\\\PostgreSQL\\\\18\\\\bin\\\\psql.exe' 'postgresql://neondb_owner:npg_6aljv8gesTty@ep-proud-base-aosy3svz-pooler.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require' -c \"SELECT column_name FROM information_schema.columns WHERE table_name = 'menu_items' ORDER BY ordinal_position; SELECT column_name FROM information_schema.columns WHERE table_name = 'package_menu_items' ORDER BY ordinal_position; SELECT column_name FROM information_schema.columns WHERE table_name = 'packages' ORDER BY ordinal_position;\")"
     ]
   }
 }

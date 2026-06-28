@@ -4,7 +4,7 @@
   "pkg": "@aranyam/ui",
   "globalName": "FeastFactoryUI",
   "tsconfig": "tsconfig.json",
-  "cssEntry": ".ds-ui.css",
+  "cssEntry": ".ds-combined.css",
   "componentSrcMap": {
     "Button": "components/ui/button.tsx",
     "Input": "components/ui/input.tsx",

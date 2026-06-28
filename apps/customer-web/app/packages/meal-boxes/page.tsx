@@ -176,17 +176,25 @@ function VegDot({ isVeg }: { isVeg: boolean }) {
 function BoxCard({
   pkg,
   index,
-  isSelected,
+  isExpanded,
+  isChosen,
   config,
   isLoadingConfig,
-  onToggle,
+  chosenPricePerPlate,
+  qty,
+  onExpand,
+  onChoose,
 }: {
-  pkg:             PackageSummary;
-  index:           number;
-  isSelected:      boolean;
-  config:          PackageConfiguration | undefined;
-  isLoadingConfig: boolean;
-  onToggle:        () => void;
+  pkg:                 PackageSummary;
+  index:               number;
+  isExpanded:          boolean;
+  isChosen:            boolean;
+  config:              PackageConfiguration | undefined;
+  isLoadingConfig:     boolean;
+  chosenPricePerPlate: number | null;
+  qty:                 number;
+  onExpand:            () => void;
+  onChoose:            () => void;
 }) {
   const meta        = BOX_META[index];
   const displayName = BOX_DISPLAY_NAMES[index] ?? pkg.name;
@@ -196,7 +204,7 @@ function BoxCard({
     <article
       className={cn(
         'overflow-hidden rounded-2xl bg-white transition-all duration-200',
-        isSelected
+        isChosen
           ? 'shadow-elevated ring-2 ring-primary'
           : meta.popular
           ? 'shadow-sm ring-1 ring-border hover:ring-primary/40'
@@ -244,24 +252,24 @@ function BoxCard({
             <span className="text-xs text-muted-foreground">/ box</span>
           </div>
           <button
-            onClick={onToggle}
+            onClick={onExpand}
             className={cn(
               'inline-flex shrink-0 items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-bold transition-all duration-200',
-              isSelected
+              isExpanded
                 ? 'bg-primary text-white'
                 : 'border border-primary bg-white text-primary hover:bg-primary hover:text-white',
             )}
           >
-            {isSelected ? 'Hide Details' : 'View Details'}
-            {isSelected
+            {isExpanded ? 'Hide Details' : 'View Details'}
+            {isExpanded
               ? <ChevronUp className="h-3.5 w-3.5" />
               : <ChevronDown className="h-3.5 w-3.5" />}
           </button>
         </div>
       </div>
 
-      {/* ── Inline expanded details panel (like packages page) ── */}
-      {isSelected && (
+      {/* ── Inline expanded details panel ── */}
+      {isExpanded && (
         <div className="border-t border-border p-5" style={{ background: 'hsl(37 30% 97%)' }}>
           {isLoadingConfig ? (
             <div className="space-y-3 py-2">
@@ -305,6 +313,55 @@ function BoxCard({
               Details unavailable for this box.
             </p>
           )}
+
+          {/* Swap diff callout — shown when another box is already chosen */}
+          {!isChosen && chosenPricePerPlate !== null && config && (() => {
+            const thisPrice = parseFloat(config.basePricePerPlate as unknown as string);
+            const diff      = thisPrice - chosenPricePerPlate;
+            const diffTotal = diff * qty;
+            const sign      = diff >= 0 ? '+' : '−';
+            const absDiff   = Math.abs(diff);
+            const absDiffTotal = Math.abs(diffTotal);
+            return (
+              <div className={cn(
+                'mt-4 rounded-xl border px-3 py-2.5 text-xs font-semibold',
+                diff > 0
+                  ? 'border-amber-200 bg-amber-50 text-amber-800'
+                  : diff < 0
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                  : 'border-border bg-muted text-muted-foreground',
+              )}>
+                {diff === 0 ? (
+                  'Same price as your current selection'
+                ) : (
+                  <>
+                    {sign}₹{absDiff.toLocaleString('en-IN')}/box · {sign}₹{absDiffTotal.toLocaleString('en-IN')} total for {qty} boxes
+                  </>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* CTA: Added to Cart / Swap / Choose */}
+          <button
+            onClick={onChoose}
+            className={cn(
+              'mt-3 flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold transition-all duration-200',
+              isChosen
+                ? 'bg-emerald-600 text-white'
+                : chosenPricePerPlate !== null
+                ? 'bg-amber-600 text-white hover:bg-amber-700'
+                : 'bg-primary text-white hover:bg-primary/90',
+            )}
+          >
+            {isChosen ? (
+              <><Check className="h-4 w-4" /> Added to Cart</>
+            ) : chosenPricePerPlate !== null ? (
+              <><ArrowRight className="h-4 w-4" /> Swap to this box</>
+            ) : (
+              'Choose Meal Box'
+            )}
+          </button>
         </div>
       )}
     </article>
@@ -428,7 +485,7 @@ function OrderSidebar({
               onClick={onContinue}
               className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-sm font-bold text-white shadow-sm transition hover:bg-primary/90"
             >
-              Continue to Checkout <ArrowRight className="h-4 w-4" />
+              Add to Cart <ArrowRight className="h-4 w-4" />
             </button>
             <div className="mt-3 flex items-center justify-center gap-1.5 text-[11px] text-muted-foreground">
               <Lock className="h-3 w-3" />
@@ -441,7 +498,7 @@ function OrderSidebar({
           <div className="rounded-xl border border-dashed border-border bg-muted/30 px-4 py-5 text-center">
             <p className="text-sm font-semibold text-foreground">No box selected</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Click "View Details" on a meal box to select it.
+              Click "View Details" then "Choose Meal Box" to add one.
             </p>
           </div>
           <div className="mt-5">
@@ -509,7 +566,8 @@ export default function MealBoxesPage() {
   const [nonVegPackages, setNonVegPackages] = useState<PackageSummary[]>([]);
   const [loading,        setLoading]        = useState(true);
   const [error,          setError]          = useState('');
-  const [selectedIdx,    setSelectedIdx]    = useState<number | null>(null);
+  const [expandedIdx,    setExpandedIdx]    = useState<number | null>(null);
+  const [chosenIdx,      setChosenIdx]      = useState<number | null>(null);
   const [vegMode,        setVegMode]        = useState<'veg' | 'non-veg'>('veg');
   const [qty,            setQty]            = useState(100);
 
@@ -535,25 +593,19 @@ export default function MealBoxesPage() {
   }, []);
 
   const packages    = vegMode === 'veg' ? vegPackages : nonVegPackages;
-  const selectedPkg = selectedIdx !== null ? (packages[selectedIdx] ?? null) : null;
+  const selectedPkg = chosenIdx !== null ? (packages[chosenIdx] ?? null) : null;
 
-  const selectedDisplayName = selectedIdx !== null
-    ? `${BOX_NUMS[selectedIdx] ?? ''} Item ${vegMode === 'veg' ? 'Veg' : 'Non-Veg'} Box`
+  const selectedDisplayName = chosenIdx !== null
+    ? `${BOX_NUMS[chosenIdx] ?? ''} Item ${vegMode === 'veg' ? 'Veg' : 'Non-Veg'} Box`
     : '';
 
-  function handleSelect(idx: number) {
-    /* toggle off */
-    if (selectedIdx === idx) {
-      setSelectedIdx(null);
-      return;
-    }
+  function handleExpand(idx: number) {
+    const next = expandedIdx === idx ? null : idx;
+    setExpandedIdx(next);
 
-    setSelectedIdx(idx);
-    const minQ = packages[idx]?.activeVersion?.minGuestCount ?? 20;
-    setQty((q) => Math.max(q, minQ));
-
-    /* load configuration if not cached yet */
-    const versionId = packages[idx]?.activeVersion?.id;
+    /* load configuration on expand if not cached yet */
+    if (next === null) return;
+    const versionId = packages[next]?.activeVersion?.id;
     if (!versionId || configs[versionId]) return;
 
     setLoadingVersionId(versionId);
@@ -563,9 +615,16 @@ export default function MealBoxesPage() {
       .finally(() => setLoadingVersionId(null));
   }
 
+  function handleChoose(idx: number) {
+    setChosenIdx(idx);
+    const minQ = packages[idx]?.activeVersion?.minGuestCount ?? 20;
+    setQty((q) => Math.max(q, minQ));
+  }
+
   function handleVegModeChange(mode: 'veg' | 'non-veg') {
     setVegMode(mode);
-    setSelectedIdx(null);
+    setExpandedIdx(null);
+    setChosenIdx(null);
   }
 
   function handleContinue() {
@@ -664,15 +723,22 @@ export default function MealBoxesPage() {
                   <div className="grid gap-4 sm:grid-cols-3">
                     {packages.map((pkg, i) => {
                       const versionId = pkg.activeVersion?.id ?? '';
+                      const chosenPrice = (chosenIdx !== null && chosenIdx !== i && selectedPkg?.activeVersion)
+                        ? parseFloat(selectedPkg.activeVersion.basePricePerPlate)
+                        : null;
                       return (
                         <BoxCard
                           key={pkg.id}
                           pkg={pkg}
                           index={i}
-                          isSelected={selectedIdx === i}
+                          isExpanded={expandedIdx === i}
+                          isChosen={chosenIdx === i}
                           config={configs[versionId]}
                           isLoadingConfig={loadingVersionId === versionId}
-                          onToggle={() => handleSelect(i)}
+                          chosenPricePerPlate={chosenPrice}
+                          qty={qty}
+                          onExpand={() => handleExpand(i)}
+                          onChoose={() => handleChoose(i)}
                         />
                       );
                     })}
@@ -711,12 +777,12 @@ export default function MealBoxesPage() {
             <div className="sticky top-20">
               <OrderSidebar
                 pkg={selectedPkg}
-                index={selectedIdx}
+                index={chosenIdx}
                 vegMode={vegMode}
                 qty={qty}
                 onQtyChange={setQty}
                 onContinue={handleContinue}
-                onEditBox={() => setSelectedIdx(null)}
+                onEditBox={() => setChosenIdx(null)}
               />
             </div>
           </div>
@@ -739,7 +805,7 @@ export default function MealBoxesPage() {
               onClick={handleContinue}
               className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-primary shadow transition hover:bg-white/90"
             >
-              Continue <ArrowRight className="h-4 w-4" />
+              Add to Cart <ArrowRight className="h-4 w-4" />
             </button>
           </div>
         </div>

@@ -10,7 +10,7 @@ Preserves: `users`, `orders`, `admin_users`, `payments` and all other tables (no
 ## Prerequisites
 - PostgreSQL 18 installed at `C:\Program Files\PostgreSQL\18\bin\`
 - Local DB: `postgresql://postgres:postgres@localhost:5432/aranyam`
-- Neon URL in hand (from Vercel → Settings → Environment Variables → DATABASE_URL)
+- Neon URL: `postgresql://neondb_owner:npg_6aljv8gesTty@ep-proud-base-aosy3svz-pooler.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require`
 
 ---
 
@@ -37,7 +37,7 @@ If Neon still has **old columns** (`base_price`, `is_custom`, missing `role`/`is
 ## Step 2 — Migrate Neon schema (only needed once, or after API migrations)
 
 ```powershell
-& 'C:\Program Files\PostgreSQL\18\bin\psql.exe' '<NEON_URL>' -c "
+& 'C:\Program Files\PostgreSQL\18\bin\psql.exe' 'postgresql://neondb_owner:npg_6aljv8gesTty@ep-proud-base-aosy3svz-pooler.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require' -c "
 ALTER TABLE public.menu_items RENAME COLUMN base_price TO box_price;
 ALTER TABLE public.menu_items ADD COLUMN IF NOT EXISTS general_price NUMERIC(10,2) DEFAULT 0;
 ALTER TABLE public.package_menu_items ADD COLUMN IF NOT EXISTS role VARCHAR DEFAULT 'INCLUDED';
@@ -55,7 +55,7 @@ ALTER TABLE public.packages DROP COLUMN IF EXISTS is_custom;
 This is safe — it only clears the 5 synced tables. Users, orders, payments are untouched.
 
 ```powershell
-& 'C:\Program Files\PostgreSQL\18\bin\psql.exe' '<NEON_URL>' -c "
+& 'C:\Program Files\PostgreSQL\18\bin\psql.exe' 'postgresql://neondb_owner:npg_6aljv8gesTty@ep-proud-base-aosy3svz-pooler.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require' -c "
 TRUNCATE public.package_menu_items, public.package_versions, public.packages, public.menu_items, public.menu_categories CASCADE;
 "
 ```
@@ -70,7 +70,7 @@ TRUNCATE public.package_menu_items, public.package_versions, public.packages, pu
 ```powershell
 & 'C:\Program Files\PostgreSQL\18\bin\pg_dump.exe' `
   -U postgres -d aranyam `
-  --data-only --inserts `
+  --data-only --inserts --column-inserts `
   --table=menu_categories `
   --table=menu_items `
   --table=packages `
@@ -85,7 +85,7 @@ TRUNCATE public.package_menu_items, public.package_versions, public.packages, pu
 ## Step 5 — Import to Neon
 
 ```powershell
-& 'C:\Program Files\PostgreSQL\18\bin\psql.exe' '<NEON_URL>' -f 'C:\Temp\tff_data.sql'
+& 'C:\Program Files\PostgreSQL\18\bin\psql.exe' 'postgresql://neondb_owner:npg_6aljv8gesTty@ep-proud-base-aosy3svz-pooler.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require' -f 'C:\Temp\tff_data.sql'
 ```
 
 ---
@@ -93,7 +93,7 @@ TRUNCATE public.package_menu_items, public.package_versions, public.packages, pu
 ## Step 6 — Verify
 
 ```powershell
-& 'C:\Program Files\PostgreSQL\18\bin\psql.exe' '<NEON_URL>' -c "
+& 'C:\Program Files\PostgreSQL\18\bin\psql.exe' 'postgresql://neondb_owner:npg_6aljv8gesTty@ep-proud-base-aosy3svz-pooler.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require' -c "
 SELECT p.name AS package, COUNT(pmi.id) AS items
 FROM public.packages p
 LEFT JOIN public.package_versions pv ON pv.package_id = p.id
@@ -112,6 +112,7 @@ Expected output: Pooja (11 items), Farmhouse (12), Corporate (12), meal boxes (3
 |---|---|---|
 | `column "box_price" does not exist` | Neon schema is old | Run Step 2 |
 | `backslash commands are restricted` | PgBouncer blocks COPY | Use `--inserts` in pg_dump |
+| `menu_items` imports 0 rows silently | Column order differs between local and Neon (e.g. `general_price` added at end on Neon) — positional VALUES mismatch types | Always use `--column-inserts` so INSERT names each column explicitly |
 | `relation "packages" does not exist` | Neon pooler drops `search_path` | Use `public.packages` explicitly |
 | `permission denied to set session_replication_role` | No superuser on Neon | Insert in correct FK order (categories → items → packages → versions → pkg_menu_items) |
 | FK constraint violation on import | Wrong insert order | Use `--inserts` (pg_dump auto-orders correctly) |
@@ -131,13 +132,13 @@ Expected output: Pooja (11 items), Farmhouse (12), Corporate (12), meal boxes (3
 
 ```powershell
 # Dump
-& 'C:\Program Files\PostgreSQL\18\bin\pg_dump.exe' -U postgres -d aranyam --data-only --inserts --table=menu_categories --table=menu_items --table=packages --table=package_versions --table=package_menu_items --no-acl --no-owner -f 'C:\Temp\tff_data.sql'
+& 'C:\Program Files\PostgreSQL\18\bin\pg_dump.exe' -U postgres -d aranyam --data-only --inserts --column-inserts --table=menu_categories --table=menu_items --table=packages --table=package_versions --table=package_menu_items --no-acl --no-owner -f 'C:\Temp\tff_data.sql'
 
 # Clear Neon
-& 'C:\Program Files\PostgreSQL\18\bin\psql.exe' '<NEON_URL>' -c "TRUNCATE public.package_menu_items, public.package_versions, public.packages, public.menu_items, public.menu_categories CASCADE;"
+& 'C:\Program Files\PostgreSQL\18\bin\psql.exe' 'postgresql://neondb_owner:npg_6aljv8gesTty@ep-proud-base-aosy3svz-pooler.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require' -c "TRUNCATE public.package_menu_items, public.package_versions, public.packages, public.menu_items, public.menu_categories CASCADE;"
 
 # Import
-& 'C:\Program Files\PostgreSQL\18\bin\psql.exe' '<NEON_URL>' -f 'C:\Temp\tff_data.sql'
+& 'C:\Program Files\PostgreSQL\18\bin\psql.exe' 'postgresql://neondb_owner:npg_6aljv8gesTty@ep-proud-base-aosy3svz-pooler.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require' -f 'C:\Temp\tff_data.sql'
 ```
 
 Replace `<NEON_URL>` with the actual connection string each time.
