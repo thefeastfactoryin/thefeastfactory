@@ -5,14 +5,13 @@ import {
   ArrowRight,
   Check,
   ChefHat,
-  ChevronDown,
-  ChevronUp,
   Clock3,
   Headphones,
   IndianRupee,
   ShieldCheck,
   Users,
   Utensils,
+  X,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
@@ -214,6 +213,27 @@ export default function PackagesPage() {
     }
   }
 
+  function closeDetails() {
+    setExpandedId(null);
+    setSwapOpen(null);
+  }
+
+  useEffect(() => {
+    if (!expandedId) return;
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') closeDetails();
+    }
+
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', onKeyDown);
+
+    return () => {
+      document.body.style.overflow = '';
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [expandedId]);
+
   function getDisplayItems(rule: PackageConfiguration['categoryRules'][number], pkgId: string): PkgItem[] {
     const count = Math.min(rule.maxSelections, rule.items.length);
     return Array.from({ length: count }, (_, i) => swappedItems[`${pkgId}:${rule.id}:${i}`] ?? rule.items[i]!);
@@ -223,7 +243,29 @@ export default function PackagesPage() {
     return new Set(getDisplayItems(rule, pkgId).map((i) => i.id));
   }
 
-  async function openSwap(swapKey: string, categoryId: string, displayedIds: Set<string>) {
+  function isSlotSwappable(rule: PackageConfiguration['categoryRules'][number], position: number): boolean {
+    return rule.items[position]?.isSwappable === true;
+  }
+
+  function hasSwappableItems(config: PackageConfiguration): boolean {
+    return config.categoryRules.some((rule) =>
+      getDisplayItems(rule, config.packageId).some((_, idx) => isSlotSwappable(rule, idx)),
+    );
+  }
+
+  function getMenuHighlightRows(config: PackageConfiguration, pkgId: string) {
+    return config.categoryRules.flatMap((rule) =>
+      getDisplayItems(rule, pkgId).map((item, idx) => ({
+        rule,
+        item,
+        idx,
+        swapKey: `${pkgId}:${rule.id}:${idx}`,
+        canSwap: isSlotSwappable(rule, idx),
+      })),
+    );
+  }
+
+  async function openSwap(swapKey: string, categoryId: string) {
     if (swapOpen === swapKey) { setSwapOpen(null); return; }
     setSwapOpen(swapKey);
     if (swapAlts[categoryId]) return;
@@ -239,10 +281,16 @@ export default function PackagesPage() {
     }
   }
 
-  function handleSwap(pkgId: string, ruleId: string, position: number, alt: MenuItem) {
+  function handleSwap(
+    pkgId: string,
+    rule: PackageConfiguration['categoryRules'][number],
+    position: number,
+    alt: MenuItem,
+  ) {
+    const canSwapSlot = isSlotSwappable(rule, position);
     const asItem: PkgItem = {
       ...alt,
-      isSwappable: true,
+      isSwappable: canSwapSlot,
       basePrice: '0.00',
       boxPrice: '0.00',
       generalPrice: '0.00',
@@ -250,9 +298,18 @@ export default function PackagesPage() {
       includedValue: '0.00',
       adjustmentAmount: '0.00',
     };
-    setSwappedItems((prev) => ({ ...prev, [`${pkgId}:${ruleId}:${position}`]: asItem }));
+    setSwappedItems((prev) => ({ ...prev, [`${pkgId}:${rule.id}:${position}`]: asItem }));
     setSwapOpen(null);
   }
+
+  const selectedApiPkg = expandedId ? summaries.find((pkg) => pkg.id === expandedId) : undefined;
+  const selectedCard = selectedApiPkg ? PKG_CARDS.find((pkg) => getApiPkg(pkg)?.id === selectedApiPkg.id) : undefined;
+  const selectedConfig = selectedApiPkg ? configs[selectedApiPkg.id] : undefined;
+  const selectedActiveVersion = selectedApiPkg?.activeVersion;
+  const selectedGuestRange = selectedActiveVersion
+    ? `${selectedActiveVersion.minGuestCount}-${selectedActiveVersion.maxGuestCount ?? '1000'} guests`
+    : selectedCard?.serves;
+  const selectedStartingPrice = selectedConfig?.basePricePerPlate ?? selectedActiveVersion?.basePricePerPlate;
 
   return (
     <main className="bg-[hsl(37_38%_96%)] pb-20">
@@ -340,12 +397,10 @@ export default function PackagesPage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
+        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-4">
           {PKG_CARDS.map((pkg) => {
             const apiPkg = getApiPkg(pkg);
             const isExpanded = !!(apiPkg && expandedId === apiPkg.id);
-            const isLoading = !!(apiPkg && loadingId === apiPkg.id);
-            const config = apiPkg ? configs[apiPkg.id] : undefined;
             const canExpand = !!(apiPkg?.activeVersion);
             const activeVersion = apiPkg?.activeVersion;
             const guestRange = activeVersion
@@ -392,7 +447,7 @@ export default function PackagesPage() {
                 </div>
 
                 {/* body */}
-                <div className="flex flex-1 flex-col bg-white px-4 pb-4 pt-6">
+                <div className="flex flex-col bg-white px-4 pb-4 pt-6">
                   <h3 style={{ fontFamily: "'Zilla Slab', serif", fontWeight: 700, fontSize: 20, margin: '0 0 6px', color: 'hsl(0 0% 12%)', lineHeight: 1.12 }}>
                     {pkg.name}
                   </h3>
@@ -438,198 +493,222 @@ export default function PackagesPage() {
                     <Link
                       href={pkg.href}
                       aria-label={`Build a custom package for ${pkg.name}`}
-                      className="mt-auto flex h-11 w-full items-center justify-center gap-2 rounded-full border border-[hsl(352_59%_30%)] bg-[hsl(352_59%_30%)] px-4 text-[13.5px] font-extrabold text-white no-underline shadow-[0_7px_15px_rgba(116,28,42,0.12)] transition-all duration-[250ms] [font-family:'Nunito_Sans',sans-serif] [transition-timing-function:cubic-bezier(.22,.61,.36,1)] hover:-translate-y-0.5 hover:bg-[hsl(352_59%_26%)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(41_56%_56%)] focus-visible:ring-offset-2"
+                      className="flex h-11 w-full items-center justify-center gap-2 rounded-full border border-[hsl(352_59%_30%)] bg-[hsl(352_59%_30%)] px-4 text-[13.5px] font-extrabold text-white no-underline shadow-[0_7px_15px_rgba(116,28,42,0.12)] transition-all duration-[250ms] [font-family:'Nunito_Sans',sans-serif] [transition-timing-function:cubic-bezier(.22,.61,.36,1)] hover:-translate-y-0.5 hover:bg-[hsl(352_59%_26%)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(41_56%_56%)] focus-visible:ring-offset-2"
                     >
                       Build Your Package
                       <ArrowRight style={{ width: 15, height: 15 }} />
                     </Link>
                   ) : (
-                    <button
-                      onClick={() => canExpand && toggleDetails(apiPkg!)}
-                      disabled={!canExpand}
-                      aria-expanded={isExpanded}
-                      aria-label={`${isExpanded ? 'Hide menu for' : 'View menu for'} ${pkg.name}`}
-                      className={cn(
-                        "mt-auto flex h-11 w-full items-center justify-center gap-2 rounded-full border px-4 text-[13.5px] font-extrabold shadow-[0_5px_13px_rgba(116,28,42,0.07)] transition-all duration-[250ms] [font-family:'Nunito_Sans',sans-serif] [transition-timing-function:cubic-bezier(.22,.61,.36,1)] hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(41_56%_56%)] focus-visible:ring-offset-2 disabled:cursor-default disabled:opacity-50",
-                        isExpanded
-                          ? 'border-[hsl(352_59%_30%)] bg-[hsl(352_59%_30%)] text-white'
-                          : 'border-[hsla(352,59%,30%,0.42)] bg-white text-[hsl(352_59%_30%)] hover:border-[hsl(352_59%_30%)] hover:bg-[hsl(352_48%_97%)]',
-                      )}
-                      style={{
-                        cursor: canExpand ? 'pointer' : 'default',
-                      }}
-                    >
-                      {isExpanded ? 'Hide menu' : 'View menu'}
-                      {isExpanded
-                        ? <ChevronUp style={{ width: 15, height: 15 }} />
-                        : <ChevronDown style={{ width: 15, height: 15 }} />}
-                    </button>
+                    <div className="grid gap-2">
+                      <button
+                        onClick={() => canExpand && toggleDetails(apiPkg!)}
+                        disabled={!canExpand}
+                        aria-expanded={isExpanded}
+                        aria-label={`View menu for ${pkg.name}`}
+                        className={cn(
+                          "flex h-10 w-full items-center justify-center gap-2 rounded-full border px-4 text-[13px] font-extrabold shadow-[0_5px_13px_rgba(116,28,42,0.07)] transition-all duration-[250ms] [font-family:'Nunito_Sans',sans-serif] [transition-timing-function:cubic-bezier(.22,.61,.36,1)] hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(41_56%_56%)] focus-visible:ring-offset-2 disabled:cursor-default disabled:opacity-50",
+                          isExpanded
+                            ? 'border-[hsl(352_59%_30%)] bg-[hsl(352_59%_30%)] text-white'
+                            : 'border-[hsla(352,59%,30%,0.42)] bg-white text-[hsl(352_59%_30%)] hover:border-[hsl(352_59%_30%)] hover:bg-[hsl(352_48%_97%)]',
+                        )}
+                        style={{
+                          cursor: canExpand ? 'pointer' : 'default',
+                        }}
+                      >
+                        View menu
+                        <ArrowRight style={{ width: 14, height: 14 }} />
+                      </button>
+                      <Link
+                        href={apiPkg ? `/packages/${apiPkg.id}` : pkg.href}
+                        aria-label={`Choose ${pkg.name}`}
+                        className="flex h-10 w-full items-center justify-center gap-2 rounded-full border border-[hsl(352_59%_30%)] bg-[hsl(352_59%_30%)] px-4 text-[13px] font-extrabold text-white no-underline shadow-[0_7px_15px_rgba(116,28,42,0.12)] transition-all duration-[250ms] [font-family:'Nunito_Sans',sans-serif] [transition-timing-function:cubic-bezier(.22,.61,.36,1)] hover:-translate-y-0.5 hover:bg-[hsl(352_59%_26%)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(41_56%_56%)] focus-visible:ring-offset-2"
+                      >
+                        Choose Package
+                        <ArrowRight style={{ width: 14, height: 14 }} />
+                      </Link>
+                    </div>
                   )}
                 </div>
 
-                {/* ── Expanded details panel ── */}
-                {isExpanded && (
-                  <div className="transition-all duration-200" style={{ background: 'hsl(39 44% 97%)', borderTop: '1px solid hsl(35 22% 88%)', padding: 16 }}>
-                    {isLoading ? (
-                      <div style={{ textAlign: 'center', padding: '18px 0', color: 'hsl(0 0% 48%)', fontSize: 14 }}>
-                        Loading package details…
-                      </div>
-                    ) : config ? (
-                      <>
-                        <div style={{
-                          fontSize: 11, fontWeight: 800, letterSpacing: '0.07em',
-                          color: 'hsl(0 0% 38%)', textTransform: 'uppercase', marginBottom: 10,
-                        }}>
-                          {config.isCustom ? 'Full Menu' : config.categoryRules[0]?.isMandatory ? 'Included Items' : 'Menu Highlights'}
-                        </div>
-
-                        <div className="grid gap-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-                          {config.categoryRules.flatMap((rule) => {
-                            const displayItems = getDisplayItems(rule, apiPkg!.id);
-                            return displayItems.map((item, idx) => {
-                              const swapKey = `${apiPkg!.id}:${rule.id}:${idx}`;
-                              const isSwapOpen = swapOpen === swapKey;
-                              const displayedIds = item.isSwappable ? getDisplayedIds(rule, apiPkg!.id) : new Set<string>();
-                              const alternatives = item.isSwappable
-                                ? (swapAlts[rule.category.id] ?? []).filter((a) => !displayedIds.has(a.id))
-                                : [];
-
-                              return (
-                                <div key={swapKey} className={cn('min-w-0', isSwapOpen && 'sm:col-span-2')}>
-                                  <div style={{
-                                    display: 'flex', alignItems: 'center', gap: 8,
-                                    minHeight: 34,
-                                    background: isSwapOpen ? 'hsl(352 42% 98%)' : '#fff', borderRadius: 8, padding: '4px 8px',
-                                    border: `1px solid ${isSwapOpen ? 'hsl(352 38% 82%)' : 'hsl(35 22% 90%)'}`,
-                                    transition: 'border-color 0.15s',
-                                  }}>
-                                    <VegDot isVeg={item.isVeg} />
-                                    <span
-                                      className="min-w-0 truncate"
-                                      style={{ flex: 1, fontSize: 12, fontWeight: 600, color: 'hsl(0 0% 16%)', lineHeight: 1.3 }}
-                                      title={item.name}
-                                    >
-                                      {item.name}
-                                    </span>
-                                    {item.isSwappable && (
-                                      <button
-                                        onClick={() => openSwap(swapKey, rule.category.id, displayedIds)}
-                                        aria-label={`Swap ${item.name}`}
-                                        title={`Swap ${item.name}`}
-                                        className="transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(41_56%_56%)] focus-visible:ring-offset-1"
-                                        style={{
-                                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                                          width: 28, height: 28,
-                                          fontSize: 11, fontWeight: 800,
-                                          color: isSwapOpen ? '#fff' : 'hsl(352 59% 30%)',
-                                          background: isSwapOpen ? 'hsl(352 59% 30%)' : 'hsl(352 44% 97%)',
-                                          border: '1px solid hsl(352 42% 78%)',
-                                          borderRadius: 999, padding: 0,
-                                          cursor: 'pointer', flexShrink: 0,
-                                        }}
-                                      >
-                                        <ArrowLeftRight style={{ width: 12, height: 12 }} />
-                                      </button>
-                                    )}
-                                  </div>
-
-                                  {isSwapOpen && (
-                                    <div style={{
-                                      marginTop: 3,
-                                      background: '#fff',
-                                      border: '1px solid hsl(35 22% 88%)',
-                                      borderRadius: 8, padding: '6px',
-                                      boxShadow: '0 6px 16px rgba(45,31,20,0.07)',
-                                    }}>
-                                      <div style={{
-                                        fontSize: 11, fontWeight: 700, color: 'hsl(0 0% 44%)',
-                                        marginBottom: 6, padding: '0 4px',
-                                      }}>
-                                        Swap with:
-                                      </div>
-                                      {swapLoading ? (
-                                        <div style={{ fontSize: 12, color: 'hsl(0 0% 52%)', padding: '6px 4px' }}>Loading…</div>
-                                      ) : alternatives.length === 0 ? (
-                                        <div style={{ fontSize: 12, color: 'hsl(0 0% 52%)', padding: '6px 4px' }}>No other options available</div>
-                                      ) : (
-                                        <div className="grid gap-1 sm:grid-cols-2">
-                                          {alternatives.map((alt) => (
-                                            <button
-                                              key={alt.id}
-                                              onClick={() => handleSwap(apiPkg!.id, rule.id, idx, alt)}
-                                              className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(41_56%_56%)] focus-visible:ring-offset-1"
-                                              style={{
-                                                display: 'flex', alignItems: 'center', gap: 8,
-                                                minHeight: 34, padding: '6px 8px', borderRadius: 7, width: '100%',
-                                                border: 'none', background: 'transparent',
-                                                cursor: 'pointer', textAlign: 'left',
-                                              }}
-                                              onMouseEnter={(e) => (e.currentTarget.style.background = 'hsl(352 59% 97%)')}
-                                              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                                            >
-                                              <VegDot isVeg={alt.isVeg} />
-                                              <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: 'hsl(0 0% 18%)' }}>
-                                                {alt.name}
-                                              </span>
-                                            </button>
-                                          ))}
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            });
-                          })}
-                        </div>
-
-                        {/* Footer: pricing + choose CTA */}
-                        <div style={{
-                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                          flexWrap: 'wrap', gap: 10,
-                          marginTop: 16, paddingTop: 14,
-                          borderTop: '1px solid hsl(35 22% 88%)',
-                        }}>
-                          <div>
-                            <div style={{ fontSize: 11, color: 'hsl(0 0% 48%)', fontWeight: 600 }}>Starting from</div>
-                            <div style={{ fontFamily: "'Zilla Slab', serif", fontWeight: 800, fontSize: 18, color: 'hsl(352 59% 30%)' }}>
-                              ₹{config.basePricePerPlate}
-                              <span style={{ fontFamily: "'Nunito Sans', sans-serif", fontSize: 12, fontWeight: 600, color: 'hsl(0 0% 48%)' }}> /person</span>
-                            </div>
-                          </div>
-                          <Link
-                            href={`/packages/${config.packageId}`}
-                            className="transition-colors duration-200 hover:bg-[hsl(352_59%_26%)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(41_56%_56%)] focus-visible:ring-offset-2"
-                            style={{
-                              display: 'inline-flex', alignItems: 'center', gap: 6,
-                              background: 'hsl(352 59% 30%)', color: '#fff',
-                              minHeight: 44, borderRadius: 999, padding: '10px 16px',
-                              fontFamily: "'Nunito Sans', sans-serif", fontWeight: 800, fontSize: 13,
-                              textDecoration: 'none',
-                            }}
-                          >
-                            Choose Package
-                            <ArrowRight style={{ width: 13, height: 13 }} />
-                          </Link>
-                        </div>
-                      </>
-                    ) : (
-                      <div style={{ textAlign: 'center', padding: '16px 0', color: 'hsl(0 0% 48%)', fontSize: 14 }}>
-                        Details unavailable.{' '}
-                        <Link href={pkg.href} style={{ color: 'hsl(352 59% 30%)', fontWeight: 700 }}>
-                          View package →
-                        </Link>
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
             );
           })}
         </div>
       </section>
 
-      {/* ══════════════════════════ COMPARE TABLE ══════════════════════════ */}
+      {/* ══════════════════════════ MENU DRAWER ══════════════════════════ */}
+      {selectedApiPkg && selectedCard && (
+        <div
+          className="fixed inset-0 z-50 bg-black/35 backdrop-blur-[2px]"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${selectedCard.name} menu`}
+          onClick={closeDetails}
+        >
+          <aside
+            className="ml-auto flex h-full w-full flex-col overflow-y-auto bg-[hsl(39_50%_98%)] shadow-[-18px_0_45px_rgba(45,31,20,0.18)] sm:max-w-[500px]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-[hsl(35_22%_86%)] bg-[hsl(39_55%_97%)] px-5 py-5 sm:px-6">
+              <div>
+                <div className="mb-1 text-[11px] font-extrabold uppercase tracking-[0.12em] text-[hsl(38_52%_38%)]">
+                  Package menu
+                </div>
+                <h3 className="m-0 font-serif text-[26px] font-bold leading-tight text-[hsl(0_0%_12%)]">
+                  {selectedCard.name}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={closeDetails}
+                aria-label="Close menu"
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[hsl(35_22%_84%)] bg-white text-[hsl(0_0%_18%)] shadow-sm transition-colors hover:border-[hsl(352_38%_72%)] hover:text-[hsl(352_59%_30%)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(41_56%_56%)] focus-visible:ring-offset-2"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="px-5 py-4 sm:px-6">
+              <div className="mb-4 grid grid-cols-2 overflow-hidden rounded-[16px] border border-[hsl(35_22%_86%)] bg-white shadow-[0_8px_22px_rgba(45,31,20,0.055)]">
+                <div className="border-r border-[hsl(35_22%_88%)] px-4 py-3">
+                  <div className="text-[10.5px] font-extrabold uppercase tracking-[0.12em] text-[hsl(0_0%_46%)]">From</div>
+                  <div className="mt-1 font-serif text-[22px] font-bold leading-none text-[hsl(352_59%_30%)]">
+                    {selectedStartingPrice ? `₹${selectedStartingPrice}` : 'On request'}
+                  </div>
+                  {selectedStartingPrice && <div className="mt-1 text-[11px] font-semibold text-[hsl(0_0%_48%)]">per guest</div>}
+                </div>
+                <div className="px-4 py-3">
+                  <div className="text-[10.5px] font-extrabold uppercase tracking-[0.12em] text-[hsl(0_0%_46%)]">Serves</div>
+                  <div className="mt-1 text-[14px] font-extrabold leading-snug text-[hsl(0_0%_18%)]">
+                    {selectedGuestRange ?? 'Flexible group size'}
+                  </div>
+                </div>
+              </div>
+
+              <p className="mb-4 text-[13.5px] leading-5 text-[hsl(0_0%_34%)]">
+                {selectedCard.desc}
+              </p>
+
+              {loadingId === selectedApiPkg.id ? (
+                <div className="rounded-[16px] border border-[hsl(35_22%_86%)] bg-white px-4 py-8 text-center text-sm font-semibold text-[hsl(0_0%_48%)]">
+                  Loading package details...
+                </div>
+              ) : selectedConfig ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-[hsl(0_0%_36%)]">
+                      {selectedConfig.isCustom ? 'Full menu' : selectedConfig.categoryRules[0]?.isMandatory ? 'Included items' : 'Menu highlights'}
+                    </div>
+                    {hasSwappableItems(selectedConfig) && (
+                      <span className="rounded-full bg-[hsl(41_55%_93%)] px-3 py-1 text-[11px] font-extrabold text-[hsl(38_52%_34%)]">
+                        Swap available
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="rounded-[16px] border border-[hsl(35_22%_86%)] bg-white p-2 shadow-[0_8px_22px_rgba(45,31,20,0.045)]">
+                    <div className="space-y-1">
+                      {getMenuHighlightRows(selectedConfig, selectedApiPkg.id).map(({ rule, item, idx, swapKey, canSwap }) => {
+                        const isSwapOpen = swapOpen === swapKey;
+                        const displayedIds = canSwap ? getDisplayedIds(rule, selectedApiPkg.id) : new Set<string>();
+                        const alternatives = canSwap
+                          ? (swapAlts[rule.category.id] ?? []).filter((a) => !displayedIds.has(a.id))
+                          : [];
+
+                        return (
+                          <div key={swapKey}>
+                            <div
+                              className={cn(
+                                'flex min-h-[36px] items-center gap-2 rounded-[10px] border px-2.5 py-1.5 transition-colors',
+                                isSwapOpen
+                                  ? 'border-[hsl(352_38%_78%)] bg-[hsl(352_42%_98%)]'
+                                  : 'border-[hsl(35_22%_90%)] bg-[hsl(39_52%_99%)]',
+                              )}
+                            >
+                              <VegDot isVeg={item.isVeg} />
+                              <span className="min-w-0 flex-1 truncate text-[12.5px] font-bold leading-5 text-[hsl(0_0%_16%)]" title={item.name}>
+                                {item.name}
+                              </span>
+                              {canSwap && (
+                                <button
+                                  type="button"
+                                  onClick={() => openSwap(swapKey, rule.category.id)}
+                                  aria-label={`Swap ${item.name}`}
+                                  className={cn(
+                                    'inline-flex h-7 shrink-0 items-center gap-1 rounded-full border px-2.5 text-[10.5px] font-extrabold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(41_56%_56%)] focus-visible:ring-offset-1',
+                                    isSwapOpen
+                                      ? 'border-[hsl(352_59%_30%)] bg-[hsl(352_59%_30%)] text-white'
+                                      : 'border-[hsl(352_36%_70%)] bg-white text-[hsl(352_59%_30%)] hover:bg-[hsl(352_48%_97%)]',
+                                  )}
+                                >
+                                  <ArrowLeftRight className="h-3 w-3" />
+                                  Swap
+                                </button>
+                              )}
+                            </div>
+
+                            {isSwapOpen && (
+                              <div className="mt-1 rounded-[12px] border border-[hsl(35_22%_88%)] bg-white p-1.5 shadow-[0_8px_18px_rgba(45,31,20,0.07)]">
+                                <div className="px-1 pb-1 text-[10.5px] font-bold text-[hsl(0_0%_44%)]">Swap with</div>
+                                {swapLoading ? (
+                                  <div className="px-1 py-1.5 text-[12px] font-semibold text-[hsl(0_0%_52%)]">Loading...</div>
+                                ) : alternatives.length === 0 ? (
+                                  <div className="px-1 py-1.5 text-[12px] font-semibold text-[hsl(0_0%_52%)]">No other options available</div>
+                                ) : (
+                                  <div className="grid gap-1 sm:grid-cols-2">
+                                    {alternatives.map((alt) => (
+                                      <button
+                                        key={alt.id}
+                                        type="button"
+                                        onClick={() => handleSwap(selectedApiPkg.id, rule, idx, alt)}
+                                        className="flex min-h-[32px] w-full items-center gap-2 rounded-[9px] px-2 py-1 text-left transition-colors hover:bg-[hsl(352_48%_97%)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(41_56%_56%)] focus-visible:ring-offset-1"
+                                      >
+                                        <VegDot isVeg={alt.isVeg} />
+                                        <span className="min-w-0 flex-1 truncate text-[12px] font-bold leading-5 text-[hsl(0_0%_18%)]">
+                                          {alt.name}
+                                        </span>
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-[16px] border border-[hsl(35_22%_86%)] bg-white px-4 py-8 text-center text-sm font-semibold text-[hsl(0_0%_48%)]">
+                  Details unavailable.
+                </div>
+              )}
+            </div>
+
+            <div className="sticky bottom-0 border-t border-[hsl(35_22%_86%)] bg-[hsl(39_55%_97%)] px-5 py-4 shadow-[0_-10px_24px_rgba(45,31,20,0.08)] sm:px-6">
+              {selectedConfig ? (
+                <Link
+                  href={`/packages/${selectedConfig.packageId}`}
+                  className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[hsl(352_59%_30%)] px-5 text-[14px] font-extrabold text-white no-underline shadow-[0_8px_18px_rgba(116,28,42,0.16)] transition-colors hover:bg-[hsl(352_59%_26%)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(41_56%_56%)] focus-visible:ring-offset-2"
+                >
+                  Choose Package
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  className="flex h-12 w-full cursor-default items-center justify-center gap-2 rounded-full bg-[hsl(352_18%_54%)] px-5 text-[14px] font-extrabold text-white opacity-80"
+                >
+                  Choose Package
+                </button>
+              )}
+            </div>
+          </aside>
+        </div>
+      )}
+
       <section className="mx-auto max-w-7xl px-4 pb-2 pt-8 sm:px-6 lg:px-8 lg:pt-12">
         <div className="mb-6 flex items-center justify-center gap-3 sm:gap-[18px]">
           <span className="h-0.5 w-8 shrink-0 bg-[hsl(41_56%_55%)] sm:w-[42px]" />

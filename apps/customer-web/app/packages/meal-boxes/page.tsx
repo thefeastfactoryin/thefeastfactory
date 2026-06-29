@@ -5,8 +5,6 @@ import type { PackageConfiguration, PackageSummary } from '@aranyam/shared-types
 import {
   ArrowRight,
   Check,
-  ChevronDown,
-  ChevronUp,
   Coffee,
   Cookie,
   Flame,
@@ -21,6 +19,7 @@ import {
   Users,
   UtensilsCrossed,
   Wheat,
+  X,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -175,10 +174,6 @@ function BoxCard({
   index,
   isExpanded,
   isChosen,
-  config,
-  isLoadingConfig,
-  chosenPricePerPlate,
-  qty,
   onExpand,
   onChoose,
 }: {
@@ -186,10 +181,6 @@ function BoxCard({
   index:               number;
   isExpanded:          boolean;
   isChosen:            boolean;
-  config:              PackageConfiguration | undefined;
-  isLoadingConfig:     boolean;
-  chosenPricePerPlate: number | null;
-  qty:                 number;
   onExpand:            () => void;
   onChoose:            () => void;
 }) {
@@ -200,15 +191,15 @@ function BoxCard({
   return (
     <article
       className={cn(
-        'group overflow-hidden rounded-[18px] border border-[hsl(35_22%_86%)] bg-white shadow-[0_8px_22px_rgba(45,31,20,0.055)] transition-all duration-300 ease-[cubic-bezier(.22,.61,.36,1)] hover:-translate-y-1 hover:border-[hsl(41_45%_70%)] hover:shadow-[0_16px_34px_rgba(45,31,20,0.105)]',
+        'group flex h-full min-h-[444px] flex-col overflow-hidden rounded-[18px] border border-[hsl(35_22%_86%)] bg-white shadow-[0_8px_22px_rgba(45,31,20,0.055)] transition-all duration-300 ease-[cubic-bezier(.22,.61,.36,1)] hover:-translate-y-1 hover:border-[hsl(41_45%_70%)] hover:shadow-[0_16px_34px_rgba(45,31,20,0.105)]',
         isChosen && 'border-primary/45 shadow-[0_16px_38px_rgba(128,18,34,0.14)] ring-2 ring-primary/15',
       )}
     >
-      <div className="relative overflow-hidden bg-[hsl(39_50%_96%)]">
+      <div className="relative h-[168px] shrink-0 overflow-hidden bg-[hsl(39_50%_96%)]">
         <img
           src={meta.image}
           alt={displayName}
-          className="aspect-[16/11] w-full bg-[hsl(39_50%_96%)] object-contain object-center p-2 transition-transform duration-500 ease-[cubic-bezier(.22,.61,.36,1)] group-hover:scale-[1.025] sm:aspect-[16/10] lg:aspect-[16/11] xl:aspect-[16/10]"
+          className="h-full w-full bg-[hsl(39_50%_96%)] object-contain object-center p-2 transition-transform duration-500 ease-[cubic-bezier(.22,.61,.36,1)] group-hover:scale-[1.025]"
         />
         <div className="pointer-events-none absolute inset-x-0 top-0 h-8 bg-gradient-to-b from-[hsl(39_50%_96%)] to-transparent" />
         <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-black/28 to-transparent" />
@@ -223,8 +214,8 @@ function BoxCard({
       </div>
 
       {/* Body */}
-      <div className="p-3.5 sm:p-4">
-        <div className="flex flex-wrap gap-1.5">
+      <div className="flex flex-1 flex-col p-3.5 sm:p-4">
+        <div className="flex min-h-[54px] content-start flex-wrap gap-1.5 overflow-hidden">
           {meta.chips.map(({ Icon, label }) => (
             <span
               key={label}
@@ -238,126 +229,42 @@ function BoxCard({
 
         <p className="mt-3 text-[12px] font-semibold text-muted-foreground">Serves 1 person</p>
 
-        <div className="mt-2.5 flex items-end justify-between gap-3">
+        <div className="mt-2.5 min-h-[34px]">
           <div className="flex items-baseline gap-1">
             <span className="font-serif text-[26px] font-extrabold leading-none text-primary">
               &#8377;{pkg.activeVersion?.basePricePerPlate}
             </span>
             <span className="text-[11px] font-semibold text-muted-foreground">per box</span>
           </div>
+        </div>
+
+        <div className="mt-auto grid gap-2 pt-3">
           <button
             onClick={onExpand}
             className={cn(
-              'inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-[12px] font-extrabold shadow-[0_6px_14px_rgba(122,31,43,0.07)] transition-all duration-[250ms] [transition-timing-function:cubic-bezier(.22,.61,.36,1)] hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 focus-visible:ring-offset-2',
+              'flex h-10 w-full items-center justify-center gap-1.5 rounded-full px-3.5 text-[13px] font-extrabold shadow-[0_6px_14px_rgba(122,31,43,0.07)] transition-all duration-[250ms] [transition-timing-function:cubic-bezier(.22,.61,.36,1)] hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 focus-visible:ring-offset-2',
               isExpanded
                 ? 'bg-primary text-white'
                 : 'border border-primary bg-white text-primary hover:bg-primary hover:text-white',
             )}
           >
-            {isExpanded ? 'Hide details' : 'View details'}
-            {isExpanded
-              ? <ChevronUp className="h-3.5 w-3.5" />
-              : <ChevronDown className="h-3.5 w-3.5" />}
+            View details
+            <ArrowRight className="h-3.5 w-3.5" />
           </button>
-        </div>
-      </div>
 
-      {/* Inline expanded details panel */}
-      {isExpanded && (
-        <div className="border-t border-[hsl(35_22%_88%)] bg-[hsl(39_50%_97%)] p-4">
-          {isLoadingConfig ? (
-            <div className="space-y-3 py-2">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="h-10 animate-pulse rounded-lg bg-muted" />
-              ))}
-            </div>
-          ) : config ? (
-            <>
-              <p className="mb-3 text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
-                Included Items
-              </p>
-
-              <div className="space-y-1">
-                {config.categoryRules.flatMap((rule) =>
-                  rule.items.slice(0, rule.maxSelections).map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex items-center gap-2 rounded-lg border border-[hsl(35_22%_88%)] bg-white px-2.5 py-1.5"
-                    >
-                      <VegDot isVeg={item.isVeg} />
-                      <span className="text-[12px] font-medium text-foreground">
-                        {item.name}
-                      </span>
-                    </div>
-                  ))
-                )}
-              </div>
-
-              {/* Footer */}
-              <div className="mt-4 border-t border-[hsl(35_22%_88%)] pt-4">
-                <p className="text-[11px] font-semibold text-muted-foreground">Starting from</p>
-                <p className="mt-0.5 font-serif text-lg font-extrabold text-primary">
-                  &#8377;{config.basePricePerPlate}
-                  <span className="ml-0.5 font-sans text-xs font-semibold text-muted-foreground"> per box</span>
-                </p>
-              </div>
-            </>
-          ) : (
-            <p className="py-2 text-center text-sm text-muted-foreground">
-              Details unavailable for this box.
-            </p>
-          )}
-
-          {/* Swap diff callout - shown when another box is already chosen */}
-          {!isChosen && chosenPricePerPlate !== null && config && (() => {
-            const thisPrice = parseFloat(config.basePricePerPlate as unknown as string);
-            const diff      = thisPrice - chosenPricePerPlate;
-            const diffTotal = diff * qty;
-            const sign      = diff >= 0 ? '+' : '-';
-            const absDiff   = Math.abs(diff);
-            const absDiffTotal = Math.abs(diffTotal);
-            return (
-              <div className={cn(
-                'mt-4 rounded-xl border px-3 py-2.5 text-xs font-semibold',
-                diff > 0
-                  ? 'border-amber-200 bg-amber-50 text-amber-800'
-                  : diff < 0
-                  ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                  : 'border-border bg-muted text-muted-foreground',
-              )}>
-                {diff === 0 ? (
-                  'Same price as your current selection'
-                ) : (
-                  <>
-                    {sign}&#8377;{absDiff.toLocaleString('en-IN')} per box &middot; {sign}&#8377;{absDiffTotal.toLocaleString('en-IN')} total for {qty} boxes
-                  </>
-                )}
-              </div>
-            );
-          })()}
-
-          {/* CTA: Added to Cart / Swap / Choose */}
           <button
             onClick={onChoose}
             className={cn(
-              'mt-3 flex w-full items-center justify-center gap-2 rounded-full py-3 text-sm font-extrabold shadow-[0_10px_24px_rgba(128,18,34,0.16)] transition-all duration-300 ease-[cubic-bezier(.22,.61,.36,1)] hover:-translate-y-0.5',
+              'flex h-10 w-full items-center justify-center gap-2 rounded-full text-[13px] font-extrabold shadow-[0_10px_24px_rgba(128,18,34,0.16)] transition-all duration-300 ease-[cubic-bezier(.22,.61,.36,1)] hover:-translate-y-0.5',
               isChosen
                 ? 'bg-emerald-600 text-white'
-                : chosenPricePerPlate !== null
-                ? 'bg-amber-600 text-white hover:bg-amber-700'
                 : 'bg-primary text-white hover:bg-primary/90',
             )}
           >
-            {isChosen ? (
-              <><Check className="h-4 w-4" /> Added to Cart</>
-            ) : chosenPricePerPlate !== null ? (
-              <><ArrowRight className="h-4 w-4" /> Swap to this box</>
-            ) : (
-              'Choose Meal Box'
-            )}
+            {isChosen ? <><Check className="h-4 w-4" /> Added to Cart</> : 'Choose Meal Box'}
           </button>
         </div>
-      )}
+      </div>
     </article>
   );
 }
@@ -719,6 +626,43 @@ export default function MealBoxesPage() {
     ? `${BOX_NUMS[chosenIdx] ?? ''} Item ${vegMode === 'veg' ? 'Veg' : 'Non-Veg'} Box`
     : '';
 
+  const detailPkg = expandedIdx !== null ? (packages[expandedIdx] ?? null) : null;
+  const detailVersionId = detailPkg?.activeVersion?.id ?? '';
+  const detailConfig = detailVersionId ? configs[detailVersionId] : undefined;
+  const detailDisplayName = expandedIdx !== null
+    ? `${BOX_NUMS[expandedIdx] ?? ''} Item ${vegMode === 'veg' ? 'Veg' : 'Non-Veg'} Box`
+    : '';
+  const detailMeta = expandedIdx !== null ? BOX_META[expandedIdx] : undefined;
+  const detailIsChosen = expandedIdx !== null && chosenIdx === expandedIdx;
+  const detailChosenPrice = (
+    expandedIdx !== null &&
+    chosenIdx !== null &&
+    chosenIdx !== expandedIdx &&
+    selectedPkg?.activeVersion
+  )
+    ? parseFloat(selectedPkg.activeVersion.basePricePerPlate)
+    : null;
+
+  function closeDetails() {
+    setExpandedIdx(null);
+  }
+
+  useEffect(() => {
+    if (expandedIdx === null) return;
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') closeDetails();
+    }
+
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', onKeyDown);
+
+    return () => {
+      document.body.style.overflow = '';
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [expandedIdx]);
+
   function handleExpand(idx: number) {
     const next = expandedIdx === idx ? null : idx;
     setExpandedIdx(next);
@@ -813,53 +757,41 @@ export default function MealBoxesPage() {
             {!error && !loading && (
               <>
                 {packages.length > 0 && (
-                  <ComparisonTable
-                    packages={packages}
-                    selectedIdx={chosenIdx}
-                    onSelect={handleChoose}
-                  />
-                )}
-
-                {/* Veg / Non-Veg toggle */}
-                <div className="inline-flex items-center gap-1.5 rounded-full border border-[hsl(35_22%_86%)] bg-white p-1 shadow-[0_5px_18px_rgba(45,31,20,0.045)]">
-                  <button
-                    onClick={() => handleVegModeChange('veg')}
-                    className={cn(
-                       'inline-flex min-h-11 items-center gap-2 rounded-full px-4 py-2 text-sm font-extrabold transition-all duration-[250ms] [transition-timing-function:cubic-bezier(.22,.61,.36,1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 focus-visible:ring-offset-2',
-                      vegMode === 'veg'
-                        ? 'bg-primary text-white shadow-[0_6px_16px_rgba(122,31,43,0.16)]'
-                        : 'text-foreground/70 hover:bg-[hsl(39_50%_97%)] hover:text-foreground',
-                    )}
-                  >
-                    <ToggleDot type="veg" active={vegMode === 'veg'} />
-                    Veg
-                  </button>
-                  <button
-                    onClick={() => handleVegModeChange('non-veg')}
-                    className={cn(
-                       'inline-flex min-h-11 items-center gap-2 rounded-full px-4 py-2 text-sm font-extrabold transition-all duration-[250ms] [transition-timing-function:cubic-bezier(.22,.61,.36,1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 focus-visible:ring-offset-2',
-                      vegMode === 'non-veg'
-                        ? 'bg-primary text-white shadow-[0_6px_16px_rgba(122,31,43,0.16)]'
-                        : 'text-foreground/70 hover:bg-[hsl(39_50%_97%)] hover:text-foreground',
-                    )}
-                  >
-                    <ToggleDot type="non-veg" active={vegMode === 'non-veg'} />
-                    Non Veg
-                  </button>
-                </div>
-
-                {packages.length > 0 && (
-                  <h2 className="text-lg font-extrabold text-foreground">Choose your box</h2>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <h2 className="text-lg font-extrabold text-foreground">Choose your box</h2>
+                    <div className="inline-flex w-fit items-center gap-1.5 rounded-full border border-[hsl(35_22%_86%)] bg-white p-1 shadow-[0_5px_18px_rgba(45,31,20,0.045)]">
+                      <button
+                        onClick={() => handleVegModeChange('veg')}
+                        className={cn(
+                           'inline-flex min-h-11 items-center gap-2 rounded-full px-4 py-2 text-sm font-extrabold transition-all duration-[250ms] [transition-timing-function:cubic-bezier(.22,.61,.36,1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 focus-visible:ring-offset-2',
+                          vegMode === 'veg'
+                            ? 'bg-primary text-white shadow-[0_6px_16px_rgba(122,31,43,0.16)]'
+                            : 'text-foreground/70 hover:bg-[hsl(39_50%_97%)] hover:text-foreground',
+                        )}
+                      >
+                        <ToggleDot type="veg" active={vegMode === 'veg'} />
+                        Veg
+                      </button>
+                      <button
+                        onClick={() => handleVegModeChange('non-veg')}
+                        className={cn(
+                           'inline-flex min-h-11 items-center gap-2 rounded-full px-4 py-2 text-sm font-extrabold transition-all duration-[250ms] [transition-timing-function:cubic-bezier(.22,.61,.36,1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 focus-visible:ring-offset-2',
+                          vegMode === 'non-veg'
+                            ? 'bg-primary text-white shadow-[0_6px_16px_rgba(122,31,43,0.16)]'
+                            : 'text-foreground/70 hover:bg-[hsl(39_50%_97%)] hover:text-foreground',
+                        )}
+                      >
+                        <ToggleDot type="non-veg" active={vegMode === 'non-veg'} />
+                        Non Veg
+                      </button>
+                    </div>
+                  </div>
                 )}
 
                 {/* Box cards */}
                 {packages.length > 0 ? (
                   <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                     {packages.map((pkg, i) => {
-                      const versionId = pkg.activeVersion?.id ?? '';
-                      const chosenPrice = (chosenIdx !== null && chosenIdx !== i && selectedPkg?.activeVersion)
-                        ? parseFloat(selectedPkg.activeVersion.basePricePerPlate)
-                        : null;
                       return (
                         <BoxCard
                           key={pkg.id}
@@ -867,10 +799,6 @@ export default function MealBoxesPage() {
                           index={i}
                           isExpanded={expandedIdx === i}
                           isChosen={chosenIdx === i}
-                          config={configs[versionId]}
-                          isLoadingConfig={loadingVersionId === versionId}
-                          chosenPricePerPlate={chosenPrice}
-                          qty={qty}
                           onExpand={() => handleExpand(i)}
                           onChoose={() => handleChoose(i)}
                         />
@@ -886,6 +814,14 @@ export default function MealBoxesPage() {
                       Please check back later or try the Veg selection.
                     </p>
                   </div>
+                )}
+
+                {packages.length > 0 && (
+                  <ComparisonTable
+                    packages={packages}
+                    selectedIdx={chosenIdx}
+                    onSelect={handleChoose}
+                  />
                 )}
 
               </>
@@ -921,6 +857,163 @@ export default function MealBoxesPage() {
           </div>
         </div>
       </div>
+
+      {detailPkg && expandedIdx !== null && (
+        <div
+          className="fixed inset-0 z-50 bg-black/35 backdrop-blur-[2px]"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${detailDisplayName} details`}
+          onClick={closeDetails}
+        >
+          <aside
+            className="ml-auto flex h-full w-full flex-col overflow-y-auto bg-[hsl(39_50%_98%)] shadow-[-18px_0_45px_rgba(45,31,20,0.18)] sm:max-w-[500px]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-[hsl(35_22%_86%)] bg-[hsl(39_55%_97%)] px-5 py-5 sm:px-6">
+              <div>
+                <div className="mb-1 text-[11px] font-extrabold uppercase tracking-[0.12em] text-[hsl(38_52%_38%)]">
+                  Meal box details
+                </div>
+                <h3 className="m-0 font-serif text-[26px] font-bold leading-tight text-[hsl(0_0%_12%)]">
+                  {detailDisplayName}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={closeDetails}
+                aria-label="Close details"
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[hsl(35_22%_84%)] bg-white text-[hsl(0_0%_18%)] shadow-sm transition-colors hover:border-[hsl(352_38%_72%)] hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 focus-visible:ring-offset-2"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {detailMeta && (
+              <div className="border-b border-[hsl(35_22%_88%)] bg-white">
+                <img
+                  src={detailMeta.image}
+                  alt={detailDisplayName}
+                  className="h-40 w-full bg-[hsl(39_50%_96%)] object-contain object-center p-3 sm:h-44"
+                />
+              </div>
+            )}
+
+            <div className="px-5 py-4 sm:px-6">
+              <div className="mb-4 grid grid-cols-2 overflow-hidden rounded-[16px] border border-[hsl(35_22%_86%)] bg-white shadow-[0_8px_22px_rgba(45,31,20,0.055)]">
+                <div className="border-r border-[hsl(35_22%_88%)] px-4 py-3">
+                  <div className="text-[10.5px] font-extrabold uppercase tracking-[0.12em] text-[hsl(0_0%_46%)]">From</div>
+                  <div className="mt-1 font-serif text-[22px] font-bold leading-none text-primary">
+                    &#8377;{detailConfig?.basePricePerPlate ?? detailPkg.activeVersion?.basePricePerPlate}
+                  </div>
+                  <div className="mt-1 text-[11px] font-semibold text-[hsl(0_0%_48%)]">per box</div>
+                </div>
+                <div className="px-4 py-3">
+                  <div className="text-[10.5px] font-extrabold uppercase tracking-[0.12em] text-[hsl(0_0%_46%)]">Serves</div>
+                  <div className="mt-1 text-[14px] font-extrabold leading-snug text-[hsl(0_0%_18%)]">
+                    1 person
+                  </div>
+                </div>
+              </div>
+
+              {detailMeta && (
+                <div className="mb-4 flex flex-wrap gap-1.5">
+                  {detailMeta.chips.map(({ Icon, label }) => (
+                    <span
+                      key={label}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-[hsl(35_22%_88%)] bg-white px-2.5 py-1 text-[10.5px] font-bold text-[hsl(0_0%_30%)]"
+                    >
+                      <Icon className="h-3 w-3 shrink-0 text-primary/80" />
+                      {label}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {loadingVersionId === detailVersionId ? (
+                <div className="rounded-[16px] border border-[hsl(35_22%_86%)] bg-white px-4 py-8 text-center text-sm font-semibold text-muted-foreground">
+                  Loading box details...
+                </div>
+              ) : detailConfig ? (
+                <div className="space-y-3">
+                  <div className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-[hsl(0_0%_36%)]">
+                    Included items
+                  </div>
+
+                  <div className="rounded-[16px] border border-[hsl(35_22%_86%)] bg-white p-2 shadow-[0_8px_22px_rgba(45,31,20,0.045)]">
+                    <div className="space-y-1">
+                      {detailConfig.categoryRules.flatMap((rule) =>
+                        rule.items.slice(0, rule.maxSelections).map((item, idx) => (
+                          <div
+                            key={`${rule.id}:${item.id}:${idx}`}
+                            className="flex min-h-[36px] items-center gap-2 rounded-[10px] border border-[hsl(35_22%_90%)] bg-[hsl(39_52%_99%)] px-2.5 py-1.5"
+                          >
+                            <VegDot isVeg={item.isVeg} />
+                            <span className="min-w-0 flex-1 truncate text-[12.5px] font-bold leading-5 text-[hsl(0_0%_16%)]" title={item.name}>
+                              {item.name}
+                            </span>
+                          </div>
+                        )),
+                      )}
+                    </div>
+                  </div>
+
+                  {!detailIsChosen && detailChosenPrice !== null && (() => {
+                    const thisPrice = parseFloat(detailConfig.basePricePerPlate as unknown as string);
+                    const diff = thisPrice - detailChosenPrice;
+                    const diffTotal = diff * qty;
+                    const sign = diff >= 0 ? '+' : '-';
+                    const absDiff = Math.abs(diff);
+                    const absDiffTotal = Math.abs(diffTotal);
+
+                    return (
+                      <div className={cn(
+                        'rounded-[14px] border px-3 py-2.5 text-xs font-bold',
+                        diff > 0
+                          ? 'border-amber-200 bg-amber-50 text-amber-800'
+                          : diff < 0
+                          ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                          : 'border-border bg-muted text-muted-foreground',
+                      )}>
+                        {diff === 0
+                          ? 'Same price as your current selection'
+                          : `${sign}₹${absDiff.toLocaleString('en-IN')} per box · ${sign}₹${absDiffTotal.toLocaleString('en-IN')} total for ${qty} boxes`}
+                      </div>
+                    );
+                  })()}
+                </div>
+              ) : (
+                <div className="rounded-[16px] border border-[hsl(35_22%_86%)] bg-white px-4 py-8 text-center text-sm font-semibold text-muted-foreground">
+                  Details unavailable for this box.
+                </div>
+              )}
+            </div>
+
+            <div className="sticky bottom-0 mt-auto border-t border-[hsl(35_22%_86%)] bg-[hsl(39_55%_97%)] px-5 py-4 shadow-[0_-10px_24px_rgba(45,31,20,0.08)] sm:px-6">
+              <button
+                type="button"
+                onClick={() => handleChoose(expandedIdx)}
+                className={cn(
+                  'flex h-12 w-full items-center justify-center gap-2 rounded-full px-5 text-[14px] font-extrabold text-white shadow-[0_8px_18px_rgba(116,28,42,0.16)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 focus-visible:ring-offset-2',
+                  detailIsChosen
+                    ? 'bg-emerald-600 hover:bg-emerald-700'
+                    : detailChosenPrice !== null
+                    ? 'bg-amber-600 hover:bg-amber-700'
+                    : 'bg-primary hover:bg-primary/90',
+                )}
+              >
+                {detailIsChosen ? (
+                  <><Check className="h-4 w-4" /> Added to Cart</>
+                ) : detailChosenPrice !== null ? (
+                  <><ArrowRight className="h-4 w-4" /> Swap to this box</>
+                ) : (
+                  'Choose Meal Box'
+                )}
+              </button>
+            </div>
+          </aside>
+        </div>
+      )}
 
       {/* Mobile sticky CTA */}
       {selectedPkg && (
