@@ -1,16 +1,40 @@
+import { ArrowRight, Home, Package, Search } from 'lucide-react';
 import Link from 'next/link';
 
 export default function NotFound() {
   return (
-    <main style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', fontFamily: 'sans-serif', textAlign: 'center', padding: '0 16px' }}>
-      <div>
-        <p style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#7A1F2B', marginBottom: 12 }}>404</p>
-        <h1 style={{ fontSize: 32, fontWeight: 800, letterSpacing: '-0.03em', color: '#1B1B1B', marginBottom: 12 }}>Page not found</h1>
-        <p style={{ fontSize: 15, color: '#6B7280', marginBottom: 28 }}>We couldn&apos;t find what you were looking for.</p>
-        <Link href="/" style={{ background: '#7A1F2B', color: '#fff', borderRadius: 999, padding: '10px 24px', fontSize: 14, fontWeight: 700, textDecoration: 'none' }}>
-          Go home
-        </Link>
-      </div>
+    <main className="page-shell">
+      <section className="surface-card mx-auto max-w-2xl p-8 text-center sm:p-10">
+        <span className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-primary/10 text-primary">
+          <Search className="h-6 w-6" />
+        </span>
+        <p className="eyebrow mt-6">Page not found</p>
+        <h1 className="mt-3 font-serif text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+          This page is not on the menu.
+        </h1>
+        <p className="mx-auto mt-3 max-w-md text-sm leading-7 text-muted-foreground">
+          The link may have changed. You can return home, browse packages, or
+          continue planning your catering order.
+        </p>
+
+        <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
+          <Link
+            href="/"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-primary px-5 text-sm font-bold text-white transition hover:bg-primary/90"
+          >
+            <Home className="h-4 w-4" />
+            Go home
+          </Link>
+          <Link
+            href="/packages"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-border bg-white px-5 text-sm font-bold text-primary transition hover:border-primary/40"
+          >
+            <Package className="h-4 w-4" />
+            Browse packages
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
+      </section>
     </main>
   );
 }

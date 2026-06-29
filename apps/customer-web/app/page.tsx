@@ -1,8 +1,10 @@
 import Link from 'next/link';
 import {
+  ArrowRight,
   Briefcase,
   CalendarDays,
   ChefHat,
+  CheckCircle2,
   Clock,
   CreditCard,
   Home,
@@ -14,39 +16,28 @@ import {
   Users,
 } from 'lucide-react';
 
-/* ─── data ─────────────────────────────────────────────────────────── */
-
 const ORDER_TYPES = [
   {
     Icon: Package,
-    iconBg: 'hsl(352 59% 30%)',
-    btnBg: 'hsl(352 59% 30%)',
-    cardBg: 'linear-gradient(135deg, hsl(352 40% 96%), hsl(352 40% 92%))',
     title: 'Meal Boxes',
-    desc: 'One box per person with 3, 5 or 8 items.',
-    cta: 'Explore Meal Boxes',
+    desc: 'Individually packed meals for offices, trainings, and community events.',
+    cta: 'Explore meal boxes',
     href: '/packages/meal-boxes',
     img: '/order-mealbox.png',
   },
   {
     Icon: CalendarDays,
-    iconBg: 'hsl(41 56% 48%)',
-    btnBg: 'hsl(41 56% 48%)',
-    cardBg: 'linear-gradient(135deg, hsl(41 50% 96%), hsl(41 45% 90%))',
     title: 'Occasion Packages',
-    desc: 'Pre-designed menus for every occasion.',
-    cta: 'View Occasion Packages',
+    desc: 'Curated menus for birthdays, pujas, house parties, and gatherings.',
+    cta: 'View packages',
     href: '/packages',
     img: '/order-occasion.png',
   },
   {
     Icon: ChefHat,
-    iconBg: 'hsl(80 30% 38%)',
-    btnBg: 'hsl(80 30% 38%)',
-    cardBg: 'linear-gradient(135deg, hsl(80 25% 95%), hsl(80 22% 90%))',
     title: 'Build Your Own Menu',
-    desc: 'Pick your favourite dishes and create your own menu.',
-    cta: 'Build Your Menu',
+    desc: 'Choose dishes, set guest count, and review pricing before checkout.',
+    cta: 'Browse menu',
     href: '/menu',
     img: '/order-build.png',
   },
@@ -54,311 +45,286 @@ const ORDER_TYPES = [
 
 const PACKAGES = [
   {
-    tag: 'Most Popular' as string | null,
+    tag: 'Most Popular',
     Icon: Home,
-    iconColor: '#7A1F2B',
     title: 'Farm House Celebration',
-    serves: 'Serves 20 – 200 people',
-    price: 599,
+    serves: 'Serves 20-200 people',
+    price: 'Rs. 599',
     href: '/packages',
     img: '/pkg-farmhouse.png',
   },
   {
-    tag: null as string | null,
+    tag: null,
     Icon: Sparkles,
-    iconColor: '#C89B3C',
     title: 'Puja Package',
-    serves: 'Serves 20 – 500 people',
-    price: 499,
+    serves: 'Serves 20-500 people',
+    price: 'Rs. 499',
     href: '/packages',
     img: '/pkg-puja.png',
   },
   {
-    tag: null as string | null,
+    tag: null,
     Icon: Users,
-    iconColor: '#4A6DA7',
     title: 'Community Gathering',
-    serves: 'Serves 50 – 1,000 people',
-    price: 449,
+    serves: 'Serves 50-1,000 people',
+    price: 'Rs. 449',
     href: '/packages',
     img: '/pkg-community.png',
   },
   {
-    tag: null as string | null,
+    tag: null,
     Icon: Briefcase,
-    iconColor: '#3A3A3A',
     title: 'Corporate Party',
-    serves: 'Serves 20 – 1,000 people',
-    price: 649,
+    serves: 'Serves 20-1,000 people',
+    price: 'Rs. 649',
     href: '/packages',
     img: '/pkg-corporate.png',
   },
 ];
 
-const TRUST_ITEMS = [
-  { Icon: Users,         title: 'Minimum 10 Guests',  desc: 'Per order' },
-  { Icon: Clock,         title: '48-Hour Lead Time',   desc: 'For all orders' },
-  { Icon: CreditCard,    title: 'Transparent Pricing', desc: 'No hidden charges' },
-  { Icon: MessageCircle, title: 'Dedicated Support',   desc: "We're here to help" },
+const HERO_TRUST = [
+  { Icon: ShieldCheck, label: 'Hygienic preparation' },
+  { Icon: Truck, label: 'On-time delivery' },
+  { Icon: CreditCard, label: 'Transparent pricing' },
 ];
 
-/* ─── page ──────────────────────────────────────────────────────────── */
+const TRUST_ITEMS = [
+  {
+    Icon: Users,
+    title: 'Orders from 20 guests',
+    desc: 'Built for family and community gatherings.',
+  },
+  {
+    Icon: Clock,
+    title: '48-hour lead time',
+    desc: 'Enough time to plan, prepare, and dispatch well.',
+  },
+  {
+    Icon: ShieldCheck,
+    title: 'Food-safe handling',
+    desc: 'Prepared, packed, and handed over with care.',
+  },
+  {
+    Icon: MessageCircle,
+    title: 'Dedicated support',
+    desc: 'Help with package choice, event details, and checkout.',
+  },
+];
 
 export default function HomePage() {
   return (
-    <main style={{ background: '#FAF8F5' }}>
-      <style>{`
-        .hero-section { background: hsl(352 59% 18%); overflow: hidden; }
-        .hero-inner {
-          max-width: 1280px; margin: 0 auto; padding: 56px 32px;
-          display: grid; grid-template-columns: 1fr 1fr; gap: 36px;
-          align-items: center; min-height: 320px;
-        }
-        .hero-heading { font-size: 58px; font-weight: 800; line-height: 1.05; letter-spacing: -0.04em; color: #fff; margin: 0 0 18px; }
-        .hero-subtext { font-size: 18px; line-height: 1.5; color: hsl(0 0% 90%); margin: 0 0 28px; max-width: 440px; }
-        .hero-image img { width: 100%; height: auto; display: block; border-radius: 14px; box-shadow: 0 18px 44px rgba(0,0,0,0.3); }
-        .home-section { max-width: 1280px; margin: 0 auto; padding: 56px 32px; }
-        .section-title-row { display: flex; align-items: center; justify-content: center; gap: 18px; margin-bottom: 36px; }
-        .section-title { font-size: 30px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; color: hsl(0 0% 12%); margin: 0; white-space: nowrap; }
-        .order-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
-        .pkg-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 22px; }
-        .trust-grid { display: grid; grid-template-columns: repeat(4, 1fr); }
-        @media (max-width: 900px) {
-          .order-grid { grid-template-columns: 1fr; }
-          .pkg-grid { grid-template-columns: repeat(2, 1fr); }
-          .trust-grid { grid-template-columns: repeat(2, 1fr); }
-        }
-        @media (max-width: 768px) {
-          .hero-inner { grid-template-columns: 1fr; padding: 40px 20px 48px; min-height: 0; }
-          .hero-image { display: none; }
-          .hero-heading { font-size: 38px !important; letter-spacing: -0.03em !important; margin-bottom: 14px !important; }
-          .hero-subtext { font-size: 15px !important; margin-bottom: 20px !important; }
-          .home-section { padding: 40px 16px; }
-          .section-title { font-size: 22px !important; white-space: normal !important; text-align: center; }
-          .section-title-row { gap: 12px; }
-        }
-        @media (max-width: 480px) {
-          .pkg-grid { grid-template-columns: 1fr; }
-          .trust-grid { grid-template-columns: repeat(2, 1fr); }
-          .hero-heading { font-size: 32px !important; }
-        }
-      `}</style>
+    <main className="bg-background">
+      <section
+        className="overflow-hidden"
+        style={{
+          background:
+            'radial-gradient(circle at 28% 35%, hsl(41 56% 44% / 0.10), transparent 34%), radial-gradient(circle at 50% 50%, transparent 56%, rgba(28, 0, 8, 0.22) 100%), linear-gradient(135deg, hsl(352 62% 16%), hsl(352 62% 13%))',
+        }}
+      >
+        <div className="container-pad">
+          <div className="grid items-center gap-6 py-8 sm:gap-8 sm:py-10 lg:min-h-[448px] lg:grid-cols-[0.88fr_1.12fr] lg:gap-12 lg:py-12">
+            <div className="max-w-xl">
+              <p className="eyebrow text-accent">Premium bulk catering</p>
+              <h1 className="mt-4 font-serif text-4xl font-bold leading-[0.98] tracking-tight text-white sm:text-[42px] lg:text-[3.75rem]">
+                Premium food for every{' '}
+                <span className="italic text-accent">occasion</span>.
+              </h1>
+              <p className="mt-4 max-w-[460px] text-[15px] leading-7 text-white/75">
+                Premium catering for birthdays, weddings, office events and
+                celebrations. Freshly prepared, beautifully presented and
+                delivered on time.
+              </p>
 
-      {/* ════════════════════════════════════════
-          SECTION 1 · HERO
-      ════════════════════════════════════════ */}
-      <section className="hero-section">
-        <div className="hero-inner">
-
-          {/* Left — text + trust badges */}
-          <div>
-            <h1 className="hero-heading">
-              Premium food for<br />
-              every <span style={{ color: 'hsl(41 56% 56%)' }}>occasion</span>.
-            </h1>
-            <p className="hero-subtext">
-              Bulk catering for 20 to 1,000 people. Corporate lunches, parties, celebrations &amp; more.
-            </p>
-
-            {/* Trust badges — square icons, no pill container */}
-            <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-              {[
-                { Icon: Users,       top: '20 – 1,000', bottom: 'People' },
-                { Icon: ShieldCheck, top: 'On-time',    bottom: 'Delivery' },
-                { Icon: Truck,       top: 'Hygienic',   bottom: '& Safe' },
-              ].map(({ Icon, top, bottom }) => (
-                <div key={top} style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
-                  <div style={{
-                    width: 46, height: 46, borderRadius: 12,
-                    background: 'hsl(352 59% 30%)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                  }}>
-                    <Icon style={{ width: 22, height: 22, color: '#fff' }} />
-                  </div>
-                  <div style={{ lineHeight: 1.15 }}>
-                    <div style={{ fontWeight: 800, color: '#fff', fontSize: 16 }}>{top}</div>
-                    <div style={{ color: 'hsl(0 0% 78%)', fontSize: 14 }}>{bottom}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Right — photo (hidden on mobile) */}
-          <div className="hero-image">
-            <img src="/Hero.png" alt="Bulk catering trays with custom menu options" />
-          </div>
-
-        </div>
-      </section>
-
-
-      {/* ════════════════════════════════════════
-          SECTION 2 · ORDERING OPTIONS
-      ════════════════════════════════════════ */}
-      <section className="home-section">
-
-        <div className="section-title-row">
-          <div style={{ width: 64, height: 1.5, background: '#C89B3C', opacity: 0.55, borderRadius: 2 }} />
-          <h2 className="section-title">
-            Choose how you want to order
-          </h2>
-          <div style={{ width: 64, height: 1.5, background: '#C89B3C', opacity: 0.55, borderRadius: 2 }} />
-        </div>
-
-        <div className="order-grid">
-          {ORDER_TYPES.map(({ Icon, iconBg, btnBg, cardBg, title, desc, cta, href, img }) => (
-            <div
-              key={title}
-              className="hover:-translate-y-1 hover:shadow-lg transition-all duration-[250ms]"
-              style={{
-                display: 'flex',
-                background: cardBg,
-                border: '1px solid hsl(35 22% 88%)',
-                borderRadius: 16, overflow: 'hidden',
-              }}
-            >
-              {/* Left: text content */}
-              <div style={{ padding: '26px 4px 26px 26px', flex: '1.1', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{
-                    width: 46, height: 46, borderRadius: '50%',
-                    background: iconBg,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    marginBottom: 16,
-                  }}>
-                    <Icon style={{ width: 22, height: 22, color: '#fff' }} />
-                  </div>
-                  <h3 style={{ fontSize: 19, fontWeight: 800, letterSpacing: '-0.02em', color: 'hsl(0 0% 12%)', margin: '0 0 8px' }}>
-                    {title}
-                  </h3>
-                  <p style={{ fontSize: 14, color: 'hsl(0 0% 38%)', lineHeight: 1.45, margin: 0 }}>{desc}</p>
-                </div>
-                <Link href={href} style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 8, alignSelf: 'flex-start',
-                  background: btnBg, color: '#fff',
-                  borderRadius: 999, padding: '11px 18px',
-                  fontSize: 13, fontWeight: 700, textDecoration: 'none',
-                  marginTop: 20,
-                }}>
-                  {cta} →
+              <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                <Link
+                  href="/packages"
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-white px-6 text-sm font-bold text-primary shadow-[0_9px_22px_rgba(0,0,0,0.16)] transition-all duration-250 [transition-timing-function:cubic-bezier(.22,.61,.36,1)] hover:-translate-y-0.5 hover:bg-white/90 hover:shadow-[0_13px_28px_rgba(0,0,0,0.18)]"
+                >
+                  View packages <ArrowRight className="h-4 w-4" />
+                </Link>
+                <Link
+                  href="/menu"
+                  className="inline-flex h-11 items-center justify-center rounded-full border border-accent/30 bg-primary/15 px-6 text-sm font-bold text-white transition-all duration-250 [transition-timing-function:cubic-bezier(.22,.61,.36,1)] hover:-translate-y-0.5 hover:bg-white/10"
+                >
+                  Browse menu
                 </Link>
               </div>
 
-              {/* Right: food photo */}
-              <div style={{ flex: '0.9', overflow: 'hidden', minHeight: 220, backgroundImage: `url(${img})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
+              <div className="mt-6 grid gap-3 lg:grid-cols-3">
+                {HERO_TRUST.map(({ Icon, label }) => (
+                  <div key={label} className="flex items-center gap-2 text-[13px] font-bold text-white/90">
+                    <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md border border-white/10 bg-white/5 text-accent">
+                      <Icon className="h-3.5 w-3.5" />
+                    </span>
+                    {label}
+                  </div>
+                ))}
+              </div>
             </div>
+
+            <div className="relative lg:-mr-16">
+              <div className="absolute -bottom-3 -right-3 hidden h-full w-full rounded-[24px] border border-accent/15 lg:block" />
+              <div className="relative overflow-hidden rounded-[24px] border border-accent/15 shadow-[0_22px_52px_rgba(0,0,0,0.30)]">
+                <img
+                  src="/Hero.png"
+                  alt="Catering trays prepared for a celebration"
+                  className="aspect-[16/9] w-full scale-[1.03] object-cover transition-transform duration-500 [transition-timing-function:cubic-bezier(.22,.61,.36,1)] hover:scale-[1.045] lg:aspect-[1.7/1] lg:scale-[1.18] lg:hover:scale-[1.2]"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="container-pad py-10 lg:py-12">
+        <div className="mx-auto mb-6 max-w-2xl text-center">
+          <p className="eyebrow">How You Order</p>
+          <h2 className="mt-2 font-serif text-2xl font-bold tracking-tight text-foreground sm:text-[1.7rem]">
+            Choose the ordering style that fits your event
+          </h2>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-3">
+          {ORDER_TYPES.map(({ Icon, title, desc, cta, href, img }) => (
+            <Link
+              key={title}
+              href={href}
+              className="group grid min-h-[188px] overflow-hidden rounded-xl border border-border/80 bg-card shadow-[0_2px_14px_rgba(0,0,0,0.045)] transition-all duration-250 [transition-timing-function:cubic-bezier(.22,.61,.36,1)] hover:-translate-y-1 hover:border-primary/25 hover:shadow-[0_14px_34px_rgba(0,0,0,0.08)] lg:grid-cols-[1fr_34%]"
+            >
+              <div className="flex flex-col justify-between p-5">
+                <div>
+                  <span className="grid h-8 w-8 place-items-center rounded-lg bg-primary/10 text-primary">
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <h3 className="mt-4 font-serif text-lg font-bold leading-tight text-foreground">
+                    {title}
+                  </h3>
+                  <p className="mt-1.5 text-[13px] leading-5 text-muted-foreground">
+                    {desc}
+                  </p>
+                </div>
+                <span className="mt-4 inline-flex items-center gap-1.5 text-[13px] font-bold text-primary">
+                  {cta} <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" />
+                </span>
+              </div>
+              <div className="relative min-h-44 overflow-hidden lg:min-h-full">
+                <img
+                  src={img}
+                  alt={title}
+                  className="h-full w-full object-cover transition duration-500 [transition-timing-function:cubic-bezier(.22,.61,.36,1)] group-hover:scale-[1.05]"
+                />
+              </div>
+            </Link>
           ))}
         </div>
       </section>
 
-
-      {/* ════════════════════════════════════════
-          SECTION 3 · POPULAR OCCASION PACKAGES
-      ════════════════════════════════════════ */}
-      <section className="home-section" style={{ paddingTop: 0 }}>
-
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 8 }}>
-          <h2 style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.03em', color: '#1B1B1B', margin: 0 }}>
-            Popular Occasion Packages
-          </h2>
-          <Link href="/packages" style={{ fontSize: 14, fontWeight: 700, color: '#7A1F2B', textDecoration: 'none' }}>
-            View all packages →
+      <section className="container-pad pb-12 lg:pb-16">
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="eyebrow">Curated For Every Event</p>
+            <h2 className="mt-2 font-serif text-3xl font-bold tracking-tight text-foreground">
+              Popular occasion packages
+            </h2>
+          </div>
+          <Link
+            href="/packages"
+            className="inline-flex items-center gap-1.5 text-sm font-bold text-primary"
+          >
+            View all packages <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
 
-        <div className="pkg-grid">
-          {PACKAGES.map(({ tag, Icon, iconColor, title, serves, price, href, img }) => (
-            <div key={title} style={{
-              background: '#fff', borderRadius: 18,
-              overflow: 'hidden',
-              border: '1px solid #E7E1D9',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-              height: 340, display: 'flex', flexDirection: 'column',
-            }}>
-              {/* Image */}
-              <div style={{ position: 'relative', height: 180, overflow: 'hidden', flexShrink: 0 }}>
+        <div className="grid gap-4 lg:grid-cols-4">
+          {PACKAGES.map(({ tag, Icon, title, serves, price, href, img }) => (
+            <Link
+              key={title}
+              href={href}
+              className="group overflow-hidden rounded-xl border border-border/80 bg-card shadow-[0_2px_14px_rgba(0,0,0,0.045)] transition-all duration-250 [transition-timing-function:cubic-bezier(.22,.61,.36,1)] hover:-translate-y-1 hover:border-primary/25 hover:shadow-[0_14px_34px_rgba(0,0,0,0.08)]"
+            >
+              <div className="relative h-52 overflow-hidden">
                 <img
-                  src={img} alt={title}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  src={img}
+                  alt={title}
+                  className="h-full w-full object-cover transition duration-500 [transition-timing-function:cubic-bezier(.22,.61,.36,1)] group-hover:scale-[1.05]"
                 />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/15 to-transparent" />
                 {tag && (
-                  <span style={{
-                    position: 'absolute', top: 12, left: 12,
-                    background: '#7A1F2B', color: '#fff',
-                    fontSize: 10, fontWeight: 700,
-                    textTransform: 'uppercase', letterSpacing: '0.05em',
-                    padding: '4px 10px', borderRadius: 999,
-                  }}>
+                  <span className="absolute left-3 top-3 rounded-full bg-primary px-3 py-1 text-[10px] font-extrabold uppercase tracking-wide text-white">
                     {tag}
                   </span>
                 )}
-                {/* Icon circle at image / content boundary */}
-                <div style={{
-                  position: 'absolute', bottom: 0, left: 16,
-                  transform: 'translateY(50%)',
-                  width: 40, height: 40, borderRadius: 999,
-                  background: '#fff', border: '2px solid #E7E1D9',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.10)',
-                }}>
-                  <Icon style={{ width: 18, height: 18, color: iconColor }} />
-                </div>
-              </div>
-
-              {/* Content */}
-              <div style={{ flex: 1, padding: '28px 16px 16px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                <div>
-                  <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1B1B1B', margin: '0 0 4px' }}>
+                <span className="absolute right-3 top-3 grid h-8 w-8 place-items-center rounded-full bg-white/15 text-white backdrop-blur">
+                  <Icon className="h-4 w-4" />
+                </span>
+                <div className="absolute inset-x-0 bottom-0 p-4">
+                  <h3 className="font-serif text-lg font-bold leading-tight text-white">
                     {title}
                   </h3>
-                  <p style={{ fontSize: 12, color: '#6B7280', margin: 0 }}>{serves}</p>
+                  <p className="mt-1 text-xs font-medium text-white/70">{serves}</p>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                    <span style={{ fontSize: 22, fontWeight: 900, letterSpacing: '-0.02em', color: '#7A1F2B' }}>
-                      ₹{price}
+              </div>
+              <div className="flex items-center justify-between px-4 py-3">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                    Starts at
+                  </p>
+                  <p className="mt-0.5 text-[1.35rem] font-extrabold tracking-tight text-primary">
+                    {price}
+                    <span className="ml-1 text-xs font-medium text-muted-foreground">
+                      / person
                     </span>
-                    <span style={{ fontSize: 12, color: '#6B7280' }}>/ person</span>
-                  </div>
-                  <Link href={href} style={{ fontSize: 12, fontWeight: 700, color: '#7A1F2B', textDecoration: 'none' }}>
-                    View details →
-                  </Link>
+                  </p>
                 </div>
+                <ArrowRight className="h-4 w-4 text-primary transition group-hover:translate-x-0.5" />
+              </div>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      <section className="container-pad pb-14 lg:pb-20">
+        <div className="grid overflow-hidden rounded-xl border border-border/80 bg-[hsl(39_50%_98%)] shadow-[0_2px_14px_rgba(0,0,0,0.04)] lg:grid-cols-4">
+          {TRUST_ITEMS.map(({ Icon, title, desc }) => (
+            <div
+              key={title}
+              className="flex items-start gap-3 border-border p-4 lg:p-5"
+            >
+              <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+                <Icon className="h-4 w-4" />
+              </span>
+              <div>
+                <h3 className="text-sm font-extrabold text-foreground">{title}</h3>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">{desc}</p>
               </div>
             </div>
           ))}
         </div>
       </section>
 
-
-      {/* ════════════════════════════════════════
-          SECTION 4 · TRUST STRIP
-      ════════════════════════════════════════ */}
-      <section className="home-section" style={{ paddingTop: 0, paddingBottom: 72 }}>
-        <div style={{
-          background: 'linear-gradient(180deg, hsl(41 45% 95%), hsl(39 44% 97%))',
-          border: '1px solid hsl(35 22% 88%)',
-          borderRadius: 16, padding: '22px 12px',
-        }} className="trust-grid">
-          {TRUST_ITEMS.map(({ Icon, title, desc }, i) => (
-            <div key={title} style={{
-              display: 'flex', alignItems: 'center', gap: 14,
-              padding: '8px 24px',
-              borderLeft: i === 0 ? 'none' : '1px solid hsl(35 22% 86%)',
-            }}>
-              <div style={{ color: 'hsl(352 59% 30%)', flexShrink: 0 }}>
-                <Icon style={{ width: 20, height: 20 }} />
+      <section className="border-y border-border bg-card">
+        <div className="container-pad grid gap-8 py-10 lg:grid-cols-[0.9fr_1fr] lg:items-center">
+          <div>
+            <p className="eyebrow">Why families trust us</p>
+            <h2 className="mt-3 font-serif text-3xl font-bold tracking-tight text-foreground">
+              Clear ordering, dependable food, and no surprise pricing.
+            </h2>
+          </div>
+          <div className="grid gap-3 lg:grid-cols-2">
+            {[
+              'Menus show what is included before you proceed.',
+              'Guest count and delivery details stay visible during checkout.',
+              'Secure payment is handled through Razorpay.',
+              'Support is available for event and order questions.',
+            ].map((item) => (
+              <div key={item} className="flex gap-2.5 text-sm leading-6 text-muted-foreground">
+                <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-primary" />
+                {item}
               </div>
-              <div style={{ lineHeight: 1.25 }}>
-                <p style={{ fontSize: 15, fontWeight: 800, letterSpacing: '-0.01em', color: 'hsl(0 0% 15%)', margin: 0 }}>{title}</p>
-                <p style={{ fontSize: 13, color: 'hsl(0 0% 48%)', margin: 0 }}>{desc}</p>
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </section>
-
     </main>
   );
 }

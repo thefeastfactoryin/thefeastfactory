@@ -97,8 +97,8 @@ export default function OrderPage() {
                   <p className="mb-3 text-[10px] font-extrabold uppercase tracking-widest text-muted-foreground">{category}</p>
                   <div className="space-y-2.5">
                     {items.map((item: any) => (
-                      <div key={item.id} className="flex items-center justify-between gap-4 text-sm">
-                        <p className="font-semibold">{item.menuItemName}</p>
+                      <div key={item.id} className="flex flex-col gap-1 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                        <p className="min-w-0 font-semibold leading-5">{item.menuItemName}</p>
                         <span className="shrink-0 text-muted-foreground">
                           {Number(item.adjustmentAmount) > 0 ? `+₹${item.adjustmentAmount}` : 'Included'}
                         </span>

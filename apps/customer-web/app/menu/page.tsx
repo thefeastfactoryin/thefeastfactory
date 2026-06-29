@@ -117,13 +117,13 @@ interface CategoryNavProps {
 
 function CategoryNav({ categories, activeId, onChange }: CategoryNavProps) {
   return (
-    <nav className="sticky top-16 z-20 border-b border-border bg-white/97 backdrop-blur-md">
+    <nav className="sticky top-[62px] z-20 border-b border-border bg-white/97 backdrop-blur-md sm:top-[66px]">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex gap-1 overflow-x-auto py-2.5" style={{ scrollbarWidth: 'none' }}>
           <button
             onClick={() => onChange('')}
             className={cn(
-              'flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition-all duration-200',
+              'flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition-all duration-200',
               !activeId ? 'bg-primary text-white shadow-sm' : 'text-muted-foreground hover:text-foreground',
             )}
           >
@@ -138,7 +138,7 @@ function CategoryNav({ categories, activeId, onChange }: CategoryNavProps) {
                 key={cat.id}
                 onClick={() => onChange(cat.id)}
                 className={cn(
-                  'flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition-all duration-200',
+                  'flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition-all duration-200',
                   active ? 'bg-primary text-white shadow-sm' : 'text-muted-foreground hover:text-foreground',
                 )}
               >
@@ -167,9 +167,9 @@ interface FilterBarProps {
 
 function FilterBar({ dietary, onDietaryChange, search, onSearchChange, itemCount, loading }: FilterBarProps) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 py-3">
+    <div className="flex flex-col gap-3 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
       {/* Dietary */}
-      <div className="flex items-center gap-1.5">
+      <div className="flex flex-wrap items-center gap-1.5">
         {(
           [
             { value: 'all',     label: 'All dishes' },
@@ -181,7 +181,7 @@ function FilterBar({ dietary, onDietaryChange, search, onSearchChange, itemCount
             key={value}
             onClick={() => onDietaryChange(value)}
             className={cn(
-              'rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors',
+              'min-h-11 rounded-full border px-3.5 py-2 text-sm font-medium transition-colors',
               dietary === value
                 ? 'border-foreground bg-foreground text-background'
                 : 'border-border bg-white text-muted-foreground hover:border-foreground/40 hover:text-foreground',
@@ -198,14 +198,14 @@ function FilterBar({ dietary, onDietaryChange, search, onSearchChange, itemCount
       </div>
 
       {/* Search */}
-      <div className="relative">
+      <div className="relative w-full sm:w-auto">
         <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
         <input
           type="text"
           placeholder="Search dishes…"
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="h-9 w-44 rounded-full border border-border bg-white pl-9 pr-4 text-sm placeholder:text-muted-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10 sm:w-52"
+          className="h-11 w-full rounded-full border border-border bg-white pl-9 pr-4 text-sm placeholder:text-muted-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10 sm:w-52"
         />
       </div>
     </div>
@@ -316,7 +316,7 @@ function MenuCard({ item, index }: { item: MenuItem; index: number }) {
           <div className="flex items-center rounded-lg border border-border bg-background">
             <button
               onClick={() => setQty((q) => Math.max(1, q - 1))}
-              className="grid h-9 w-9 place-items-center text-muted-foreground transition-colors hover:text-foreground"
+              className="grid h-11 w-11 place-items-center text-muted-foreground transition-colors hover:text-foreground"
               aria-label="Decrease quantity"
             >
               <Minus className="h-3.5 w-3.5" />
@@ -324,7 +324,7 @@ function MenuCard({ item, index }: { item: MenuItem; index: number }) {
             <span className="w-8 text-center text-sm font-bold tabular-nums">{qty}</span>
             <button
               onClick={() => setQty((q) => q + 1)}
-              className="grid h-9 w-9 place-items-center text-muted-foreground transition-colors hover:text-foreground"
+              className="grid h-11 w-11 place-items-center text-muted-foreground transition-colors hover:text-foreground"
               aria-label="Increase quantity"
             >
               <Plus className="h-3.5 w-3.5" />
@@ -332,7 +332,7 @@ function MenuCard({ item, index }: { item: MenuItem; index: number }) {
           </div>
           <Link
             href="/packages"
-            className="flex flex-1 items-center justify-center rounded-xl bg-primary py-2.5 text-sm font-bold text-white shadow-sm transition-all duration-200 hover:bg-primary/90 active:scale-[0.97]"
+            className="flex min-h-11 flex-1 items-center justify-center rounded-xl bg-primary px-3 py-2.5 text-sm font-bold text-white shadow-sm transition-all duration-200 hover:bg-primary/90 active:scale-[0.97]"
           >
             Add to Menu
           </Link>
@@ -520,12 +520,44 @@ function OrderSidebar() {
   );
 }
 
+function MobileOrderSummary() {
+  const [mounted, setMounted] = useState(false);
+  const selectedItems = useOrderBuilderStore((s) => s.selectedItems);
+  const guestCount = useOrderBuilderStore((s) => s.guestCount);
+  const pkg = useOrderBuilderStore((s) => s.package);
+
+  useEffect(() => setMounted(true), []);
+
+  if (!mounted || !pkg) return null;
+
+  const total = parseFloat(pkg.basePricePerPlate) * guestCount;
+
+  return (
+    <div className="fixed inset-x-0 bottom-[4.75rem] z-30 px-4 pb-[env(safe-area-inset-bottom)] lg:hidden">
+      <div className="flex items-center justify-between gap-3 rounded-2xl bg-primary px-4 py-3 text-white shadow-2xl">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-extrabold">{pkg.packageName}</p>
+          <p className="text-xs font-semibold text-white/75">
+            {selectedItems.length} dishes - {guestCount} guests{total > 0 ? ` - Rs.${total.toLocaleString('en-IN')}` : ''}
+          </p>
+        </div>
+        <Link
+          href="/cart"
+          className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl bg-white px-4 text-sm font-extrabold text-primary shadow transition hover:bg-white/90"
+        >
+          Cart
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 /* ═══════════════════════════════════════════════════════
    Skeleton
 ══════════════════════════════════════════════════════════ */
 function MenuSkeleton() {
   return (
-    <div className="grid gap-5 sm:grid-cols-2">
+    <div className="grid gap-5 lg:grid-cols-2">
       {Array.from({ length: 6 }).map((_, i) => (
         <div key={i} className="overflow-hidden rounded-2xl bg-white shadow-md ring-1 ring-black/5">
           <div className="aspect-[3/2] animate-pulse bg-muted" />
@@ -620,7 +652,7 @@ export default function PublicMenuPage() {
             {loading && <MenuSkeleton />}
 
             {!loading && !error && items.length > 0 && (
-              <div className="grid gap-5 sm:grid-cols-2">
+              <div className="grid gap-5 lg:grid-cols-2">
                 {items.map((item, i) => (
                   <MenuCard key={item.id} item={item} index={i} />
                 ))}
@@ -644,6 +676,7 @@ export default function PublicMenuPage() {
           </div>
         </div>
       </div>
+      <MobileOrderSummary />
     </>
   );
 }

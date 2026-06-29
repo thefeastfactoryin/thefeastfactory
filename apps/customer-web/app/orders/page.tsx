@@ -57,16 +57,16 @@ export default function OrdersPage() {
                 <Link
                   key={order.id}
                   href={`/orders/${order.id}`}
-                  className="surface-card group flex flex-wrap items-center justify-between gap-4 p-5 transition-all hover:-translate-y-0.5 hover:shadow-md"
+                  className="surface-card group flex flex-col gap-4 p-5 transition-all hover:-translate-y-0.5 hover:shadow-md sm:flex-row sm:items-center sm:justify-between"
                 >
-                  <div className="flex items-center gap-4">
+                  <div className="flex min-w-0 items-center gap-4">
                     <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
                       <ClipboardList className="h-5 w-5" />
                     </span>
-                    <div>
+                    <div className="min-w-0">
                       <p className="font-extrabold">{order.orderNumber}</p>
                       <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-                        <span className="flex items-center gap-1.5">
+                        <span className="flex min-w-0 items-center gap-1.5">
                           <Users className="h-3.5 w-3.5" />
                           {order.packageName} · {order.guestCount} guests
                         </span>
@@ -78,8 +78,8 @@ export default function OrdersPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4 sm:gap-6">
-                    <div className="text-right">
+                  <div className="flex w-full flex-wrap items-center justify-between gap-3 sm:w-auto sm:justify-end sm:gap-6">
+                    <div className="text-left sm:text-right">
                       <p className="text-xl font-extrabold">₹{order.totalAmount}</p>
                     </div>
                     <span className={cn('rounded-full px-3 py-1 text-xs font-extrabold', statusColor)}>

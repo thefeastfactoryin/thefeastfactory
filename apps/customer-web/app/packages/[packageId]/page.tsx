@@ -125,7 +125,7 @@ export default function PackagePage() {
                 : 'Select the exact number of dishes within each course. Premium dishes are priced at a small addition.'}
             </p>
 
-            <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            <div className="mt-6 grid gap-4 lg:grid-cols-2">
               {version.categoryRules.map((rule, idx) => (
                 <div key={rule.id} className="surface-card flex gap-4 p-5">
                   <span

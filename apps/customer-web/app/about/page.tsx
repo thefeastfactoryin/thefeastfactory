@@ -95,7 +95,7 @@ export default function AboutPage() {
               <p className="mb-3 text-xs font-bold uppercase tracking-widest text-primary">
                 About Us
               </p>
-              <h1 className="font-serif text-4xl font-bold leading-tight text-foreground sm:text-5xl">
+              <h1 className="font-serif text-4xl font-bold leading-tight text-foreground lg:text-5xl">
                 Making Bulk Food<br />Ordering Simple
               </h1>
               <div className="mt-5 space-y-4 text-sm leading-7 text-muted-foreground">
@@ -114,7 +114,7 @@ export default function AboutPage() {
               </div>
 
               {/* Values */}
-              <div className="mt-8 grid grid-cols-2 gap-5 sm:grid-cols-4">
+              <div className="mt-8 grid grid-cols-2 gap-5 lg:grid-cols-4">
                 {VALUES.map(({ Icon, label, sub }) => (
                   <div key={label} className="text-center">
                     <div className="mx-auto mb-2 grid h-10 w-10 place-items-center rounded-full bg-primary/10">
@@ -132,16 +132,16 @@ export default function AboutPage() {
               <img
                 src="https://images.unsplash.com/photo-1555244162-803834f70033?auto=format&fit=crop&w=900&q=80"
                 alt="The Feast Factory kitchen team"
-                className="h-[420px] w-full rounded-2xl object-cover shadow-lg"
+                className="h-72 w-full rounded-2xl object-cover shadow-lg sm:h-80 lg:h-[420px]"
               />
               {/* Experience overlay */}
-              <div className="absolute bottom-5 right-5 flex items-center gap-4 overflow-hidden rounded-2xl bg-white shadow-xl">
-                <div className="bg-primary px-5 py-4 text-center text-white">
+              <div className="mt-4 flex items-center gap-3 overflow-hidden rounded-2xl bg-white shadow-xl sm:absolute sm:bottom-5 sm:right-5 sm:mt-0 sm:gap-4">
+                <div className="bg-primary px-4 py-4 text-center text-white sm:px-5">
                   <p className="text-3xl font-extrabold leading-none">10+</p>
                   <p className="mt-1 text-[10px] font-bold uppercase tracking-widest">Years of</p>
                   <p className="text-[10px] font-bold uppercase tracking-widest">Experience</p>
                 </div>
-                <div className="py-4 pr-5">
+                <div className="min-w-0 py-4 pr-4 sm:pr-5">
                   <p className="max-w-[130px] text-sm font-semibold leading-5 text-foreground">
                     Trusted by thousands of customers and organizations across the city.
                   </p>
@@ -155,7 +155,7 @@ export default function AboutPage() {
       {/* ② Stats bar */}
       <section className="border-b border-border bg-white">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="grid divide-y divide-border sm:divide-x sm:divide-y-0 sm:grid-cols-5">
+          <div className="grid divide-y divide-border lg:divide-x lg:divide-y-0 lg:grid-cols-5">
             {STATS.map(({ Icon, value, label, sub }) => (
               <div key={label} className="flex flex-col items-center gap-2 py-7 text-center">
                 <Icon className="h-6 w-6 text-primary/70" />
@@ -190,7 +190,7 @@ export default function AboutPage() {
           <div className="rounded-2xl border border-border bg-white p-8">
             <h2 className="mb-1 font-serif text-2xl font-bold text-foreground">What We Offer</h2>
             <div className="mt-1 mb-6 h-0.5 w-10 rounded-full bg-primary" />
-            <div className="grid gap-5 sm:grid-cols-2">
+            <div className="grid gap-5 lg:grid-cols-2">
               {OFFERINGS.map(({ Icon, label, sub }) => (
                 <div key={label} className="flex items-start gap-3">
                   <div className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary/10">
@@ -213,7 +213,7 @@ export default function AboutPage() {
           <h2 className="mb-10 text-center font-serif text-3xl font-bold text-foreground">
             Why Choose The Feast Factory?
           </h2>
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="grid gap-6 lg:grid-cols-5">
             {WHY_US.map(({ Icon, title, desc }) => (
               <div key={title} className="flex flex-col items-center text-center">
                 <div className="mb-4 grid h-12 w-12 place-items-center rounded-full bg-primary/10">
@@ -294,14 +294,14 @@ export default function AboutPage() {
             </div>
 
             {/* Pillars */}
-            <div className="flex gap-8">
+            <div className="grid w-full grid-cols-2 gap-4 sm:w-auto sm:grid-cols-4 sm:gap-6 lg:gap-8">
               {[
                 { Icon: UtensilsCrossed, label: 'Great Food' },
                 { Icon: Smile,          label: 'Happy People' },
                 { Icon: Heart,          label: 'Memorable Moments' },
                 { Icon: Clock,          label: 'Every Time' },
               ].map(({ Icon, label }) => (
-                <div key={label} className="flex flex-col items-center gap-1">
+                <div key={label} className="flex min-w-0 flex-col items-center gap-1 text-center">
                   <Icon className="h-5 w-5 text-white/70" />
                   <span className="text-[10px] font-semibold text-white/70">{label}</span>
                 </div>
