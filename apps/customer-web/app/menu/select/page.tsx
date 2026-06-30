@@ -57,6 +57,7 @@ export default function MenuSelectPage() {
   const [menuSearch, setMenuSearch] = useState('');
   const [menuCategory, setMenuCategory] = useState('all');
   const [menuDiet, setMenuDiet] = useState<'all' | 'veg' | 'nonveg'>('all');
+  const [activeView, setActiveView] = useState<'menu' | 'add'>('menu');
   const [swapTarget, setSwapTarget] = useState<{
     included: MenuSelectionItem;
     alternatives: MenuSelectionItem[];
@@ -157,14 +158,13 @@ export default function MenuSelectPage() {
       isMealBox
         ? []
         : filteredMenuRows.filter(
-            ({ item }) =>
-              item.role !== 'INCLUDED' && !selectedItemIds.has(item.id),
+            ({ item }) => item.role !== 'INCLUDED',
           ),
-    [filteredMenuRows, isMealBox, selectedItemIds],
+    [filteredMenuRows, isMealBox],
   );
   const displayedMenuRows = useMemo(
-    () => [...includedOrSelectedRows, ...extraMenuRows],
-    [extraMenuRows, includedOrSelectedRows],
+    () => (activeView === 'menu' ? includedOrSelectedRows : extraMenuRows),
+    [activeView, extraMenuRows, includedOrSelectedRows],
   );
   const filterCategories = useMemo(() => {
     const seen = new Set<string>();
@@ -175,6 +175,20 @@ export default function MenuSelectPage() {
     });
   }, [unifiedMenuRows]);
   const showLegacyCategorySections = false;
+
+  useEffect(() => {
+    if (!config) return;
+    if (config.packageType === 'MEAL_BOX') {
+      setActiveView('menu');
+      return;
+    }
+    if (
+      new URLSearchParams(window.location.search).get('focus') === 'extras' ||
+      (config.isCustom && selectedItems.length === 0)
+    ) {
+      setActiveView('add');
+    }
+  }, [config, selectedItems.length]);
 
   function selectItem(
     item: MenuSelectionItem,
@@ -227,6 +241,45 @@ export default function MenuSelectPage() {
         item.description ||
         'Ingredient details will be confirmed by the Aranyam team. Please mention allergies or dietary restrictions in event notes.',
     };
+  }
+
+  async function reviewAndPay() {
+    if (!session) {
+      setLimitMessage('Sign in before checkout.');
+      return;
+    }
+    try {
+      const cart = await saveCartBeforeReview({
+        accessToken: session.accessToken,
+        pkg: cartPackage,
+        event,
+        guestCount,
+      });
+      setDbCartId(cart.id);
+      await apiRequest(
+        '/cart/items',
+        {
+          method: 'PUT',
+          body: JSON.stringify({
+            items: selectedItems.map(
+              ({ categoryId, menuItemId, replacedMenuItemId, role }) => ({
+                categoryId,
+                menuItemId,
+                replacedMenuItemId,
+                role:
+                  role ??
+                  (config!.packageType === 'FIXED_PACKAGE' ? 'EXTRA' : 'SWAP'),
+              }),
+            ),
+          }),
+        },
+        session.accessToken,
+      );
+      await apiRequest('/cart/quote', { method: 'POST' }, session.accessToken);
+      router.push('/checkout');
+    } catch (reason) {
+      setLimitMessage((reason as Error).message);
+    }
   }
 
   if (!cartPackage) {
@@ -293,64 +346,154 @@ export default function MenuSelectPage() {
           </button>
         )}
       </div>
-      <div className="mt-8">
-        <SelectionContextPanel
-          packageVersionId={config.id}
-          minPax={config.minGuestCount}
-          maxPax={config.maxGuestCount}
-        />
-      </div>
-
-      <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_300px]">
-        <div className="space-y-8">
-          <section className="surface-card p-4 sm:p-5">
-            <div className="grid gap-3 md:grid-cols-[1fr_220px_auto]">
-              <label className="flex items-center gap-2 rounded-xl border bg-white px-3">
-                <Search className="h-4 w-4 text-muted-foreground" />
-                <input
-                  value={menuSearch}
-                  onChange={(event) => setMenuSearch(event.target.value)}
-                  placeholder="Search all menu items"
-                  className="h-11 min-w-0 flex-1 bg-transparent text-sm outline-none"
-                />
-              </label>
-              <select
-                value={menuCategory}
-                onChange={(event) => setMenuCategory(event.target.value)}
-                className="h-11 rounded-xl border bg-white px-3 text-sm font-semibold"
-              >
-                <option value="all">All categories</option>
-                {filterCategories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-              <div className="flex gap-1 rounded-xl border bg-white p-1">
+      <div className="mt-6 grid min-w-0 gap-5 lg:grid-cols-[190px_minmax(0,1fr)_280px]">
+        <aside className="order-1 hidden lg:block">
+          <section className="surface-card sticky top-24 overflow-hidden p-4">
+            <p className="eyebrow">Refine menu</p>
+            <label className="mt-4 flex items-center gap-2 rounded-xl border bg-white px-3">
+              <Search className="h-4 w-4 text-muted-foreground" />
+              <input
+                value={menuSearch}
+                onChange={(event) => setMenuSearch(event.target.value)}
+                placeholder="Search dishes"
+                className="h-10 min-w-0 flex-1 bg-transparent text-sm outline-none"
+              />
+            </label>
+            <div className="mt-5">
+              <p className="text-[10px] font-bold uppercase tracking-[.14em] text-muted-foreground">
+                Dietary preference
+              </p>
+              <div className="mt-2 grid gap-1.5">
                 {(['all', 'veg', 'nonveg'] as const).map((value) => (
                   <button
                     type="button"
                     key={value}
                     onClick={() => setMenuDiet(value)}
-                    className={`rounded-lg px-3 py-2 text-xs font-bold ${menuDiet === value ? 'bg-primary text-white' : 'text-muted-foreground hover:text-foreground'}`}
+                    aria-pressed={menuDiet === value}
+                    className={`rounded-lg px-3 py-2 text-left text-xs font-bold ${menuDiet === value ? 'bg-primary text-white' : 'bg-muted/60 text-muted-foreground hover:text-foreground'}`}
                   >
                     {value === 'all'
-                      ? 'All'
+                      ? 'All diets'
                       : value === 'veg'
-                        ? 'Veg'
-                        : 'Non-Veg'}
+                        ? 'Vegetarian'
+                        : 'Non-vegetarian'}
                   </button>
                 ))}
               </div>
             </div>
-            <p className="mt-3 text-xs text-muted-foreground">
-              Showing {displayedMenuRows.length} of {unifiedMenuRows.length}{' '}
-              menu items
+            <div className="mt-5 border-t pt-4">
+              <p className="text-[10px] font-bold uppercase tracking-[.14em] text-muted-foreground">
+                Categories
+              </p>
+              <div className="mt-2 grid max-h-[48vh] gap-1 overflow-y-auto pr-1">
+                <button
+                  type="button"
+                  onClick={() => setMenuCategory('all')}
+                  className={`rounded-lg px-3 py-2 text-left text-xs font-bold ${menuCategory === 'all' ? 'bg-primary text-white' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+                >
+                  All categories
+                </button>
+                {filterCategories.map((category) => (
+                  <button
+                    type="button"
+                    key={category.id}
+                    onClick={() => setMenuCategory(category.id)}
+                    className={`rounded-lg px-3 py-2 text-left text-xs font-bold ${menuCategory === category.id ? 'bg-primary text-white' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+                  >
+                    {category.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <p className="mt-4 border-t pt-3 text-xs text-muted-foreground">
+              {displayedMenuRows.length} items shown
             </p>
+          </section>
+        </aside>
+
+        <div className="order-2 min-w-0 space-y-5">
+          <section className="surface-card sticky top-16 z-20 min-w-0 overflow-hidden bg-white/95 backdrop-blur">
+            <div className={`grid border-b p-1.5 ${isMealBox ? 'grid-cols-1' : 'grid-cols-2'}`}>
+              <button
+                type="button"
+                onClick={() => setActiveView('menu')}
+                aria-pressed={activeView === 'menu'}
+                className={`rounded-xl px-4 py-3 text-sm font-bold transition ${activeView === 'menu' ? 'bg-primary text-white shadow-sm' : 'text-muted-foreground hover:bg-muted'}`}
+              >
+                Your menu ({includedOrSelectedRows.length})
+              </button>
+              {!isMealBox && (
+                <button
+                  type="button"
+                  onClick={() => setActiveView('add')}
+                  aria-pressed={activeView === 'add'}
+                  className={`rounded-xl px-4 py-3 text-sm font-bold transition ${activeView === 'add' ? 'bg-primary text-white shadow-sm' : 'text-muted-foreground hover:bg-muted'}`}
+                >
+                  {isCustom
+                    ? `Choose dishes (${extraMenuRows.length})`
+                    : `Add extras (${extraMenuRows.length})`}
+                </button>
+              )}
+            </div>
+            <div className="space-y-3 p-4 lg:hidden">
+              <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+                <label className="flex items-center gap-2 rounded-xl border bg-white px-3">
+                  <Search className="h-4 w-4 text-muted-foreground" />
+                  <input
+                    value={menuSearch}
+                    onChange={(event) => setMenuSearch(event.target.value)}
+                    placeholder="Search menu items"
+                    className="h-11 min-w-0 flex-1 bg-transparent text-sm outline-none"
+                  />
+                </label>
+                <div className="flex gap-1 rounded-xl border bg-white p-1">
+                  {(['all', 'veg', 'nonveg'] as const).map((value) => (
+                    <button
+                      type="button"
+                      key={value}
+                      onClick={() => setMenuDiet(value)}
+                      aria-pressed={menuDiet === value}
+                      className={`rounded-lg px-3 py-2 text-xs font-bold ${menuDiet === value ? 'bg-primary text-white' : 'text-muted-foreground hover:text-foreground'}`}
+                    >
+                      {value === 'all'
+                        ? 'All diets'
+                        : value === 'veg'
+                          ? 'Veg'
+                          : 'Non-Veg'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div
+                className="flex gap-2 overflow-x-auto pb-1"
+                aria-label="Menu categories"
+              >
+                <button
+                  type="button"
+                  onClick={() => setMenuCategory('all')}
+                  className={`shrink-0 rounded-full border px-3 py-2 text-xs font-bold ${menuCategory === 'all' ? 'border-primary bg-primary text-white' : 'bg-white text-muted-foreground'}`}
+                >
+                  All categories
+                </button>
+                {filterCategories.map((category) => (
+                  <button
+                    type="button"
+                    key={category.id}
+                    onClick={() => setMenuCategory(category.id)}
+                    className={`shrink-0 rounded-full border px-3 py-2 text-xs font-bold ${menuCategory === category.id ? 'border-primary bg-primary text-white' : 'bg-white text-muted-foreground'}`}
+                  >
+                    {category.name}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Showing {displayedMenuRows.length} items in this view
+              </p>
+            </div>
           </section>
 
           {displayedMenuRows.length ? (
-            <div className="grid items-start gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid items-start gap-3">
               {displayedMenuRows.map(({ rule, item }, index) => {
                 const locked =
                   config.packageType === 'FIXED_PACKAGE' &&
@@ -384,36 +527,32 @@ export default function MenuSelectPage() {
                 const details = detailText(shownItem);
                 return (
                   <Fragment key={`${rule.id}-${item.id}`}>
-                    {index === 0 && includedOrSelectedRows.length > 0 && (
+                    {index === 0 && activeView === 'menu' && (
                       <div className="col-span-full rounded-2xl border border-primary/20 bg-primary/[0.06] px-5 py-4">
                         <h2 className="font-serif text-2xl font-bold text-primary">
-                          {isMealBox
-                            ? `Included items (${includedOrSelectedRows.length})`
-                            : 'Included & selected items'}
+                          {isMealBox ? 'Included items' : 'Your selected menu'}
                         </h2>
                         <p className="mt-1 text-sm text-muted-foreground">
                           {isMealBox
                             ? 'Your meal box contains only these items. Use Swap where available to replace an item.'
-                            : 'These items are already part of your package or have been added to your menu.'}
+                            : 'Everything currently included or selected for this order.'}
                         </p>
                       </div>
                     )}
-                    {!isMealBox &&
-                      extraMenuRows.length > 0 &&
-                      index === includedOrSelectedRows.length && (
-                        <div className="col-span-full mt-2 border-t-2 border-primary/20 pt-6">
-                          <p className="eyebrow">Optional choices</p>
-                          <h2 className="mt-2 font-serif text-3xl font-bold">
-                            Add Extra Items
+                    {activeView === 'add' && index === 0 && (
+                        <div className="col-span-full rounded-2xl border border-primary/15 bg-white px-5 py-4">
+                          <p className="eyebrow">Browse choices</p>
+                          <h2 className="mt-1 font-serif text-2xl font-bold">
+                            {isCustom ? 'Choose dishes' : 'Add extra items'}
                           </h2>
                           <p className="mt-1 text-sm text-muted-foreground">
-                            Browse all other dishes below. Extra charges are
-                            shown on each card.
+                            Selected items stay visible here so the list does not
+                            jump while you continue browsing.
                           </p>
                         </div>
                       )}
                     <article
-                      className={`group min-w-0 overflow-hidden rounded-xl border text-left transition ${selected ? 'border-primary bg-primary/[0.045] ring-1 ring-primary' : 'bg-white hover:border-primary/30'}`}
+                      className={`group grid min-w-0 overflow-hidden rounded-xl border text-left transition sm:grid-cols-[minmax(0,1fr)_auto] ${selected ? 'border-primary bg-primary/[0.045] ring-1 ring-primary' : 'bg-white hover:border-primary/30'}`}
                     >
                       <button
                         type="button"
@@ -425,9 +564,9 @@ export default function MenuSelectPage() {
                             maxSelections: rule.maxSelections,
                           })
                         }
-                        className="block w-full text-left"
+                        className="grid w-full grid-cols-[84px_minmax(0,1fr)] gap-3 p-3 text-left sm:grid-cols-[96px_minmax(0,1fr)] sm:gap-4"
                       >
-                        <div className="relative grid aspect-[4/3] place-items-center overflow-hidden bg-muted/60">
+                        <div className="relative grid h-[84px] place-items-center overflow-hidden rounded-lg bg-muted/60 sm:h-24">
                           {shownItem.imageUrl ? (
                             <img
                               src={shownItem.imageUrl}
@@ -435,34 +574,55 @@ export default function MenuSelectPage() {
                               className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
                             />
                           ) : (
-                            <ImagePlus className="h-9 w-9 text-primary/50" />
+                            <ImagePlus className="h-6 w-6 text-primary/50" />
                           )}
-                          <div className="absolute inset-x-3 top-3 flex flex-wrap justify-between gap-2">
-                            <span className="rounded-full bg-primary px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white shadow-md ring-1 ring-white/60">
+                        </div>
+                        <div className="min-w-0 py-0.5">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
                               {rule.category.name}
                             </span>
-                            <span
-                              className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm ${shownItem.isVeg ? 'bg-emerald-700' : 'bg-red-700'}`}
-                            >
+                            <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${shownItem.isVeg ? 'bg-emerald-50 text-emerald-700' : 'bg-orange-50 text-orange-700'}`}>
                               {shownItem.isVeg ? 'Veg' : 'Non-Veg'}
                             </span>
+                            <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${selected ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
+                              {currentSwap
+                                ? 'Swapped'
+                                : locked
+                                  ? 'Fixed'
+                                  : mealIncluded && item.isSwappable && alternatives.length
+                                    ? 'Swappable'
+                                    : mealIncluded
+                                      ? 'Included'
+                                      : selected
+                                        ? item.role === 'EXTRA'
+                                          ? 'Extra selected'
+                                          : 'Selected'
+                                        : item.role === 'EXTRA' || config.packageType === 'FIXED_PACKAGE'
+                                          ? 'Extra'
+                                          : 'Available'}
+                            </span>
                           </div>
-                        </div>
-                        <div className="p-4">
-                          <strong className="block font-serif text-xl">
+                          <strong className="mt-1 block truncate font-serif text-lg sm:text-xl">
                             {shownItem.name}
                           </strong>
-                          <p className="mt-2 line-clamp-2 min-h-10 text-sm leading-5 text-muted-foreground">
+                          <p className="mt-1 line-clamp-1 text-xs leading-5 text-muted-foreground sm:text-sm">
                             {details.description}
                           </p>
-                          <p className="mt-3 text-xs font-semibold text-primary">
+                          <p className="mt-1 text-xs font-semibold text-primary">
                             {locked || mealIncluded
-                              ? 'Included in package'
-                              : `+₹${shownItem.adjustmentAmount || shownItem.itemPrice} per plate`}
+                              ? currentSwap && Number(shownItem.adjustmentAmount) > 0
+                                ? `Swap +₹${shownItem.adjustmentAmount} per plate`
+                                : 'Included in package'
+                              : isCustom
+                                ? `₹${shownItem.itemPrice} per plate`
+                                : Number(shownItem.adjustmentAmount) > 0
+                                  ? `+₹${shownItem.adjustmentAmount} per plate`
+                                  : 'No extra charge'}
                           </p>
                         </div>
                       </button>
-                      <div className="flex min-h-14 items-center justify-between gap-2 border-t bg-white/70 p-3">
+                      <div className="flex min-h-14 items-center justify-between gap-3 border-t bg-white/70 p-3 sm:min-w-44 sm:flex-col sm:items-stretch sm:justify-center sm:border-l sm:border-t-0">
                         <button
                           type="button"
                           onClick={() =>
@@ -780,7 +940,14 @@ export default function MenuSelectPage() {
           )}
         </div>
 
-        <aside className="surface-card h-fit p-6 lg:sticky lg:top-28">
+        <aside className="order-1 h-fit space-y-4 lg:order-3 lg:sticky lg:top-24">
+          <SelectionContextPanel
+            packageVersionId={config.id}
+            minPax={config.minGuestCount}
+            maxPax={config.maxGuestCount}
+            variant="sidebar"
+          />
+          <section className="surface-card hidden p-5 lg:block">
           <div className="flex items-center justify-between">
             <p className="eyebrow">Menu progress</p>
             <ShoppingBag className="h-4 w-4 text-primary" />
@@ -827,59 +994,25 @@ export default function MenuSelectPage() {
           <Button
             className="mt-6 w-full"
             disabled={!valid}
-            onClick={async () => {
-              if (!session) {
-                setLimitMessage('Sign in before checkout.');
-                return;
-              }
-              try {
-                const cart = await saveCartBeforeReview({
-                  accessToken: session.accessToken,
-                  pkg: cartPackage,
-                  event,
-                  guestCount,
-                });
-                setDbCartId(cart.id);
-                await apiRequest(
-                  '/cart/items',
-                  {
-                    method: 'PUT',
-                    body: JSON.stringify({
-                      items: selectedItems.map(
-                        ({
-                          categoryId,
-                          menuItemId,
-                          replacedMenuItemId,
-                          role,
-                        }) => ({
-                          categoryId,
-                          menuItemId,
-                          replacedMenuItemId,
-                          role:
-                            role ??
-                            (config!.packageType === 'FIXED_PACKAGE'
-                              ? 'EXTRA'
-                              : 'SWAP'),
-                        }),
-                      ),
-                    }),
-                  },
-                  session.accessToken,
-                );
-                await apiRequest(
-                  '/cart/quote',
-                  { method: 'POST' },
-                  session.accessToken,
-                );
-                router.push('/checkout');
-              } catch (reason) {
-                setLimitMessage((reason as Error).message);
-              }
-            }}
+            onClick={reviewAndPay}
           >
             Review and pay <ChevronRight className="ml-2 h-4 w-4" />
           </Button>
+          </section>
         </aside>
+      </div>
+      <div className="fixed inset-x-0 bottom-16 z-40 border-t bg-white/95 p-3 shadow-[0_-16px_35px_-24px_rgba(111,29,45,0.8)] backdrop-blur lg:hidden">
+        <div className="mx-auto grid max-w-7xl grid-cols-[1fr_auto] items-center gap-4">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[.14em] text-muted-foreground">
+              {includedOrSelectedRows.length} menu items
+            </p>
+            <p className="font-bold text-primary">₹{perPlate.toFixed(2)} / plate</p>
+          </div>
+          <Button disabled={!valid} onClick={reviewAndPay}>
+            Review <ChevronRight className="ml-1 h-4 w-4" />
+          </Button>
+        </div>
       </div>
       {swapTarget && (
         <div

@@ -93,26 +93,26 @@ export function CustomerShell({
     <div className="min-h-screen pb-16 md:pb-0">
       {/* ─── Desktop header ─── */}
       <header className="sticky top-0 z-40 border-b border-border bg-white/95 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto flex h-[62px] max-w-7xl items-center justify-between gap-3 px-4 sm:h-[66px] sm:px-6 lg:px-8">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2.5 shrink-0">
+          <Link href="/" className="flex min-w-0 shrink-0 items-center gap-3">
             <img
               src="/logo.png"
               alt=""
-              className="h-10 w-10 rounded-lg object-cover"
+              className="h-10 w-10 rounded-md object-cover shadow-[0_4px_12px_rgba(122,31,43,0.14)] sm:h-[46px] sm:w-[46px]"
             />
-            <span className="hidden sm:block">
-              <span className="block text-[15px] font-extrabold leading-tight tracking-tight text-primary">
+            <span className="hidden sm:flex sm:flex-col">
+              <span className="block font-serif text-[18px] font-semibold leading-none tracking-[-0.01em] text-primary">
                 The Feast Factory
               </span>
-              {/* <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                Bulk Catering
-              </span> */}
+              <span className="mt-1 block text-[9.5px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                Curated food experiences
+              </span>
             </span>
           </Link>
 
           {/* Desktop nav */}
-          <nav className="hidden items-center gap-0 md:flex">
+          <nav className="hidden items-center gap-1 md:flex">
             {navLinks.map(({ href, label, activeKey }) => {
               const selfMatch =
                 activeKey === '/'
@@ -133,10 +133,10 @@ export function CustomerShell({
                   key={label}
                   href={href}
                   className={cn(
-                    'px-3.5 py-2 text-sm font-semibold transition-colors',
+                    'relative px-3 py-2 text-[13.5px] font-semibold tracking-[0.005em] transition-colors duration-250 ease-premium lg:px-3.5',
                     active
-                      ? 'text-primary underline decoration-primary decoration-2 underline-offset-[6px]'
-                      : 'text-foreground/80 hover:text-primary',
+                      ? 'text-primary after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-accent lg:after:inset-x-3.5'
+                      : 'text-foreground/70 hover:text-foreground',
                   )}
                 >
                   {label}
@@ -146,17 +146,17 @@ export function CustomerShell({
           </nav>
 
           {/* Right actions */}
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             {/* Cart */}
             {session && (
               <Link
                 href="/cart"
                 aria-label={`Cart — ${cartCount} items selected`}
                 className={cn(
-                  'relative flex h-9 items-center gap-2 rounded-full px-4 text-sm font-bold transition-all',
+                  'relative flex h-11 items-center gap-2 rounded-full px-3 text-[13px] font-bold transition-all duration-250 ease-premium sm:px-4',
                   cartActive
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'border border-border bg-card text-foreground hover:border-primary/40 hover:text-primary',
+                    ? 'bg-primary text-primary-foreground shadow-[0_10px_24px_rgba(122,31,43,0.18)]'
+                    : 'border border-border bg-card text-foreground shadow-[0_4px_14px_rgba(34,20,12,0.045)] hover:border-primary/35 hover:text-primary hover:shadow-[0_8px_20px_rgba(122,31,43,0.10)]',
                 )}
               >
                 <ShoppingBag className="h-4 w-4 shrink-0" />
@@ -173,7 +173,7 @@ export function CustomerShell({
             <Link
               href={session ? '/profile' : '/login'}
               aria-label={session ? 'Profile' : 'Sign in'}
-              className="grid h-9 w-9 place-items-center rounded-full text-muted-foreground hover:text-foreground transition-colors"
+              className="grid h-11 w-11 place-items-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
             >
               {session ? (
                 <User className="h-5 w-5" />

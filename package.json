@@ -8,7 +8,7 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "npx nx run-many -t dev --parallel=3",
+    "dev": "NX_DAEMON=false nx run-many -t dev --parallel=3 --outputStyle=stream",
     "dev:api": "npm run dev -w @aranyam/api",
     "dev:customer": "npm run dev -w @aranyam/customer-web",
     "dev:admin": "npm run dev -w @aranyam/admin-web",

@@ -16,7 +16,7 @@ import {
   UtensilsCrossed,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { StatePanel } from '../../components/ui/state-panel';
 import { useOrderBuilderStore } from '../../store/order-builder.store';
 import { useSessionStore } from '../../store/session.store';
@@ -177,7 +177,7 @@ function MenuCard({ item }: { item: MenuItem }) {
   const src      = resolveImage(item);
 
   return (
-    <article className="group flex flex-col overflow-hidden rounded-2xl bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] ring-1 ring-black/5 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_12px_36px_rgba(0,0,0,0.13)]">
+    <article className="group flex flex-col overflow-hidden rounded-2xl border border-border bg-white shadow-[0_4px_18px_rgba(0,0,0,0.08)] transition-all duration-300 hover:-translate-y-1 hover:border-primary/25 hover:shadow-[0_14px_38px_rgba(0,0,0,0.14)]">
 
       {/* Food image — 3:2 aspect (slightly shorter than 4:3, fits more cards) */}
       <div className="relative aspect-[4/2.5] overflow-hidden">
@@ -477,6 +477,31 @@ export default function PublicMenuPage() {
   const [loading, setLoading]                   = useState(true);
   const [error, setError]                       = useState('');
 
+  const menuSections = useMemo(() => {
+    const configured = categories
+      .map((category) => ({
+        category,
+        items: items.filter((item) => item.category?.id === category.id),
+      }))
+      .filter(({ items: categoryItems }) => categoryItems.length > 0);
+    if (configured.length || items.length === 0) return configured;
+
+    const fallback = new Map<
+      string,
+      { category: MenuCategory; items: MenuItem[] }
+    >();
+    items.forEach((item) => {
+      if (!item.category) return;
+      const current = fallback.get(item.category.id) ?? {
+        category: item.category,
+        items: [],
+      };
+      current.items.push(item);
+      fallback.set(item.category.id, current);
+    });
+    return Array.from(fallback.values());
+  }, [categories, items]);
+
   useEffect(() => {
     apiRequest<MenuCategory[]>('/menu/categories')
       .then(setCategories)
@@ -533,9 +558,39 @@ export default function PublicMenuPage() {
             {loading && <MenuSkeleton />}
 
             {!loading && !error && items.length > 0 && (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {items.map((item) => (
-                  <MenuCard key={item.id} item={item} />
+              <div className="space-y-14 pb-8">
+                {menuSections.map(({ category, items: categoryItems }, index) => (
+                  <section
+                    key={category.id}
+                    className={cn(
+                      'scroll-mt-36',
+                      index > 0 && 'border-t-2 border-primary/10 pt-10',
+                    )}
+                    aria-labelledby={`menu-category-${category.id}`}
+                  >
+                    <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+                      <div>
+                        <p className="eyebrow">
+                          {categoryId ? 'Selected category' : 'Menu category'}
+                        </p>
+                        <h2
+                          id={`menu-category-${category.id}`}
+                          className="mt-1 font-serif text-3xl font-bold text-foreground"
+                        >
+                          {category.name}
+                        </h2>
+                      </div>
+                      <span className="rounded-full border bg-white px-3 py-1.5 text-xs font-bold text-muted-foreground shadow-sm">
+                        {categoryItems.length}{' '}
+                        {categoryItems.length === 1 ? 'dish' : 'dishes'}
+                      </span>
+                    </div>
+                    <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                      {categoryItems.map((item) => (
+                        <MenuCard key={item.id} item={item} />
+                      ))}
+                    </div>
+                  </section>
                 ))}
               </div>
             )}

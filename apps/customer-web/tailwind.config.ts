@@ -29,6 +29,16 @@ const config: Config = {
           DEFAULT: 'hsl(var(--muted))',
           foreground: 'hsl(var(--muted-foreground))',
         },
+        hero: {
+          start: 'hsl(var(--hero-start))',
+          end: 'hsl(var(--hero-end))',
+        },
+        ivory: {
+          DEFAULT: 'hsl(var(--ivory))',
+          warm: 'hsl(var(--ivory-warm))',
+        },
+        charcoal: 'hsl(var(--charcoal))',
+        'gold-text': 'hsl(var(--gold-text))',
       },
       borderRadius: {
         sm: '0.375rem',
@@ -44,8 +54,17 @@ const config: Config = {
       },
       boxShadow: {
         card: '0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06)',
-        elevated: '0 4px 16px -4px rgb(122 31 43 / 0.12), 0 2px 6px -2px rgb(0 0 0 / 0.06)',
+        'card-hover': '0 14px 34px rgb(0 0 0 / 0.08)',
+        elevated:
+          '0 4px 16px -4px rgb(122 31 43 / 0.12), 0 2px 6px -2px rgb(0 0 0 / 0.06)',
         modal: '0 20px 60px -15px rgb(0 0 0 / 0.2)',
+        hero: '0 22px 52px rgb(0 0 0 / 0.30)',
+      },
+      transitionTimingFunction: {
+        premium: 'cubic-bezier(.22,.61,.36,1)',
+      },
+      transitionDuration: {
+        250: '250ms',
       },
     },
   },

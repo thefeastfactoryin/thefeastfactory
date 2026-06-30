@@ -7,7 +7,7 @@
   --primary: 352 59% 30%;
   --primary-foreground: 0 0% 100%;
 
-  /* Accent — #C89B3C gold */
+  /* Accent — warm gold */
   --accent: 41 56% 51%;
   --accent-foreground: 0 0% 8%;
 
@@ -25,6 +25,14 @@
 
   /* Border */
   --border: 35 22% 87%;
+
+  /* Extended brand surfaces */
+  --hero-start: 352 62% 16%;
+  --hero-end: 352 62% 13%;
+  --gold-text: 38 52% 34%;
+  --ivory: 39 50% 97%;
+  --ivory-warm: 37 40% 94%;
+  --charcoal: 0 0% 18%;
 }
 
 * {
@@ -39,20 +47,37 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
+  overflow-x: hidden;
 }
 
 ::selection {
-  background: hsl(var(--accent) / 0.2);
+  background: hsl(var(--accent) / 0.18);
 }
 
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 99px; }
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 99px;
+}
 
 @layer components {
   /* ─── Typography ─── */
   .eyebrow {
-    @apply text-[11px] font-bold uppercase tracking-[0.18em] text-accent;
+    @apply text-[11px] font-bold uppercase text-accent;
+    letter-spacing: 0.24em;
+  }
+  .display-heading {
+    @apply font-serif font-bold tracking-tight;
+    line-height: 1.04;
+  }
+  .divider-accent {
+    @apply h-px w-12 shrink-0 rounded-full bg-accent/40;
   }
 
   /* ─── Surfaces ─── */
@@ -61,6 +86,10 @@ body {
   }
   .surface-inset {
     @apply rounded-xl border border-border bg-muted/60;
+  }
+  .surface-ivory {
+    @apply rounded-2xl border border-border;
+    background: hsl(var(--ivory));
   }
 
   /* ─── Layout ─── */
@@ -76,12 +105,13 @@ body {
 
   /* ─── Cards ─── */
   .journey-card {
-    @apply flex flex-col overflow-hidden rounded-2xl border-2 border-border bg-card shadow-sm
+    @apply flex flex-col overflow-hidden rounded-[20px] border-2 border-border bg-card shadow-sm
            transition-all duration-300 hover:-translate-y-1 hover:shadow-xl;
   }
   .pkg-card {
-    @apply flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm
-           transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md;
+    @apply flex flex-col overflow-hidden rounded-[20px] border border-border bg-card
+           shadow-[0_2px_16px_rgba(0,0,0,0.05)] transition-all duration-300
+           hover:-translate-y-1 hover:shadow-[0_20px_48px_rgba(0,0,0,0.10)];
   }
   .food-card {
     @apply overflow-hidden rounded-xl border border-border bg-card shadow-sm
@@ -104,7 +134,7 @@ body {
     @apply flex items-center overflow-hidden rounded-full border border-border bg-card;
   }
   .qty-btn {
-    @apply flex h-9 w-9 shrink-0 items-center justify-center text-muted-foreground
+    @apply flex h-11 w-11 shrink-0 items-center justify-center text-muted-foreground
            transition-colors hover:bg-muted hover:text-foreground;
   }
   .qty-val {

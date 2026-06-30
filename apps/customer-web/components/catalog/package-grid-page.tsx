@@ -9,18 +9,25 @@ import type {
 import {
   ArrowRight,
   Check,
-  Leaf,
+  Clock,
+  CreditCard,
   Package as PackageIcon,
   Plus,
-  X,
+  ShieldCheck,
+  Users,
 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { apiRequest } from '../../lib/api';
-import { catalogCopy, packageImage } from '../../lib/catalog-display';
+import { packageImage } from '../../lib/catalog-display';
 import { useOrderBuilderStore } from '../../store/order-builder.store';
 import { useSessionStore } from '../../store/session.store';
 import { StatePanel } from '../ui/state-panel';
+import { Advantages } from '../home/advantages';
+import {
+  PackageChangeDialog,
+  PackageDetailsModal,
+} from './package-details-modal';
 
 type SelectionIntent = 'select' | 'extras';
 
@@ -34,6 +41,8 @@ export function PackageGridPage({
   description: string;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const session = useSessionStore((s) => s.session);
   const currentPackage = useOrderBuilderStore((s) => s.package);
   const setPackage = useOrderBuilderStore((s) => s.setPackage);
@@ -124,6 +133,16 @@ export function PackageGridPage({
       }),
     [packages, configs, diet, type],
   );
+  const detailsId = searchParams.get('details');
+  const detailsPackage = packages.find((pkg) => pkg.id === detailsId);
+
+  function updateDetails(packageId?: string) {
+    const next = new URLSearchParams(searchParams.toString());
+    if (packageId) next.set('details', packageId);
+    else next.delete('details');
+    const query = next.toString();
+    router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }
 
   async function choose(
     pkg: PackageSummary,
@@ -176,17 +195,63 @@ export function PackageGridPage({
     }
   }
 
+  const titleParts = title.split(' ');
+  const titleAccent = titleParts.pop() ?? title;
+  const titleLead = titleParts.join(' ');
+  const heroTrust = [
+    { Icon: ShieldCheck, label: 'Freshly prepared' },
+    { Icon: Clock, label: 'On-time delivery' },
+    { Icon: CreditCard, label: 'Transparent pricing' },
+    {
+      Icon: Users,
+      label:
+        type === 'MEAL_BOX' ? 'Group-ready boxes' : 'Menus for every gathering',
+    },
+  ];
+
   return (
-    <main className="min-h-screen overflow-x-clip bg-background pb-24">
-      <section className="border-b bg-primary text-white">
-        <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-          <p className="text-xs font-bold uppercase tracking-[.2em] text-white/70">
-            Choose and continue
-          </p>
-          <h1 className="mt-3 font-serif text-4xl font-bold sm:text-5xl">
-            {title}
-          </h1>
-          <p className="mt-3 max-w-2xl text-white/80">{description}</p>
+    <main className="min-h-screen overflow-x-clip bg-background">
+      <section className="relative isolate overflow-hidden border-b bg-hero-end text-white">
+        <img
+          src={
+            type === 'MEAL_BOX'
+              ? '/order-mealbox.png'
+              : '/packages-hero-food.png'
+          }
+          alt=""
+          className={`absolute inset-0 -z-20 h-full w-full ${type === 'MEAL_BOX' ? 'object-cover opacity-50' : 'object-cover object-center'}`}
+        />
+        <div className="absolute inset-0 -z-10 bg-[linear-gradient(90deg,hsl(var(--hero-end)/0.96)_0%,hsl(var(--hero-start)/0.82)_42%,hsl(var(--hero-start)/0.30)_72%,rgba(0,0,0,0.08)_100%)]" />
+        <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_18%_30%,hsl(var(--accent)/0.14),transparent_30%)]" />
+        <div className="container-pad py-10 sm:py-12 lg:py-14">
+          <div className="max-w-2xl">
+            <p className="eyebrow">
+              {type === 'MEAL_BOX'
+                ? 'Packed meals for groups'
+                : 'Premium bulk catering'}
+            </p>
+            <h1 className="mt-3 font-serif text-5xl font-bold leading-[0.96] tracking-tight sm:text-6xl lg:text-7xl">
+              {titleLead && <span>{titleLead} </span>}
+              <span className="text-accent">{titleAccent}</span>
+            </h1>
+            <p className="mt-4 max-w-xl text-base font-medium leading-7 text-white/85 sm:text-lg">
+              {description}
+            </p>
+            <div className="mt-6 grid max-w-3xl gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+              {heroTrust.map(({ Icon, label }) => (
+                <div
+                  key={label}
+                  className="flex min-h-12 items-center gap-2.5 rounded-2xl border border-white/10 bg-black/10 px-3 py-2 text-xs font-bold leading-tight text-white shadow-[0_8px_22px_rgba(0,0,0,0.10)] backdrop-blur-sm"
+                >
+                  <Icon
+                    className="h-4 w-4 shrink-0 text-accent"
+                    aria-hidden="true"
+                  />
+                  {label}
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
       <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -267,9 +332,9 @@ export function PackageGridPage({
                 >
                   <button
                     type="button"
-                    onClick={() => choose(pkg)}
-                    disabled={Boolean(selecting)}
-                    className="block w-full text-left disabled:opacity-60"
+                    onClick={() => updateDetails(pkg.id)}
+                    className="block w-full text-left"
+                    aria-label={`View details for ${pkg.name}`}
                   >
                     <div className="relative h-44 overflow-hidden bg-muted/50">
                       <img
@@ -314,6 +379,9 @@ export function PackageGridPage({
                           guests
                         </span>
                       </div>
+                      <span className="mt-3 inline-flex items-center gap-2 text-sm font-bold text-primary">
+                        View package details <ArrowRight className="h-4 w-4" />
+                      </span>
                     </div>
                   </button>
                   <div className="px-5 pb-5">
@@ -418,77 +486,37 @@ export function PackageGridPage({
             })}
           </div>
         )}
-        <section className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {catalogCopy.packageBenefits.map(([label, sub]) => (
-            <div key={label} className="rounded-xl border bg-white p-4">
-              <Leaf className="h-5 w-5 text-primary" />
-              <h3 className="mt-3 text-sm font-bold">{label}</h3>
-              <p className="mt-1 text-xs text-muted-foreground">{sub}</p>
-            </div>
-          ))}
-        </section>
       </div>
-      {pendingPackage && (
-        <div
-          className="fixed inset-0 z-[80] grid place-items-center bg-slate-950/55 p-4 backdrop-blur-sm"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="change-package-title"
-        >
+      <Advantages />
+      {!loading && detailsId && !detailsPackage && (
+        <div className="fixed inset-x-4 bottom-20 z-50 mx-auto max-w-lg rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 shadow-lg">
+          This package is unavailable in this catalog.{' '}
           <button
-            className="absolute inset-0"
-            aria-label="Keep current package"
-            onClick={() => setPendingPackage(null)}
-          />
-          <section className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
-            <button
-              type="button"
-              onClick={() => setPendingPackage(null)}
-              className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-full border text-muted-foreground hover:text-foreground"
-              aria-label="Close"
-            >
-              <X className="h-4 w-4" />
-            </button>
-            <span className="grid h-11 w-11 place-items-center rounded-full bg-primary/10 text-primary">
-              <PackageIcon className="h-5 w-5" />
-            </span>
-            <h2
-              id="change-package-title"
-              className="mt-4 font-serif text-2xl font-bold"
-            >
-              Change your package?
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              You’re switching from{' '}
-              <strong className="text-foreground">
-                {currentPackage?.packageName}
-              </strong>{' '}
-              to{' '}
-              <strong className="text-foreground">{pendingPackage.name}</strong>
-              .
-            </p>
-            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
-              Your current menu selections and event details will be cleared so
-              the new package can start with valid choices.
-            </div>
-            <div className="mt-6 grid gap-3 sm:grid-cols-2">
-              <button
-                type="button"
-                onClick={() => setPendingPackage(null)}
-                className="rounded-xl border px-4 py-3 text-sm font-bold text-foreground hover:bg-muted"
-              >
-                Keep current
-              </button>
-              <button
-                type="button"
-                onClick={() => choose(pendingPackage, pendingIntent, true)}
-                className="rounded-xl bg-primary px-4 py-3 text-sm font-bold text-white hover:bg-primary/90"
-              >
-                Change package
-              </button>
-            </div>
-          </section>
+            type="button"
+            onClick={() => updateDetails()}
+            className="font-bold underline"
+          >
+            Close
+          </button>
         </div>
+      )}
+      {detailsPackage && (
+        <PackageDetailsModal
+          pkg={detailsPackage}
+          config={configs[detailsPackage.id]}
+          selecting={selecting === detailsPackage.id}
+          onClose={() => updateDetails()}
+          onSelect={() => choose(detailsPackage)}
+        />
+      )}
+      {pendingPackage && (
+        <PackageChangeDialog
+          currentName={currentPackage?.packageName ?? 'your current package'}
+          nextName={pendingPackage.name}
+          selecting={selecting === pendingPackage.id}
+          onCancel={() => setPendingPackage(null)}
+          onConfirm={() => choose(pendingPackage, pendingIntent, true)}
+        />
       )}
     </main>
   );
