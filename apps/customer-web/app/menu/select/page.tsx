@@ -1161,17 +1161,11 @@ function MenuSummary({
         {rows.map((row) => (
           <div key={row.original.id} className="flex items-center gap-3 py-2.5">
             <span className="h-10 w-12 shrink-0 overflow-hidden rounded-md bg-muted">
-              {row.shown.imageUrl ? (
-                <img
-                  src={row.shown.imageUrl}
-                  alt=""
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <span className="grid h-full place-items-center">
-                  <Utensils className="h-3.5 w-3.5 text-primary/40" />
-                </span>
-              )}
+              <img
+                src={foodImage(row.shown)}
+                alt=""
+                className="h-full w-full object-cover"
+              />
             </span>
             <span className="min-w-0 flex-1">
               <strong className="block truncate text-xs">
@@ -1194,17 +1188,11 @@ function MenuSummary({
         {extras.map((row) => (
           <div key={row.item.id} className="flex items-center gap-3 py-2.5">
             <span className="h-10 w-12 shrink-0 overflow-hidden rounded-md bg-muted">
-              {row.item.imageUrl ? (
-                <img
-                  src={row.item.imageUrl}
-                  alt=""
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <span className="grid h-full place-items-center">
-                  <Utensils className="h-3.5 w-3.5 text-primary/40" />
-                </span>
-              )}
+              <img
+                src={foodImage(row.item)}
+                alt=""
+                className="h-full w-full object-cover"
+              />
             </span>
             <span className="min-w-0 flex-1">
               <strong className="block truncate text-xs">
@@ -1363,17 +1351,11 @@ function ItemDetails({
       />
       <section className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl sm:grid sm:grid-cols-[.9fr_1.1fr]">
         <div className="min-h-56 bg-muted">
-          {detail.item.imageUrl ? (
-            <img
-              src={detail.item.imageUrl}
-              alt={detail.item.name}
-              className="h-full min-h-56 w-full object-cover"
-            />
-          ) : (
-            <div className="grid h-full min-h-56 place-items-center">
-              <Utensils className="h-10 w-10 text-primary/40" />
-            </div>
-          )}
+          <img
+            src={foodImage(detail.item)}
+            alt={detail.item.name}
+            className="h-full min-h-56 w-full object-cover"
+          />
         </div>
         <div className="p-6">
           <div className="flex items-start justify-between gap-4">
