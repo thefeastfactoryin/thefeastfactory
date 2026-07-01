@@ -18,11 +18,13 @@ export function SelectionContextPanel({
   minPax,
   maxPax,
   variant = 'default',
+  onSaved,
 }: {
   packageVersionId: string;
   minPax: number;
   maxPax?: number | null;
   variant?: 'default' | 'sidebar';
+  onSaved?: (cart: CartSummary) => void;
 }) {
   const sidebar = variant === 'sidebar';
   const session = useSessionStore((state) => state.session);
@@ -94,9 +96,7 @@ export function SelectionContextPanel({
       eventName: eventName.trim() || pkg?.packageName,
       eventDate: eventDate || undefined,
       eventTimeStart: eventTimeStart || undefined,
-      addressLabel: address
-        ? address.label || address.addressLine1
-        : undefined,
+      addressLabel: address ? address.label || address.addressLine1 : undefined,
     });
   }, [
     addressId,
@@ -144,6 +144,7 @@ export function SelectionContextPanel({
           eventTimeStart,
           addressLabel: address.label || address.addressLine1,
         });
+        onSaved?.(cart);
         setMessage('Saved to your cart.');
       } catch (reason) {
         setMessage((reason as Error).message);
@@ -166,6 +167,7 @@ export function SelectionContextPanel({
     pkg?.packageName,
     setDbCartId,
     setEvent,
+    onSaved,
   ]);
 
   async function useCurrentLocation() {
@@ -206,7 +208,8 @@ export function SelectionContextPanel({
       <section className="surface-card p-5">
         <p className="font-serif text-xl font-semibold">Sign in to continue</p>
         <p className="mt-2 text-sm text-muted-foreground">
-          Your selection stays on this device while you verify your mobile number.
+          Your selection stays on this device while you verify your mobile
+          number.
         </p>
         <Link
           className="mt-4 inline-flex rounded-lg bg-primary px-5 py-3 text-sm font-semibold text-white"
@@ -292,7 +295,10 @@ export function SelectionContextPanel({
         >
           Add address
         </Link>
-        <p className="w-full text-xs leading-5 text-muted-foreground" role="status">
+        <p
+          className="w-full text-xs leading-5 text-muted-foreground"
+          role="status"
+        >
           {saving ? 'Saving…' : message}
         </p>
       </div>
@@ -326,7 +332,9 @@ export function SelectionContextPanel({
             Event and venue
           </span>
           <span className="mt-0.5 block text-xs text-muted-foreground">
-            {eventDate && addressId ? 'Details added · autosaves' : 'Add details when ready'}
+            {eventDate && addressId
+              ? 'Details added · autosaves'
+              : 'Add details when ready'}
           </span>
         </span>
         {sidebar && (

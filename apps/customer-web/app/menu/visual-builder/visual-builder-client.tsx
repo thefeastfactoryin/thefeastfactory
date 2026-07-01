@@ -1,6 +1,10 @@
 'use client';
 
-import type { CartSummary, PackageConfiguration, PackageSummary } from '@aranyam/shared-types';
+import type {
+  CartSummary,
+  PackageConfiguration,
+  PackageSummary,
+} from '@aranyam/shared-types';
 import {
   Check,
   ChevronRight,
@@ -15,7 +19,6 @@ import {
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { OrderProgress } from '../../../components/order-progress';
-import { SelectionContextPanel } from '../../../components/selection-context-panel';
 import {
   VisualBuffetBuilder,
   type VisualBuffetItem,
@@ -24,7 +27,6 @@ import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { StatePanel } from '../../../components/ui/state-panel';
 import { apiRequest } from '../../../lib/api';
-import { saveCartBeforeReview } from '../../../lib/cart-review';
 import { cn } from '../../../lib/utils';
 import { useOrderBuilderStore } from '../../../store/order-builder.store';
 import { useSessionStore } from '../../../store/session.store';
@@ -125,11 +127,18 @@ function DishSelector({
                   : 'bg-white text-muted-foreground',
               )}
             >
-              {value === 'all' ? 'All diets' : value === 'veg' ? 'Veg only' : 'Non-veg only'}
+              {value === 'all'
+                ? 'All diets'
+                : value === 'veg'
+                  ? 'Veg only'
+                  : 'Non-veg only'}
             </button>
           ))}
         </div>
-        <div className="flex gap-2 overflow-x-auto pb-1" aria-label="Menu categories">
+        <div
+          className="flex gap-2 overflow-x-auto pb-1"
+          aria-label="Menu categories"
+        >
           <button
             type="button"
             onClick={() => onCategoryChange('')}
@@ -183,7 +192,8 @@ function DishSelector({
                 disabled={isLockedMealBoxItem}
                 className={cn(
                   'grid w-full grid-cols-[84px_1fr_auto] gap-3 rounded-xl border bg-white/80 p-2 text-left transition',
-                  selected && 'border-primary bg-primary/[0.045] ring-1 ring-primary',
+                  selected &&
+                    'border-primary bg-primary/[0.045] ring-1 ring-primary',
                   isLockedMealBoxItem && 'cursor-default opacity-80',
                 )}
                 aria-label={`${selected ? 'Remove' : 'Add'} ${row.item.name}`}
@@ -225,9 +235,9 @@ function DishSelector({
                           ? Number(row.item.adjustmentAmount) > 0
                             ? `Swap +₹${row.item.adjustmentAmount}`
                             : 'Free swap'
-                        : Number(row.item.adjustmentAmount) > 0
-                          ? `+₹${row.item.adjustmentAmount}`
-                          : 'Included'}
+                          : Number(row.item.adjustmentAmount) > 0
+                            ? `+₹${row.item.adjustmentAmount}`
+                            : 'Included'}
                     </span>
                   </div>
                 </div>
@@ -237,8 +247,7 @@ function DishSelector({
                     selected
                       ? 'border-primary bg-primary text-white'
                       : 'bg-white hover:border-primary/50',
-                    isLockedMealBoxItem &&
-                      'opacity-60 hover:border-border',
+                    isLockedMealBoxItem && 'opacity-60 hover:border-border',
                   )}
                 >
                   {selected ? (
@@ -276,7 +285,6 @@ export function VisualBuilderClient({
   const searchParams = useSearchParams();
   const session = useSessionStore((state) => state.session);
   const cartPackage = useOrderBuilderStore((state) => state.package);
-  const event = useOrderBuilderStore((state) => state.event);
   const dbCartId = useOrderBuilderStore((state) => state.dbCartId);
   const guestCount = useOrderBuilderStore((state) => state.guestCount);
   const selectedItems = useOrderBuilderStore((state) => state.selectedItems);
@@ -514,7 +522,9 @@ export function VisualBuilderClient({
   );
   const perPlate = Number(effectivePackage?.basePricePerPlate ?? 0) + additions;
   const estimate = perPlate * guestCount;
-  const displayedItemCount = isMealBox ? visualItems.length : selectedItems.length;
+  const displayedItemCount = isMealBox
+    ? visualItems.length
+    : selectedItems.length;
 
   function selectRow(row: DishRow) {
     if (isMealBox && row.item.swapForMenuItemId) {
@@ -561,24 +571,47 @@ export function VisualBuilderClient({
 
   async function review() {
     if (!session) {
-      setLimitMessage('Sign in before checkout.');
+      router.push(
+        `/login?returnTo=${encodeURIComponent('/menu/visual-builder')}`,
+      );
       return;
     }
     try {
-      const cart = await saveCartBeforeReview({ accessToken: session.accessToken, pkg: effectivePackage, event, guestCount });
+      if (!effectivePackage) return;
+      const cart = await apiRequest<CartSummary>(
+        '/cart',
+        {
+          method: 'PUT',
+          body: JSON.stringify({
+            packageVersionId: effectivePackage.packageVersionId,
+          }),
+        },
+        session.accessToken,
+      );
       setDbCartId(cart.id);
-      await apiRequest('/cart/items', {
-        method: 'PUT',
-        body: JSON.stringify({ items: selectedItems.map((item) => ({
-          categoryId: item.categoryId,
-          menuItemId: item.menuItemId,
-          replacedMenuItemId: item.replacedMenuItemId,
-          role: item.role ?? (item.replacedMenuItemId ? 'SWAP' : effectivePackage?.packageType === 'FIXED_PACKAGE' ? 'EXTRA' : 'CUSTOM'),
-          quantity: 1,
-        })) }),
-      }, session.accessToken);
-      await apiRequest('/cart/quote', { method: 'POST' }, session.accessToken);
-      router.push('/checkout');
+      await apiRequest(
+        '/cart/items',
+        {
+          method: 'PUT',
+          body: JSON.stringify({
+            items: selectedItems.map((item) => ({
+              categoryId: item.categoryId,
+              menuItemId: item.menuItemId,
+              replacedMenuItemId: item.replacedMenuItemId,
+              role:
+                item.role ??
+                (item.replacedMenuItemId
+                  ? 'SWAP'
+                  : effectivePackage?.packageType === 'FIXED_PACKAGE'
+                    ? 'EXTRA'
+                    : 'CUSTOM'),
+              quantity: 1,
+            })),
+          }),
+        },
+        session.accessToken,
+      );
+      router.push('/cart');
     } catch (reason) {
       setLimitMessage((reason as Error).message);
     }
@@ -631,7 +664,7 @@ export function VisualBuilderClient({
 
   return (
     <main className="page-shell pb-56 md:pb-32">
-      <OrderProgress current={event ? 2 : 1} />
+      <OrderProgress current={1} context="Package" />
       <div className="mt-8 flex flex-wrap items-end justify-between gap-5">
         <div>
           <p className="eyebrow">Custom package builder</p>
@@ -652,8 +685,6 @@ export function VisualBuilderClient({
           )}
         </div>
       </div>
-      <div className="mt-8"><SelectionContextPanel packageVersionId={config.id} minPax={config.minGuestCount} maxPax={config.maxGuestCount} /></div>
-
       <div className="mt-8 grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_390px]">
         <div className="min-w-0 space-y-4">
           <VisualBuffetBuilder
@@ -764,7 +795,7 @@ export function VisualBuilderClient({
             <p className="font-semibold text-primary">₹{estimate.toFixed(0)}</p>
           </div>
           <Button disabled={!valid} onClick={review}>
-            Review
+            Continue
           </Button>
         </div>
       </div>
@@ -816,7 +847,7 @@ export function VisualBuilderClient({
 
       <div className="fixed bottom-4 right-4 z-40 hidden xl:block">
         <Button disabled={!valid} onClick={review}>
-          Review and pay <ChevronRight className="ml-2 h-4 w-4" />
+          Continue to event & payment <ChevronRight className="ml-2 h-4 w-4" />
         </Button>
       </div>
     </main>

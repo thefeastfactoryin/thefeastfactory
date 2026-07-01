@@ -10,7 +10,7 @@ coverage
 apps/api/prisma/migrations
 .local-uploads/
 .nx/*
-
+docs/*
 # Windows NUL device artifact (created by bash > NUL redirects)
 nul
 

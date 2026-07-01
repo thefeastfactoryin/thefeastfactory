@@ -1,53 +1,62 @@
 'use client';
 
+import { Check } from 'lucide-react';
 import { cn } from '../lib/utils';
 
-const steps = [
-  { label: 'Package', sub: 'Choose plan' },
-  { label: 'Event', sub: 'Date & venue' },
-  { label: 'Menu', sub: 'Select dishes' },
-  { label: 'Pay', sub: 'Confirm & pay' },
-];
-
-export function OrderProgress({ current }: { current: 0 | 1 | 2 | 3 }) {
+export function OrderProgress({
+  current,
+  context = 'Package',
+}: {
+  current: 0 | 1 | 2;
+  context?: 'Package' | 'Meal box';
+}) {
+  const steps = [context, 'Menu', 'Event & payment'];
   return (
-    <div className="flex items-start">
-      {steps.map((step, idx) => {
-        const complete = idx < current;
-        const active = idx === current;
+    <nav aria-label="Order progress" className="flex items-center">
+      {steps.map((label, index) => {
+        const complete = index < current;
+        const active = index === current;
         return (
-          <div key={step.label} className="flex flex-1 items-start">
-            <div className="flex flex-col items-center gap-1.5">
+          <div
+            key={label}
+            className="flex min-w-0 flex-1 items-center last:flex-none"
+          >
+            <div className="flex shrink-0 items-center gap-2.5">
               <span
                 className={cn(
-                  'grid h-8 w-8 place-items-center rounded-full text-xs font-extrabold transition-all',
-                  complete && 'bg-accent text-accent-foreground',
-                  active && 'bg-white text-primary ring-2 ring-white/30',
-                  !complete && !active && 'bg-white/15 text-white/40',
+                  'grid h-8 w-8 place-items-center rounded-full border text-xs font-extrabold',
+                  complete && 'border-primary bg-primary text-white',
+                  active && 'border-accent bg-accent text-accent-foreground',
+                  !complete &&
+                    !active &&
+                    'border-border bg-white text-muted-foreground',
                 )}
+                aria-current={active ? 'step' : undefined}
               >
-                {complete ? '✓' : idx + 1}
+                {complete ? <Check className="h-4 w-4" /> : index + 1}
               </span>
               <span
                 className={cn(
-                  'hidden text-[10px] font-bold leading-none sm:block',
-                  active ? 'text-white' : complete ? 'text-accent' : 'text-white/40',
+                  'hidden whitespace-nowrap text-sm sm:block',
+                  active
+                    ? 'font-bold text-foreground'
+                    : 'text-muted-foreground',
                 )}
               >
-                {step.label}
+                {label}
               </span>
             </div>
-            {idx < steps.length - 1 && (
-              <div
+            {index < steps.length - 1 && (
+              <span
                 className={cn(
-                  'mx-1.5 mt-4 h-0.5 flex-1 rounded-full',
-                  idx < current ? 'bg-accent/50' : 'bg-white/15',
+                  'mx-3 h-px min-w-5 flex-1 sm:mx-5',
+                  index < current ? 'bg-primary/60' : 'bg-border',
                 )}
               />
             )}
           </div>
         );
       })}
-    </div>
+    </nav>
   );
 }

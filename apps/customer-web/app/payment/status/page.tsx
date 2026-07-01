@@ -75,7 +75,7 @@ export default function PaymentStatusPage() {
         )}
         {failed && (
           <Button asChild variant="outline">
-            <Link href="/checkout">Retry payment</Link>
+            <Link href="/cart">Retry payment</Link>
           </Button>
         )}
       </div>
