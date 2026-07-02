@@ -103,7 +103,12 @@ export default function CartPage() {
         session.accessToken,
       );
       setQuote(nextQuote);
-      setError(nextQuote.valid ? '' : nextQuote.errors.join(' '));
+      setError(
+        nextQuote.valid
+          ? ''
+          : nextQuote.errors?.join(' ') ||
+              'The latest quote could not be completed. Please review your delivery details.',
+      );
     } catch (reason) {
       setQuote(undefined);
       setError((reason as Error).message);
@@ -420,7 +425,7 @@ export default function CartPage() {
             Complete your order.
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Add event details, review the full menu, then pay securely.
+            Confirm delivery details, review the full menu, then pay securely.
           </p>
         </div>
         {!pendingOrder && (
@@ -536,7 +541,7 @@ export default function CartPage() {
                   <div className="rounded-xl bg-muted/50 p-4 text-sm leading-6 text-muted-foreground">
                     {quoteLoading
                       ? 'Refreshing your final quote…'
-                      : 'Complete event and venue details to calculate delivery and the final total.'}
+                      : 'Confirm the delivery time and venue to calculate the final total.'}
                   </div>
                 )}
                 <Button
@@ -549,7 +554,7 @@ export default function CartPage() {
                 </Button>
                 {!ready && (
                   <p className="mt-2 text-center text-xs text-muted-foreground">
-                    Event date, time, venue, and guest count are required.
+                    Delivery time, venue, and guest count are required.
                   </p>
                 )}
                 {error && (
@@ -591,14 +596,14 @@ function eventReady(cart: CartSummary) {
 function EventSummary({ cart }: { cart: CartSummary }) {
   return (
     <section className="rounded-2xl border bg-white p-5 sm:p-6">
-      <p className="eyebrow">Event and venue</p>
+      <p className="eyebrow">Delivery details</p>
       <div className="mt-5 grid gap-5 sm:grid-cols-3">
         <Info
           icon={CalendarDays}
-          label="Event"
+          label="When"
           value={
             cart.event
-              ? `${cart.event.eventName || cart.package.name} · ${cart.event.eventDate} ${cart.event.eventTimeStart || ''}`
+              ? `${cart.event.eventDate} at ${cart.event.eventTimeStart || ''}`
               : 'Not set'
           }
         />

@@ -847,7 +847,7 @@ export function VisualBuilderClient({
 
       <div className="fixed bottom-4 right-4 z-40 hidden xl:block">
         <Button disabled={!valid} onClick={review}>
-          Continue to event & payment <ChevronRight className="ml-2 h-4 w-4" />
+          Continue <ChevronRight className="ml-2 h-4 w-4" />
         </Button>
       </div>
     </main>

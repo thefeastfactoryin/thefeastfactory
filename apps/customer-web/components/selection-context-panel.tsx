@@ -1,17 +1,345 @@
 'use client';
 
 import type { CartSummary, UserAddress } from '@aranyam/shared-types';
-import { ChevronDown, LocateFixed, MapPin } from 'lucide-react';
+import {
+  Building2,
+  CalendarClock,
+  CalendarDays,
+  Check,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Clock3,
+  Home,
+  MapPin,
+  MapPinned,
+  Minus,
+  Plus,
+  Users,
+} from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import type { RefObject } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { apiRequest } from '../lib/api';
 import { cn } from '../lib/utils';
 import { useOrderBuilderStore } from '../store/order-builder.store';
 import { useSessionStore } from '../store/session.store';
-import { Button } from './ui/button';
-import { Field, Select } from './ui/form';
-import { Input } from './ui/input';
+import { Field } from './ui/form';
+
+const deliveryTimeSlots = Array.from({ length: 36 }, (_, index) => {
+  const totalMinutes = 6 * 60 + index * 30;
+  const hour = Math.floor(totalMinutes / 60);
+  const minute = totalMinutes % 60;
+  const period = hour >= 12 ? 'PM' : 'AM';
+  const displayHour = hour % 12 || 12;
+  return {
+    value: `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
+    label: `${displayHour}:${String(minute).padStart(2, '0')} ${period}`,
+  };
+});
+
+function localDateValue(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function parseDateValue(value: string) {
+  const [year, month, day] = value.split('-').map(Number);
+  return year && month && day ? new Date(year, month - 1, day) : undefined;
+}
+
+function formatDateLabel(value: string) {
+  const date = parseDateValue(value);
+  return date
+    ? new Intl.DateTimeFormat('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      }).format(date)
+    : 'Choose a date';
+}
+
+function usePopoverDismiss(
+  open: boolean,
+  onClose: () => void,
+  ref: RefObject<HTMLDivElement | null>,
+) {
+  useEffect(() => {
+    if (!open) return;
+    const dismiss = (event: MouseEvent) => {
+      if (!ref.current?.contains(event.target as Node)) onClose();
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.addEventListener('mousedown', dismiss);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('mousedown', dismiss);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [open, onClose, ref]);
+}
+
+function ThemedDatePicker({
+  value,
+  min,
+  onChange,
+}: {
+  value: string;
+  min: string;
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const initialDate = parseDateValue(value || min) ?? new Date();
+  const [visibleMonth, setVisibleMonth] = useState(
+    () => new Date(initialDate.getFullYear(), initialDate.getMonth(), 1),
+  );
+  const containerRef = useRef<HTMLDivElement>(null);
+  usePopoverDismiss(open, () => setOpen(false), containerRef);
+
+  useEffect(() => {
+    const selected = parseDateValue(value);
+    if (selected) {
+      setVisibleMonth(new Date(selected.getFullYear(), selected.getMonth(), 1));
+    }
+  }, [value]);
+
+  const year = visibleMonth.getFullYear();
+  const month = visibleMonth.getMonth();
+  const startOffset = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const monthLabel = new Intl.DateTimeFormat('en-IN', {
+    month: 'long',
+    year: 'numeric',
+  }).format(visibleMonth);
+  const previousMonthEnd = localDateValue(new Date(year, month, 0));
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+        className={cn(
+          'flex min-h-12 w-full items-center gap-3 rounded-xl border border-input bg-white/95 px-3 py-2 text-left text-sm outline-none transition hover:border-primary/40 focus-visible:ring-2 focus-visible:ring-primary/30',
+          open && 'border-primary/50 ring-2 ring-primary/15',
+        )}
+      >
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-primary/[0.07] text-primary">
+          <CalendarDays className="h-4 w-4" />
+        </span>
+        <span
+          className={cn(
+            'min-w-0 flex-1 font-semibold',
+            !value && 'font-normal text-muted-foreground',
+          )}
+        >
+          {formatDateLabel(value)}
+        </span>
+        <ChevronDown
+          className={cn(
+            'h-4 w-4 shrink-0 text-muted-foreground transition',
+            open && 'rotate-180',
+          )}
+        />
+      </button>
+
+      {open && (
+        <div
+          role="dialog"
+          aria-label="Choose delivery date"
+          className="absolute left-0 z-40 mt-2 w-80 max-w-[calc(100vw-64px)] rounded-2xl border bg-white p-4 shadow-[0_20px_55px_-24px_rgba(75,12,23,.45)]"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <button
+              type="button"
+              aria-label="Previous month"
+              disabled={previousMonthEnd < min}
+              onClick={() => setVisibleMonth(new Date(year, month - 1, 1))}
+              className="grid h-9 w-9 place-items-center rounded-full text-primary transition hover:bg-primary/[0.07] disabled:opacity-30"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <strong className="font-serif text-lg">{monthLabel}</strong>
+            <button
+              type="button"
+              aria-label="Next month"
+              onClick={() => setVisibleMonth(new Date(year, month + 1, 1))}
+              className="grid h-9 w-9 place-items-center rounded-full text-primary transition hover:bg-primary/[0.07]"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="mt-3 grid grid-cols-7 text-center text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+              <span key={day} className="py-1.5">
+                {day.slice(0, 1)}
+              </span>
+            ))}
+          </div>
+          <div className="grid grid-cols-7 gap-1">
+            {Array.from({ length: 42 }, (_, index) => {
+              const day = index - startOffset + 1;
+              if (day < 1 || day > daysInMonth)
+                return <span key={index} className="h-9" />;
+              const dateValue = localDateValue(new Date(year, month, day));
+              const disabled = dateValue < min;
+              const selected = dateValue === value;
+              const today = dateValue === min;
+              return (
+                <button
+                  key={dateValue}
+                  type="button"
+                  disabled={disabled}
+                  aria-label={new Intl.DateTimeFormat('en-IN', {
+                    dateStyle: 'long',
+                  }).format(new Date(year, month, day))}
+                  aria-pressed={selected}
+                  onClick={() => {
+                    onChange(dateValue);
+                    setOpen(false);
+                  }}
+                  className={cn(
+                    'relative grid h-9 place-items-center rounded-full text-sm transition hover:bg-primary/[0.07] disabled:text-muted-foreground/35',
+                    today && !selected && 'font-bold text-primary',
+                    selected &&
+                      'bg-primary font-bold text-white shadow-sm hover:bg-primary',
+                  )}
+                >
+                  {day}
+                  {today && !selected && (
+                    <span className="absolute bottom-1 h-1 w-1 rounded-full bg-primary" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ThemedTimePicker({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  usePopoverDismiss(open, () => setOpen(false), containerRef);
+  const selectedSlot = deliveryTimeSlots.find((slot) => slot.value === value);
+  const groups = [
+    {
+      label: 'Morning',
+      slots: deliveryTimeSlots.filter((slot) => slot.value < '12:00'),
+    },
+    {
+      label: 'Afternoon',
+      slots: deliveryTimeSlots.filter(
+        (slot) => slot.value >= '12:00' && slot.value < '18:00',
+      ),
+    },
+    {
+      label: 'Evening',
+      slots: deliveryTimeSlots.filter((slot) => slot.value >= '18:00'),
+    },
+  ];
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+        className={cn(
+          'flex min-h-12 w-full items-center gap-3 rounded-xl border border-input bg-white/95 px-3 py-2 text-left text-sm outline-none transition hover:border-primary/40 focus-visible:ring-2 focus-visible:ring-primary/30',
+          open && 'border-primary/50 ring-2 ring-primary/15',
+        )}
+      >
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-primary/[0.07] text-primary">
+          <Clock3 className="h-4 w-4" />
+        </span>
+        <span
+          className={cn(
+            'min-w-0 flex-1 font-semibold',
+            !value && 'font-normal text-muted-foreground',
+          )}
+        >
+          {selectedSlot?.label || value || 'Choose a time'}
+        </span>
+        <ChevronDown
+          className={cn(
+            'h-4 w-4 shrink-0 text-muted-foreground transition',
+            open && 'rotate-180',
+          )}
+        />
+      </button>
+
+      {open && (
+        <div
+          role="listbox"
+          aria-label="Choose delivery time"
+          className="absolute left-0 z-40 mt-2 max-h-80 w-80 max-w-[calc(100vw-64px)] overflow-y-auto rounded-2xl border bg-white p-3 shadow-[0_20px_55px_-24px_rgba(75,12,23,.45)]"
+        >
+          {value && !selectedSlot && (
+            <button
+              type="button"
+              role="option"
+              aria-selected="true"
+              onClick={() => setOpen(false)}
+              className="mb-3 w-full rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-white"
+            >
+              Previously saved · {value}
+            </button>
+          )}
+          {groups.map((group, groupIndex) => (
+            <section
+              key={group.label}
+              className={cn(groupIndex > 0 && 'mt-4 border-t pt-4')}
+            >
+              <p className="mb-2 px-1 text-[10px] font-extrabold uppercase tracking-[0.14em] text-primary">
+                {group.label}
+              </p>
+              <div className="grid grid-cols-3 gap-2">
+                {group.slots.map((slot) => {
+                  const selected = slot.value === value;
+                  return (
+                    <button
+                      key={slot.value}
+                      type="button"
+                      role="option"
+                      aria-selected={selected}
+                      onClick={() => {
+                        onChange(slot.value);
+                        setOpen(false);
+                      }}
+                      className={cn(
+                        'rounded-lg border px-2 py-2 text-xs font-semibold transition hover:border-primary/40 hover:bg-primary/[0.05]',
+                        selected &&
+                          'border-primary bg-primary text-white hover:bg-primary',
+                      )}
+                    >
+                      {slot.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function SelectionContextPanel({
   packageVersionId,
@@ -37,7 +365,6 @@ export function SelectionContextPanel({
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
   const [addresses, setAddresses] = useState<UserAddress[]>([]);
   const [addressId, setAddressId] = useState('');
-  const [eventName, setEventName] = useState(pkg?.packageName ?? '');
   const [eventDate, setEventDate] = useState('');
   const [eventTimeStart, setEventTimeStart] = useState('');
   const [message, setMessage] = useState(
@@ -52,10 +379,6 @@ export function SelectionContextPanel({
       new URLSearchParams(window.location.search).get('addressId'),
     );
   }, []);
-
-  useEffect(() => {
-    if (!eventName && pkg?.packageName) setEventName(pkg.packageName);
-  }, [pkg?.packageName, eventName]);
 
   useEffect(() => {
     if (!session) return;
@@ -73,7 +396,6 @@ export function SelectionContextPanel({
             '',
         );
         if (cart?.packageVersionId === packageVersionId && cart.event) {
-          setEventName(cart.event.eventName || pkg?.packageName || '');
           setEventDate(cart.event.eventDate);
           setEventTimeStart(cart.event.eventTimeStart || '');
           setGuestCount(cart.event.guestCount);
@@ -93,7 +415,7 @@ export function SelectionContextPanel({
     const address = addresses.find((row) => row.id === addressId);
     setEvent({
       addressId: addressId || undefined,
-      eventName: eventName.trim() || pkg?.packageName,
+      eventName: pkg?.packageName,
       eventDate: eventDate || undefined,
       eventTimeStart: eventTimeStart || undefined,
       addressLabel: address ? address.label || address.addressLine1 : undefined,
@@ -101,7 +423,6 @@ export function SelectionContextPanel({
   }, [
     addressId,
     addresses,
-    eventName,
     eventDate,
     eventTimeStart,
     pkg?.packageName,
@@ -127,7 +448,7 @@ export function SelectionContextPanel({
             body: JSON.stringify({
               packageVersionId,
               addressId,
-              eventName: eventName.trim() || pkg?.packageName,
+              eventName: pkg?.packageName,
               eventDate,
               eventTimeStart,
               guestCount,
@@ -139,7 +460,7 @@ export function SelectionContextPanel({
         setDbCartId(cart.id);
         setEvent({
           addressId,
-          eventName: eventName.trim() || pkg?.packageName,
+          eventName: pkg?.packageName,
           eventDate,
           eventTimeStart,
           addressLabel: address.label || address.addressLine1,
@@ -157,7 +478,6 @@ export function SelectionContextPanel({
     session,
     packageVersionId,
     addressId,
-    eventName,
     eventDate,
     eventTimeStart,
     guestCount,
@@ -169,39 +489,6 @@ export function SelectionContextPanel({
     setEvent,
     onSaved,
   ]);
-
-  async function useCurrentLocation() {
-    if (!session || !addressId) return;
-    if (!navigator.geolocation) {
-      setMessage('Current location is not supported by this browser.');
-      return;
-    }
-    setMessage('Waiting for location permission…');
-    navigator.geolocation.getCurrentPosition(
-      async ({ coords }) => {
-        try {
-          await apiRequest(
-            `/me/addresses/${addressId}`,
-            {
-              method: 'PATCH',
-              body: JSON.stringify({
-                latitude: coords.latitude.toFixed(8),
-                longitude: coords.longitude.toFixed(8),
-              }),
-            },
-            session.accessToken,
-          );
-          setMessage(
-            'Current coordinates applied. Event details will autosave.',
-          );
-        } catch (reason) {
-          setMessage((reason as Error).message);
-        }
-      },
-      () => setMessage('Location permission was denied.'),
-      { enableHighAccuracy: true, timeout: 10000 },
-    );
-  }
 
   if (!session) {
     return (
@@ -222,83 +509,178 @@ export function SelectionContextPanel({
   }
 
   const returnTo = `${pathname}?addressId=ADDRESS_ID`;
+  const today = localDateValue(new Date());
+  const selectedVenue = addresses.find((address) => address.id === addressId);
+  const guestLabel = pkg?.packageType === 'MEAL_BOX' ? 'Boxes' : 'Guests';
+  const addressIcon = (address: UserAddress) => {
+    if (address.addressType === 'HOME') return Home;
+    if (address.addressType === 'OFFICE') return Building2;
+    if (address.addressType === 'EVENT_VENUE') return MapPinned;
+    return MapPin;
+  };
   const fields = (
     <>
       <div
         className={cn(
-          'mt-5 grid gap-4',
-          sidebar ? 'grid-cols-1' : 'md:grid-cols-2 xl:grid-cols-5',
+          'mt-5 grid gap-4 rounded-2xl border bg-[#fcfaf6] p-4',
+          sidebar
+            ? 'grid-cols-1'
+            : 'md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,.8fr)_220px]',
         )}
       >
-        <Field label="Event name">
-          <Input
-            value={eventName}
-            onChange={(event) => setEventName(event.target.value)}
-            placeholder={pkg?.packageName}
-          />
-        </Field>
-        <Field label="Date">
-          <Input
-            type="date"
-            min={new Date().toISOString().slice(0, 10)}
+        <Field label="Delivery date" hint="Choose the event day.">
+          <ThemedDatePicker
+            min={today}
             value={eventDate}
-            onChange={(event) => setEventDate(event.target.value)}
-            required
+            onChange={setEventDate}
           />
         </Field>
-        <Field label="Time">
-          <Input
-            type="time"
+        <Field label="Delivery time" hint="Available every 30 minutes.">
+          <ThemedTimePicker
             value={eventTimeStart}
-            onChange={(event) => setEventTimeStart(event.target.value)}
-            required
+            onChange={setEventTimeStart}
           />
         </Field>
-        <Field label="Pax">
-          <Input
-            type="number"
-            min={minPax}
-            max={maxPax ?? undefined}
-            value={guestCount}
-            onChange={(event) => setGuestCount(Number(event.target.value))}
-            required
-          />
-        </Field>
-        <Field label="Venue">
-          <Select
-            value={addressId}
-            onChange={(event) => setAddressId(event.target.value)}
-            required
-          >
-            <option value="">Choose venue</option>
-            {addresses.map((address) => (
-              <option key={address.id} value={address.id}>
-                {address.label || address.addressLine1}
-              </option>
-            ))}
-          </Select>
-        </Field>
+        <div>
+          <span className="mb-2 block text-sm font-semibold">{guestLabel}</span>
+          <div className="flex min-h-12 items-center justify-between rounded-xl border bg-white px-2">
+            <button
+              type="button"
+              aria-label={`Decrease ${guestLabel.toLowerCase()}`}
+              onClick={() => setGuestCount(Math.max(minPax, guestCount - 1))}
+              disabled={guestCount <= minPax}
+              className="grid h-9 w-9 place-items-center rounded-lg text-primary transition hover:bg-primary/5 disabled:opacity-35"
+            >
+              <Minus className="h-4 w-4" />
+            </button>
+            <label className="flex items-center gap-2">
+              <Users className="h-4 w-4 text-primary" />
+              <span className="sr-only">{guestLabel}</span>
+              <input
+                type="number"
+                min={minPax}
+                max={maxPax ?? undefined}
+                value={guestCount}
+                onChange={(event) => setGuestCount(Number(event.target.value))}
+                className="w-16 bg-transparent text-center font-serif text-xl font-semibold outline-none"
+                required
+              />
+            </label>
+            <button
+              type="button"
+              aria-label={`Increase ${guestLabel.toLowerCase()}`}
+              onClick={() =>
+                setGuestCount(
+                  maxPax ? Math.min(maxPax, guestCount + 1) : guestCount + 1,
+                )
+              }
+              disabled={Boolean(maxPax && guestCount >= maxPax)}
+              className="grid h-9 w-9 place-items-center rounded-lg text-primary transition hover:bg-primary/5 disabled:opacity-35"
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+          </div>
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            {minPax} minimum{maxPax ? ` · ${maxPax} maximum` : ''}
+          </p>
+        </div>
       </div>
-      <div className="mt-4 flex flex-wrap items-center gap-3">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={useCurrentLocation}
-          disabled={!addressId}
-          className={sidebar ? 'w-full' : undefined}
-        >
-          <LocateFixed className="mr-2 h-4 w-4" /> Use current location
-        </Button>
+
+      <div className="mt-6 flex items-center justify-between gap-4">
+        <div>
+          <h3 className="text-sm font-semibold">Delivery venue</h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {selectedVenue
+              ? selectedVenue.isDefault
+                ? 'Your default saved address is selected automatically'
+                : 'Saved address selected'
+              : 'Choose one of your saved addresses'}
+          </p>
+        </div>
         <Link
-          className="text-sm font-semibold text-primary"
+          className="inline-flex shrink-0 items-center gap-1.5 text-sm font-semibold text-primary hover:underline"
           href={`/addresses?returnTo=${encodeURIComponent(returnTo)}`}
         >
-          Add address
+          <Plus className="h-4 w-4" /> Add new
         </Link>
+      </div>
+
+      {addresses.length > 0 ? (
+        <div
+          className={cn(
+            'mt-3 grid gap-3',
+            sidebar ? 'grid-cols-1' : 'sm:grid-cols-2',
+          )}
+          role="radiogroup"
+          aria-label="Choose delivery venue"
+        >
+          {addresses.map((address) => {
+            const Icon = addressIcon(address);
+            const selected = address.id === addressId;
+            return (
+              <button
+                key={address.id}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                onClick={() => setAddressId(address.id)}
+                className={cn(
+                  'relative flex min-h-28 items-start gap-3 rounded-xl border bg-white p-4 text-left transition hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30',
+                  selected &&
+                    'border-primary bg-primary/[0.045] ring-1 ring-primary/20',
+                )}
+              >
+                <span
+                  className={cn(
+                    'grid h-9 w-9 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground',
+                    selected && 'bg-primary text-white',
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex flex-wrap items-center gap-2 pr-6">
+                    <strong className="truncate text-sm">
+                      {address.label ||
+                        address.addressType.toLowerCase().replace('_', ' ')}
+                    </strong>
+                    {address.isDefault && (
+                      <span className="rounded-full bg-secondary/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-secondary-foreground">
+                        Default
+                      </span>
+                    )}
+                  </span>
+                  <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+                    {address.addressLine1}
+                    {address.addressLine2 ? `, ${address.addressLine2}` : ''}
+                    <br />
+                    {address.city}, {address.state} {address.pincode}
+                  </span>
+                </span>
+                {selected && (
+                  <span className="absolute right-3 top-3 grid h-5 w-5 place-items-center rounded-full bg-primary text-white">
+                    <Check className="h-3 w-3" />
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <Link
+          href={`/addresses?returnTo=${encodeURIComponent(returnTo)}`}
+          className="mt-3 flex min-h-28 items-center justify-center gap-2 rounded-xl border border-dashed bg-[#fcfaf6] p-5 text-sm font-semibold text-primary transition hover:border-primary/40"
+        >
+          <MapPinned className="h-5 w-5" /> Add your first delivery address
+        </Link>
+      )}
+
+      <div className="mt-4 border-t pt-4">
         <p
-          className="w-full text-xs leading-5 text-muted-foreground"
+          className="flex min-w-0 items-center gap-2 text-xs leading-5 text-muted-foreground"
           role="status"
         >
+          <CalendarClock className="h-4 w-4 shrink-0 text-primary" />
           {saving ? 'Saving…' : message}
         </p>
       </div>
@@ -329,12 +711,12 @@ export function SelectionContextPanel({
               sidebar ? 'text-xl' : 'text-2xl',
             )}
           >
-            Event and venue
+            Delivery details
           </span>
           <span className="mt-0.5 block text-xs text-muted-foreground">
-            {eventDate && addressId
-              ? 'Details added · autosaves'
-              : 'Add details when ready'}
+            {eventDate || addressId
+              ? 'Saved details are filled in automatically'
+              : 'Choose when and where we should deliver'}
           </span>
         </span>
         {sidebar && (
