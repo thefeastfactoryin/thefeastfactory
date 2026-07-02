@@ -15,7 +15,7 @@ import {
   SlidersHorizontal,
   X,
 } from 'lucide-react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { OrderProgress } from '../../../components/order-progress';
@@ -36,9 +36,26 @@ type MenuSelectionItem = CategoryRule['items'][number] & {
 type MenuRow = { rule: CategoryRule; item: MenuSelectionItem };
 type DetailItem = { item: MenuSelectionItem; categoryName: string };
 
+const fallbackFoodImages = [
+  '/tray-3.png',
+  '/tray-5.png',
+  '/tray-8.png',
+  '/order-mealbox.png',
+  '/order-build.png',
+  '/order-occasion.png',
+];
+
+function foodImage(item: Pick<MenuSelectionItem, 'id' | 'imageUrl'>) {
+  if (item.imageUrl) return item.imageUrl;
+  const index = [...item.id].reduce(
+    (total, character) => total + character.charCodeAt(0),
+    0,
+  );
+  return fallbackFoodImages[index % fallbackFoodImages.length];
+}
+
 export default function MenuSelectPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const cartPackage = useOrderBuilderStore((state) => state.package);
   const guestCount = useOrderBuilderStore((state) => state.guestCount);
   const selectedItems = useOrderBuilderStore((state) => state.selectedItems);
@@ -79,8 +96,10 @@ export default function MenuSelectPage() {
   }, [config?.packageType, router]);
 
   useEffect(() => {
-    if (searchParams.get('focus') === 'extras') setExtrasExpanded(true);
-  }, [searchParams]);
+    if (new URLSearchParams(window.location.search).get('focus') === 'extras') {
+      setExtrasExpanded(true);
+    }
+  }, []);
 
   const isMealBox = config?.packageType === 'MEAL_BOX';
   const includedRows = useMemo<MenuRow[]>(() => {
@@ -508,7 +527,9 @@ export default function MenuSelectPage() {
                   className="inline-flex h-10 items-center gap-2 rounded-xl border px-4 text-xs font-bold text-primary hover:bg-primary/5"
                   aria-expanded={extrasExpanded}
                 >
-                  {extrasExpanded ? 'Hide extras' : `Browse ${extraRows.length} extras`}
+                  {extrasExpanded
+                    ? 'Hide extras'
+                    : `Browse ${extraRows.length} extras`}
                   <ChevronRight
                     className={cn(
                       'h-4 w-4 transition',
@@ -519,7 +540,7 @@ export default function MenuSelectPage() {
               </div>
               <p className="mt-2 text-xs text-muted-foreground">
                 {selectedExtras.length
-                  ? `${selectedExtras.length} extras selected`
+                  ? `${selectedExtras.length} ${selectedExtras.length === 1 ? 'extra' : 'extras'} selected`
                   : 'Your included menu is complete without extras.'}
               </p>
               {extrasExpanded ? (
@@ -542,18 +563,18 @@ export default function MenuSelectPage() {
               ) : selectedExtras.length > 0 ? (
                 <div className="mt-4 divide-y border-y">
                   {selectedExtras.map((row) => (
-                  <ExtraRow
-                    key={`${row.rule.id}-${row.item.id}`}
-                    row={row}
-                    selected
-                    onToggle={() => toggleExtra(row)}
-                    onDetails={() =>
-                      setDetailItem({
-                        item: row.item,
-                        categoryName: row.rule.category.name,
-                      })
-                    }
-                  />
+                    <ExtraRow
+                      key={`${row.rule.id}-${row.item.id}`}
+                      row={row}
+                      selected
+                      onToggle={() => toggleExtra(row)}
+                      onDetails={() =>
+                        setDetailItem({
+                          item: row.item,
+                          categoryName: row.rule.category.name,
+                        })
+                      }
+                    />
                   ))}
                 </div>
               ) : null}
