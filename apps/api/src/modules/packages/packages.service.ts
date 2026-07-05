@@ -10,6 +10,7 @@ import {
   SelectedItemRole,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PricingService } from '../pricing/pricing.service';
 import { CreatePackageDto } from './dto/create-package.dto';
 import { CreatePackageVersionDto } from './dto/create-package-version.dto';
 import {
@@ -19,6 +20,7 @@ import {
 import { UpdatePackageDto } from './dto/update-package.dto';
 import { UpdatePackageVersionDto } from './dto/update-package-version.dto';
 import { UpsertPackageMenuItemDto } from './dto/upsert-package-menu-item.dto';
+import { PreviewPackageQuoteDto } from './dto/preview-package-quote.dto';
 
 type VersionConfiguration = Awaited<
   ReturnType<PackagesService['loadVersionConfiguration']>
@@ -39,7 +41,10 @@ type QuoteItem = {
 
 @Injectable()
 export class PackagesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly pricing: PricingService,
+  ) {}
 
   async listPackages() {
     const packages = await this.prisma.package.findMany({
@@ -58,6 +63,8 @@ export class PackagesService {
       id: pkg.id,
       name: pkg.name,
       description: pkg.description,
+      imageUrl: pkg.imageUrl,
+      badgeLabel: pkg.badgeLabel,
       displayOrder: pkg.displayOrder,
       isFeatured: pkg.isFeatured,
       featuredOrder: pkg.featuredOrder,
@@ -93,6 +100,15 @@ export class PackagesService {
   async getConfiguration(versionId: string) {
     const version = await this.loadVersionConfiguration(versionId, true);
     return this.serializeConfiguration(version, true);
+  }
+
+  async previewQuote(versionId: string, dto: PreviewPackageQuoteDto) {
+    const quote = await this.pricing.quote(
+      versionId,
+      dto.guestCount,
+      dto.selectedItems,
+    );
+    return { valid: true, errors: [], ...this.pricing.serialize(quote) };
   }
 
   async getAdminConfiguration(versionId: string) {
@@ -138,6 +154,8 @@ export class PackagesService {
       data: {
         name: dto.name.trim(),
         description: dto.description?.trim(),
+        imageUrl: dto.imageUrl?.trim() || null,
+        badgeLabel: dto.badgeLabel?.trim() || null,
         type: dto.type ?? PackageType.FIXED_PACKAGE,
         displayOrder: dto.displayOrder ?? 0,
         isActive: dto.isActive ?? true,
@@ -155,6 +173,12 @@ export class PackagesService {
         ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
         ...(dto.description !== undefined
           ? { description: dto.description?.trim() }
+          : {}),
+        ...(dto.imageUrl !== undefined
+          ? { imageUrl: dto.imageUrl?.trim() || null }
+          : {}),
+        ...(dto.badgeLabel !== undefined
+          ? { badgeLabel: dto.badgeLabel?.trim() || null }
           : {}),
         ...(dto.type !== undefined ? { type: dto.type } : {}),
         ...(dto.displayOrder !== undefined

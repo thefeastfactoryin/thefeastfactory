@@ -1,6 +1,9 @@
-import type { legalPages } from '@aranyam/shared-types';
-
-type LegalPageContent = (typeof legalPages)[keyof typeof legalPages];
+export type LegalPageContent = {
+  title: string;
+  eyebrow: string;
+  summary: string;
+  sections: ReadonlyArray<{ title: string; body: string }>;
+};
 
 export function LegalPage({ page }: { page: LegalPageContent }) {
   return (

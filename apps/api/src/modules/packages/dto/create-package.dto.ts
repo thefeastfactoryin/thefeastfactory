@@ -22,6 +22,18 @@ export class CreatePackageDto {
   @MaxLength(1000)
   description?: string;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  imageUrl?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  badgeLabel?: string;
+
   @ApiPropertyOptional({ enum: PackageType, default: PackageType.FIXED_PACKAGE })
   @IsOptional()
   @IsEnum(PackageType)

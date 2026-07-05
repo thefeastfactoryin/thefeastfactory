@@ -23,6 +23,7 @@ type StatePanelProps = {
   children?: ReactNode;
   className?: string;
   tone?: 'default' | 'danger' | 'loading';
+  headingLevel?: 1 | 2;
 };
 
 export function StatePanel({
@@ -37,10 +38,12 @@ export function StatePanel({
   children,
   className,
   tone = 'default',
+  headingLevel = 1,
 }: StatePanelProps) {
   const FallbackIcon =
     tone === 'danger' ? AlertCircle : tone === 'loading' ? Loader2 : Search;
   const PanelIcon = Icon ?? FallbackIcon;
+  const Heading = headingLevel === 2 ? 'h2' : 'h1';
 
   return (
     <div
@@ -62,9 +65,9 @@ export function StatePanel({
         />
       </span>
       {eyebrow && <p className="eyebrow mt-6">{eyebrow}</p>}
-      <h1 className="mt-3 font-serif text-3xl font-semibold sm:text-4xl">
+      <Heading className="mt-3 font-serif text-3xl font-semibold sm:text-4xl">
         {title}
-      </h1>
+      </Heading>
       {description && (
         <p className="mt-3 leading-7 text-muted-foreground">{description}</p>
       )}
@@ -107,7 +110,7 @@ export function AuthRequiredPanel({
         description={description}
         actionHref={
           returnHref
-            ? `/login?next=${encodeURIComponent(returnHref)}`
+            ? `/login?returnTo=${encodeURIComponent(returnHref)}`
             : '/login'
         }
         actionLabel="Continue with mobile"

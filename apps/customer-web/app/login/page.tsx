@@ -7,25 +7,28 @@ import {
   Smartphone,
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Suspense } from 'react';
 import { Button } from '../../components/ui/button';
 import { Field } from '../../components/ui/form';
 import { Input } from '../../components/ui/input';
 import { apiRequest } from '../../lib/api';
+import { safeReturnPath } from '../../lib/safe-return-path';
+import { useSessionStore } from '../../store/session.store';
 
 function LoginContent() {
   const router = useRouter();
+  const session = useSessionStore((state) => state.session);
   const searchParams = useSearchParams();
-  const reason = searchParams.get('reason');
   const requestedReturnTo = searchParams.get('returnTo');
-  const returnTo =
-    requestedReturnTo?.startsWith('/') && !requestedReturnTo.startsWith('//')
-      ? requestedReturnTo
-      : '/packages';
+  const returnTo = safeReturnPath(requestedReturnTo, '/packages');
   const [mobileNumber, setMobileNumber] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (session) router.replace(returnTo);
+  }, [session, returnTo, router]);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -85,19 +88,6 @@ function LoginContent() {
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
             We will send a 6-digit OTP to verify your number.
           </p>
-
-          {reason === 'catalog' && (
-            <div
-              role="status"
-              className="mt-5 flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900"
-            >
-              <AlertCircle className="mt-1 h-4 w-4 shrink-0" />
-              <span>
-                Please sign in first to browse packages and meal boxes. We’ll
-                return you to the catalog after verification.
-              </span>
-            </div>
-          )}
 
           <Field
             label="Mobile number"

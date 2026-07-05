@@ -1,7 +1,8 @@
 'use client';
 
-import { Leaf, Plus, X } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { DataImage } from './data-image';
 
 export type VisualBuffetItem = {
   menuItemId: string;
@@ -80,17 +81,11 @@ function BuffetTray({
         <div className="relative h-full overflow-hidden rounded-[1.05rem] border border-white/50 bg-gradient-to-br from-stone-100 via-zinc-300 to-stone-500">
           {item ? (
             <div className="visual-tray-fill h-full">
-              {item.imageUrl ? (
-                <img
-                  src={item.imageUrl}
-                  alt={item.menuItemName}
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <div className="grid h-full place-items-center bg-gradient-to-br from-primary/15 via-accent/25 to-white text-primary">
-                  <Leaf className="h-7 w-7" />
-                </div>
-              )}
+              <DataImage
+                src={item.imageUrl}
+                alt={item.menuItemName}
+                className="h-full w-full object-cover"
+              />
               <div className="absolute inset-x-1 bottom-1 flex items-center justify-between gap-1 rounded-full bg-white/92 px-2 py-1 text-[10px] font-bold shadow-sm backdrop-blur">
                 <span className="min-w-0 truncate">{item.menuItemName}</span>
                 <span

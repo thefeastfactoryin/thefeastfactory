@@ -2,7 +2,7 @@ export const appBrand = {
   name: 'The Feast Factory',
   tagline: 'Celebrations, served',
   logoInitial: 'F',
-  color: '#1b513a',
+  color: '#7A1F2B',
   currencyCode: 'INR',
   currencySymbol: '₹',
   countryDialCode: '+91',

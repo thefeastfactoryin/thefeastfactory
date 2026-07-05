@@ -4,12 +4,13 @@ import type { CustomerSession } from '@aranyam/shared-types';
 import { AlertCircle, ArrowLeft, KeyRound, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '../../components/ui/button';
 import { Field } from '../../components/ui/form';
 import { Input } from '../../components/ui/input';
 import { apiRequest } from '../../lib/api';
 import { useSessionStore } from '../../store/session.store';
+import { safeReturnPath } from '../../lib/safe-return-path';
 
 export default function OtpPage() {
   const router = useRouter();
@@ -18,23 +19,27 @@ export default function OtpPage() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  useEffect(() => {
+    if (!sessionStorage.getItem('customerMobile')) router.replace('/login');
+  }, [router]);
+
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setError('');
     setSubmitting(true);
     try {
       const mobileNumber = sessionStorage.getItem('customerMobile') ?? '';
+      if (!mobileNumber) {
+        router.replace('/login');
+        return;
+      }
       const session = await apiRequest<CustomerSession>(
         '/auth/customer/verify-otp',
         { method: 'POST', body: JSON.stringify({ mobileNumber, otp }) },
       );
       setSession(session);
       const requestedReturnTo = sessionStorage.getItem('customerReturnTo');
-      const returnTo =
-        requestedReturnTo?.startsWith('/') &&
-        !requestedReturnTo.startsWith('//')
-          ? requestedReturnTo
-          : '/packages';
+      const returnTo = safeReturnPath(requestedReturnTo, '/packages');
       sessionStorage.removeItem('customerReturnTo');
       router.push(returnTo);
     } catch (e) {

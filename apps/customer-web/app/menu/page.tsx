@@ -3,13 +3,11 @@
 import type { MenuCategory, MenuItem } from '@aranyam/shared-types';
 import {
   ArrowRight,
-  ClipboardList,
   Coffee,
   Cookie,
   Flame,
   LayoutGrid,
   Leaf,
-  Package,
   Search,
   ShoppingBag,
   Utensils,
@@ -18,39 +16,13 @@ import {
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { StatePanel } from '../../components/ui/state-panel';
+import { DataImage } from '../../components/data-image';
 import { useOrderBuilderStore } from '../../store/order-builder.store';
 import { useSessionStore } from '../../store/session.store';
 import { apiRequest } from '../../lib/api';
 import { cn } from '../../lib/utils';
 
 type DietaryFilter = 'all' | 'veg' | 'non-veg';
-
-/* ─────────────────────────────────────────────────────────
-   Category-specific fallback images
-   Ensures every card shows real food photography even when
-   the database item has no imageUrl.
-───────────────────────────────────────────────────────── */
-const CATEGORY_FALLBACKS: Array<[RegExp, string]> = [
-  [/starter|appetizer|soup/,                     'https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=640&q=80'],
-  [/biryani|rice|pulao/,                         'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&w=640&q=80'],
-  [/main|course|curry|masala|gravy|butter/,      'https://images.unsplash.com/photo-1585937421612-70a008356fbe?auto=format&fit=crop&w=640&q=80'],
-  [/paneer|cottage/,                             'https://images.unsplash.com/photo-1631515243349-e0cb75fb8d3a?auto=format&fit=crop&w=640&q=80'],
-  [/chicken|mutton|meat|fish|prawn|seafood/,     'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?auto=format&fit=crop&w=640&q=80'],
-  [/dessert|sweet|kheer|halwa|gulab|ladoo|cake/, 'https://images.unsplash.com/photo-1551024601-bec78aea704b?auto=format&fit=crop&w=640&q=80'],
-  [/beverage|drink|juice|lassi|chai|tea|coffee/, 'https://images.unsplash.com/photo-1544145945-f90425340c7e?auto=format&fit=crop&w=640&q=80'],
-  [/bread|roti|naan|paratha|puri|chapati/,       'https://images.unsplash.com/photo-1565557623262-b51c2513a641?auto=format&fit=crop&w=640&q=80'],
-  [/snack|chaat|pakora|samosa|vada|bajji/,       'https://images.unsplash.com/photo-1567188040759-fb8a254b4d85?auto=format&fit=crop&w=640&q=80'],
-];
-const DEFAULT_FOOD_IMG = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=640&q=80';
-
-function resolveImage(item: MenuItem): string {
-  if (item.imageUrl) return item.imageUrl;
-  const haystack = `${item.name} ${item.category?.name ?? ''}`.toLowerCase();
-  for (const [pattern, url] of CATEGORY_FALLBACKS) {
-    if (pattern.test(haystack)) return url;
-  }
-  return DEFAULT_FOOD_IMG;
-}
 
 /* ─────────────────────────────────────────────────────────
    Category icon helper
@@ -174,15 +146,13 @@ function FilterBar({ dietary, onDietaryChange, search, onSearchChange, itemCount
    MenuCard  — image-forward, catering-specific hierarchy
 ══════════════════════════════════════════════════════════ */
 function MenuCard({ item }: { item: MenuItem }) {
-  const src      = resolveImage(item);
-
   return (
     <article className="group flex flex-col overflow-hidden rounded-2xl border border-border bg-white shadow-[0_4px_18px_rgba(0,0,0,0.08)] transition-all duration-300 hover:-translate-y-1 hover:border-primary/25 hover:shadow-[0_14px_38px_rgba(0,0,0,0.14)]">
 
       {/* Food image — 3:2 aspect (slightly shorter than 4:3, fits more cards) */}
       <div className="relative aspect-[4/2.5] overflow-hidden">
-        <img
-          src={src}
+        <DataImage
+          src={item.imageUrl}
           alt={item.name}
           className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.05]"
         />
@@ -241,186 +211,6 @@ function MenuCard({ item }: { item: MenuItem }) {
   );
 }
 
-/* "How it works" steps — shown when no order is active */
-const HOW_IT_WORKS = [
-  { icon: Package,       label: 'Select Package' },
-  { icon: UtensilsCrossed, label: 'Add Dishes'  },
-  { icon: ClipboardList, label: 'Review Menu'   },
-  { icon: ShoppingBag,   label: 'Checkout'      },
-] as const;
-
-/* ═══════════════════════════════════════════════════════
-   OrderSidebar  — right-hand sticky panel
-══════════════════════════════════════════════════════════ */
-function OrderSidebar() {
-  const [mounted, setMounted] = useState(false);
-  const selectedItems = useOrderBuilderStore((s) => s.selectedItems);
-  const guestCount    = useOrderBuilderStore((s) => s.guestCount);
-  const pkg           = useOrderBuilderStore((s) => s.package);
-
-  useEffect(() => setMounted(true), []);
-
-  const items    = mounted ? selectedItems : [];
-  const guests   = mounted ? guestCount   : 0;
-  const hasOrder = mounted && Boolean(pkg);
-  const total    = hasOrder ? parseFloat(pkg!.basePricePerPlate) * guests : 0;
-
-  /* Per-category selection breakdown for progress widget */
-  const catCounts = items.reduce<Record<string, { name: string; count: number }>>((acc, it) => {
-    if (!acc[it.categoryId]) acc[it.categoryId] = { name: it.categoryName, count: 0 };
-    acc[it.categoryId].count++;
-    return acc;
-  }, {});
-  const catEntries = Object.values(catCounts);
-  /* Target = 8 dishes; gives a meaningful progress arc for a typical package */
-  const TARGET     = 8;
-  const progressPct = Math.min(100, Math.round((items.length / TARGET) * 100));
-
-  return (
-    <aside className="sticky top-[7.5rem] overflow-hidden rounded-2xl border border-border bg-white shadow-md">
-
-      {/* ── Header ── */}
-      <div className="border-b border-border bg-primary/5 px-5 py-4">
-        <h2 className="font-serif text-lg font-bold text-foreground">Your Order</h2>
-        {hasOrder
-          ? <p className="mt-0.5 truncate text-xs font-medium text-primary">{pkg!.packageName}</p>
-          : <p className="mt-0.5 text-xs text-muted-foreground">No active order</p>
-        }
-      </div>
-
-      {items.length > 0 ? (
-        <>
-          {/* ── Package progress by category ── */}
-          <div className="border-b border-border px-5 py-4">
-            <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-              Menu Progress
-            </p>
-
-            {catEntries.map(({ name, count }) => (
-              <div key={name} className="mb-2 flex items-center justify-between gap-2">
-                <span className="truncate text-xs font-medium text-foreground">{name}</span>
-                <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
-                  {count} {count === 1 ? 'dish' : 'dishes'}
-                </span>
-              </div>
-            ))}
-
-            {/* Progress bar */}
-            <div className="mt-3">
-              <div className="mb-1.5 flex items-center justify-between">
-                <span className="text-[10px] text-muted-foreground">
-                  {items.length} of {TARGET} dishes
-                </span>
-                <span className="text-[10px] font-bold text-primary">{progressPct}%</span>
-              </div>
-              <div className="h-1.5 overflow-hidden rounded-full bg-border">
-                <div
-                  className="h-full rounded-full bg-primary transition-all duration-500"
-                  style={{ width: `${progressPct}%` }}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* ── Selected dishes ── */}
-          <div className="divide-y divide-border/60">
-            {items.slice(0, 6).map((item) => (
-              <div key={item.menuItemId} className="flex items-center gap-3 px-5 py-2.5">
-                <span
-                  className={cn(
-                    'h-2 w-2 shrink-0 rounded-full',
-                    item.isVeg ? 'bg-emerald-500' : 'bg-orange-500',
-                  )}
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-foreground">{item.menuItemName}</p>
-                  <p className="text-[11px] text-muted-foreground">{item.categoryName}</p>
-                </div>
-              </div>
-            ))}
-            {items.length > 6 && (
-              <p className="px-5 py-2 text-xs text-muted-foreground">
-                +{items.length - 6} more dishes
-              </p>
-            )}
-          </div>
-
-          {/* ── Order stats ── */}
-          <div className="border-t border-border divide-y divide-border/60">
-            <div className="flex items-center justify-between px-5 py-2.5 text-sm">
-              <span className="text-muted-foreground">Guests</span>
-              <span className="font-bold text-foreground">{guests.toLocaleString('en-IN')}</span>
-            </div>
-            <div className="flex items-center justify-between px-5 py-2.5 text-sm">
-              <span className="text-muted-foreground">Selected Dishes</span>
-              <span className="font-bold text-foreground">{items.length}</span>
-            </div>
-          </div>
-
-          {/* ── Estimated total ── */}
-          {total > 0 && (
-            <div className="border-t border-border bg-primary/5 px-5 py-4">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                Estimated Total
-              </p>
-              <p className="mt-1 text-3xl font-extrabold tracking-tight text-foreground">
-                ₹{total.toLocaleString('en-IN')}
-              </p>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">
-                ₹{pkg!.basePricePerPlate}/person × {guests} guests
-              </p>
-            </div>
-          )}
-        </>
-      ) : (
-        /* ── How it works — empty state ── */
-        <div className="px-5 py-6">
-          <p className="mb-4 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-            How it works
-          </p>
-          <ol className="space-y-3">
-            {HOW_IT_WORKS.map(({ icon: Icon, label }, i) => (
-              <li key={label} className="flex items-center gap-3">
-                <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-primary/10 text-[11px] font-extrabold text-primary">
-                  {i + 1}
-                </span>
-                <div className="flex items-center gap-2">
-                  <Icon className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="text-sm font-medium text-foreground">{label}</span>
-                </div>
-              </li>
-            ))}
-          </ol>
-          <p className="mt-5 text-xs leading-5 text-muted-foreground">
-            Start by choosing a catering package. Then browse dishes and build your perfect menu.
-          </p>
-        </div>
-      )}
-
-      {/* ── CTA ── */}
-      <div className="border-t border-border px-5 py-4">
-        {items.length > 0 ? (
-          <Link
-            href="/cart"
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-bold text-white shadow transition-all duration-200 hover:bg-primary/90"
-          >
-            View Cart <ArrowRight className="h-4 w-4" />
-          </Link>
-        ) : (
-          <Link
-            href="/packages"
-            className="flex w-full items-center justify-center gap-2 rounded-xl border border-primary px-5 py-3 text-sm font-bold text-primary transition-all duration-200 hover:bg-primary hover:text-white"
-          >
-            Browse Packages <ArrowRight className="h-4 w-4" />
-          </Link>
-        )}
-      </div>
-    </aside>
-  );
-}
-
-// Retained as a legacy reference while the compact cart banner is active.
-void OrderSidebar;
 
 /* ═══════════════════════════════════════════════════════
    Skeleton

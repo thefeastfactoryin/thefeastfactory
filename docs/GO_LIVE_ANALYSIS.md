@@ -96,8 +96,6 @@ The customer web has **no footer at all**. `components/customer-shell.tsx` ends 
 
 | Gap | File | Impact |
 |---|---|---|
-| **Global exception filter not wired** | `PLAN.md` marks Phase 3 incomplete | Unhandled errors return raw NestJS 500 responses to the browser |
-| **OTP rate limiting missing** | `PLAN.md` marks Phase 3 incomplete | `POST /auth/customer/request-otp` is wide open for abuse and MSG91 cost overruns |
 | **No email service** | Spec lists Resend | No order confirmation, payment receipt, or cancellation email is sent |
 | **`NEXT_PUBLIC_RAZORPAY_KEY_ID` not in env validation** | `config/env.validation.ts` | Documented in `docs/integrations.md` but never validated on startup |
 | **Webhook endpoint needs real domain** | — | Razorpay cannot reach `localhost` — must deploy API first, then register the webhook URL |
@@ -136,8 +134,6 @@ These are out of current scope but would significantly improve the product post-
 - [ ] Add **Cancellation Policy** visible to customers before payment
 - [ ] Add **Help / Contact** page with a phone number or support email
 - [ ] Add a **footer** with legal info, navigation links, and copyright
-- [ ] Implement OTP rate limiting (Phase 3 gap in `PLAN.md`)
-- [ ] Wire global exception filter in `main.ts` (Phase 3 gap)
 - [ ] Implement Resend (or equivalent) email for order confirmation and cancellation
 - [ ] Move brand name, tagline, and brand colour to a shared constants file
 - [ ] Fix order status display — readable labels instead of raw enum strings

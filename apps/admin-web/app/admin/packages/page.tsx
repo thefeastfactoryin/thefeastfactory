@@ -40,6 +40,8 @@ type AdminPackage = {
   id: string;
   name: string;
   description?: string | null;
+  imageUrl?: string | null;
+  badgeLabel?: string | null;
   displayOrder: number;
   isCustom: boolean;
   type: 'MEAL_BOX' | 'FIXED_PACKAGE' | 'CUSTOM_PACKAGE';
@@ -58,6 +60,8 @@ type PackageForm = {
   id?: string;
   name: string;
   description: string;
+  imageUrl: string;
+  badgeLabel: string;
   displayOrder: string;
   type: AdminPackage['type'];
   isActive: boolean;
@@ -79,6 +83,8 @@ type PackageDialogMode = 'create-package' | 'edit-package' | 'add-version';
 const emptyPackage: PackageForm = {
   name: '',
   description: '',
+  imageUrl: '',
+  badgeLabel: '',
   displayOrder: '0',
   type: 'FIXED_PACKAGE',
   isActive: true,
@@ -267,6 +273,8 @@ export default function AdminPackages() {
             id: pkg.id,
             name: pkg.name,
             description: pkg.description ?? '',
+            imageUrl: pkg.imageUrl ?? '',
+            badgeLabel: pkg.badgeLabel ?? '',
             displayOrder: String(pkg.displayOrder),
             type: pkg.type,
             isActive: pkg.isActive,
@@ -339,6 +347,8 @@ export default function AdminPackages() {
         const payload = {
           name: packageForm.name.trim(),
           description: packageForm.description.trim() || undefined,
+          imageUrl: packageForm.imageUrl.trim(),
+          badgeLabel: packageForm.badgeLabel.trim(),
           displayOrder: Number(packageForm.displayOrder || 0),
           type: packageForm.type,
           isActive: packageForm.isActive,
@@ -557,6 +567,28 @@ export default function AdminPackages() {
                     const value = Number(event.target.value);
                     if (value !== offering.displayOrder)
                       updateOffering(offering, { displayOrder: value });
+                  }}
+                />
+              </Field>
+              <Field label="Card image" className="mt-3">
+                <Input
+                  defaultValue={offering.imageUrl ?? ''}
+                  placeholder="/order-mealbox.png"
+                  onBlur={(event) => {
+                    const value = event.target.value.trim();
+                    if (value !== (offering.imageUrl ?? ''))
+                      updateOffering(offering, { imageUrl: value });
+                  }}
+                />
+              </Field>
+              <Field label="CTA label" className="mt-3">
+                <Input
+                  defaultValue={offering.ctaLabel ?? ''}
+                  placeholder="Explore"
+                  onBlur={(event) => {
+                    const value = event.target.value.trim();
+                    if (value !== (offering.ctaLabel ?? ''))
+                      updateOffering(offering, { ctaLabel: value });
                   }}
                 />
               </Field>
@@ -970,6 +1002,32 @@ export default function AdminPackages() {
                       })
                     }
                     maxLength={1000}
+                  />
+                </Field>
+                <Field label="Card image" optional>
+                  <Input
+                    value={packageForm.imageUrl}
+                    onChange={(event) =>
+                      setPackageForm({
+                        ...packageForm,
+                        imageUrl: event.target.value,
+                      })
+                    }
+                    placeholder="/pkg-community.png or uploaded URL"
+                    maxLength={500}
+                  />
+                </Field>
+                <Field label="Badge label" optional>
+                  <Input
+                    value={packageForm.badgeLabel}
+                    onChange={(event) =>
+                      setPackageForm({
+                        ...packageForm,
+                        badgeLabel: event.target.value,
+                      })
+                    }
+                    placeholder="Most popular"
+                    maxLength={100}
                   />
                 </Field>
                 <Field label="Display order">

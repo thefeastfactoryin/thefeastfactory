@@ -32,14 +32,18 @@ The collection automatically stores access and refresh tokens after successful l
 
 ## Menu And Package Flow
 
-1. Run `Menu Catalog / GET Menu Categories`.
-2. Run `Menu Catalog / GET Menu Items`.
-3. Run `Packages / GET Packages`; this stores the first package and active version IDs.
-4. Run `Packages / GET Package Configuration`.
-5. Copy valid category and menu item IDs from the configuration into the collection variables or request body.
-6. Run `POST Validate Selection` and `POST Price Selection`.
+1. Run `GET /catalog/public-settings` to inspect the database-managed booking window, service times, and public business details.
+2. Run `GET /catalog/ordering-offerings` to inspect the database-managed catalogue cards.
+3. Run `Menu Catalog / GET Menu Categories`.
+4. Run `Menu Catalog / GET Menu Items`.
+5. Run `Packages / GET Packages`; this stores the first package and active version IDs.
+6. Run `Packages / GET Package Configuration`.
+7. Copy valid category and menu item IDs from the configuration into the collection variables or request body.
+8. Run `POST /package-versions/:id/preview-quote` for the public server-authoritative estimate, then run authenticated cart quote requests for the final address-aware amount.
 
 Admin menu and package requests require `POST Admin Login` first.
+
+Swagger at `http://localhost:4000/docs` is the source of truth for request schemas when a newly generated endpoint is not yet saved in the collection.
 
 ## Event, Order, Payment, And Admin Flow
 

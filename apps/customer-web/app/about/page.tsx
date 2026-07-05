@@ -2,32 +2,19 @@
 
 import {
   Award,
-  Box,
   Calendar,
   ChefHat,
-  Clock,
   Heart,
   Leaf,
-  MapPin,
   Package,
   PartyPopper,
   ShieldCheck,
-  Smile,
   Star,
   Target,
   Truck,
   UtensilsCrossed,
   Users,
 } from 'lucide-react';
-
-/* ─── Stats ─── */
-const STATS = [
-  { Icon: Users,      value: '10,000+', label: 'Happy Customers',      sub: 'Served across all occasions' },
-  { Icon: Box,        value: '50,000+', label: 'Orders Delivered',      sub: 'With love and care' },
-  { Icon: Award,      value: '10+',     label: 'Years of Experience',   sub: 'In bulk food service' },
-  { Icon: MapPin,     value: '50+',     label: 'Cities Served',         sub: 'And growing' },
-  { Icon: ShieldCheck,value: '100%',    label: 'Hygiene Assured',       sub: 'Safety is our priority' },
-];
 
 /* ─── Values ─── */
 const VALUES = [
@@ -53,8 +40,8 @@ const OFFERINGS = [
 const WHY_US = [
   {
     Icon: Award,
-    title: '10+ Years of\nFood Expertise',
-    desc: 'Our team brings over a decade of experience in food preparation, menu planning, and serving thousands of customers.',
+    title: 'Experienced\nFood Team',
+    desc: 'Our team brings practical experience in food preparation, menu planning, and dependable event service.',
   },
   {
     Icon: Users,
@@ -106,7 +93,7 @@ export default function AboutPage() {
                   people together, we help you order delicious food in bulk without the usual hassle.
                 </p>
                 <p>
-                  Backed by 10+ years of experience in food preparation and hospitality, The Feast
+                  Backed by hands-on experience in food preparation and hospitality, The Feast
                   Factory combines culinary expertise with technology to deliver a seamless bulk food
                   ordering experience. Our focus is on quality, consistency, hygiene, and customer
                   satisfaction in every order we serve.
@@ -130,42 +117,23 @@ export default function AboutPage() {
             {/* Right: image + experience badge */}
             <div className="relative">
               <img
-                src="https://images.unsplash.com/photo-1555244162-803834f70033?auto=format&fit=crop&w=900&q=80"
+                src="/about-hero.png"
                 alt="The Feast Factory kitchen team"
                 className="h-[420px] w-full rounded-2xl object-cover shadow-lg"
               />
               {/* Experience overlay */}
               <div className="absolute bottom-5 right-5 flex items-center gap-4 overflow-hidden rounded-2xl bg-white shadow-xl">
                 <div className="bg-primary px-5 py-4 text-center text-white">
-                  <p className="text-3xl font-extrabold leading-none">10+</p>
-                  <p className="mt-1 text-[10px] font-bold uppercase tracking-widest">Years of</p>
-                  <p className="text-[10px] font-bold uppercase tracking-widest">Experience</p>
+                  <p className="text-lg font-extrabold leading-none">Event-ready</p>
+                  <p className="mt-1 text-[10px] font-bold uppercase tracking-widest">Food service</p>
                 </div>
                 <div className="py-4 pr-5">
                   <p className="max-w-[130px] text-sm font-semibold leading-5 text-foreground">
-                    Trusted by thousands of customers and organizations across the city.
+                    Planned for dependable group ordering and coordinated delivery.
                   </p>
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ② Stats bar */}
-      <section className="border-b border-border bg-white">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="grid divide-y divide-border sm:divide-x sm:divide-y-0 sm:grid-cols-5">
-            {STATS.map(({ Icon, value, label, sub }) => (
-              <div key={label} className="flex flex-col items-center gap-2 py-7 text-center">
-                <Icon className="h-6 w-6 text-primary/70" />
-                <p className="text-2xl font-extrabold text-foreground">{value}</p>
-                <div>
-                  <p className="text-sm font-bold text-foreground">{label}</p>
-                  <p className="mt-0.5 text-[11px] text-muted-foreground">{sub}</p>
-                </div>
-              </div>
-            ))}
           </div>
         </div>
       </section>
@@ -251,7 +219,7 @@ export default function AboutPage() {
           {/* Center image */}
           <div className="overflow-hidden rounded-2xl shadow-lg">
             <img
-              src="https://images.unsplash.com/photo-1567337710282-00832b415979?auto=format&fit=crop&w=700&q=80"
+              src="/about-gathering.png"
               alt="Variety of Indian dishes"
               className="h-72 w-full object-cover lg:h-80"
             />
@@ -271,45 +239,12 @@ export default function AboutPage() {
             <div className="mt-6 flex items-center gap-3 rounded-xl bg-primary/5 px-4 py-3">
               <ShieldCheck className="h-5 w-5 shrink-0 text-primary" />
               <p className="text-xs font-semibold text-foreground">
-                Powered by 10+ Years of Food Preparation Excellence.
+                Powered by practical food preparation and event-service experience.
               </p>
             </div>
           </div>
         </div>
       </section>
-
-      {/* ⑥ Footer band */}
-      <div className="bg-primary">
-        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-          <div className="flex flex-col items-center gap-6 sm:flex-row sm:justify-between">
-            {/* Brand */}
-            <div className="flex items-center gap-3">
-              <div className="grid h-10 w-10 place-items-center rounded-full border-2 border-white/30">
-                <UtensilsCrossed className="h-5 w-5 text-white" />
-              </div>
-              <div>
-                <p className="font-bold text-white">The Feast Factory</p>
-                <p className="text-[11px] text-white/60">Order More. Stress Less. Celebrate Better. 🎉</p>
-              </div>
-            </div>
-
-            {/* Pillars */}
-            <div className="flex gap-8">
-              {[
-                { Icon: UtensilsCrossed, label: 'Great Food' },
-                { Icon: Smile,          label: 'Happy People' },
-                { Icon: Heart,          label: 'Memorable Moments' },
-                { Icon: Clock,          label: 'Every Time' },
-              ].map(({ Icon, label }) => (
-                <div key={label} className="flex flex-col items-center gap-1">
-                  <Icon className="h-5 w-5 text-white/70" />
-                  <span className="text-[10px] font-semibold text-white/70">{label}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
 
     </main>
   );

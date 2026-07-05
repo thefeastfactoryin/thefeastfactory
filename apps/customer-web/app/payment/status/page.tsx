@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { Button } from '../../../components/ui/button';
 import { apiRequest } from '../../../lib/api';
 import { useSessionStore } from '../../../store/session.store';
+import { AuthRequiredPanel, StatePanel } from '../../../components/ui/state-panel';
 
 export default function PaymentStatusPage() {
   const session = useSessionStore((state) => state.session);
@@ -48,6 +49,26 @@ export default function PaymentStatusPage() {
   const paid = order?.paymentStatus === 'PAID';
   const failed = order?.paymentStatus === 'FAILED' || Boolean(loadError);
   const Icon = paid ? CheckCircle : failed ? XCircle : Clock3;
+  if (!session)
+    return (
+      <AuthRequiredPanel
+        title="Sign in to check payment status"
+        description="Payment confirmation is linked to the verified customer account."
+        returnHref={orderId ? `/payment/status?orderId=${orderId}` : '/orders'}
+      />
+    );
+  if (!orderId && loadError)
+    return (
+      <main className="page-shell">
+        <StatePanel
+          tone="danger"
+          title="Payment link is incomplete"
+          description={loadError}
+          actionHref="/orders"
+          actionLabel="View orders"
+        />
+      </main>
+    );
   return (
     <main className="mx-auto flex max-w-xl flex-col items-center px-5 py-20 text-center">
       <Icon

@@ -2,17 +2,20 @@
 
 import { ClipboardList, MapPin } from 'lucide-react';
 import Link from 'next/link';
+import type { UserProfile } from '@aranyam/shared-types';
+import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Button } from '../../components/ui/button';
 import { Field } from '../../components/ui/form';
 import { Input } from '../../components/ui/input';
-import { AuthRequiredPanel } from '../../components/ui/state-panel';
+import { AuthRequiredPanel, StatePanel } from '../../components/ui/state-panel';
 import { apiRequest } from '../../lib/api';
 import { useSessionStore } from '../../store/session.store';
+import { clearCustomerState } from '../../lib/customer-auth';
 
 export default function ProfilePage() {
+  const router = useRouter();
   const session = useSessionStore((state) => state.session);
-  const clear = useSessionStore((state) => state.clear);
   const [profile, setProfile] = useState({
     name: '',
     email: '',
@@ -20,10 +23,11 @@ export default function ProfilePage() {
   });
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!session) return;
-    apiRequest<any>('/me', {}, session.accessToken)
+    apiRequest<UserProfile>('/me', {}, session.accessToken)
       .then((data) =>
         setProfile({
           name: data.name ?? '',
@@ -31,7 +35,8 @@ export default function ProfilePage() {
           mobileNumber: data.mobileNumber,
         }),
       )
-      .catch((reason) => setError(reason.message));
+      .catch((reason) => setError(reason.message))
+      .finally(() => setLoading(false));
   }, [session]);
 
   if (!session)
@@ -41,6 +46,12 @@ export default function ProfilePage() {
         description="Your name, email, saved venues, and order history stay attached to your verified mobile number."
         returnHref="/profile"
       />
+    );
+  if (loading)
+    return (
+      <main className="page-shell">
+        <StatePanel tone="loading" title="Loading your profile" />
+      </main>
     );
 
   async function save(event: React.FormEvent) {
@@ -58,6 +69,19 @@ export default function ProfilePage() {
       setMessage('Profile updated');
     } catch (reason) {
       setError((reason as Error).message);
+    }
+  }
+
+  async function logout() {
+    try {
+      await apiRequest(
+        '/auth/customer/logout',
+        { method: 'POST' },
+        session!.accessToken,
+      );
+    } finally {
+      clearCustomerState();
+      router.replace('/');
     }
   }
 
@@ -101,7 +125,7 @@ export default function ProfilePage() {
           )}
           <div className="flex flex-wrap gap-3">
             <Button>Save profile</Button>
-            <Button type="button" variant="outline" onClick={clear}>
+            <Button type="button" variant="outline" onClick={logout}>
               Log out
             </Button>
           </div>

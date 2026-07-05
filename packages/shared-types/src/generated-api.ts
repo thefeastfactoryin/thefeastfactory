@@ -689,6 +689,22 @@ export interface paths {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/catalog/public-settings": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get: operations["CatalogController_publicSettings"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/health": {
         readonly parameters: {
             readonly query?: never;
@@ -913,6 +929,22 @@ export interface paths {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/package-versions/{id}/preview-quote": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        readonly post: operations["PackagesController_previewQuote"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/packages": {
         readonly parameters: {
             readonly query?: never;
@@ -1081,10 +1113,12 @@ export interface components {
             readonly body: string;
         };
         readonly CreatePackageDto: {
+            readonly badgeLabel?: string;
             readonly description?: string;
             /** @default 0 */
             readonly displayOrder: number;
             readonly featuredOrder?: number;
+            readonly imageUrl?: string;
             /** @default true */
             readonly isActive: boolean;
             /** @default false */
@@ -1113,6 +1147,10 @@ export interface components {
             readonly reason?: string;
         };
         readonly Object: Record<string, never>;
+        readonly PreviewPackageQuoteDto: {
+            readonly guestCount: number;
+            readonly selectedItems: readonly components["schemas"]["SelectedPackageItemDto"][];
+        };
         readonly RefreshTokenDto: {
             readonly refreshToken: string;
         };
@@ -1125,6 +1163,16 @@ export interface components {
              * @example 9999999999
              */
             readonly mobileNumber: string;
+        };
+        readonly SelectedPackageItemDto: {
+            /** Format: uuid */
+            readonly categoryId: string;
+            /** Format: uuid */
+            readonly menuItemId: string;
+            /** Format: uuid */
+            readonly replacedMenuItemId?: string | null;
+            /** @enum {string} */
+            readonly role?: "INCLUDED" | "SWAP" | "EXTRA" | "CUSTOM";
         };
         readonly SettingInput: {
             readonly key: string;
@@ -1195,8 +1243,10 @@ export interface components {
             readonly name?: string;
         };
         readonly UpdateOrderingOfferingDto: {
+            readonly ctaLabel?: string;
             readonly description?: string;
             readonly displayOrder?: number;
+            readonly imageUrl?: string;
             readonly isActive?: boolean;
             readonly title?: string;
         };
@@ -1206,10 +1256,12 @@ export interface components {
             readonly status: "DRAFT" | "PENDING_PAYMENT" | "CONFIRMED" | "IN_PROGRESS" | "READY_FOR_DELIVERY" | "DELIVERED" | "CANCELLED";
         };
         readonly UpdatePackageDto: {
+            readonly badgeLabel?: string;
             readonly description?: string;
             /** @default 0 */
             readonly displayOrder: number;
             readonly featuredOrder?: number;
+            readonly imageUrl?: string;
             /** @default true */
             readonly isActive: boolean;
             /** @default false */
@@ -2322,6 +2374,23 @@ export interface operations {
             };
         };
     };
+    readonly CatalogController_publicSettings: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     readonly HealthController_check: {
         readonly parameters: {
             readonly query?: never;
@@ -2647,6 +2716,29 @@ export interface operations {
         readonly requestBody?: never;
         readonly responses: {
             readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    readonly PackagesController_previewQuote: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly id: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["PreviewPackageQuoteDto"];
+            };
+        };
+        readonly responses: {
+            readonly 201: {
                 headers: {
                     readonly [name: string]: unknown;
                 };

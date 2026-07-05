@@ -19,11 +19,11 @@ import {
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { apiRequest } from '../../lib/api';
-import { packageImage } from '../../lib/catalog-display';
 import { useOrderBuilderStore } from '../../store/order-builder.store';
 import { useSessionStore } from '../../store/session.store';
 import { StatePanel } from '../ui/state-panel';
 import { Advantages } from '../home/advantages';
+import { DataImage } from '../data-image';
 import {
   PackageChangeDialog,
   PackageDetailsModal,
@@ -61,34 +61,10 @@ export function PackageGridPage({
     null,
   );
   const [pendingIntent, setPendingIntent] = useState<SelectionIntent>('select');
-  const [sessionReady, setSessionReady] = useState(false);
-
   useEffect(() => {
-    const persistence = useSessionStore.persist;
-    if (!persistence) {
-      setSessionReady(true);
-      return;
-    }
-    if (persistence.hasHydrated()) {
-      setSessionReady(true);
-      return;
-    }
-    return persistence.onFinishHydration(() => setSessionReady(true));
-  }, []);
-
-  useEffect(() => {
-    if (!sessionReady || session) return;
-    const returnTo = type === 'MEAL_BOX' ? '/packages/meal-boxes' : '/packages';
-    router.replace(
-      `/login?reason=catalog&returnTo=${encodeURIComponent(returnTo)}`,
-    );
-  }, [router, session, sessionReady, type]);
-
-  useEffect(() => {
-    if (!sessionReady || !session) return;
     Promise.all([
-      apiRequest<PackageSummary[]>('/packages', {}, session.accessToken),
-      apiRequest<MenuCategory[]>('/menu/categories', {}, session.accessToken),
+      apiRequest<PackageSummary[]>('/packages'),
+      apiRequest<MenuCategory[]>('/menu/categories'),
     ])
       .then(async ([rows, categoryRows]) => {
         const visible = rows.filter(
@@ -106,7 +82,6 @@ export function PackageGridPage({
                 await apiRequest<PackageConfiguration>(
                   `/package-versions/${row.activeVersion!.id}/configuration`,
                   {},
-                  session.accessToken,
                 ),
               ] as const,
           ),
@@ -115,7 +90,7 @@ export function PackageGridPage({
       })
       .catch((reason) => setError((reason as Error).message))
       .finally(() => setLoading(false));
-  }, [session, sessionReady, type]);
+  }, [type]);
 
   const shown = useMemo(
     () =>
@@ -184,7 +159,7 @@ export function PackageGridPage({
           )
         : undefined;
       setPackage(selected);
-      setDbCartId(cart?.id);
+      setDbCartId(cart?.id, session?.user.id);
       setGuestCount(pkg.activeVersion.minGuestCount);
       const builder =
         pkg.type === 'CUSTOM_PACKAGE' ? '/menu/visual-builder' : '/menu/select';
@@ -337,10 +312,9 @@ export function PackageGridPage({
                     aria-label={`View details for ${pkg.name}`}
                   >
                     <div className="relative h-44 overflow-hidden bg-muted/50">
-                      <img
-                        src={packageImage(pkg.name, pkg.type)}
+                      <DataImage
+                        src={pkg.imageUrl}
                         alt={`${pkg.name} presentation`}
-                        loading="lazy"
                         className="h-full w-full object-cover"
                       />
                       {pkg.type === 'MEAL_BOX' && (

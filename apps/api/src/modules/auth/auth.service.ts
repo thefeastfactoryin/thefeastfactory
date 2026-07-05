@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Prisma, User } from '@prisma/client';
 import bcrypt from 'bcrypt';
+import { randomInt } from 'node:crypto';
 import { JwtPayload } from '../../common/auth/jwt-payload';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AdminLoginDto } from './dto/admin-login.dto';
@@ -20,7 +21,7 @@ export class AuthService {
   ) {}
 
   async requestCustomerOtp(dto: RequestOtpDto) {
-    const otp = this.generateOtp();
+    const otp = this.testOtpFor(dto.mobileNumber) ?? this.generateOtp();
     const otpHash = await bcrypt.hash(
       otp,
       this.config.get<number>('BCRYPT_SALT_ROUNDS', 12),
@@ -47,6 +48,19 @@ export class AuthService {
     };
   }
 
+  private testOtpFor(mobileNumber: string) {
+    if (!this.config.get<boolean>('TEST_LOGIN_OTP_ENABLED', false)) {
+      return undefined;
+    }
+
+    const testMobile = this.config.get<string>('TEST_LOGIN_MOBILE', '');
+    if (!testMobile || mobileNumber !== testMobile) {
+      return undefined;
+    }
+
+    return this.config.get<string>('TEST_LOGIN_OTP') || undefined;
+  }
+
   async verifyCustomerOtp(dto: VerifyOtpDto) {
     const otpRecord = await this.prisma.otpVerification.findFirst({
       where: {
@@ -68,22 +82,36 @@ export class AuthService {
 
     const isValid = await bcrypt.compare(dto.otp, otpRecord.otpHash);
     if (!isValid) {
-      await this.prisma.otpVerification.update({
-        where: { id: otpRecord.id },
+      await this.prisma.otpVerification.updateMany({
+        where: {
+          id: otpRecord.id,
+          isVerified: false,
+          expiresAt: { gt: new Date() },
+          attempts: { lt: maxAttempts },
+        },
         data: { attempts: { increment: 1 } },
       });
       throw new UnauthorizedException('Invalid or expired OTP');
     }
 
-    const user = await this.prisma.user.upsert({
-      where: { mobileNumber: dto.mobileNumber },
-      update: { isActive: true },
-      create: { mobileNumber: dto.mobileNumber },
-    });
-
-    await this.prisma.otpVerification.update({
-      where: { id: otpRecord.id },
-      data: { isVerified: true },
+    const user = await this.prisma.$transaction(async (transaction) => {
+      const claimed = await transaction.otpVerification.updateMany({
+        where: {
+          id: otpRecord.id,
+          isVerified: false,
+          expiresAt: { gt: new Date() },
+          attempts: { lt: maxAttempts },
+        },
+        data: { isVerified: true },
+      });
+      if (claimed.count !== 1) {
+        throw new UnauthorizedException('Invalid or expired OTP');
+      }
+      return transaction.user.upsert({
+        where: { mobileNumber: dto.mobileNumber },
+        update: { isActive: true },
+        create: { mobileNumber: dto.mobileNumber },
+      });
     });
 
     return this.createCustomerSession(user);
@@ -221,7 +249,7 @@ export class AuthService {
   }
 
   private generateOtp() {
-    return String(Math.floor(100000 + Math.random() * 900000));
+    return String(randomInt(100000, 1_000_000));
   }
 
   private async getIntSetting(key: string, fallback: number) {

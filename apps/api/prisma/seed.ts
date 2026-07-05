@@ -46,26 +46,32 @@ async function seedOrderingOfferings() {
       OrderingOfferingCode.MEAL_BOX,
       'Meal Boxes',
       'One box per person with a complete, portioned meal.',
+      '/order-mealbox.png',
+      'Explore meal boxes',
       1,
     ],
     [
       OrderingOfferingCode.PACKAGES,
       'Packages',
       'Curated menus with clear inclusions and per-person pricing.',
+      '/order-occasion.png',
+      'View packages',
       2,
     ],
     [
       OrderingOfferingCode.CUSTOM_MENU,
       'Build Your Menu',
       'Choose dishes and build a menu around your event.',
+      '/order-build.png',
+      'Build your menu',
       3,
     ],
   ] as const;
-  for (const [code, title, description, displayOrder] of offerings) {
+  for (const [code, title, description, imageUrl, ctaLabel, displayOrder] of offerings) {
     await prisma.orderingOffering.upsert({
       where: { code },
       update: { title, description, displayOrder, isActive: true },
-      create: { code, title, description, displayOrder },
+      create: { code, title, description, imageUrl, ctaLabel, displayOrder },
     });
   }
 }
@@ -80,12 +86,21 @@ async function seedSettings() {
     ['otp_expiry_seconds', '300', 'Customer OTP expiry duration.'],
     ['otp_max_attempts', '5', 'Maximum OTP verification attempts.'],
     ['razorpay_currency', 'INR', 'Default Razorpay currency.'],
+    ['event_service_start_time', '06:00', 'Earliest selectable event service time.'],
+    ['event_service_end_time', '23:30', 'Latest selectable event service time.'],
+    ['event_time_interval_minutes', '30', 'Interval between selectable event service times.'],
+    ['business_legal_name', '', 'Legal business name shown on customer and order documents.'],
+    ['business_trade_name', '', 'Public trading name shown to customers.'],
+    ['business_address', '', 'Public business or support address.'],
+    ['business_gstin', '', 'GST registration number used on tax documents.'],
+    ['business_support_email', '', 'Customer support email address.'],
+    ['business_support_phone', '', 'Customer support phone number.'],
   ] as const;
 
   for (const [key, value, description] of settings) {
     await prisma.platformSetting.upsert({
       where: { key },
-      update: { value, description },
+      update: { description },
       create: { key, value, description },
     });
   }
@@ -432,6 +447,19 @@ async function upsertPackageVersion(input: {
   isFeatured?: boolean;
   featuredOrder?: number;
 }) {
+  const presentation: Record<string, { imageUrl: string; badgeLabel?: string }> = {
+    'Pooja Package': { imageUrl: '/pkg-puja.png', badgeLabel: 'Most popular' },
+    'Farm House Celebration': { imageUrl: '/pkg-farmhouse.png' },
+    'Corporate Gathering': { imageUrl: '/pkg-corporate.png' },
+    '3 Item Veg Meal Box': { imageUrl: '/tray-3.png' },
+    '3 Item Non-Veg Meal Box': { imageUrl: '/tray-3.png' },
+    '5 Item Veg Meal Box': { imageUrl: '/tray-5.png' },
+    '5 Item Non-Veg Meal Box': { imageUrl: '/tray-5.png' },
+    '8 Item Veg Meal Box': { imageUrl: '/tray-8.png' },
+    '8 Item Non-Veg Meal Box': { imageUrl: '/tray-8.png' },
+    'Custom Menu': { imageUrl: '/order-build.png' },
+  };
+  const display = presentation[input.name];
   const pkg = await prisma.package.upsert({
     where: { name: input.name },
     update: {
@@ -450,6 +478,8 @@ async function upsertPackageVersion(input: {
       displayOrder: input.displayOrder,
       isFeatured: input.isFeatured ?? false,
       featuredOrder: input.featuredOrder ?? null,
+      imageUrl: display?.imageUrl,
+      badgeLabel: display?.badgeLabel,
     },
   });
 

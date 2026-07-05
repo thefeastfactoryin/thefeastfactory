@@ -25,16 +25,17 @@ import { useEffect, useState } from 'react';
 import {
   catalogCopy,
   offeringDisplay,
-  packageImage,
 } from '../lib/catalog-display';
 import { apiRequest } from '../lib/api';
 import { Advantages } from '../components/home/advantages';
+import { DataImage } from '../components/data-image';
 import {
   PackageChangeDialog,
   PackageDetailsModal,
 } from '../components/catalog/package-details-modal';
 import { useOrderBuilderStore } from '../store/order-builder.store';
 import { useSessionStore } from '../store/session.store';
+import { usePublicSettings } from '../components/public-settings-provider';
 
 const trustIcons = [Users, Clock, CreditCard, MessageCircle];
 const heroTrust = [
@@ -47,13 +48,8 @@ const offeringIcons: Record<string, LucideIcon> = {
   PACKAGES: CalendarDays,
   CUSTOM_MENU: ChefHat,
 };
-const offeringCtas: Record<string, string> = {
-  MEAL_BOX: 'Explore meal boxes',
-  PACKAGES: 'View packages',
-  CUSTOM_MENU: 'Browse menu',
-};
-
 export default function HomePage() {
+  const publicSettings = usePublicSettings();
   const router = useRouter();
   const session = useSessionStore((state) => state.session);
   const currentPackage = useOrderBuilderStore((state) => state.package);
@@ -132,7 +128,7 @@ export default function HomePage() {
           )
         : undefined;
       setPackage(selected);
-      setDbCartId(cart?.id);
+      setDbCartId(cart?.id, session?.user.id);
       setGuestCount(pkg.activeVersion.minGuestCount);
       router.push(
         pkg.type === 'CUSTOM_PACKAGE' ? '/menu/visual-builder' : '/menu/select',
@@ -234,13 +230,13 @@ export default function HomePage() {
                     </p>
                   </div>
                   <span className="mt-4 inline-flex items-center gap-1.5 text-sm font-bold text-primary">
-                    {offeringCtas[offering.code] ?? 'Explore'}
+                    {offering.ctaLabel || 'Explore'}
                     <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                   </span>
                 </div>
                 <div className="relative min-h-44 overflow-hidden sm:min-h-full">
-                  <img
-                    src={display.image}
+                  <DataImage
+                    src={offering.imageUrl}
                     alt={offering.title}
                     className="h-full w-full object-cover transition duration-500 ease-premium group-hover:scale-105"
                   />
@@ -282,15 +278,15 @@ export default function HomePage() {
                   aria-label={`View details for ${pkg.name}`}
                 >
                   <div className="relative h-44 overflow-hidden">
-                    <img
-                      src={packageImage(pkg.name, pkg.type)}
+                    <DataImage
+                      src={pkg.imageUrl}
                       alt={`${pkg.name} presentation`}
                       className="h-full w-full object-cover transition duration-500 ease-premium group-hover:scale-105"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent" />
-                    {pkg.featuredOrder === 1 && (
+                    {pkg.badgeLabel && (
                       <span className="absolute left-3 top-3 rounded-full bg-primary px-3 py-1 text-[11px] font-extrabold uppercase tracking-wide text-white">
-                        Most popular
+                        {pkg.badgeLabel}
                       </span>
                     )}
                   </div>
@@ -355,8 +351,14 @@ export default function HomePage() {
 
       <section className="container-pad pb-14 lg:pb-20">
         <div className="grid overflow-hidden rounded-2xl border border-border/80 bg-ivory shadow-[0_2px_14px_rgba(0,0,0,0.04)] sm:grid-cols-2 lg:grid-cols-4">
-          {catalogCopy.trust.map(([title, desc], index) => {
+          {catalogCopy.trust.map(([title, configuredDescription], index) => {
             const Icon = trustIcons[index]!;
+            const desc =
+              title === 'Advance booking'
+                ? publicSettings
+                  ? `At least ${publicSettings.minBookingLeadHours} hours`
+                  : 'Loading booking policy…'
+                : configuredDescription;
             return (
               <div
                 key={title}

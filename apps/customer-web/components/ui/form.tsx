@@ -60,32 +60,6 @@ export const Textarea = React.forwardRef<
 ));
 Textarea.displayName = 'Textarea';
 
-export function DateField({
-  value,
-  min,
-  onValueChange,
-  required,
-}: {
-  value: string;
-  min?: string;
-  onValueChange: (value: string) => void;
-  required?: boolean;
-}) {
-  return <input className={controlClass} type="date" value={value} min={min} required={required} onChange={(event) => onValueChange(event.target.value)} />;
-}
-
-export function TimeField({
-  value,
-  onValueChange,
-  required,
-}: {
-  value: string;
-  onValueChange: (value: string) => void;
-  required?: boolean;
-}) {
-  return <input className={controlClass} type="time" value={value} required={required} onChange={(event) => onValueChange(event.target.value)} />;
-}
-
 export function Checkbox({
   label,
   description,
@@ -118,49 +92,6 @@ export function Checkbox({
             {description}
           </span>
         )}
-      </span>
-    </button>
-  );
-}
-
-export function ChoiceCard({
-  label,
-  description,
-  selected,
-  onSelect,
-  children,
-}: {
-  label: string;
-  description?: string;
-  selected: boolean;
-  onSelect: () => void;
-  children?: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className={cn(
-        'flex min-h-20 w-full items-start gap-3 rounded-xl border bg-white/80 p-4 text-left transition hover:border-primary/35 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30',
-        selected && 'border-primary bg-primary/[0.055] ring-1 ring-primary/30',
-      )}
-    >
-      <span
-        className={cn(
-          'mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full border bg-white',
-          selected && 'border-primary',
-        )}
-      >
-        {selected && <span className="h-2.5 w-2.5 rounded-full bg-primary" />}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block font-semibold">{label}</span>
-        {description && (
-          <span className="mt-1 block text-xs leading-5 text-muted-foreground">
-            {description}
-          </span>
-        )}
-        {children}
       </span>
     </button>
   );

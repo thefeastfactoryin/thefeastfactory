@@ -16,6 +16,7 @@ import { AuthRequiredPanel } from '../../components/ui/state-panel';
 import { AddressMapPicker } from '../../components/address-map-picker';
 import { apiRequest } from '../../lib/api';
 import { useSessionStore } from '../../store/session.store';
+import { safeReturnPath } from '../../lib/safe-return-path';
 
 const initialForm = {
   addressType: 'HOME' as AddressType,
@@ -40,7 +41,16 @@ export default function AddressesPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  useEffect(() => setReturnTo(new URLSearchParams(window.location.search).get('returnTo')), []);
+  useEffect(
+    () =>
+      setReturnTo(
+        safeReturnPath(
+          new URLSearchParams(window.location.search).get('returnTo'),
+          '',
+        ) || null,
+      ),
+    [],
+  );
 
   async function load() {
     if (!session) return;

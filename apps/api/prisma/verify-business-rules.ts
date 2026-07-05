@@ -1,10 +1,11 @@
 import { PackageType, SelectedItemRole } from '@prisma/client';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { PackagesService } from '../src/modules/packages/packages.service';
+import { PricingService } from '../src/modules/pricing/pricing.service';
 
 async function main() {
   const prisma = new PrismaService();
-  const packages = new PackagesService(prisma);
+  const packages = new PackagesService(prisma, new PricingService(prisma));
   await prisma.$connect();
   try {
     const rows = await prisma.package.findMany({

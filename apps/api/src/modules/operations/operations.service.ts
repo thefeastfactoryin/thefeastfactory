@@ -22,6 +22,9 @@ const editableSettings = new Set([
   'otp_expiry_seconds',
   'otp_max_attempts',
   'razorpay_currency',
+  'event_service_start_time',
+  'event_service_end_time',
+  'event_time_interval_minutes',
   'business_legal_name',
   'business_trade_name',
   'business_address',
@@ -41,14 +44,9 @@ const editableSettings = new Set([
   'invoice_legal_footer',
 ]);
 
-const publicSettingDefaults = {
-  minBookingLeadHours: 48,
+const documentBusinessDefaults = {
   legalName: 'The Feast Factory Foods Private Limited',
   tradeName: 'The Feast Factory',
-  address: 'Hyderabad, Telangana, India',
-  gstin: 'GSTIN to be updated',
-  supportEmail: 'support@thefeastfactory.in',
-  supportPhone: '+91 90000 00000',
 };
 
 type PdfSnapshot = {
@@ -206,45 +204,6 @@ export class OperationsService {
 
   settings() {
     return this.prisma.platformSetting.findMany({ orderBy: { key: 'asc' } });
-  }
-
-  async publicSettings() {
-    const keys = [
-      'min_booking_lead_hours',
-      'business_legal_name',
-      'business_trade_name',
-      'business_address',
-      'business_gstin',
-      'business_support_email',
-      'business_support_phone',
-    ];
-    const rows = await this.prisma.platformSetting.findMany({
-      where: { key: { in: keys } },
-    });
-    const settings = Object.fromEntries(
-      rows.map((setting) => [setting.key, setting.value]),
-    );
-    return {
-      minBookingLeadHours: Number.parseInt(
-        settings.min_booking_lead_hours ??
-          String(publicSettingDefaults.minBookingLeadHours),
-        10,
-      ),
-      business: {
-        legalName:
-          settings.business_legal_name ?? publicSettingDefaults.legalName,
-        tradeName:
-          settings.business_trade_name ?? publicSettingDefaults.tradeName,
-        address: settings.business_address ?? publicSettingDefaults.address,
-        gstin: settings.business_gstin ?? publicSettingDefaults.gstin,
-        supportEmail:
-          settings.business_support_email ??
-          publicSettingDefaults.supportEmail,
-        supportPhone:
-          settings.business_support_phone ??
-          publicSettingDefaults.supportPhone,
-      },
-    };
   }
 
   async updateSettings(dto: UpdateSettingsDto) {
@@ -435,9 +394,9 @@ export class OperationsService {
     return {
       business: {
         legalName:
-          settings.business_legal_name || publicSettingDefaults.legalName,
+          settings.business_legal_name || documentBusinessDefaults.legalName,
         tradeName:
-          settings.business_trade_name || publicSettingDefaults.tradeName,
+          settings.business_trade_name || documentBusinessDefaults.tradeName,
         address: settings.business_address || '',
         gstin: settings.business_gstin || '',
         stateCode: settings.business_state_code || '',

@@ -19,9 +19,11 @@ import { useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { OrderProgress } from '../../../components/order-progress';
+import { DataImage } from '../../../components/data-image';
 import { Button } from '../../../components/ui/button';
 import { StatePanel } from '../../../components/ui/state-panel';
 import { apiRequest } from '../../../lib/api';
+import { usePackagePreviewQuote } from '../../../lib/use-package-preview-quote';
 import { cn } from '../../../lib/utils';
 import {
   type SelectedItem,
@@ -35,24 +37,6 @@ type MenuSelectionItem = CategoryRule['items'][number] & {
 };
 type MenuRow = { rule: CategoryRule; item: MenuSelectionItem };
 type DetailItem = { item: MenuSelectionItem; categoryName: string };
-
-const fallbackFoodImages = [
-  '/tray-3.png',
-  '/tray-5.png',
-  '/tray-8.png',
-  '/order-mealbox.png',
-  '/order-build.png',
-  '/order-occasion.png',
-];
-
-function foodImage(item: Pick<MenuSelectionItem, 'id' | 'imageUrl'>) {
-  if (item.imageUrl) return item.imageUrl;
-  const index = [...item.id].reduce(
-    (total, character) => total + character.charCodeAt(0),
-    0,
-  );
-  return fallbackFoodImages[index % fallbackFoodImages.length];
-}
 
 export default function MenuSelectPage() {
   const router = useRouter();
@@ -193,12 +177,14 @@ export default function MenuSelectPage() {
     [currentSwaps, includedRows, itemById],
   );
 
-  const additions = selectedItems.reduce(
-    (total, selected) =>
-      total + Number(itemById.get(selected.menuItemId)?.adjustmentAmount ?? 0),
-    0,
+  const preview = usePackagePreviewQuote({
+    packageVersionId: cartPackage?.packageVersionId,
+    guestCount,
+    selectedItems,
+  });
+  const perPerson = Number(
+    preview.quote?.finalPerPlatePrice ?? cartPackage?.basePricePerPlate ?? 0,
   );
-  const perPerson = Number(cartPackage?.basePricePerPlate ?? 0) + additions;
 
   function alternativesFor(rule: CategoryRule, included: MenuSelectionItem) {
     return rule.items
@@ -285,7 +271,7 @@ export default function MenuSelectPage() {
         },
         session.accessToken,
       );
-      setDbCartId(cart.id);
+      setDbCartId(cart.id, session.user.id);
       await apiRequest(
         '/cart/items',
         {
@@ -620,7 +606,7 @@ export default function MenuSelectPage() {
         </aside>
       </div>
 
-      <div className="fixed inset-x-0 bottom-16 z-40 border-t bg-white/95 p-3 shadow-[0_-14px_28px_-22px_rgba(75,12,23,.7)] backdrop-blur lg:hidden">
+      <div className="fixed inset-x-0 bottom-16 z-40 border-t bg-white/95 p-3 shadow-[0_-14px_28px_-22px_rgba(75,12,23,.7)] backdrop-blur md:bottom-0 lg:hidden">
         <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
           <button
             type="button"
@@ -928,8 +914,8 @@ function DishRow({
         className="h-[72px] overflow-hidden rounded-lg bg-muted sm:h-[70px]"
         aria-label={`View details for ${item.name}`}
       >
-        <img
-          src={foodImage(item)}
+        <DataImage
+          src={item.imageUrl}
           alt=""
           className="h-full w-full object-cover"
         />
@@ -1047,8 +1033,8 @@ function SwapChoice({
       aria-checked={active}
     >
       <span className="h-14 overflow-hidden rounded-lg bg-muted">
-        <img
-          src={foodImage(item)}
+        <DataImage
+          src={item.imageUrl}
           alt=""
           className="h-full w-full object-cover"
         />
@@ -1092,8 +1078,8 @@ function ExtraRow({
         onClick={onDetails}
         className="h-16 overflow-hidden rounded-lg bg-muted"
       >
-        <img
-          src={foodImage(row.item)}
+        <DataImage
+          src={row.item.imageUrl}
           alt=""
           className="h-full w-full object-cover"
         />
@@ -1182,8 +1168,8 @@ function MenuSummary({
         {rows.map((row) => (
           <div key={row.original.id} className="flex items-center gap-3 py-2.5">
             <span className="h-10 w-12 shrink-0 overflow-hidden rounded-md bg-muted">
-              <img
-                src={foodImage(row.shown)}
+              <DataImage
+                src={row.shown.imageUrl}
                 alt=""
                 className="h-full w-full object-cover"
               />
@@ -1209,8 +1195,8 @@ function MenuSummary({
         {extras.map((row) => (
           <div key={row.item.id} className="flex items-center gap-3 py-2.5">
             <span className="h-10 w-12 shrink-0 overflow-hidden rounded-md bg-muted">
-              <img
-                src={foodImage(row.item)}
+              <DataImage
+                src={row.item.imageUrl}
                 alt=""
                 className="h-full w-full object-cover"
               />
@@ -1372,8 +1358,8 @@ function ItemDetails({
       />
       <section className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl sm:grid sm:grid-cols-[.9fr_1.1fr]">
         <div className="min-h-56 bg-muted">
-          <img
-            src={foodImage(detail.item)}
+          <DataImage
+            src={detail.item.imageUrl}
             alt={detail.item.name}
             className="h-full min-h-56 w-full object-cover"
           />

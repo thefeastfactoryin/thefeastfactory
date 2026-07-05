@@ -19,6 +19,7 @@ import {
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { OrderProgress } from '../../../components/order-progress';
+import { DataImage } from '../../../components/data-image';
 import {
   VisualBuffetBuilder,
   type VisualBuffetItem,
@@ -27,6 +28,7 @@ import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { StatePanel } from '../../../components/ui/state-panel';
 import { apiRequest } from '../../../lib/api';
+import { usePackagePreviewQuote } from '../../../lib/use-package-preview-quote';
 import { cn } from '../../../lib/utils';
 import { useOrderBuilderStore } from '../../../store/order-builder.store';
 import { useSessionStore } from '../../../store/session.store';
@@ -199,17 +201,11 @@ function DishSelector({
                 aria-label={`${selected ? 'Remove' : 'Add'} ${row.item.name}`}
               >
                 <div className="h-20 overflow-hidden rounded-lg bg-muted">
-                  {row.item.imageUrl ? (
-                    <img
-                      src={row.item.imageUrl}
-                      alt={row.item.name}
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <div className="grid h-full place-items-center text-primary">
-                      <Leaf className="h-6 w-6" />
-                    </div>
-                  )}
+                  <DataImage
+                    src={row.item.imageUrl}
+                    alt={row.item.name}
+                    className="h-full w-full object-cover"
+                  />
                 </div>
                 <div className="min-w-0 py-1">
                   <p className="truncate font-semibold">{row.item.name}</p>
@@ -285,7 +281,6 @@ export function VisualBuilderClient({
   const searchParams = useSearchParams();
   const session = useSessionStore((state) => state.session);
   const cartPackage = useOrderBuilderStore((state) => state.package);
-  const dbCartId = useOrderBuilderStore((state) => state.dbCartId);
   const guestCount = useOrderBuilderStore((state) => state.guestCount);
   const selectedItems = useOrderBuilderStore((state) => state.selectedItems);
   const setPackage = useOrderBuilderStore((state) => state.setPackage);
@@ -306,7 +301,6 @@ export function VisualBuilderClient({
   const [search, setSearch] = useState('');
   const [diet, setDiet] = useState<'all' | 'veg' | 'nonveg'>('all');
   const [limitMessage, setLimitMessage] = useState('');
-  const [syncMessage, setSyncMessage] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
   const [bootstrappingPackage, setBootstrappingPackage] = useState(false);
   const [initialPackageApplied, setInitialPackageApplied] = useState(false);
@@ -381,56 +375,6 @@ export function VisualBuilderClient({
       .then(setConfig)
       .catch((reason) => setError(reason.message));
   }, [effectivePackage?.packageVersionId, initialConfig]);
-
-  useEffect(() => {
-    if (!session || !effectivePackage?.packageVersionId) return;
-    apiRequest<CartSummary>(
-      '/cart',
-      {
-        method: 'PUT',
-        body: JSON.stringify({
-          packageVersionId: effectivePackage.packageVersionId,
-        }),
-      },
-      session.accessToken,
-    )
-      .then((cart) => {
-        setDbCartId(cart.id);
-        setSyncMessage('');
-      })
-      .catch((reason) => setSyncMessage(reason.message));
-  }, [session, effectivePackage?.packageVersionId, setDbCartId]);
-
-  useEffect(() => {
-    if (!session || !dbCartId) return;
-    const handle = window.setTimeout(() => {
-      apiRequest(
-        '/cart/items',
-        {
-          method: 'PUT',
-          body: JSON.stringify({
-            items: selectedItems.map((item) => ({
-              categoryId: item.categoryId,
-              menuItemId: item.menuItemId,
-              replacedMenuItemId: item.replacedMenuItemId,
-              role:
-                item.role ??
-                (item.replacedMenuItemId
-                  ? 'SWAP'
-                  : effectivePackage?.packageType === 'FIXED_PACKAGE'
-                    ? 'EXTRA'
-                    : 'CUSTOM'),
-              quantity: 1,
-            })),
-          }),
-        },
-        session.accessToken,
-      )
-        .then(() => setSyncMessage(''))
-        .catch((reason) => setSyncMessage(reason.message));
-    }, 350);
-    return () => window.clearTimeout(handle);
-  }, [session, dbCartId, selectedItems, effectivePackage?.packageType]);
 
   const selectedIds = useMemo(
     () =>
@@ -516,12 +460,16 @@ export function VisualBuilderClient({
     : isMealBox
       ? true
       : ruleProgress.length > 0 && ruleProgress.every((item) => item.valid);
-  const additions = selectedItems.reduce(
-    (total, item) => total + Number(item.adjustmentAmount),
-    0,
+  const preview = usePackagePreviewQuote({
+    packageVersionId: effectivePackage?.packageVersionId,
+    guestCount,
+    selectedItems,
+    enabled: !isCustom || selectedItems.length > 0,
+  });
+  const perPlate = Number(
+    preview.quote?.finalPerPlatePrice ?? effectivePackage?.basePricePerPlate ?? 0,
   );
-  const perPlate = Number(effectivePackage?.basePricePerPlate ?? 0) + additions;
-  const estimate = perPlate * guestCount;
+  const estimate = Number(preview.quote?.totalAmount ?? perPlate * guestCount);
   const displayedItemCount = isMealBox
     ? visualItems.length
     : selectedItems.length;
@@ -588,7 +536,7 @@ export function VisualBuilderClient({
         },
         session.accessToken,
       );
-      setDbCartId(cart.id);
+      setDbCartId(cart.id, session.user.id);
       await apiRequest(
         '/cart/items',
         {
@@ -722,12 +670,6 @@ export function VisualBuilderClient({
               </p>
             </div>
           </section>
-          {syncMessage && (
-            <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-              {syncMessage}
-            </p>
-          )}
-
           <section
             id="mobile-dish-selector"
             className="surface-card h-[72vh] w-full max-w-full overflow-hidden xl:hidden"

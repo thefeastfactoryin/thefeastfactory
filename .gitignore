@@ -7,7 +7,6 @@ coverage
 .env.*.local
 !.env.example
 *.log
-apps/api/prisma/migrations
 .local-uploads/
 .nx/*
 docs/*

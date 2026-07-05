@@ -57,37 +57,108 @@ export function CustomerShell({
   const selectedItems = useOrderBuilderStore((s) => s.selectedItems);
   const cartPackage = useOrderBuilderStore((s) => s.package);
   const hydrateFromCart = useOrderBuilderStore((s) => s.hydrateFromCart);
-  const setDbCartId = useOrderBuilderStore((s) => s.setDbCartId);
   const [mounted, setMounted] = useState(false);
+  const [storesHydrated, setStoresHydrated] = useState(false);
+  const [serverCartConflict, setServerCartConflict] =
+    useState<CartSummary>();
+  const [resolvingConflict, setResolvingConflict] = useState(false);
+  const [conflictError, setConflictError] = useState('');
 
-  useEffect(() => setMounted(true), []);
   useEffect(() => {
-    if (!session) return;
+    setMounted(true);
+    Promise.all([
+      useSessionStore.persist.rehydrate(),
+      useOrderBuilderStore.persist.rehydrate(),
+    ]).finally(() => setStoresHydrated(true));
+  }, []);
+  useEffect(() => {
+    if (!storesHydrated || !session) return;
+    let active = true;
+    const local = useOrderBuilderStore.getState();
+    if (local.ownerUserId && local.ownerUserId !== session.user.id) {
+      local.reset();
+    }
     apiRequest<CartSummary | null>('/cart', {}, session.accessToken)
-      .then(async (cart) => {
-        if (cart) {
-          hydrateFromCart(cart);
+      .then((cart) => {
+        if (!active || !cart) return;
+        const current = useOrderBuilderStore.getState();
+        if (current.draftSource === 'guest' && current.package) {
+          setServerCartConflict(cart);
           return;
         }
-        if (cartPackage?.packageVersionId) {
-          const created = await apiRequest<CartSummary>(
-            '/cart',
-            {
-              method: 'PUT',
-              body: JSON.stringify({
-                packageVersionId: cartPackage.packageVersionId,
-              }),
-            },
-            session.accessToken,
-          );
-          setDbCartId(created.id);
-        }
+        hydrateFromCart(cart, session.user.id);
       })
       .catch(() => {});
-  }, [session, cartPackage?.packageVersionId, hydrateFromCart, setDbCartId]);
+    return () => {
+      active = false;
+    };
+  }, [session, storesHydrated, hydrateFromCart]);
+
+  async function useGuestDraft() {
+    if (!session) return;
+    const draft = useOrderBuilderStore.getState();
+    if (!draft.package) return;
+    setResolvingConflict(true);
+    setConflictError('');
+    try {
+      await apiRequest<CartSummary>(
+        '/cart',
+        {
+          method: 'PUT',
+          body: JSON.stringify({
+            packageVersionId: draft.package.packageVersionId,
+          }),
+        },
+        session.accessToken,
+      );
+      await apiRequest(
+        '/cart/items',
+        {
+          method: 'PUT',
+          body: JSON.stringify({
+            items: draft.selectedItems.map((item) => ({
+              categoryId: item.categoryId,
+              menuItemId: item.menuItemId,
+              replacedMenuItemId: item.replacedMenuItemId,
+              role:
+                item.role ??
+                (item.replacedMenuItemId
+                  ? 'SWAP'
+                  : draft.package?.packageType === 'FIXED_PACKAGE'
+                    ? 'EXTRA'
+                    : 'CUSTOM'),
+              quantity: 1,
+            })),
+          }),
+        },
+        session.accessToken,
+      );
+      const saved = await apiRequest<CartSummary>(
+        '/cart',
+        {},
+        session.accessToken,
+      );
+      hydrateFromCart(saved, session.user.id);
+      setServerCartConflict(undefined);
+    } catch (reason) {
+      setConflictError((reason as Error).message);
+    } finally {
+      setResolvingConflict(false);
+    }
+  }
+
+  function resumeServerCart() {
+    if (!session || !serverCartConflict) return;
+    hydrateFromCart(serverCartConflict, session.user.id);
+    setConflictError('');
+    setServerCartConflict(undefined);
+  }
 
   const cartCount = mounted ? selectedItems.length : 0;
   const cartActive = mounted && (Boolean(cartPackage) || pathname === '/cart');
+  const desktopLinks = session
+    ? navLinks
+    : navLinks.filter((link) => link.href !== '/orders');
 
   return (
     <div className="min-h-screen pb-16 md:pb-0">
@@ -113,7 +184,7 @@ export function CustomerShell({
 
           {/* Desktop nav */}
           <nav className="hidden items-center gap-1 md:flex">
-            {navLinks.map(({ href, label, activeKey }) => {
+            {desktopLinks.map(({ href, label, activeKey }) => {
               const selfMatch =
                 activeKey === '/'
                   ? pathname === '/'
@@ -121,7 +192,7 @@ export function CustomerShell({
               // If a more specific nav entry also matches, this one is not active
               const moreSpecificMatch =
                 selfMatch &&
-                navLinks.some(
+                desktopLinks.some(
                   (other) =>
                     other.activeKey !== activeKey &&
                     other.activeKey.startsWith(activeKey) &&
@@ -226,6 +297,52 @@ export function CustomerShell({
           );
         })}
       </nav>
+
+      {serverCartConflict && cartPackage && (
+        <div
+          className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/60 p-4 backdrop-blur-sm"
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="cart-conflict-title"
+        >
+          <section className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <span className="grid h-11 w-11 place-items-center rounded-full bg-primary/10 text-primary">
+              <ShoppingBag className="h-5 w-5" />
+            </span>
+            <h2 id="cart-conflict-title" className="mt-4 font-serif text-2xl font-bold">
+              Which cart should we use?
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              This device has <strong>{cartPackage.packageName}</strong>, while
+              your account has <strong>{serverCartConflict.package.name}</strong>.
+              Nothing will be replaced without your choice.
+            </p>
+            {conflictError && (
+              <p className="mt-4 rounded-xl border border-red-100 bg-red-50 p-3 text-sm text-red-800">
+                {conflictError}
+              </p>
+            )}
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={resumeServerCart}
+                disabled={resolvingConflict}
+                className="rounded-xl border px-4 py-3 text-sm font-bold hover:bg-muted disabled:opacity-60"
+              >
+                Resume saved cart
+              </button>
+              <button
+                type="button"
+                onClick={useGuestDraft}
+                disabled={resolvingConflict}
+                className="rounded-xl bg-primary px-4 py-3 text-sm font-bold text-white hover:bg-primary/90 disabled:opacity-60"
+              >
+                {resolvingConflict ? 'Saving…' : 'Use this draft'}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 }

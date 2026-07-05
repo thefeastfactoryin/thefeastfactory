@@ -15,6 +15,9 @@ export class CatalogController {
   @Get('catalog/ordering-offerings')
   offerings() { return this.catalog.listOfferings(true); }
 
+  @Get('catalog/public-settings')
+  publicSettings() { return this.catalog.publicSettings(); }
+
   @Get('admin/catalog/ordering-offerings')
   @ApiBearerAuth()
   @UseGuards(AdminAuthGuard, RolesGuard)

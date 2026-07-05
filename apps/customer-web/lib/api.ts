@@ -1,6 +1,7 @@
 import { createApiRequester } from '@aranyam/api-client';
 import type { CustomerSession } from '@aranyam/shared-types';
 import { useSessionStore } from '../store/session.store';
+import { clearCustomerState } from './customer-auth';
 
 const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000';
 
@@ -20,7 +21,7 @@ const client = createApiRequester<CustomerSession>({
       return response.json() as Promise<CustomerSession>;
     },
     setSession: (session) => useSessionStore.getState().setSession(session),
-    clearSession: () => useSessionStore.getState().clear(),
+    clearSession: clearCustomerState,
     expiredMessage: 'Your session expired. Please sign in again.',
   },
 });

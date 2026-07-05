@@ -38,13 +38,15 @@ export type SelectedItem = {
 type OrderBuilderState = {
   package?: CartPackage;
   event?: CartEvent;
+  draftSource?: 'guest' | 'server';
+  ownerUserId?: string;
   dbCartId?: string;
   pendingOrderId?: string;
   guestCount: number;
   selectedItems: SelectedItem[];
   setPackage: (pkg: CartPackage) => void;
   setEvent: (event: CartEvent) => void;
-  setDbCartId: (cartId?: string) => void;
+  setDbCartId: (cartId?: string, ownerUserId?: string) => void;
   setPendingOrderId: (orderId?: string) => void;
   setGuestCount: (guestCount: number) => void;
   toggleItem: (item: SelectedItem, maxSelections: number) => boolean;
@@ -53,13 +55,13 @@ type OrderBuilderState = {
   removeSwap: (replacedMenuItemId: string) => void;
   clearSelections: () => void;
   reset: () => void;
-  hydrateFromCart: (cart: CartSummary) => void;
+  hydrateFromCart: (cart: CartSummary, ownerUserId?: string) => void;
 };
 
 export const useOrderBuilderStore = create<OrderBuilderState>()(
   persist(
     (set, get) => ({
-      guestCount: 10,
+      guestCount: 0,
       selectedItems: [],
       setPackage: (pkg) =>
         set((state) => {
@@ -67,6 +69,8 @@ export const useOrderBuilderStore = create<OrderBuilderState>()(
             return { package: pkg };
           return {
             package: pkg,
+            draftSource: 'guest',
+            ownerUserId: undefined,
             event: undefined,
             dbCartId: undefined,
             guestCount: pkg.minGuestCount,
@@ -74,7 +78,13 @@ export const useOrderBuilderStore = create<OrderBuilderState>()(
           };
         }),
       setEvent: (event) => set({ event }),
-      setDbCartId: (cartId) => set({ dbCartId: cartId }),
+      setDbCartId: (cartId, ownerUserId) =>
+        set({
+          dbCartId: cartId,
+          ...(cartId
+            ? { draftSource: 'server' as const, ownerUserId }
+            : {}),
+        }),
       setPendingOrderId: (orderId) => set({ pendingOrderId: orderId }),
       setGuestCount: (guestCount) => set({ guestCount }),
       toggleItem: (item, maxSelections) => {
@@ -140,8 +150,10 @@ export const useOrderBuilderStore = create<OrderBuilderState>()(
           ),
         })),
       clearSelections: () => set({ selectedItems: [] }),
-      hydrateFromCart: (cart) => set({
+      hydrateFromCart: (cart, ownerUserId) => set({
         dbCartId: cart.id,
+        draftSource: 'server',
+        ownerUserId,
         pendingOrderId: cart.pendingOrderId ?? undefined,
         package: {
           packageId: cart.package.id,
@@ -179,16 +191,21 @@ export const useOrderBuilderStore = create<OrderBuilderState>()(
           package: undefined,
           event: undefined,
           dbCartId: undefined,
+          draftSource: undefined,
+          ownerUserId: undefined,
           pendingOrderId: undefined,
-          guestCount: 10,
+          guestCount: 0,
           selectedItems: [],
         }),
     }),
     {
       name: 'aranyam-order-cart',
-      partialize: ({ package: pkg, event, dbCartId, pendingOrderId, guestCount, selectedItems }) => ({
+      version: 2,
+      partialize: ({ package: pkg, event, draftSource, ownerUserId, dbCartId, pendingOrderId, guestCount, selectedItems }) => ({
         package: pkg,
         event,
+        draftSource,
+        ownerUserId,
         dbCartId,
         pendingOrderId,
         guestCount,

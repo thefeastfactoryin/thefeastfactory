@@ -95,6 +95,8 @@ export type OrderingOffering = {
   code: OrderingOfferingCode;
   title: string;
   description: string;
+  imageUrl?: string | null;
+  ctaLabel?: string | null;
   displayOrder: number;
   isActive: boolean;
 };
@@ -116,6 +118,8 @@ export type PackageSummary = {
   id: string;
   name: string;
   description?: string | null;
+  imageUrl?: string | null;
+  badgeLabel?: string | null;
   displayOrder: number;
   type: PackageType;
   isCustom: boolean;
@@ -129,6 +133,25 @@ export type PackageSummary = {
     maxGuestCount?: number | null;
     publishedAt?: string | null;
   } | null;
+};
+
+export type PublicCatalogSettings = {
+  minBookingLeadHours: number;
+  eventServiceStartTime: string;
+  eventServiceEndTime: string;
+  eventTimeIntervalMinutes: number;
+  business: {
+    legalName: string | null;
+    tradeName: string | null;
+    address: string | null;
+    gstin: string | null;
+    supportEmail: string | null;
+    supportPhone: string | null;
+  };
+};
+
+export type PackagePreviewQuoteRequest = PackageSelection & {
+  guestCount: number;
 };
 
 export type PackageConfiguration = {

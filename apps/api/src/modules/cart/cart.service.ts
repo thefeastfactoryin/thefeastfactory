@@ -318,7 +318,7 @@ export class CartService {
   }
 
   private async validateEventDetails(userId: string, dto: UpdateCartDto) {
-    const [address, version, setting] = await Promise.all([
+    const [address, version, settingRows] = await Promise.all([
       this.prisma.userAddress.findFirst({ where: { id: dto.addressId!, userId } }),
       this.prisma.packageVersion.findFirst({
         where: {
@@ -328,7 +328,18 @@ export class CartService {
           package: { isActive: true, deletedAt: null },
         },
       }),
-      this.prisma.platformSetting.findUnique({ where: { key: 'min_booking_lead_hours' } }),
+      this.prisma.platformSetting.findMany({
+        where: {
+          key: {
+            in: [
+              'min_booking_lead_hours',
+              'event_service_start_time',
+              'event_service_end_time',
+              'event_time_interval_minutes',
+            ],
+          },
+        },
+      }),
     ]);
     if (!address) throw new BadRequestException('Address does not belong to customer');
     if (!version) throw new BadRequestException('Package version is not available');
@@ -340,9 +351,38 @@ export class CartService {
     }
     const eventDate = new Date(`${dto.eventDate}T00:00:00.000Z`);
     const eventInstant = new Date(`${dto.eventDate}T${dto.eventTimeStart}:00.000Z`);
-    const leadHours = Number.parseInt(setting?.value ?? '48', 10);
+    const settings = Object.fromEntries(
+      settingRows.map((setting) => [setting.key, setting.value]),
+    );
+    const leadHours = Number.parseInt(
+      settings.min_booking_lead_hours ?? '48',
+      10,
+    );
     if (eventInstant.getTime() - Date.now() < leadHours * 3_600_000) {
       throw new BadRequestException(`Event requires at least ${leadHours} hours advance booking`);
+    }
+    const startTime = settings.event_service_start_time ?? '06:00';
+    const endTime = settings.event_service_end_time ?? '23:30';
+    const interval = Number.parseInt(
+      settings.event_time_interval_minutes ?? '30',
+      10,
+    );
+    const toMinutes = (value: string) => {
+      const [hours, minutes] = value.split(':').map(Number);
+      return hours * 60 + minutes;
+    };
+    const selectedMinutes = toMinutes(dto.eventTimeStart!);
+    const startMinutes = toMinutes(startTime);
+    const endMinutes = toMinutes(endTime);
+    if (
+      selectedMinutes < startMinutes ||
+      selectedMinutes > endMinutes ||
+      interval < 1 ||
+      (selectedMinutes - startMinutes) % interval !== 0
+    ) {
+      throw new BadRequestException(
+        `Choose an event time between ${startTime} and ${endTime} in ${interval}-minute intervals`,
+      );
     }
     const eventTime = new Date(`1970-01-01T${dto.eventTimeStart}:00.000Z`);
     const assignment = await this.regions.assign(address.latitude, address.longitude);

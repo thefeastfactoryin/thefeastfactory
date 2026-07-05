@@ -23,6 +23,7 @@ import Script from 'next/script';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { OrderProgress } from '../../components/order-progress';
+import { DataImage } from '../../components/data-image';
 import { RetryPaymentButton } from '../../components/retry-payment-button';
 import { SelectionContextPanel } from '../../components/selection-context-panel';
 import { Button } from '../../components/ui/button';
@@ -55,24 +56,6 @@ type ReviewRow = {
   replacedName?: string | null;
   adjustmentAmount: string;
 };
-
-const fallbackFoodImages = [
-  '/tray-3.png',
-  '/tray-5.png',
-  '/tray-8.png',
-  '/order-mealbox.png',
-  '/order-build.png',
-  '/order-occasion.png',
-];
-
-function reviewImage(row: Pick<ReviewRow, 'id' | 'imageUrl'>) {
-  if (row.imageUrl) return row.imageUrl;
-  const index = [...row.id].reduce(
-    (total, character) => total + character.charCodeAt(0),
-    0,
-  );
-  return fallbackFoodImages[index % fallbackFoodImages.length];
-}
 
 export default function CartPage() {
   const router = useRouter();
@@ -129,7 +112,7 @@ export default function CartPage() {
         );
         if (!active || !value) return;
         setCart(value);
-        hydrate(value);
+        hydrate(value, session!.user.id);
         const configuration = await apiRequest<PackageConfiguration>(
           `/package-versions/${value.packageVersionId}/configuration`,
         );
@@ -160,7 +143,7 @@ export default function CartPage() {
   const onEventSaved = useCallback(
     (updated: CartSummary) => {
       setCart(updated);
-      hydrate(updated);
+      hydrate(updated, session!.user.id);
       if (eventReady(updated)) void loadQuote();
     },
     [hydrate, loadQuote],
@@ -638,8 +621,8 @@ function ReviewDishRow({ row }: { row: ReviewRow }) {
   return (
     <div className="grid grid-cols-[64px_minmax(0,1fr)_auto] items-center gap-3 py-3">
       <span className="h-14 overflow-hidden rounded-lg bg-muted">
-        <img
-          src={reviewImage(row)}
+        <DataImage
+          src={row.imageUrl}
           alt=""
           className="h-full w-full object-cover"
         />

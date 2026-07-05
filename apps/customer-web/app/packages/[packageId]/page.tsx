@@ -1,58 +1,34 @@
-'use client';
-
 import type { PackageConfiguration } from '@aranyam/shared-types';
-import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { StatePanel } from '../../../components/ui/state-panel';
-import { apiRequest } from '../../../lib/api';
+import { redirect } from 'next/navigation';
 
-export default function LegacyPackageDetailsRoute() {
-  const { packageId } = useParams<{ packageId: string }>();
-  const router = useRouter();
-  const [error, setError] = useState('');
+const apiBaseUrl =
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000';
 
-  useEffect(() => {
-    apiRequest<{ id: string }>(`/packages/${packageId}/active-version`)
-      .then((activeVersion) =>
-        apiRequest<PackageConfiguration>(
-          `/package-versions/${activeVersion.id}/configuration`,
-        ),
-      )
-      .then((configuration) => {
-        const catalog =
-          configuration.packageType === 'MEAL_BOX'
-            ? '/packages/meal-boxes'
-            : '/packages';
-        router.replace(`${catalog}?details=${encodeURIComponent(packageId)}`);
-      })
-      .catch((reason) => setError((reason as Error).message));
-  }, [packageId, router]);
-
-  if (error) {
-    return (
-      <main className="page-shell">
-        <StatePanel
-          tone="danger"
-          title="Package is unavailable"
-          description={error}
-          actionHref="/packages"
-          actionLabel="Browse available packages"
-        />
-      </main>
+export default async function LegacyPackageDetailsRoute({
+  params,
+}: {
+  params: Promise<{ packageId: string }>;
+}) {
+  const { packageId } = await params;
+  let catalog = '/packages';
+  try {
+    const versionResponse = await fetch(
+      `${apiBaseUrl}/packages/${encodeURIComponent(packageId)}/active-version`,
+      { cache: 'no-store' },
     );
+    if (versionResponse.ok) {
+      const version = (await versionResponse.json()) as { id: string };
+      const configResponse = await fetch(
+        `${apiBaseUrl}/package-versions/${version.id}/configuration`,
+        { cache: 'no-store' },
+      );
+      if (configResponse.ok) {
+        const config = (await configResponse.json()) as PackageConfiguration;
+        if (config.packageType === 'MEAL_BOX') catalog = '/packages/meal-boxes';
+      }
+    }
+  } catch {
+    // The catalog will render its unavailable-package state for this id.
   }
-
-  return (
-    <main className="page-shell">
-      <div className="mx-auto max-w-lg rounded-2xl border bg-white p-8 text-center shadow-sm">
-        <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-primary/15 border-t-primary" />
-        <h1 className="mt-5 font-serif text-2xl font-bold">
-          Opening package details…
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Taking you back to the catalog.
-        </p>
-      </div>
-    </main>
-  );
+  redirect(`${catalog}?details=${encodeURIComponent(packageId)}`);
 }

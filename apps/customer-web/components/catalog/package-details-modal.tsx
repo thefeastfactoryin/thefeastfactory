@@ -16,9 +16,9 @@ import {
   X,
 } from 'lucide-react';
 import { useEffect, useMemo } from 'react';
-import { packageImage } from '../../lib/catalog-display';
 import { cn } from '../../lib/utils';
 import { Button } from '../ui/button';
+import { DataImage } from '../data-image';
 
 export function PackageDetailsModal({
   pkg,
@@ -88,8 +88,8 @@ export function PackageDetailsModal({
       <section className="relative flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:max-w-5xl sm:rounded-3xl">
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="relative h-56 overflow-hidden bg-muted sm:h-72">
-            <img
-              src={packageImage(pkg.name, pkg.type)}
+            <DataImage
+              src={pkg.imageUrl}
               alt={`${pkg.name} presentation`}
               className="h-full w-full object-cover"
             />
@@ -159,17 +159,11 @@ export function PackageDetailsModal({
                             className="grid grid-cols-[72px_1fr] gap-3 rounded-xl border bg-white p-2"
                           >
                             <div className="h-[72px] overflow-hidden rounded-lg bg-muted">
-                              {item.imageUrl ? (
-                                <img
-                                  src={item.imageUrl}
-                                  alt={item.name}
-                                  className="h-full w-full object-cover"
-                                />
-                              ) : (
-                                <div className="grid h-full place-items-center text-primary/55">
-                                  <Leaf className="h-5 w-5" />
-                                </div>
-                              )}
+                              <DataImage
+                                src={item.imageUrl}
+                                alt={item.name}
+                                className="h-full w-full object-cover"
+                              />
                             </div>
                             <div className="min-w-0 py-1">
                               <p className="font-semibold leading-5">{item.name}</p>
@@ -215,7 +209,9 @@ export function PackageDetailsModal({
                 <Users className="h-4 w-4 text-primary" />
                 <span>
                   {version
-                    ? `${version.minGuestCount}–${version.maxGuestCount ?? '1,000'} guests`
+                    ? version.maxGuestCount
+                      ? `${version.minGuestCount}–${version.maxGuestCount} guests`
+                      : `${version.minGuestCount}+ guests`
                     : 'Guest range loading'}
                 </span>
               </div>

@@ -20,15 +20,31 @@ import {
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { RefObject } from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiRequest } from '../lib/api';
 import { cn } from '../lib/utils';
 import { useOrderBuilderStore } from '../store/order-builder.store';
 import { useSessionStore } from '../store/session.store';
 import { Field } from './ui/form';
+import { usePublicSettings } from './public-settings-provider';
 
-const deliveryTimeSlots = Array.from({ length: 36 }, (_, index) => {
-  const totalMinutes = 6 * 60 + index * 30;
+type DeliveryTimeSlot = { value: string; label: string };
+
+function buildDeliveryTimeSlots(
+  startTime: string,
+  endTime: string,
+  intervalMinutes: number,
+) {
+  const toMinutes = (value: string) => {
+    const [hours, minutes] = value.split(':').map(Number);
+    return hours * 60 + minutes;
+  };
+  const start = toMinutes(startTime);
+  const end = toMinutes(endTime);
+  const interval = Math.max(1, intervalMinutes);
+  const count = Math.max(0, Math.floor((end - start) / interval) + 1);
+  return Array.from({ length: count }, (_, index) => {
+  const totalMinutes = start + index * interval;
   const hour = Math.floor(totalMinutes / 60);
   const minute = totalMinutes % 60;
   const period = hour >= 12 ? 'PM' : 'AM';
@@ -37,7 +53,8 @@ const deliveryTimeSlots = Array.from({ length: 36 }, (_, index) => {
     value: `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
     label: `${displayHour}:${String(minute).padStart(2, '0')} ${period}`,
   };
-});
+  });
+}
 
 function localDateValue(date: Date) {
   const year = date.getFullYear();
@@ -228,28 +245,30 @@ function ThemedDatePicker({
 function ThemedTimePicker({
   value,
   onChange,
+  slots,
 }: {
   value: string;
   onChange: (value: string) => void;
+  slots: DeliveryTimeSlot[];
 }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   usePopoverDismiss(open, () => setOpen(false), containerRef);
-  const selectedSlot = deliveryTimeSlots.find((slot) => slot.value === value);
+  const selectedSlot = slots.find((slot) => slot.value === value);
   const groups = [
     {
       label: 'Morning',
-      slots: deliveryTimeSlots.filter((slot) => slot.value < '12:00'),
+      slots: slots.filter((slot) => slot.value < '12:00'),
     },
     {
       label: 'Afternoon',
-      slots: deliveryTimeSlots.filter(
+      slots: slots.filter(
         (slot) => slot.value >= '12:00' && slot.value < '18:00',
       ),
     },
     {
       label: 'Evening',
-      slots: deliveryTimeSlots.filter((slot) => slot.value >= '18:00'),
+      slots: slots.filter((slot) => slot.value >= '18:00'),
     },
   ];
 
@@ -355,6 +374,7 @@ export function SelectionContextPanel({
   onSaved?: (cart: CartSummary) => void;
 }) {
   const sidebar = variant === 'sidebar';
+  const publicSettings = usePublicSettings();
   const session = useSessionStore((state) => state.session);
   const pkg = useOrderBuilderStore((state) => state.package);
   const setEvent = useOrderBuilderStore((state) => state.setEvent);
@@ -457,7 +477,7 @@ export function SelectionContextPanel({
           session.accessToken,
         );
         const address = addresses.find((row) => row.id === addressId)!;
-        setDbCartId(cart.id);
+        setDbCartId(cart.id, session.user.id);
         setEvent({
           addressId,
           eventName: pkg?.packageName,
@@ -509,7 +529,19 @@ export function SelectionContextPanel({
   }
 
   const returnTo = `${pathname}?addressId=ADDRESS_ID`;
-  const today = localDateValue(new Date());
+  const earliestDate = new Date(
+    Date.now() + (publicSettings?.minBookingLeadHours ?? 48) * 60 * 60 * 1000,
+  );
+  const firstEventDate = localDateValue(earliestDate);
+  const deliveryTimeSlots = useMemo(
+    () =>
+      buildDeliveryTimeSlots(
+        publicSettings?.eventServiceStartTime ?? '06:00',
+        publicSettings?.eventServiceEndTime ?? '23:30',
+        publicSettings?.eventTimeIntervalMinutes ?? 30,
+      ),
+    [publicSettings],
+  );
   const selectedVenue = addresses.find((address) => address.id === addressId);
   const guestLabel = pkg?.packageType === 'MEAL_BOX' ? 'Boxes' : 'Guests';
   const addressIcon = (address: UserAddress) => {
@@ -530,15 +562,19 @@ export function SelectionContextPanel({
       >
         <Field label="Delivery date" hint="Choose the event day.">
           <ThemedDatePicker
-            min={today}
+            min={firstEventDate}
             value={eventDate}
             onChange={setEventDate}
           />
         </Field>
-        <Field label="Delivery time" hint="Available every 30 minutes.">
+        <Field
+          label="Delivery time"
+          hint={`Available every ${publicSettings?.eventTimeIntervalMinutes ?? 30} minutes.`}
+        >
           <ThemedTimePicker
             value={eventTimeStart}
             onChange={setEventTimeStart}
+            slots={deliveryTimeSlots}
           />
         </Field>
         <div>
