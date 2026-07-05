@@ -184,7 +184,21 @@ export class CartService {
       where: { id },
       data: { lastQuotedAt: new Date() },
     });
-    return this.pricing.serialize(quote);
+    const serialized = this.pricing.serialize(quote);
+    const deliveryFee = cart.deliveryFee.toFixed(2);
+    return {
+      valid: true,
+      errors: [],
+      ...serialized,
+      region: cart.region ? this.regions.serialize(cart.region) : null,
+      distanceKm: cart.distanceKm?.toFixed(2) ?? null,
+      billableDistanceKm:
+        cart.distanceKm === null ? null : Math.ceil(Number(cart.distanceKm)),
+      deliveryFeePerKm: cart.region?.deliveryFeePerKm.toFixed(2) ?? null,
+      deliveryFee,
+      subtotalAmount: serialized.totalAmount,
+      totalAmount: quote.totalAmount.plus(cart.deliveryFee).toFixed(2),
+    };
   }
 
   async checkout(userId: string, id: string) {

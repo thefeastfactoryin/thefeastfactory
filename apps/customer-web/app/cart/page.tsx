@@ -29,6 +29,7 @@ import { SelectionContextPanel } from '../../components/selection-context-panel'
 import { Button } from '../../components/ui/button';
 import { AuthRequiredPanel, StatePanel } from '../../components/ui/state-panel';
 import { apiRequest } from '../../lib/api';
+import { formatCurrency } from '../../lib/format';
 import { cn } from '../../lib/utils';
 import { useOrderBuilderStore } from '../../store/order-builder.store';
 import { useSessionStore } from '../../store/session.store';
@@ -519,7 +520,12 @@ export default function CartPage() {
             ) : (
               <div className="p-6">
                 {quote ? (
-                  <PriceSummary quote={quote} />
+                  <PriceSummary
+                    quote={quote}
+                    unitLabel={
+                      cart.package.type === 'MEAL_BOX' ? 'box' : 'person'
+                    }
+                  />
                 ) : (
                   <div className="rounded-xl bg-muted/50 p-4 text-sm leading-6 text-muted-foreground">
                     {quoteLoading
@@ -657,20 +663,52 @@ function ReviewDishRow({ row }: { row: ReviewRow }) {
   );
 }
 
-function PriceSummary({ quote }: { quote: PackageSelectionPrice }) {
+function PriceSummary({
+  quote,
+  unitLabel,
+}: {
+  quote: PackageSelectionPrice;
+  unitLabel: 'box' | 'person';
+}) {
+  const units = `${quote.guestCount} ${
+    unitLabel === 'box'
+      ? quote.guestCount === 1
+        ? 'box'
+        : 'boxes'
+      : quote.guestCount === 1
+        ? 'guest'
+        : 'guests'
+  }`;
   return (
     <>
       <div className="space-y-3 text-sm">
-        <PriceLine label="Per person" value={`₹${quote.finalPerPlatePrice}`} />
+        <PriceLine
+          label={`Base menu per ${unitLabel}`}
+          value={formatCurrency(quote.basePerPlatePrice)}
+        />
         {Number(quote.totalCustomizationCharges) > 0 && (
           <PriceLine
-            label="Menu additions"
-            value={`₹${quote.totalCustomizationCharges}`}
+            label={`Extras per ${unitLabel}`}
+            value={`+${formatCurrency(quote.totalCustomizationCharges)}`}
           />
         )}
-        <PriceLine label="Menu subtotal" value={`₹${quote.subtotalAmount}`} />
+        <PriceLine
+          label={`Final menu price per ${unitLabel}`}
+          value={formatCurrency(quote.finalPerPlatePrice)}
+        />
+        <PriceLine
+          label="Menu calculation"
+          value={`${formatCurrency(quote.finalPerPlatePrice)} × ${units}`}
+        />
+        <PriceLine
+          label="Menu subtotal"
+          value={formatCurrency(quote.subtotalAmount)}
+        />
         <div className="rounded-xl bg-muted/50 p-3">
-          <PriceLine label="Delivery" value={`₹${quote.deliveryFee}`} />
+          <PriceLine
+            label="Delivery"
+            value={formatCurrency(quote.deliveryFee)}
+          />
           {quote.region && (
             <p className="mt-1 text-[11px] leading-5 text-muted-foreground">
               {quote.region.name} kitchen · {quote.distanceKm} km
@@ -681,7 +719,9 @@ function PriceSummary({ quote }: { quote: PackageSelectionPrice }) {
       <div className="my-5 h-px bg-border" />
       <div className="flex items-end justify-between gap-4">
         <span className="font-semibold">Total</span>
-        <strong className="font-serif text-4xl">₹{quote.totalAmount}</strong>
+        <strong className="font-serif text-4xl">
+          {formatCurrency(quote.totalAmount)}
+        </strong>
       </div>
     </>
   );

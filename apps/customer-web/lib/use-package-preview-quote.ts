@@ -25,7 +25,10 @@ export function usePackagePreviewQuote({
   selectedItems: PreviewItem[];
   enabled?: boolean;
 }) {
-  const [quote, setQuote] = useState<PackageSelectionPrice>();
+  const [quoteState, setQuoteState] = useState<{
+    key: string;
+    quote: PackageSelectionPrice;
+  }>();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const selectionKey = useMemo(
@@ -39,13 +42,15 @@ export function usePackagePreviewQuote({
         .join('|'),
     [selectedItems],
   );
+  const requestKey = `${packageVersionId ?? ''}:${guestCount}:${selectionKey}`;
 
   useEffect(() => {
     if (!enabled || !packageVersionId || guestCount < 1) {
-      setQuote(undefined);
+      setQuoteState(undefined);
       setError('');
       return;
     }
+    const controller = new AbortController();
     const timer = window.setTimeout(async () => {
       setLoading(true);
       try {
@@ -53,20 +58,30 @@ export function usePackagePreviewQuote({
           `/package-versions/${packageVersionId}/preview-quote`,
           {
             method: 'POST',
+            signal: controller.signal,
             body: JSON.stringify({ guestCount, selectedItems }),
           },
         );
-        setQuote(next);
+        setQuoteState({ key: requestKey, quote: next });
         setError('');
       } catch (reason) {
-        setQuote(undefined);
-        setError((reason as Error).message);
+        if (!controller.signal.aborted) {
+          setQuoteState(undefined);
+          setError((reason as Error).message);
+        }
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     }, 250);
-    return () => window.clearTimeout(timer);
-  }, [enabled, packageVersionId, guestCount, selectionKey, selectedItems]);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [enabled, packageVersionId, guestCount, requestKey, selectedItems]);
 
-  return { quote, error, loading };
+  return {
+    quote: quoteState?.key === requestKey ? quoteState.quote : undefined,
+    error,
+    loading,
+  };
 }

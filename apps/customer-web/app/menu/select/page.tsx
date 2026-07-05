@@ -23,6 +23,7 @@ import { DataImage } from '../../../components/data-image';
 import { Button } from '../../../components/ui/button';
 import { StatePanel } from '../../../components/ui/state-panel';
 import { apiRequest } from '../../../lib/api';
+import { formatCurrency } from '../../../lib/format';
 import { usePackagePreviewQuote } from '../../../lib/use-package-preview-quote';
 import { cn } from '../../../lib/utils';
 import {
@@ -182,9 +183,20 @@ export default function MenuSelectPage() {
     guestCount,
     selectedItems,
   });
+  const localPerPerson =
+    Number(cartPackage?.basePricePerPlate ?? 0) +
+    selectedItems.reduce(
+      (total, item) => total + Number(item.adjustmentAmount || 0),
+      0,
+    );
   const perPerson = Number(
-    preview.quote?.finalPerPlatePrice ?? cartPackage?.basePricePerPlate ?? 0,
+    preview.quote?.finalPerPlatePrice ?? localPerPerson,
   );
+  const basePerPerson = Number(
+    preview.quote?.basePerPlatePrice ?? cartPackage?.basePricePerPlate ?? 0,
+  );
+  const extrasPerPerson = Math.max(perPerson - basePerPerson, 0);
+  const menuSubtotal = perPerson * guestCount;
 
   function alternativesFor(rule: CategoryRule, included: MenuSelectionItem) {
     return rule.items
@@ -599,7 +611,10 @@ export default function MenuSelectPage() {
             extras={selectedExtras}
             swaps={currentSwaps.size}
             guestCount={guestCount}
+            basePerPerson={basePerPerson}
+            extrasPerPerson={extrasPerPerson}
             perPerson={perPerson}
+            menuSubtotal={menuSubtotal}
             saving={saving}
             onContinue={continueToCart}
           />
@@ -617,7 +632,8 @@ export default function MenuSelectPage() {
               View your {isMealBox ? 'meal box' : 'menu'}
             </span>
             <span className="block font-bold text-primary">
-              {summaryRows.length} included · ₹{perPerson.toFixed(2)}
+              {summaryRows.length} included · {formatCurrency(perPerson)} ×{' '}
+              {guestCount}
             </span>
           </button>
           <Button onClick={continueToCart} disabled={saving}>
@@ -659,7 +675,10 @@ export default function MenuSelectPage() {
             extras={selectedExtras}
             swaps={currentSwaps.size}
             guestCount={guestCount}
+            basePerPerson={basePerPerson}
+            extrasPerPerson={extrasPerPerson}
             perPerson={perPerson}
+            menuSubtotal={menuSubtotal}
             saving={saving}
             onContinue={continueToCart}
             inline
@@ -1124,7 +1143,10 @@ function MenuSummary({
   extras,
   swaps,
   guestCount,
+  basePerPerson,
+  extrasPerPerson,
   perPerson,
+  menuSubtotal,
   saving,
   onContinue,
   inline = false,
@@ -1139,7 +1161,10 @@ function MenuSummary({
   extras: MenuRow[];
   swaps: number;
   guestCount: number;
+  basePerPerson: number;
+  extrasPerPerson: number;
   perPerson: number;
+  menuSubtotal: number;
   saving: boolean;
   onContinue: () => void;
   inline?: boolean;
@@ -1226,14 +1251,38 @@ function MenuSummary({
           />
         </div>
         <div className="my-4 h-px bg-border" />
-        <div className="flex items-end justify-between gap-3">
-          <span className="text-xs text-muted-foreground">Estimated</span>
+        <div className="grid gap-2 text-sm">
+          <SummaryLine
+            label={`Base menu per ${isMealBox ? 'box' : 'person'}`}
+            value={formatCurrency(basePerPerson)}
+          />
+          {extrasPerPerson > 0 && (
+            <SummaryLine
+              label={
+                isMealBox ? 'Swap adjustment per box' : 'Extras per person'
+              }
+              value={`+${formatCurrency(extrasPerPerson)}`}
+            />
+          )}
+          <SummaryLine
+            label={`Final menu price per ${isMealBox ? 'box' : 'person'}`}
+            value={formatCurrency(perPerson)}
+          />
+          <SummaryLine
+            label="Calculation"
+            value={`${formatCurrency(perPerson)} × ${guestCount}`}
+          />
+        </div>
+        <div className="mt-4 flex items-end justify-between gap-3 border-t pt-4">
+          <span className="text-xs text-muted-foreground">
+            Estimated menu total
+          </span>
           <strong className="font-serif text-2xl">
-            ₹{perPerson.toFixed(2)}
+            {formatCurrency(menuSubtotal)}
           </strong>
         </div>
         <p className="mt-1 text-right text-[10px] text-muted-foreground">
-          per {isMealBox ? 'box' : 'person'}
+          menu price × {isMealBox ? 'boxes' : 'guests'}
         </p>
         <Button className="mt-5 w-full" onClick={onContinue} disabled={saving}>
           {saving ? 'Saving menu…' : 'Continue to event & payment'}
