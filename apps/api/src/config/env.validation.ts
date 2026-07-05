@@ -35,9 +35,11 @@ const envSchema = z.object({
   RAZORPAY_KEY_SECRET: z.string().optional().default(''),
   RAZORPAY_WEBHOOK_SECRET: z.string().optional().default(''),
   RAZORPAY_CURRENCY: z.string().default('INR'),
-  GCP_PROJECT_ID: z.string().optional().default(''),
-  GCP_STORAGE_BUCKET: z.string().optional().default(''),
-  GOOGLE_APPLICATION_CREDENTIALS: z.string().optional().default(''),
+  R2_ACCOUNT_ID: z.string().optional().default(''),
+  R2_ACCESS_KEY_ID: z.string().optional().default(''),
+  R2_SECRET_ACCESS_KEY: z.string().optional().default(''),
+  R2_BUCKET_NAME: z.string().optional().default(''),
+  R2_PUBLIC_BASE_URL: z.union([z.literal(''), z.string().url()]).default(''),
 }).superRefine((env, context) => {
   if (
     env.TEST_LOGIN_OTP_ENABLED &&
@@ -48,6 +50,21 @@ const envSchema = z.object({
       path: ['TEST_LOGIN_OTP_ENABLED'],
       message:
         'TEST_LOGIN_MOBILE and TEST_LOGIN_OTP are required when test login is enabled',
+    });
+  }
+
+  const r2Values = [
+    env.R2_ACCOUNT_ID,
+    env.R2_ACCESS_KEY_ID,
+    env.R2_SECRET_ACCESS_KEY,
+    env.R2_BUCKET_NAME,
+    env.R2_PUBLIC_BASE_URL,
+  ];
+  if (r2Values.some(Boolean) && !r2Values.every(Boolean)) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['R2_ACCOUNT_ID'],
+      message: 'All Cloudflare R2 environment variables must be provided together',
     });
   }
 });

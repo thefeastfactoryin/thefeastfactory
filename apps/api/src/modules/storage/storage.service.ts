@@ -2,9 +2,10 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Storage } from '@google-cloud/storage';
+import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { createReadStream, promises as fs } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { extname, join, resolve } from 'node:path';
@@ -39,22 +40,44 @@ export class StorageService {
     }
 
     const objectName = `menu/${randomUUID()}${extension}`;
-    const projectId = this.config.get<string>('GCP_PROJECT_ID');
-    const bucketName = this.config.get<string>('GCP_STORAGE_BUCKET');
+    const accountId = this.config.get<string>('R2_ACCOUNT_ID');
+    const accessKeyId = this.config.get<string>('R2_ACCESS_KEY_ID');
+    const secretAccessKey = this.config.get<string>('R2_SECRET_ACCESS_KEY');
+    const bucketName = this.config.get<string>('R2_BUCKET_NAME');
+    const publicBaseUrl = this.config.get<string>('R2_PUBLIC_BASE_URL');
 
-    if (projectId && bucketName) {
-      const storage = new Storage({ projectId });
-      const object = storage.bucket(bucketName).file(objectName);
-      await object.save(file.buffer, {
-        resumable: false,
-        contentType: file.mimetype,
-        metadata: { cacheControl: 'public, max-age=31536000, immutable' },
+    if (
+      accountId &&
+      accessKeyId &&
+      secretAccessKey &&
+      bucketName &&
+      publicBaseUrl
+    ) {
+      const storage = new S3Client({
+        region: 'auto',
+        endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+        credentials: { accessKeyId, secretAccessKey },
       });
+      await storage.send(
+        new PutObjectCommand({
+          Bucket: bucketName,
+          Key: objectName,
+          Body: file.buffer,
+          ContentType: file.mimetype,
+          CacheControl: 'public, max-age=31536000, immutable',
+        }),
+      );
       return {
         objectName,
-        url: `https://storage.googleapis.com/${bucketName}/${objectName}`,
-        provider: 'gcs',
+        url: `${publicBaseUrl.replace(/\/$/, '')}/${objectName}`,
+        provider: 'cloudflare-r2',
       };
+    }
+
+    if (this.config.get<string>('NODE_ENV') === 'production') {
+      throw new ServiceUnavailableException(
+        'Cloudflare R2 storage is not configured',
+      );
     }
 
     await fs.mkdir(this.localDirectory, { recursive: true });

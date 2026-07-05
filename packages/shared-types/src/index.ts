@@ -374,7 +374,7 @@ export type OrderDocument = {
 export type IntegrationReadiness = {
   razorpay: boolean;
   msg91: boolean;
-  googleCloudStorage: boolean;
+  cloudflareR2: boolean;
   googleMaps: 'configured-client-side';
   resend: 'deferred';
   sentry: 'deferred';
