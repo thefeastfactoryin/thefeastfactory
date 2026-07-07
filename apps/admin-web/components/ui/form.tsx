@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { cn } from '../../lib/utils';
 
-const controlClass = 'min-h-10 w-full rounded-[10px] border border-input bg-white px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-primary/30 disabled:opacity-50';
+const controlClass = 'min-h-11 w-full rounded-xl border bg-white px-3.5 py-2 text-sm outline-none transition hover:border-primary/40 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20 disabled:opacity-50';
 
 export function Field({
   label,

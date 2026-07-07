@@ -24,11 +24,12 @@ export type UploadedImage = {
 
 @Injectable()
 export class StorageService {
-  private readonly localDirectory = resolve('.local-uploads/menu');
+  private readonly localDirectory = resolve('.local-uploads/images');
+  private readonly legacyMenuDirectory = resolve('.local-uploads/menu');
 
   constructor(private readonly config: ConfigService) {}
 
-  async uploadMenuImage(file?: UploadedImage) {
+  async uploadImage(file?: UploadedImage) {
     if (!file) throw new BadRequestException('Image file is required');
     if (file.size > 5 * 1024 * 1024)
       throw new BadRequestException('Image must be 5 MB or smaller');
@@ -39,7 +40,7 @@ export class StorageService {
       );
     }
 
-    const objectName = `menu/${randomUUID()}${extension}`;
+    const objectName = `images/${randomUUID()}${extension}`;
     const accountId = this.config.get<string>('R2_ACCOUNT_ID');
     const accessKeyId = this.config.get<string>('R2_ACCESS_KEY_ID');
     const secretAccessKey = this.config.get<string>('R2_SECRET_ACCESS_KEY');
@@ -86,17 +87,25 @@ export class StorageService {
       flag: 'wx',
     });
     return {
-      objectName: `menu/${filename}`,
-      url: `${this.config.get<string>('API_PUBLIC_URL', 'http://localhost:4000')}/uploads/menu/${filename}`,
+      objectName: `images/${filename}`,
+      url: `${this.config.get<string>('API_PUBLIC_URL', 'http://localhost:4000')}/uploads/images/${filename}`,
       provider: 'local',
     };
   }
 
-  async localFile(filename: string) {
+  localFile(filename: string) {
+    return this.fileFromDirectory(this.localDirectory, filename);
+  }
+
+  legacyMenuFile(filename: string) {
+    return this.fileFromDirectory(this.legacyMenuDirectory, filename);
+  }
+
+  private async fileFromDirectory(directory: string, filename: string) {
     const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, '');
     if (!safeName || extname(safeName) === '')
       throw new NotFoundException('Image not found');
-    const path = join(this.localDirectory, safeName);
+    const path = join(directory, safeName);
     try {
       await fs.access(path);
     } catch {

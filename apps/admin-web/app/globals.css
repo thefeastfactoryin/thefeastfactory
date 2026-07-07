@@ -3,28 +3,52 @@
 @tailwind utilities;
 
 :root {
-  --background: 34 38% 97%;
-  --foreground: 355 28% 13%;
-  --primary: 350 58% 27%;
+  --primary: 352 59% 30%;
   --primary-foreground: 0 0% 100%;
-  --muted: 22 27% 92%;
-  --muted-foreground: 355 13% 39%;
-  --border: 18 24% 84%;
+  --accent: 41 56% 51%;
+  --accent-foreground: 0 0% 8%;
+  --background: 39 44% 97%;
+  --foreground: 0 0% 10%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 10%;
+  --muted: 37 28% 93%;
+  --muted-foreground: 0 0% 43%;
+  --border: 35 22% 87%;
+  --hero-start: 352 62% 16%;
+  --hero-end: 352 62% 13%;
+  --gold-text: 38 52% 34%;
+  --ivory: 39 50% 97%;
+  --ivory-warm: 37 40% 94%;
+  --charcoal: 0 0% 18%;
+}
+
+* {
+  border-color: hsl(var(--border));
+  box-sizing: border-box;
 }
 
 body {
-  background: hsl(var(--background));
+  background-color: hsl(var(--background));
   color: hsl(var(--foreground));
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   min-width: 320px;
   background-image:
-    radial-gradient(circle at 0% 0%, hsl(39 75% 84% / 0.38), transparent 24rem),
+    radial-gradient(circle at 0% 0%, hsl(var(--accent) / 0.08), transparent 24rem),
     radial-gradient(
       circle at 100% 6%,
-      hsl(350 55% 84% / 0.35),
+      hsl(var(--primary) / 0.06),
       transparent 26rem
     );
   background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
+
+::selection { background: hsl(var(--accent) / 0.18); }
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 999px; }
 
 button,
 a,
@@ -45,11 +69,12 @@ textarea {
   }
 
   .admin-card {
-    @apply rounded-2xl border bg-white/90 p-5 shadow-[0_10px_35px_rgba(111,29,45,0.08)] backdrop-blur;
+    @apply rounded-2xl border bg-card p-5 shadow-card;
   }
 
   .admin-title {
-    @apply font-serif text-3xl font-semibold tracking-tight md:text-4xl;
+    @apply font-serif text-3xl font-bold tracking-tight md:text-4xl;
+    line-height: 1.08;
   }
 
   .admin-table {
@@ -62,5 +87,22 @@ textarea {
 
   .admin-table td {
     @apply border-b px-4 py-3 align-middle;
+  }
+
+  .admin-eyebrow {
+    @apply text-[11px] font-bold uppercase text-accent;
+    letter-spacing: 0.24em;
+  }
+
+  .admin-tabs {
+    @apply inline-flex rounded-full border bg-white/80 p-1 shadow-sm;
+  }
+
+  .admin-tab {
+    @apply rounded-full px-4 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground;
+  }
+
+  .admin-tab-active {
+    @apply bg-primary text-primary-foreground shadow-sm hover:text-primary-foreground;
   }
 }

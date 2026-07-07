@@ -67,7 +67,14 @@ async function seedOrderingOfferings() {
       3,
     ],
   ] as const;
-  for (const [code, title, description, imageUrl, ctaLabel, displayOrder] of offerings) {
+  for (const [
+    code,
+    title,
+    description,
+    imageUrl,
+    ctaLabel,
+    displayOrder,
+  ] of offerings) {
     await prisma.orderingOffering.upsert({
       where: { code },
       update: { title, description, displayOrder, isActive: true },
@@ -86,15 +93,50 @@ async function seedSettings() {
     ['otp_expiry_seconds', '300', 'Customer OTP expiry duration.'],
     ['otp_max_attempts', '5', 'Maximum OTP verification attempts.'],
     ['razorpay_currency', 'INR', 'Default Razorpay currency.'],
-    ['event_service_start_time', '06:00', 'Earliest selectable event service time.'],
-    ['event_service_end_time', '23:30', 'Latest selectable event service time.'],
-    ['event_time_interval_minutes', '30', 'Interval between selectable event service times.'],
-    ['business_legal_name', '', 'Legal business name shown on customer and order documents.'],
+    [
+      'event_service_start_time',
+      '06:00',
+      'Earliest selectable event service time.',
+    ],
+    [
+      'event_service_end_time',
+      '23:30',
+      'Latest selectable event service time.',
+    ],
+    [
+      'event_time_interval_minutes',
+      '30',
+      'Interval between selectable event service times.',
+    ],
+    [
+      'business_legal_name',
+      '',
+      'Legal business name shown on customer and order documents.',
+    ],
     ['business_trade_name', '', 'Public trading name shown to customers.'],
     ['business_address', '', 'Public business or support address.'],
     ['business_gstin', '', 'GST registration number used on tax documents.'],
+    ['business_state_code', '', 'GST state code used on tax documents.'],
+    ['business_pan', '', 'Business PAN used on tax documents.'],
     ['business_support_email', '', 'Customer support email address.'],
     ['business_support_phone', '', 'Customer support phone number.'],
+    ['business_logo_url', '', 'Business logo used on generated documents.'],
+    ['invoice_prefix', 'INV', 'Prefix used for GST invoice numbers.'],
+    ['receipt_prefix', 'RCT', 'Prefix used for payment receipt numbers.'],
+    [
+      'credit_note_prefix',
+      'CRN',
+      'Prefix used for refund credit-note numbers.',
+    ],
+    ['tax_cgst_rate', '0', 'CGST percentage used on GST invoices.'],
+    ['tax_sgst_rate', '0', 'SGST percentage used on GST invoices.'],
+    ['tax_igst_rate', '0', 'IGST percentage used on GST invoices.'],
+    ['tax_sac_code', '', 'SAC code used on GST invoices.'],
+    [
+      'invoice_legal_footer',
+      '',
+      'Legal footer printed on invoices and receipts.',
+    ],
   ] as const;
 
   for (const [key, value, description] of settings) {
@@ -447,7 +489,10 @@ async function upsertPackageVersion(input: {
   isFeatured?: boolean;
   featuredOrder?: number;
 }) {
-  const presentation: Record<string, { imageUrl: string; badgeLabel?: string }> = {
+  const presentation: Record<
+    string,
+    { imageUrl: string; badgeLabel?: string }
+  > = {
     'Pooja Package': { imageUrl: '/pkg-puja.png', badgeLabel: 'Most popular' },
     'Farm House Celebration': { imageUrl: '/pkg-farmhouse.png' },
     'Corporate Gathering': { imageUrl: '/pkg-corporate.png' },

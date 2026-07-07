@@ -1,6 +1,6 @@
 # External Integrations
 
-The active provider scope is Razorpay, MSG91, Google Cloud Storage, and Google Maps. Local development remains usable with provider fallbacks.
+The active provider scope is Razorpay, MSG91, Cloudflare R2 image storage, and Google Maps. Local development remains usable with provider fallbacks.
 
 ## MSG91 OTP
 
@@ -62,25 +62,25 @@ Steps:
 7. Copy the webhook secret into `RAZORPAY_WEBHOOK_SECRET`.
 8. Restart the API after changing `apps/api/.env`.
 
-## Google Cloud Storage
+## Cloudflare R2 image storage
 
 Needed variables:
 
-- `GCP_PROJECT_ID`
-- `GCP_STORAGE_BUCKET`
-- `GOOGLE_APPLICATION_CREDENTIALS`
+- `R2_ACCOUNT_ID`
+- `R2_ACCESS_KEY_ID`
+- `R2_SECRET_ACCESS_KEY`
+- `R2_BUCKET_NAME`
+- `R2_PUBLIC_BASE_URL`
 
 Steps:
 
-1. Create a GCP project.
-2. Create a Cloud Storage bucket for dish images and assets.
-3. Create a service account with limited storage permissions.
-4. Download the service account JSON for local development.
-5. Set `GOOGLE_APPLICATION_CREDENTIALS` to the local JSON path.
-6. Grant the service account object create/delete permissions.
-7. Configure public read access for the `menu/` object prefix and CORS for approved app origins.
+1. Create a Cloudflare R2 bucket for customer-facing images.
+2. Create an R2 API token scoped to object writes for that bucket.
+3. Configure a public custom domain or R2 public-development URL.
+4. Set all five variables together; partial R2 configuration is rejected at API startup.
+5. Configure public reads for the `images/` prefix and CORS for approved app origins.
 
-The API accepts JPEG, PNG, and WebP images up to 5 MB. When storage credentials are blank, it stores development uploads under `.local-uploads/`.
+The API accepts JPEG, PNG, and WebP images up to 5 MB through `POST /admin/uploads/images`. When R2 credentials are blank, development uploads use `.local-uploads/images/`; production rejects uploads rather than relying on ephemeral local disk. The older menu-specific route remains as a compatibility alias.
 
 ## Google Maps Address Picker
 

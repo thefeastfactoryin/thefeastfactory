@@ -23,7 +23,7 @@ import { StorageService, UploadedImage } from './storage.service';
 export class StorageController {
   constructor(private readonly storage: StorageService) {}
 
-  @Post('admin/uploads/menu-images')
+  @Post('admin/uploads/images')
   @ApiBearerAuth()
   @ApiConsumes('multipart/form-data')
   @UseGuards(AdminAuthGuard, RolesGuard)
@@ -32,15 +32,36 @@ export class StorageController {
     FileInterceptor('file', { limits: { fileSize: 5 * 1024 * 1024 } }),
   )
   upload(@UploadedFile() file?: UploadedImage) {
-    return this.storage.uploadMenuImage(file);
+    return this.storage.uploadImage(file);
   }
 
-  @Get('uploads/menu/:filename')
+  @Post('admin/uploads/menu-images')
+  @ApiBearerAuth()
+  @ApiConsumes('multipart/form-data')
+  @UseGuards(AdminAuthGuard, RolesGuard)
+  @Roles(AdminRole.ADMIN)
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: 5 * 1024 * 1024 } }),
+  )
+  uploadLegacy(@UploadedFile() file?: UploadedImage) {
+    return this.storage.uploadImage(file);
+  }
+
+  @Get('uploads/images/:filename')
   async localImage(
     @Param('filename') filename: string,
     @Res({ passthrough: true }) response: Response,
   ) {
     response.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     return new StreamableFile(await this.storage.localFile(filename));
+  }
+
+  @Get('uploads/menu/:filename')
+  async legacyMenuImage(
+    @Param('filename') filename: string,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    response.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    return new StreamableFile(await this.storage.legacyMenuFile(filename));
   }
 }

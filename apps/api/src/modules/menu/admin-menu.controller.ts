@@ -17,6 +17,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { CreateMenuCategoryDto } from './dto/create-menu-category.dto';
 import { CreateMenuItemDto } from './dto/create-menu-item.dto';
 import { MenuItemsQueryDto } from './dto/menu-items-query.dto';
+import { ImportMenuItemsDto } from './dto/import-menu-items.dto';
 import { UpdateMenuCategoryDto } from './dto/update-menu-category.dto';
 import { UpdateMenuItemDto } from './dto/update-menu-item.dto';
 import { MenuService } from './menu.service';
@@ -52,6 +53,11 @@ export class AdminMenuController {
   @Post('items')
   createItem(@Body() dto: CreateMenuItemDto) {
     return this.menu.createItem(dto);
+  }
+
+  @Post('items/import')
+  importItems(@Body() dto: ImportMenuItemsDto) {
+    return this.menu.importItems(dto);
   }
 
   @Patch('items/:id')

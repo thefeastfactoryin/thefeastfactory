@@ -13,7 +13,7 @@ Help and FAQ's section for customer to contact kitched/operations
 SMS real - update keys
 Razapay real integration - URL/Host whitelist needed - so need to deploy
 Google Maps - Paid key to be updated
-GCP S3 bucket urls and configs
+Cloudflare R2 bucket URL, API token, public domain, and CORS configuration
 
 JWT secrets and keys
 

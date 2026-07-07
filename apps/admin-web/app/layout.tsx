@@ -1,11 +1,20 @@
 import type { Metadata } from 'next';
-import { Nunito_Sans } from 'next/font/google';
+import { Inter, Playfair_Display } from 'next/font/google';
 import './globals.css';
 import { AdminShell } from '../components/admin-shell';
+import { AdminThemeProvider } from '../components/admin-theme-provider';
 
-const nunitoSans = Nunito_Sans({
+const inter = Inter({
   subsets: ['latin'],
   variable: '--font-sans',
+  weight: ['400', '500', '600', '700'],
+});
+
+const playfair = Playfair_Display({
+  subsets: ['latin'],
+  variable: '--font-heading',
+  weight: ['400', '500', '600', '700', '800', '900'],
+  style: ['normal', 'italic'],
 });
 
 export const metadata: Metadata = {
@@ -18,8 +27,10 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body className={`${nunitoSans.variable} font-sans antialiased`}>
-        <AdminShell>{children}</AdminShell>
+      <body className={`${inter.variable} ${playfair.variable} font-sans antialiased`}>
+        <AdminThemeProvider>
+          <AdminShell>{children}</AdminShell>
+        </AdminThemeProvider>
       </body>
     </html>
   );

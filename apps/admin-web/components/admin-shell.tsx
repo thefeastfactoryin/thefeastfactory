@@ -14,7 +14,9 @@ import {
   X,
 } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
+import brandLogo from '../../customer-web/public/logo.png';
 import { useAdminUiStore } from '../store/admin-ui.store';
 import { useAdminSessionStore } from '../store/session.store';
 import { cn } from '../lib/utils';
@@ -52,15 +54,17 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         className="flex items-center gap-3 px-3 py-2"
         onClick={() => setOpen(false)}
       >
-        <span className="grid h-10 w-10 place-items-center rounded-2xl bg-primary text-lg font-bold text-white">
-          {appBrand.logoInitial}
-        </span>
+        <Image
+          src={brandLogo}
+          alt=""
+          className="h-11 w-11 rounded-xl object-cover shadow-elevated"
+        />
         <span>
           <span className="block font-serif text-xl font-semibold text-primary">
             {appBrand.name}
           </span>
-          <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-            Operations
+          <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+            Curated operations
           </span>
         </span>
       </Link>
@@ -77,7 +81,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               className={cn(
                 'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition',
                 active
-                  ? 'bg-primary text-white shadow-sm'
+                  ? 'bg-primary text-white shadow-elevated'
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground',
               )}
             >
@@ -115,7 +119,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         </div>
       )}
       <div className="min-w-0">
-        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b bg-white/90 px-4 backdrop-blur md:px-7">
+        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b bg-white/95 px-4 backdrop-blur-xl md:px-7">
           <button
             className="rounded-lg border p-2 md:hidden"
             onClick={() => setOpen(true)}

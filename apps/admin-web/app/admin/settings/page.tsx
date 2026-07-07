@@ -25,6 +25,43 @@ const businessKeys = [
   'tax_sac_code',
   'invoice_legal_footer',
 ];
+
+const operationalSettings = [
+  {
+    key: 'min_booking_lead_hours',
+    label: 'Minimum booking lead time',
+    suffix: 'hours',
+    type: 'number',
+    min: 0,
+  },
+  {
+    key: 'event_service_start_time',
+    label: 'Earliest event time',
+    type: 'time',
+  },
+  { key: 'event_service_end_time', label: 'Latest event time', type: 'time' },
+  {
+    key: 'event_time_interval_minutes',
+    label: 'Event-time interval',
+    suffix: 'minutes',
+    type: 'number',
+    min: 1,
+  },
+  {
+    key: 'otp_expiry_seconds',
+    label: 'OTP expiry',
+    suffix: 'seconds',
+    type: 'number',
+    min: 60,
+  },
+  {
+    key: 'otp_max_attempts',
+    label: 'OTP maximum attempts',
+    type: 'number',
+    min: 1,
+  },
+  { key: 'razorpay_currency', label: 'Razorpay currency', type: 'text' },
+] as const;
 type PlatformSetting = { key: string; value: string };
 export default function Settings() {
   const session = useAdminSessionStore((state) => state.session);
@@ -60,12 +97,7 @@ export default function Settings() {
             .filter(
               ([key]) =>
                 businessKeys.includes(key) ||
-                [
-                  'min_booking_lead_hours',
-                  'otp_expiry_seconds',
-                  'otp_max_attempts',
-                  'razorpay_currency',
-                ].includes(key),
+                operationalSettings.some((setting) => setting.key === key),
             )
             .map(([key, value]) => ({ key, value })),
         }),
@@ -120,6 +152,10 @@ export default function Settings() {
         <aside className="space-y-6">
           <section className="admin-card">
             <h2 className="text-xl font-semibold">Integration readiness</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Provider credentials are deployment secrets. Image storage uses
+              Cloudflare R2 when configured and local disk only in development.
+            </p>
             <div className="mt-4 space-y-3">
               {readiness &&
                 Object.entries(readiness).map(([key, value]) => (
@@ -151,25 +187,33 @@ export default function Settings() {
           </section>
           <section className="admin-card">
             <h2 className="text-xl font-semibold">Operational defaults</h2>
-            {[
-              'min_booking_lead_hours',
-              'otp_expiry_seconds',
-              'otp_max_attempts',
-              'razorpay_currency',
-            ].map((key) => (
-              <label key={key} className="mt-3 block">
+            <p className="mt-1 text-sm text-muted-foreground">
+              These values are read from the database by booking,
+              authentication, and payment flows.
+            </p>
+            {operationalSettings.map((setting) => (
+              <label key={setting.key} className="mt-3 block">
                 <span className="mb-1 block text-xs font-semibold uppercase text-muted-foreground">
-                  {key.replaceAll('_', ' ')}
+                  {setting.label}
                 </span>
-                <Input
-                  value={values[key] || ''}
-                  onChange={(event) =>
-                    setValues((current) => ({
-                      ...current,
-                      [key]: event.target.value,
-                    }))
-                  }
-                />
+                <div className="flex items-center gap-2">
+                  <Input
+                    type={setting.type}
+                    min={'min' in setting ? setting.min : undefined}
+                    value={values[setting.key] || ''}
+                    onChange={(event) =>
+                      setValues((current) => ({
+                        ...current,
+                        [setting.key]: event.target.value,
+                      }))
+                    }
+                  />
+                  {'suffix' in setting && (
+                    <span className="text-xs text-muted-foreground">
+                      {setting.suffix}
+                    </span>
+                  )}
+                </div>
               </label>
             ))}
           </section>

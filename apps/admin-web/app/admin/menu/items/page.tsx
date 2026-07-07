@@ -15,14 +15,15 @@ import {
   Save,
   Search,
   Trash2,
-  UploadCloud,
   X,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '../../../../components/ui/button';
+import { MediaUploader } from '../../../../components/media-uploader';
+import { MenuTabs } from '../../../../components/menu-tabs';
 import { Field, Select, Textarea } from '../../../../components/ui/form';
 import { Input } from '../../../../components/ui/input';
-import { apiBaseUrl, apiRequest } from '../../../../lib/api';
+import { apiRequest } from '../../../../lib/api';
 import { useAdminSessionStore } from '../../../../store/session.store';
 
 type MenuItemWithCategory = MenuItem & { category: MenuCategory };
@@ -133,23 +134,6 @@ export default function MenuItems() {
     setError('');
   }
 
-  async function upload(file?: File) {
-    if (!file || !session) return;
-    setMessage(`Uploading ${file.name}...`);
-    const data = new FormData();
-    data.append('file', file);
-    const result = await apiRequest<{ url: string }>(
-      '/admin/uploads/menu-images',
-      { method: 'POST', body: data },
-      session.accessToken,
-    );
-    const imageUrl = result.url.startsWith('/')
-      ? `${apiBaseUrl}${result.url}`
-      : result.url;
-    setForm((current) => ({ ...current, imageUrl }));
-    setMessage('Image uploaded. Save the item to apply it.');
-  }
-
   async function save(event: React.FormEvent) {
     event.preventDefault();
     if (!session) return;
@@ -211,9 +195,10 @@ export default function MenuItems() {
 
   return (
     <main className="admin-page">
+      <MenuTabs />
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-primary">
+          <p className="admin-eyebrow mt-7">
             Menu
           </p>
           <h1 className="admin-title mt-2">Menu manager</h1>
@@ -262,7 +247,7 @@ export default function MenuItems() {
         </p>
       )}
 
-      <section className="admin-card mt-5 overflow-x-auto p-0">
+      <section className="admin-card mt-5 hidden overflow-x-auto p-0 md:block">
         <table className="admin-table">
           <thead>
             <tr>
@@ -337,6 +322,48 @@ export default function MenuItems() {
         )}
       </section>
 
+      <section className="mt-5 grid gap-3 md:hidden" aria-label="Menu items">
+        {filtered.map((item) => (
+          <article key={item.id} className="admin-card p-4">
+            <div className="flex gap-3">
+              <div className="grid h-20 w-24 shrink-0 place-items-center overflow-hidden rounded-xl bg-muted">
+                {item.imageUrl ? (
+                  <img src={item.imageUrl} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <ImagePlus className="h-6 w-6 text-muted-foreground" />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <h2 className="font-semibold">{item.name}</h2>
+                    <p className="text-xs text-muted-foreground">{item.category.name}</p>
+                  </div>
+                  <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${item.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-muted text-muted-foreground'}`}>
+                    {item.isActive ? 'Active' : 'Hidden'}
+                  </span>
+                </div>
+                <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                  <div><dt className="text-muted-foreground">Meal box</dt><dd className="font-semibold">₹{item.boxPrice}</dd></div>
+                  <div><dt className="text-muted-foreground">Package</dt><dd className="font-semibold">₹{item.generalPrice}</dd></div>
+                </dl>
+              </div>
+            </div>
+            <div className="mt-4 flex gap-2 border-t pt-3">
+              <Button type="button" variant="outline" className="flex-1" onClick={() => openEdit(item)}>
+                <Pencil className="mr-2 h-4 w-4" /> Edit
+              </Button>
+              <Button type="button" variant="outline" className="flex-1" onClick={() => remove(item)}>
+                <Trash2 className="mr-2 h-4 w-4" /> Archive
+              </Button>
+            </div>
+          </article>
+        ))}
+        {!filtered.length && (
+          <div className="admin-card py-10 text-center text-muted-foreground">No menu items match the current filters.</div>
+        )}
+      </section>
+
       <Dialog
         open={editorOpen}
         onClose={() => setEditorOpen(false)}
@@ -360,33 +387,12 @@ export default function MenuItems() {
             className="grid gap-6 py-2 lg:grid-cols-[260px_1fr]"
           >
             <div>
-              <div className="aspect-[4/3] overflow-hidden rounded-xl border bg-muted">
-                {form.imageUrl ? (
-                  <img
-                    src={form.imageUrl}
-                    alt={form.name || 'Menu item'}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <div className="grid h-full place-items-center text-muted-foreground">
-                    <ImagePlus className="h-10 w-10" />
-                  </div>
-                )}
-              </div>
-              <label className="mt-3 flex h-11 cursor-pointer items-center justify-center rounded-md border text-sm font-semibold hover:border-primary">
-                <UploadCloud className="mr-2 h-4 w-4" />
-                Upload image
-                <input
-                  type="file"
-                  className="hidden"
-                  accept="image/jpeg,image/png,image/webp"
-                  onChange={(event) =>
-                    upload(event.target.files?.[0]).catch((reason) =>
-                      setError((reason as Error).message),
-                    )
-                  }
-                />
-              </label>
+              <MediaUploader
+                value={form.imageUrl}
+                onChange={(imageUrl) => setForm((current) => ({ ...current, imageUrl }))}
+                accessToken={session.accessToken}
+                label="Menu item image"
+              />
               <Field label="Image URL" optional className="mt-4">
                 <Input
                   value={form.imageUrl}

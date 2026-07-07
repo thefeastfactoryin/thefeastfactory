@@ -12,6 +12,7 @@ import type {
 } from '@aranyam/shared-types';
 import {
   CheckCircle2,
+  ChevronDown,
   ImagePlus,
   Pencil,
   Plus,
@@ -21,6 +22,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '../../../components/ui/button';
+import { MediaUploader } from '../../../components/media-uploader';
 import { Field, Select, Textarea } from '../../../components/ui/form';
 import { Input } from '../../../components/ui/input';
 import { apiRequest } from '../../../lib/api';
@@ -80,6 +82,28 @@ type VersionForm = {
 
 type PackageDialogMode = 'create-package' | 'edit-package' | 'add-version';
 
+const packageTypeTabs: Array<{
+  type: AdminPackage['type'];
+  label: string;
+  description: string;
+}> = [
+  {
+    type: 'MEAL_BOX',
+    label: 'Meal boxes',
+    description: 'Pre-portioned boxes with included and swappable dishes.',
+  },
+  {
+    type: 'FIXED_PACKAGE',
+    label: 'Fixed packages',
+    description: 'Curated menus with included dishes and optional extras.',
+  },
+  {
+    type: 'CUSTOM_PACKAGE',
+    label: 'Build your menu',
+    description: 'Customer-selectable menus priced per chosen dish.',
+  },
+];
+
 const emptyPackage: PackageForm = {
   name: '',
   description: '',
@@ -117,6 +141,9 @@ export default function AdminPackages() {
   const [config, setConfig] = useState<PackageConfiguration>();
   const [selectedPackageId, setSelectedPackageId] = useState('');
   const [selectedVersionId, setSelectedVersionId] = useState('');
+  const [activeType, setActiveType] =
+    useState<AdminPackage['type']>('MEAL_BOX');
+  const [expandedPackageIds, setExpandedPackageIds] = useState<string[]>([]);
   const [query, setQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [priceForm, setPriceForm] = useState<VersionForm>(emptyVersion);
@@ -140,6 +167,16 @@ export default function AdminPackages() {
   const selectedVersion = selectedPackage?.versions.find(
     (version) => version.id === selectedVersionId,
   );
+  const activeTypeInfo = packageTypeTabs.find(
+    (tab) => tab.type === activeType,
+  )!;
+  const newPackageLabel =
+    activeType === 'MEAL_BOX'
+      ? 'New meal box'
+      : activeType === 'FIXED_PACKAGE'
+        ? 'New fixed package'
+        : 'New custom menu';
+  const filteredPackages = packages.filter((pkg) => pkg.type === activeType);
 
   const configItemsById = useMemo(() => {
     const entries =
@@ -189,7 +226,15 @@ export default function AdminPackages() {
       ]);
 
     const packageId =
-      preferredPackageId || selectedPackageId || packageRows[0]?.id || '';
+      preferredPackageId ||
+      (packageRows.some(
+        (row) => row.id === selectedPackageId && row.type === activeType,
+      )
+        ? selectedPackageId
+        : '') ||
+      packageRows.find((row) => row.type === activeType)?.id ||
+      packageRows[0]?.id ||
+      '';
     const packageRow = packageRows.find((row) => row.id === packageId);
     const versionId =
       preferredVersionId ||
@@ -204,6 +249,11 @@ export default function AdminPackages() {
     setOfferings(offeringRows);
     setSelectedPackageId(packageId);
     setSelectedVersionId(versionId);
+    setExpandedPackageIds((current) =>
+      packageId && !current.includes(packageId)
+        ? [...current, packageId]
+        : current,
+    );
   }
 
   async function loadConfig(versionId = selectedVersionId) {
@@ -264,6 +314,76 @@ export default function AdminPackages() {
     return Math.max(0, ...(pkg?.versions.map((v) => v.versionNo) ?? [])) + 1;
   }
 
+  function preferredVersionId(pkg?: AdminPackage) {
+    if (!pkg?.versions.length) return '';
+    return (
+      pkg.versions.find((version) => version.isActive)?.id ??
+      [...pkg.versions].sort((a, b) => b.versionNo - a.versionNo)[0]?.id ??
+      ''
+    );
+  }
+
+  function formatGuestRange(version: Version) {
+    return version.maxGuestCount
+      ? `${version.minGuestCount}-${version.maxGuestCount} guests`
+      : `${version.minGuestCount}+ guests`;
+  }
+
+  function togglePackage(pkg: AdminPackage) {
+    const isExpanded = expandedPackageIds.includes(pkg.id);
+    setExpandedPackageIds((current) =>
+      isExpanded ? current.filter((id) => id !== pkg.id) : [...current, pkg.id],
+    );
+    if (!isExpanded) selectPackage(pkg);
+  }
+
+  function selectPackageType(type: AdminPackage['type']) {
+    if (
+      type !== activeType &&
+      pendingChangeCount > 0 &&
+      !window.confirm('Discard unsaved package changes and switch type?')
+    ) {
+      return;
+    }
+    setActiveType(type);
+    setQuery('');
+    setCategoryFilter('');
+    const first = packages.find((pkg) => pkg.type === type);
+    setExpandedPackageIds(first ? [first.id] : []);
+    setSelectedPackageId(first?.id ?? '');
+    setSelectedVersionId(preferredVersionId(first));
+  }
+
+  function selectPackage(pkg: AdminPackage) {
+    if (
+      pkg.id !== selectedPackageId &&
+      pendingChangeCount > 0 &&
+      !window.confirm('Discard unsaved package changes and switch package?')
+    ) {
+      return;
+    }
+    setSelectedPackageId(pkg.id);
+    setSelectedVersionId(preferredVersionId(pkg));
+    setExpandedPackageIds((current) =>
+      current.includes(pkg.id) ? current : [...current, pkg.id],
+    );
+  }
+
+  function selectVersion(pkg: AdminPackage, versionId: string) {
+    if (
+      versionId !== selectedVersionId &&
+      pendingChangeCount > 0 &&
+      !window.confirm('Discard unsaved package changes and switch version?')
+    ) {
+      return;
+    }
+    setSelectedPackageId(pkg.id);
+    setSelectedVersionId(versionId);
+    setExpandedPackageIds((current) =>
+      current.includes(pkg.id) ? current : [...current, pkg.id],
+    );
+  }
+
   function openPackageDialog(mode: PackageDialogMode, pkg = selectedPackage) {
     setDialogMode(mode);
     setDialogPackageId(pkg?.id ?? '');
@@ -284,7 +404,7 @@ export default function AdminPackages() {
                 ? ''
                 : String(pkg.featuredOrder),
           }
-        : emptyPackage,
+        : { ...emptyPackage, type: activeType },
     );
     setVersionForm(
       mode === 'edit-package'
@@ -333,6 +453,39 @@ export default function AdminPackages() {
       Boolean(payload.publishedAt) !== Boolean(selectedVersion.publishedAt)
     );
   }
+
+  const pendingChangeCount = useMemo(() => {
+    let count = 0;
+    if (selectedVersion) {
+      try {
+        if (versionHasChanges(versionPayload(priceForm))) count += 1;
+      } catch {
+        count += 1;
+      }
+    }
+    for (const item of menuItems) {
+      const configured = configItemsById.get(item.id);
+      const originalRole = (configured?.role ?? 'NONE') as CompositionRole;
+      const nextRole = roleEdits[item.id] ?? originalRole;
+      const originalSwappable = configured?.isSwappable === true;
+      const nextSwappable =
+        nextRole === 'INCLUDED' &&
+        selectedPackage?.type === 'MEAL_BOX' &&
+        (swappableEdits[item.id] ?? originalSwappable);
+      if (nextRole !== originalRole || nextSwappable !== originalSwappable) {
+        count += 1;
+      }
+    }
+    return count;
+  }, [
+    configItemsById,
+    menuItems,
+    priceForm,
+    roleEdits,
+    selectedPackage,
+    selectedVersion,
+    swappableEdits,
+  ]);
 
   async function savePackageDialog(event: React.FormEvent) {
     event.preventDefault();
@@ -385,6 +538,7 @@ export default function AdminPackages() {
       }
 
       setDialogOpen(false);
+      setActiveType(savedPackage.type);
       setSelectedPackageId(savedPackage.id);
       setSelectedVersionId(savedVersionId);
       setMessage(
@@ -501,9 +655,7 @@ export default function AdminPackages() {
     <main className="admin-page">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-primary">
-            Packages
-          </p>
+          <p className="admin-eyebrow">Packages</p>
           <h1 className="admin-title mt-2">Package manager</h1>
           <p className="mt-2 text-muted-foreground">
             Select a package and version, update its price, and control which
@@ -512,7 +664,7 @@ export default function AdminPackages() {
         </div>
         <Button onClick={() => openPackageDialog('create-package')}>
           <Plus className="mr-2 h-4 w-4" />
-          New package
+          {newPackageLabel}
         </Button>
       </div>
 
@@ -531,14 +683,24 @@ export default function AdminPackages() {
         </div>
       )}
 
-      <section className="mt-7">
-        <div className="mb-3">
-          <h2 className="text-xl font-semibold">Customer ordering options</h2>
-          <p className="text-sm text-muted-foreground">
-            Control which top-level ways to order appear on the home page.
-          </p>
-        </div>
-        <div className="grid gap-3 md:grid-cols-3">
+      <details className="admin-card mt-7">
+        <summary className="cursor-pointer list-none">
+          <span className="flex items-center justify-between gap-4">
+            <span>
+              <span className="block text-lg font-semibold">
+                Homepage ordering cards
+              </span>
+              <span className="mt-1 block text-sm text-muted-foreground">
+                Less-frequent controls for the three ordering choices shown to
+                customers.
+              </span>
+            </span>
+            <span className="rounded-full bg-muted px-3 py-1 text-xs font-semibold text-muted-foreground">
+              Configure
+            </span>
+          </span>
+        </summary>
+        <div className="mt-5 grid gap-3 border-t pt-5 md:grid-cols-3">
           {offerings.map((offering) => (
             <article
               key={offering.code}
@@ -558,6 +720,14 @@ export default function AdminPackages() {
                   }
                 />
               </div>
+              <MediaUploader
+                compact
+                className="mt-3"
+                value={offering.imageUrl ?? ''}
+                onChange={(imageUrl) => updateOffering(offering, { imageUrl })}
+                accessToken={session.accessToken}
+                label={`${offering.title} card image`}
+              />
               <Field label="Display order" className="mt-3">
                 <Input
                   type="number"
@@ -595,76 +765,211 @@ export default function AdminPackages() {
             </article>
           ))}
         </div>
-      </section>
+      </details>
 
       <section className="mt-7">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h2 className="text-xl font-semibold">Packages dashboard</h2>
+        <div
+          className="admin-tabs w-full overflow-x-auto"
+          role="tablist"
+          aria-label="Package type"
+        >
+          {packageTypeTabs.map((tab) => {
+            const active = tab.type === activeType;
+            const count = packages.filter(
+              (pkg) => pkg.type === tab.type,
+            ).length;
+            return (
+              <button
+                key={tab.type}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => selectPackageType(tab.type)}
+                className={`admin-tab flex min-w-fit flex-1 items-center justify-center gap-2 ${active ? 'admin-tab-active' : ''}`}
+              >
+                {tab.label}
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[11px] ${active ? 'bg-white/15 text-white' : 'bg-muted text-muted-foreground'}`}
+                >
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="mb-4 mt-5 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-semibold">{activeTypeInfo.label}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {activeTypeInfo.description}
+            </p>
+          </div>
           <p className="text-sm text-muted-foreground">
-            Select a package to expand pricing and menu controls below.
+            Expand a package, then choose the exact version you want to edit.
           </p>
         </div>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {packages.map((pkg) => {
-            const activeVersion = pkg.versions[0];
+        <div className="grid gap-3">
+          {filteredPackages.map((pkg) => {
             const selected = pkg.id === selectedPackageId;
+            const expanded = expandedPackageIds.includes(pkg.id);
+            const activeVersion = pkg.versions.find(
+              (version) => version.isActive,
+            );
+            const visibleVersions = [...pkg.versions].sort(
+              (a, b) => b.versionNo - a.versionNo,
+            );
             return (
               <article
                 key={pkg.id}
-                className={`rounded-2xl border bg-white/90 p-4 shadow-[0_10px_35px_rgba(111,29,45,0.08)] transition ${
+                className={`overflow-hidden rounded-2xl border bg-white/90 shadow-[0_10px_35px_rgba(111,29,45,0.08)] transition ${
                   selected ? 'border-primary ring-2 ring-primary/15' : ''
                 }`}
               >
                 <button
                   type="button"
-                  onClick={() => {
-                    setSelectedPackageId(pkg.id);
-                    setSelectedVersionId(pkg.versions[0]?.id ?? '');
-                  }}
-                  className="block w-full text-left"
+                  onClick={() => togglePackage(pkg)}
+                  className="block w-full p-4 text-left transition hover:bg-primary/5"
+                  aria-expanded={expanded}
+                  aria-controls={`package-versions-${pkg.id}`}
                 >
-                  <span className="flex items-start justify-between gap-3">
-                    <span>
-                      <span className="block text-lg font-semibold">
-                        {pkg.name}
+                  <span className="flex flex-wrap items-start justify-between gap-4">
+                    <span className="min-w-0 flex-1">
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="text-lg font-semibold">
+                          {pkg.name}
+                        </span>
+                        {selected && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-1 text-xs font-semibold text-primary">
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            Editing
+                          </span>
+                        )}
+                        <span
+                          className={`rounded-full px-2 py-1 text-xs font-semibold ${
+                            pkg.isActive
+                              ? 'bg-green-50 text-green-700'
+                              : 'bg-muted text-muted-foreground'
+                          }`}
+                        >
+                          {pkg.isActive ? 'Visible' : 'Hidden'}
+                        </span>
                       </span>
-                      <span className="mt-1 block text-xs font-medium text-muted-foreground">
-                        {pkg.isCustom ? 'Custom package' : 'Standard package'} ·{' '}
-                        {pkg.isActive ? 'active' : 'hidden'}
+                      <span className="mt-1 block text-sm text-muted-foreground">
+                        {pkg.description ||
+                          (pkg.isCustom
+                            ? 'Custom package'
+                            : 'Standard package')}
                       </span>
                     </span>
-                    {selected && (
-                      <CheckCircle2 className="h-5 w-5 text-primary" />
-                    )}
-                  </span>
-                  <span className="mt-4 grid grid-cols-2 gap-2 text-sm">
-                    <span className="rounded-xl bg-muted/60 p-3">
-                      <span className="block text-xs text-muted-foreground">
-                        Versions
+                    <span className="flex shrink-0 flex-wrap items-center justify-end gap-2 text-sm">
+                      <span className="rounded-xl bg-muted/60 px-3 py-2">
+                        <span className="text-xs text-muted-foreground">
+                          Versions
+                        </span>{' '}
+                        <span className="font-semibold">
+                          {pkg.versions.length}
+                        </span>
                       </span>
-                      <span className="font-semibold">
-                        {pkg.versions.length}
+                      <span className="rounded-xl bg-muted/60 px-3 py-2">
+                        <span className="text-xs text-muted-foreground">
+                          Active
+                        </span>{' '}
+                        <span className="font-semibold">
+                          {activeVersion
+                            ? `v${activeVersion.versionNo} · ₹${activeVersion.basePricePerPlate}`
+                            : 'None'}
+                        </span>
                       </span>
-                    </span>
-                    <span className="rounded-xl bg-muted/60 p-3">
-                      <span className="block text-xs text-muted-foreground">
-                        Latest price
-                      </span>
-                      <span className="font-semibold">
-                        {activeVersion
-                          ? `₹${activeVersion.basePricePerPlate}`
-                          : '-'}
-                      </span>
+                      <ChevronDown
+                        className={`h-5 w-5 text-muted-foreground transition ${
+                          expanded ? 'rotate-180' : ''
+                        }`}
+                      />
                     </span>
                   </span>
                 </button>
-                <div className="mt-4 flex justify-end gap-2 border-t pt-3">
+
+                {expanded && (
+                  <div
+                    id={`package-versions-${pkg.id}`}
+                    className="grid gap-2 border-t bg-muted/20 p-3"
+                  >
+                    {visibleVersions.map((version) => {
+                      const versionSelected =
+                        selected && version.id === selectedVersionId;
+                      const draft = !version.publishedAt;
+                      return (
+                        <button
+                          key={version.id}
+                          type="button"
+                          onClick={() => selectVersion(pkg, version.id)}
+                          className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-white px-3 py-3 text-left transition hover:border-primary hover:bg-primary/5 ${
+                            versionSelected
+                              ? 'border-primary ring-2 ring-primary/10'
+                              : ''
+                          }`}
+                        >
+                          <span>
+                            <span className="flex flex-wrap items-center gap-2">
+                              <span className="font-semibold">
+                                Version {version.versionNo}
+                              </span>
+                              {version.isActive && (
+                                <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-semibold text-primary">
+                                  Active
+                                </span>
+                              )}
+                              <span
+                                className={`rounded-full px-2 py-1 text-xs font-semibold ${
+                                  draft
+                                    ? 'bg-amber-50 text-amber-700'
+                                    : 'bg-green-50 text-green-700'
+                                }`}
+                              >
+                                {draft ? 'Draft' : 'Published'}
+                              </span>
+                            </span>
+                            <span className="mt-1 block text-xs text-muted-foreground">
+                              {formatGuestRange(version)}
+                            </span>
+                          </span>
+                          <span className="flex items-center gap-3">
+                            <span className="text-right">
+                              <span className="block text-sm font-semibold">
+                                ₹{version.basePricePerPlate}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                per plate
+                              </span>
+                            </span>
+                            {versionSelected && (
+                              <CheckCircle2 className="h-5 w-5 text-primary" />
+                            )}
+                          </span>
+                        </button>
+                      );
+                    })}
+                    {!visibleVersions.length && (
+                      <div className="rounded-xl border border-dashed bg-white p-4 text-sm text-muted-foreground">
+                        No versions yet. Add a version before editing price or
+                        menu composition.
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-2 border-t bg-white/80 p-3">
                   <Button
                     type="button"
                     variant="outline"
                     onClick={() => {
                       setSelectedPackageId(pkg.id);
-                      setSelectedVersionId(pkg.versions[0]?.id ?? '');
+                      setSelectedVersionId(preferredVersionId(pkg));
+                      setExpandedPackageIds((current) =>
+                        current.includes(pkg.id)
+                          ? current
+                          : [...current, pkg.id],
+                      );
                       openPackageDialog('edit-package', pkg);
                     }}
                     aria-label={`Edit ${pkg.name}`}
@@ -677,7 +982,12 @@ export default function AdminPackages() {
                     variant="outline"
                     onClick={() => {
                       setSelectedPackageId(pkg.id);
-                      setSelectedVersionId(pkg.versions[0]?.id ?? '');
+                      setSelectedVersionId(preferredVersionId(pkg));
+                      setExpandedPackageIds((current) =>
+                        current.includes(pkg.id)
+                          ? current
+                          : [...current, pkg.id],
+                      );
                       openPackageDialog('add-version', pkg);
                     }}
                     aria-label={`Add version to ${pkg.name}`}
@@ -689,7 +999,7 @@ export default function AdminPackages() {
               </article>
             );
           })}
-          {!packages.length && (
+          {!filteredPackages.length && (
             <button
               type="button"
               onClick={() => openPackageDialog('create-package')}
@@ -701,6 +1011,30 @@ export default function AdminPackages() {
           )}
         </div>
       </section>
+
+      {selectedPackage && (
+        <div className="sticky top-20 z-20 mt-6 flex flex-wrap items-center gap-3 rounded-2xl border bg-white/95 p-3 shadow-elevated backdrop-blur-xl">
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-semibold">
+              {selectedPackage.name}
+              {selectedVersion ? ` · Version ${selectedVersion.versionNo}` : ''}
+            </p>
+            <p className="text-xs text-muted-foreground" aria-live="polite">
+              {pendingChangeCount
+                ? `${pendingChangeCount} unsaved ${pendingChangeCount === 1 ? 'change' : 'changes'} across pricing and menu composition`
+                : 'All pricing and menu-composition changes are saved'}
+            </p>
+          </div>
+          <Button
+            type="button"
+            onClick={() => savePackageChanges()}
+            disabled={!selectedVersionId || !pendingChangeCount || saving}
+          >
+            <Save className="mr-2 h-4 w-4" />
+            {saving ? 'Saving…' : 'Save changes'}
+          </Button>
+        </div>
+      )}
 
       <section className="mt-6 space-y-6">
         <div className="admin-card">
@@ -714,26 +1048,28 @@ export default function AdminPackages() {
             </p>
           </div>
 
-          <div className="mt-5 grid gap-4 lg:grid-cols-[260px_1fr]">
-            <Field label="Version">
-              <Select
-                value={selectedVersionId}
-                onChange={(event) => setSelectedVersionId(event.target.value)}
-                disabled={!selectedPackage?.versions.length}
-              >
-                {selectedPackage?.versions.map((version) => (
-                  <option key={version.id} value={version.id}>
-                    Version {version.versionNo} · ₹{version.basePricePerPlate}
-                    {version.publishedAt ? '' : ' · draft'}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-
-            <form
-              onSubmit={savePackageChanges}
-              className="grid gap-3 md:grid-cols-[1fr_1fr_1fr_auto]"
-            >
+          <div className="mt-5 grid gap-4">
+            {selectedVersion && (
+              <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-muted/30 px-3 py-2 text-sm">
+                <span className="font-semibold">
+                  Editing version {selectedVersion.versionNo}
+                </span>
+                <span className="text-muted-foreground">·</span>
+                <span>₹{selectedVersion.basePricePerPlate} per plate</span>
+                <span className="text-muted-foreground">·</span>
+                <span>{formatGuestRange(selectedVersion)}</span>
+                <span
+                  className={`rounded-full px-2 py-1 text-xs font-semibold ${
+                    selectedVersion.publishedAt
+                      ? 'bg-green-50 text-green-700'
+                      : 'bg-amber-50 text-amber-700'
+                  }`}
+                >
+                  {selectedVersion.publishedAt ? 'Published' : 'Draft'}
+                </span>
+              </div>
+            )}
+            <div className="grid gap-3 md:grid-cols-3">
               <Field label="Package price">
                 <Input
                   value={priceForm.basePricePerPlate}
@@ -785,19 +1121,12 @@ export default function AdminPackages() {
                   disabled={!selectedVersionId}
                 />
               </Field>
-              <Button
-                className="self-end"
-                disabled={!selectedVersionId || saving}
-              >
-                <Save className="mr-2 h-4 w-4" />
-                Save package changes
-              </Button>
-            </form>
+            </div>
           </div>
         </div>
 
         <div className="admin-card p-0">
-          <div className="grid gap-3 border-b p-4 lg:grid-cols-[1fr_240px_auto]">
+          <div className="grid gap-3 border-b p-4 lg:grid-cols-[1fr_240px]">
             <div className="flex items-center gap-3 rounded-xl border bg-white px-3">
               <Search className="h-4 w-4 text-muted-foreground" />
               <Input
@@ -818,14 +1147,6 @@ export default function AdminPackages() {
                 </option>
               ))}
             </Select>
-            <Button
-              type="button"
-              onClick={() => savePackageChanges()}
-              disabled={!selectedVersionId || saving}
-            >
-              <Save className="mr-2 h-4 w-4" />
-              Save package changes
-            </Button>
           </div>
 
           <div className="overflow-x-auto">
@@ -941,7 +1262,7 @@ export default function AdminPackages() {
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
         fullWidth
-        maxWidth="sm"
+        maxWidth="md"
       >
         <DialogTitle className="flex items-center justify-between">
           {dialogMode === 'add-version'
@@ -1004,7 +1325,17 @@ export default function AdminPackages() {
                     maxLength={1000}
                   />
                 </Field>
-                <Field label="Card image" optional>
+                <MediaUploader
+                  className="max-w-sm"
+                  value={packageForm.imageUrl}
+                  onChange={(imageUrl) =>
+                    setPackageForm((current) => ({ ...current, imageUrl }))
+                  }
+                  accessToken={session.accessToken}
+                  label="Package card image"
+                  recommended="Recommended: 1600 × 1000 px. Preview uses the same crop as customer package cards."
+                />
+                <Field label="Image URL" optional>
                   <Input
                     value={packageForm.imageUrl}
                     onChange={(event) =>

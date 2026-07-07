@@ -53,6 +53,7 @@ export class PaymentsService {
     if (order.orderStatus !== OrderStatus.PENDING_PAYMENT) {
       throw new BadRequestException('Order is not awaiting payment');
     }
+    const currency = await this.currency();
 
     const existing = order.payments.find(
       (payment) =>
@@ -65,7 +66,7 @@ export class PaymentsService {
         keyId: this.keyId() || 'local',
         id: existing.razorpayOrderId,
         amount: existing.amount.mul(100).toNumber(),
-        currency: this.currency(),
+        currency,
         localMode: !this.isConfigured(),
         reused: true,
       };
@@ -75,11 +76,12 @@ export class PaymentsService {
       ? await this.createRazorpayOrder(
           order.orderNumber,
           order.totalAmount.mul(100).toNumber(),
+          currency,
         )
       : {
           id: `local_order_${order.id}_${Date.now()}`,
           amount: order.totalAmount.mul(100).toNumber(),
-          currency: this.currency(),
+          currency,
         };
 
     const payment = await this.prisma.payment.create({
@@ -212,11 +214,7 @@ export class PaymentsService {
     }
   }
 
-  async createRefund(
-    adminId: string,
-    paymentId: string,
-    reason?: string,
-  ) {
+  async createRefund(adminId: string, paymentId: string, reason?: string) {
     const payment = await this.prisma.payment.findUnique({
       where: { id: paymentId },
       include: { refunds: true, order: true },
@@ -436,11 +434,15 @@ export class PaymentsService {
     await this.operations.generateOrderDocuments(payment.orderId);
   }
 
-  private async createRazorpayOrder(receipt: string, amount: number) {
+  private async createRazorpayOrder(
+    receipt: string,
+    amount: number,
+    currency: string,
+  ) {
     try {
       const created = await this.client().orders.create({
         amount,
-        currency: this.currency(),
+        currency,
         receipt: receipt.slice(0, 40),
         notes: { source: 'the-feast-factory' },
       });
@@ -472,8 +474,13 @@ export class PaymentsService {
     return this.config.get<string>('RAZORPAY_KEY_SECRET') || '';
   }
 
-  private currency() {
-    return this.config.get<string>('RAZORPAY_CURRENCY', 'INR');
+  private async currency() {
+    const setting = await this.prisma.platformSetting.findUnique({
+      where: { key: 'razorpay_currency' },
+    });
+    return (
+      setting?.value || this.config.get<string>('RAZORPAY_CURRENCY', 'INR')
+    );
   }
 
   private safeEqual(actual: string, expected: string) {

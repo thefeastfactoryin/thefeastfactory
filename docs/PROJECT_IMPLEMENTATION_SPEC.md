@@ -10,7 +10,7 @@ This document is prepared from the existing product scope documents, approved ar
 
 - Use the approved architecture document and existing Prisma schema where older documents conflict.
 - Database is PostgreSQL, not MongoDB.
-- Cloud target is GCP, not AWS.
+- Application hosting and PostgreSQL target GCP; customer-facing image storage uses Cloudflare R2.
 - ORM is Prisma.
 - Payments use Razorpay.
 - Customer authentication uses mobile OTP with JWT access and refresh tokens.
@@ -76,7 +76,7 @@ State management split:
 - Customer/admin frontend hosting: Vercel
 - API hosting: Google Cloud Run
 - Database: Google Cloud SQL for PostgreSQL
-- File storage: Google Cloud Storage
+- File storage: Cloudflare R2 through its S3-compatible API
 - DNS: Google Cloud DNS
 - Secrets: Google Secret Manager
 - CI/CD: GitHub Actions
@@ -539,7 +539,7 @@ End-to-end:
 ## Known Scope Gaps To Resolve
 
 - Vendor management appears in the product scope, but the current approved database schema does not include vendor entities or order-vendor assignment. Treat vendor management as out of Phase 1 implementation unless the schema is extended.
-- Older documents mention MongoDB and AWS. Use PostgreSQL and GCP because those are in the approved architecture and current Prisma schema.
+- Older documents mention MongoDB, AWS, and Google Cloud Storage. Use PostgreSQL on the GCP deployment stack and Cloudflare R2 for customer-facing images; the July 2026 storage migration is authoritative for object storage.
 - Event type is mentioned in product scope, but the current schema has `eventName` rather than an explicit event type enum/table. Decide whether to add `eventType` before implementation.
 - Cart persistence is mentioned conceptually, but the schema creates events and orders without a separate cart table. Use frontend/client state for Phase 1 unless persistent saved carts are required.
 

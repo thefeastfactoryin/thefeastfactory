@@ -11,7 +11,7 @@
 | **MSG91 OTP** | Falls back to console log | `MSG91_AUTH_KEY`, `MSG91_TEMPLATE_ID`, `MSG91_SENDER_ID` in `apps/api/.env` |
 | **Razorpay** | Falls back to local-mode | `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` + `NEXT_PUBLIC_RAZORPAY_KEY_ID` in both frontend `.env.local` files. Webhook URL + domain whitelist in Razorpay dashboard |
 | **Google Maps** | Skips map if blank | `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` in `apps/customer-web/.env.local` |
-| **GCP Storage** | Falls back to local disk | `GCP_PROJECT_ID`, `GCP_STORAGE_BUCKET`, `GOOGLE_APPLICATION_CREDENTIALS` in `apps/api/.env` |
+| **Cloudflare R2** | Local disk in development; blocked in production if blank | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PUBLIC_BASE_URL` in `apps/api/.env` |
 | **JWT secrets** | Validated but need production values | `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` (min 32-char random strings for prod) |
 | **Resend (email)** | ❌ Never implemented | No email sending exists anywhere — confirmed/cancelled order emails are silent |
 | **Sentry** | ❌ Never integrated | Listed in spec but zero code present |

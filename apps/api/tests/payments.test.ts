@@ -22,9 +22,27 @@ function service(prisma: object, generated: string[] = []) {
   return new PaymentsService(
     prisma as never,
     { get: () => undefined } as never,
-    { generateOrderDocuments: async (id: string) => generated.push(id) } as never,
+    {
+      generateOrderDocuments: async (id: string) => generated.push(id),
+    } as never,
   );
 }
+
+test('Razorpay currency prefers the managed database setting', async () => {
+  const payments = new PaymentsService(
+    {
+      platformSetting: {
+        findUnique: async () => ({ value: 'AED' }),
+      },
+    } as never,
+    { get: (_key: string, fallback: string) => fallback } as never,
+    {} as never,
+  );
+  const managedCurrency = payments as unknown as {
+    currency(): Promise<string>;
+  };
+  assert.equal(await managedCurrency.currency(), 'AED');
+});
 
 test('full refund is idempotent when a non-failed refund already exists', async () => {
   let createCalls = 0;
@@ -38,7 +56,11 @@ test('full refund is idempotent when a non-failed refund already exists', async 
         order: { id: 'order-1' },
       }),
     },
-    refund: { create: async () => { createCalls += 1; } },
+    refund: {
+      create: async () => {
+        createCalls += 1;
+      },
+    },
   });
 
   const result = await payments.createRefund('admin-1', 'payment-1', 'Retry');
@@ -58,14 +80,22 @@ test('local full refund always uses the complete paid amount and reconciles both
     amount: new Prisma.Decimal('699.00'),
     paymentStatus: PaymentStatus.PAID,
     razorpayPaymentId: 'pay-local',
-    refunds: [] as typeof baseRefund[],
+    refunds: [] as (typeof baseRefund)[],
     order: { id: 'order-1' },
   };
   const prisma = {
     payment: {
       findUnique: async () => {
         findCalls += 1;
-        return findCalls === 1 ? payment : { ...payment, refunds: [baseRefund, { ...baseRefund, amount: new Prisma.Decimal('200.00') }] };
+        return findCalls === 1
+          ? payment
+          : {
+              ...payment,
+              refunds: [
+                baseRefund,
+                { ...baseRefund, amount: new Prisma.Decimal('200.00') },
+              ],
+            };
       },
     },
     refund: {
@@ -74,13 +104,30 @@ test('local full refund always uses the complete paid amount and reconciles both
         return { ...baseRefund, amount: data.amount };
       },
     },
-    $transaction: async (callback: (tx: object) => Promise<void>) => callback({
-      payment: { update: async ({ data }: { data: { paymentStatus: PaymentStatus } }) => updates.push({ target: 'payment', status: data.paymentStatus }) },
-      order: { update: async ({ data }: { data: { paymentStatus: PaymentStatus } }) => updates.push({ target: 'order', status: data.paymentStatus }) },
-    }),
+    $transaction: async (callback: (tx: object) => Promise<void>) =>
+      callback({
+        payment: {
+          update: async ({
+            data,
+          }: {
+            data: { paymentStatus: PaymentStatus };
+          }) => updates.push({ target: 'payment', status: data.paymentStatus }),
+        },
+        order: {
+          update: async ({
+            data,
+          }: {
+            data: { paymentStatus: PaymentStatus };
+          }) => updates.push({ target: 'order', status: data.paymentStatus }),
+        },
+      }),
   };
 
-  const result = await service(prisma, generated).createRefund('admin-1', 'payment-1', 'Customer request');
+  const result = await service(prisma, generated).createRefund(
+    'admin-1',
+    'payment-1',
+    'Customer request',
+  );
   assert.equal(createdAmount, '699.00');
   assert.equal(result.amount, '699.00');
   assert.deepEqual(updates, [

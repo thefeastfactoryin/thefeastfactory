@@ -1,9 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateMenuCategoryDto } from './dto/create-menu-category.dto';
 import { CreateMenuItemDto } from './dto/create-menu-item.dto';
 import { MenuItemsQueryDto } from './dto/menu-items-query.dto';
+import { ImportMenuItemsDto } from './dto/import-menu-items.dto';
 import { UpdateMenuCategoryDto } from './dto/update-menu-category.dto';
 import { UpdateMenuItemDto } from './dto/update-menu-item.dto';
 
@@ -136,6 +137,87 @@ export class MenuService {
       include: { category: true },
     });
     return this.serializeItem(item);
+  }
+
+  async importItems(dto: ImportMenuItemsDto) {
+    if (!dto.rows.length) throw new BadRequestException('Import has no rows');
+
+    return this.prisma.$transaction(async (transaction) => {
+      const categories = await transaction.menuCategory.findMany();
+      const categoryByName = new Map(
+        categories.map((category) => [category.name.trim().toLowerCase(), category]),
+      );
+      const existingItems = await transaction.menuItem.findMany({
+        where: { deletedAt: null },
+      });
+      const itemByKey = new Map(
+        existingItems.map((item) => [
+          `${item.categoryId}:${item.name.trim().toLowerCase()}`,
+          item,
+        ]),
+      );
+      let created = 0;
+      let updated = 0;
+      let skipped = 0;
+      let nextCategoryOrder = categories.reduce(
+        (maximum, category) => Math.max(maximum, category.displayOrder),
+        0,
+      );
+
+      for (const row of dto.rows) {
+        const categoryName = row.category.trim();
+        const categoryKey = categoryName.toLowerCase();
+        let category = categoryByName.get(categoryKey);
+        if (!category && dto.createMissingCategories) {
+          category = await transaction.menuCategory.create({
+            data: {
+              name: categoryName,
+              displayOrder: ++nextCategoryOrder,
+              isActive: true,
+            },
+          });
+          categoryByName.set(categoryKey, category);
+        }
+        if (!category) {
+          throw new BadRequestException(
+            `Category “${categoryName}” does not exist`,
+          );
+        }
+
+        const name = row.name.trim();
+        const itemKey = `${category.id}:${name.toLowerCase()}`;
+        const existing = itemByKey.get(itemKey);
+        const data = {
+          categoryId: category.id,
+          name,
+          description: row.description?.trim() || null,
+          boxPrice: new Prisma.Decimal(row.boxPrice),
+          generalPrice: new Prisma.Decimal(row.generalPrice),
+          isVeg: row.foodType === 'VEG',
+          isActive: row.isActive ?? true,
+          imageUrl: row.imageUrl?.trim() || null,
+        };
+
+        if (existing) {
+          if (dto.duplicateStrategy === 'SKIP') {
+            skipped += 1;
+            continue;
+          }
+          const updatedItem = await transaction.menuItem.update({
+            where: { id: existing.id },
+            data,
+          });
+          itemByKey.set(itemKey, updatedItem);
+          updated += 1;
+        } else {
+          const createdItem = await transaction.menuItem.create({ data });
+          itemByKey.set(itemKey, createdItem);
+          created += 1;
+        }
+      }
+
+      return { total: dto.rows.length, created, updated, skipped };
+    });
   }
 
   async updateItem(id: string, dto: UpdateMenuItemDto) {

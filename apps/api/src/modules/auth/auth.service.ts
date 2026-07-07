@@ -26,9 +26,9 @@ export class AuthService {
       otp,
       this.config.get<number>('BCRYPT_SALT_ROUNDS', 12),
     );
-    const expirySeconds = this.config.get<number>(
-      'MSG91_OTP_EXPIRY_SECONDS',
-      300,
+    const expirySeconds = await this.getIntSetting(
+      'otp_expiry_seconds',
+      this.config.get<number>('MSG91_OTP_EXPIRY_SECONDS', 300),
     );
 
     await this.prisma.otpVerification.create({

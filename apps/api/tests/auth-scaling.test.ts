@@ -90,8 +90,14 @@ test('only one concurrent verifier can claim an OTP', async () => {
     service.verifyCustomerOtp(request),
   ]);
 
-  assert.equal(results.filter((result) => result.status === 'fulfilled').length, 1);
-  assert.equal(results.filter((result) => result.status === 'rejected').length, 1);
+  assert.equal(
+    results.filter((result) => result.status === 'fulfilled').length,
+    1,
+  );
+  assert.equal(
+    results.filter((result) => result.status === 'rejected').length,
+    1,
+  );
 });
 
 test('configured test OTP is limited to the configured mobile number', async () => {
@@ -108,6 +114,9 @@ test('configured test OTP is limited to the configured mobile number', async () 
     get: (key: string, fallback: unknown) => values[key] ?? fallback,
   };
   const prisma = {
+    platformSetting: {
+      findUnique: async () => null,
+    },
     otpVerification: {
       create: async ({ data }: { data: { otpHash: string } }) => {
         createdHashes.push(data.otpHash);
@@ -129,8 +138,6 @@ test('configured test OTP is limited to the configured mobile number', async () 
 
   await service.requestCustomerOtp({ mobileNumber: '9999999999' });
 
-  assert.deepEqual(sentOtps, [
-    { mobileNumber: '9999999999', otp: '123456' },
-  ]);
+  assert.deepEqual(sentOtps, [{ mobileNumber: '9999999999', otp: '123456' }]);
   assert.equal(await bcrypt.compare('123456', createdHashes[0]), true);
 });
