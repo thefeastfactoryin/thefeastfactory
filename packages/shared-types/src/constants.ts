@@ -95,14 +95,12 @@ export const customerCopy = {
     paySecurely: 'Pay securely',
     openingPayment: 'Opening payment...',
     paymentHandled: 'Payment details are handled securely by Razorpay.',
-    orderConfirmed:
-      'Your order is confirmed only after payment verification.',
+    orderConfirmed: 'Your order is confirmed only after payment verification.',
   },
   booking: {
     leadTimeHint: (hours: number) =>
       `Bookings need at least ${hours} hours of lead time.`,
-    leadTimeShort: (hours: number) =>
-      `At least ${hours} hours advance booking`,
+    leadTimeShort: (hours: number) => `At least ${hours} hours advance booking`,
   },
   order: {
     trackingEyebrow: 'Order tracking',
@@ -130,6 +128,7 @@ export const customerCopy = {
 export const adminCopy = {
   navigation: {
     dashboard: 'Dashboard',
+    homePage: 'Home page',
     operations: 'Operations',
     orders: 'Orders',
     menu: 'Menu',

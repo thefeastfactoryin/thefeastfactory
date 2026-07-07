@@ -33,7 +33,11 @@ body {
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   min-width: 320px;
   background-image:
-    radial-gradient(circle at 0% 0%, hsl(var(--accent) / 0.08), transparent 24rem),
+    radial-gradient(
+      circle at 0% 0%,
+      hsl(var(--accent) / 0.08),
+      transparent 24rem
+    ),
     radial-gradient(
       circle at 100% 6%,
       hsl(var(--primary) / 0.06),
@@ -44,11 +48,21 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-::selection { background: hsl(var(--accent) / 0.18); }
+::selection {
+  background: hsl(var(--accent) / 0.18);
+}
 
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 999px; }
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 999px;
+}
 
 button,
 a,
@@ -65,7 +79,7 @@ textarea {
 
 @layer components {
   .admin-page {
-    @apply mx-auto max-w-[1500px] p-5 md:p-8;
+    @apply mx-auto max-w-[1720px] p-5 md:p-8;
   }
 
   .admin-card {
