@@ -554,10 +554,10 @@ export function SelectionContextPanel({
     <>
       <div
         className={cn(
-          'mt-5 grid gap-4 rounded-2xl border bg-[#fcfaf6] p-4',
+          'mt-5 grid gap-4 rounded-2xl border border-border bg-[#fcfaf6] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]',
           sidebar
             ? 'grid-cols-1'
-            : 'md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,.8fr)_220px]',
+            : 'md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_224px]',
         )}
       >
         <Field label="Delivery date" hint="Choose the event day.">
@@ -624,7 +624,7 @@ export function SelectionContextPanel({
 
       <div className="mt-6 flex items-center justify-between gap-4">
         <div>
-          <h3 className="text-sm font-semibold">Delivery venue</h3>
+          <h3 className="text-sm font-bold">Delivery venue</h3>
           <p className="mt-1 text-xs text-muted-foreground">
             {selectedVenue
               ? selectedVenue.isDefault
@@ -634,10 +634,10 @@ export function SelectionContextPanel({
           </p>
         </div>
         <Link
-          className="inline-flex shrink-0 items-center gap-1.5 text-sm font-semibold text-primary hover:underline"
+          className="inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-full px-3 text-sm font-bold text-primary transition hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
           href={`/addresses?returnTo=${encodeURIComponent(returnTo)}`}
         >
-          <Plus className="h-4 w-4" /> Add new
+          <Plus className="h-4 w-4" /> Add new address
         </Link>
       </div>
 
@@ -661,7 +661,7 @@ export function SelectionContextPanel({
                 aria-checked={selected}
                 onClick={() => setAddressId(address.id)}
                 className={cn(
-                  'relative flex min-h-28 items-start gap-3 rounded-xl border bg-white p-4 text-left transition hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30',
+                  'relative flex min-h-24 items-start gap-3 rounded-xl border bg-white p-4 text-left transition hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30',
                   selected &&
                     'border-primary bg-primary/[0.045] ring-1 ring-primary/20',
                 )}
@@ -705,9 +705,13 @@ export function SelectionContextPanel({
       ) : (
         <Link
           href={`/addresses?returnTo=${encodeURIComponent(returnTo)}`}
-          className="mt-3 flex min-h-28 items-center justify-center gap-2 rounded-xl border border-dashed bg-[#fcfaf6] p-5 text-sm font-semibold text-primary transition hover:border-primary/40"
+          className="mt-3 flex min-h-28 flex-col items-center justify-center gap-2 rounded-xl border border-dashed bg-[#fcfaf6] p-5 text-center text-sm font-semibold text-primary transition hover:border-primary/40"
         >
-          <MapPinned className="h-5 w-5" /> Add your first delivery address
+          <MapPinned className="h-5 w-5" />
+          <span>No delivery address added</span>
+          <span className="text-xs font-medium text-muted-foreground">
+            Add a venue where the food should be delivered.
+          </span>
         </Link>
       )}
 
@@ -725,7 +729,10 @@ export function SelectionContextPanel({
 
   return (
     <section
-      className={cn('surface-card', sidebar ? 'p-4' : 'p-5 sm:p-6')}
+      className={cn(
+        'rounded-2xl border border-border bg-white shadow-[0_14px_36px_-30px_rgba(75,12,23,.55)]',
+        sidebar ? 'p-4' : 'p-5 sm:p-6',
+      )}
       aria-labelledby="event-context-title"
     >
       <button
@@ -750,9 +757,7 @@ export function SelectionContextPanel({
             Delivery details
           </span>
           <span className="mt-0.5 block text-xs text-muted-foreground">
-            {eventDate || addressId
-              ? 'Saved details are filled in automatically'
-              : 'Choose when and where we should deliver'}
+            Choose when and where we should deliver.
           </span>
         </span>
         {sidebar && (

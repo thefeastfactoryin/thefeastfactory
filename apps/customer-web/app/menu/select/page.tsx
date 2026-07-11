@@ -5,20 +5,17 @@ import {
   ArrowRight,
   ArrowRightLeft,
   Check,
-  ChevronLeft,
   ChevronRight,
   Filter,
   Leaf,
-  LockKeyhole,
   Search,
   ShoppingBag,
   SlidersHorizontal,
   X,
 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import type { ReactNode } from 'react';
-import { useEffect, useMemo, useState } from 'react';
-import { OrderProgress } from '../../../components/order-progress';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { DataImage } from '../../../components/data-image';
 import { Button } from '../../../components/ui/button';
 import { StatePanel } from '../../../components/ui/state-panel';
@@ -40,10 +37,26 @@ type MenuRow = { rule: CategoryRule; item: MenuSelectionItem };
 type DetailItem = { item: MenuSelectionItem; categoryName: string };
 
 export default function MenuSelectPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="page-shell">
+          <div className="h-96 animate-pulse rounded-2xl bg-white/60" />
+        </main>
+      }
+    >
+      <MenuSelectContent />
+    </Suspense>
+  );
+}
+
+function MenuSelectContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const cartPackage = useOrderBuilderStore((state) => state.package);
   const guestCount = useOrderBuilderStore((state) => state.guestCount);
   const selectedItems = useOrderBuilderStore((state) => state.selectedItems);
+  const setPackage = useOrderBuilderStore((state) => state.setPackage);
   const setDbCartId = useOrderBuilderStore((state) => state.setDbCartId);
   const toggleItem = useOrderBuilderStore((state) => state.toggleItem);
   const toggleSwap = useOrderBuilderStore((state) => state.toggleSwap);
@@ -66,6 +79,30 @@ export default function MenuSelectPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    const requestedVersionId = searchParams.get('packageVersionId');
+    if (!requestedVersionId) return;
+    if (cartPackage?.packageVersionId === requestedVersionId) return;
+
+    apiRequest<PackageConfiguration>(
+      `/package-versions/${requestedVersionId}/configuration`,
+    )
+      .then((configuration) => {
+        setPackage({
+          packageId: configuration.packageId,
+          packageVersionId: configuration.id,
+          packageName: configuration.packageName,
+          packageType: configuration.packageType,
+          isCustom: configuration.isCustom,
+          basePricePerPlate: configuration.basePricePerPlate,
+          minGuestCount: configuration.minGuestCount,
+          maxGuestCount: configuration.maxGuestCount,
+        });
+        setConfig(configuration);
+      })
+      .catch((reason) => setError((reason as Error).message));
+  }, [cartPackage?.packageVersionId, searchParams, setPackage]);
+
+  useEffect(() => {
     if (!cartPackage?.packageVersionId) return;
     apiRequest<PackageConfiguration>(
       `/package-versions/${cartPackage.packageVersionId}/configuration`,
@@ -76,9 +113,11 @@ export default function MenuSelectPage() {
 
   useEffect(() => {
     if (config?.packageType === 'CUSTOM_PACKAGE') {
-      router.replace('/menu/visual-builder');
+      const next = new URLSearchParams();
+      if (config.id) next.set('packageVersionId', config.id);
+      router.replace(`/packages/build?${next.toString()}`);
     }
-  }, [config?.packageType, router]);
+  }, [config?.id, config?.packageType, router]);
 
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get('focus') === 'extras') {
@@ -135,7 +174,7 @@ export default function MenuSelectPage() {
       );
   }, [config, includedRows]);
 
-  function matchesFilters({ rule, item }: MenuRow) {
+  const matchesFilters = useCallback(({ rule, item }: MenuRow) => {
     const query = menuSearch.trim().toLowerCase();
     return (
       (menuCategory === 'all' || rule.category.id === menuCategory) &&
@@ -145,10 +184,16 @@ export default function MenuSelectPage() {
           .toLowerCase()
           .includes(query))
     );
-  }
+  }, [menuCategory, menuDiet, menuSearch]);
 
-  const visibleIncluded = includedRows.filter(matchesFilters);
-  const visibleExtras = extraRows.filter(matchesFilters);
+  const visibleIncluded = useMemo(
+    () => includedRows.filter(matchesFilters),
+    [includedRows, matchesFilters],
+  );
+  const visibleExtras = useMemo(
+    () => extraRows.filter(matchesFilters),
+    [extraRows, matchesFilters],
+  );
   const activeFilterCount =
     Number(menuCategory !== 'all') +
     Number(menuDiet !== 'all') +
@@ -214,6 +259,16 @@ export default function MenuSelectPage() {
     setPendingSwapId(current?.menuItemId ?? row.item.id);
   }
 
+  const activeSwapRow = useMemo(
+    () => includedRows.find(({ item }) => item.id === expandedSwapId),
+    [expandedSwapId, includedRows],
+  );
+
+  function closeSwap() {
+    setExpandedSwapId(undefined);
+    setPendingSwapId(undefined);
+  }
+
   function confirmSwap(row: MenuRow) {
     if (!pendingSwapId || pendingSwapId === row.item.id) {
       removeSwap(row.item.id);
@@ -238,8 +293,7 @@ export default function MenuSelectPage() {
         });
       }
     }
-    setExpandedSwapId(undefined);
-    setPendingSwapId(undefined);
+    closeSwap();
   }
 
   function toggleExtra(row: MenuRow) {
@@ -308,6 +362,13 @@ export default function MenuSelectPage() {
   }
 
   if (!cartPackage) {
+    if (searchParams.get('packageVersionId')) {
+      return (
+        <main className="page-shell">
+          <div className="h-96 animate-pulse rounded-2xl bg-white/60" />
+        </main>
+      );
+    }
     return (
       <main className="page-shell">
         <StatePanel
@@ -347,34 +408,39 @@ export default function MenuSelectPage() {
   const activeCategoryName =
     categories.find((category) => category.id === menuCategory)?.name ??
     'All items';
+  const allIncludedVeg =
+    includedRows.length > 0 && includedRows.every(({ item }) => item.isVeg);
 
   return (
-    <main className="pb-36 lg:pb-16">
-      <div className="border-b bg-white/80">
-        <div className="mx-auto max-w-[1440px] px-4 py-4 sm:px-6 lg:px-8">
-          <OrderProgress
+    <main className="bg-ivory pb-36 text-charcoal lg:pb-16">
+      <div className="border-b border-border/70 bg-ivory">
+        <div className="mx-auto max-w-[1440px] px-3 py-3 sm:px-5 lg:px-6">
+          <MenuStepIndicator
             current={1}
             context={isMealBox ? 'Meal box' : 'Package'}
+            packageName={config.packageName}
+            guestCount={guestCount}
+            isMealBox={isMealBox}
           />
         </div>
       </div>
 
       <div
         className={cn(
-          'mx-auto grid max-w-[1440px] min-w-0 lg:items-start',
+          'mx-auto grid max-w-[1440px] min-w-0 gap-4 px-3 py-4 sm:px-5 lg:items-start lg:px-6',
           filtersExpanded
-            ? 'lg:grid-cols-[230px_minmax(0,1fr)_290px]'
-            : 'lg:grid-cols-[64px_minmax(0,1fr)_290px]',
+            ? 'lg:grid-cols-[236px_minmax(620px,1fr)_304px]'
+            : 'lg:grid-cols-[64px_minmax(620px,1fr)_304px]',
         )}
       >
-        <aside className="hidden min-h-[calc(100vh-132px)] border-r bg-white/70 lg:block">
-          <div className="sticky top-[72px] p-3">
+        <aside className="hidden lg:block">
+          <div className="sticky top-[92px] overflow-hidden rounded-xl border border-border/80 bg-[#fffdf8] shadow-[0_10px_28px_-24px_rgba(75,12,23,.6)]">
             <button
               type="button"
               onClick={() => setFiltersExpanded((value) => !value)}
               className={cn(
-                'flex h-11 w-full items-center rounded-xl border bg-white text-sm font-bold text-primary transition hover:bg-primary/5',
-                filtersExpanded ? 'justify-between px-3' : 'justify-center',
+                'flex h-12 w-full items-center border-b px-4 text-sm font-extrabold uppercase text-charcoal transition hover:bg-primary/[0.025]',
+                filtersExpanded ? 'justify-between' : 'justify-center',
               )}
               aria-expanded={filtersExpanded}
               aria-label={
@@ -383,30 +449,32 @@ export default function MenuSelectPage() {
                   : 'Expand menu filters'
               }
             >
-              {filtersExpanded && <span>Filters & categories</span>}
+              {filtersExpanded && <span>Categories</span>}
               {filtersExpanded ? (
-                <ChevronLeft className="h-4 w-4" />
+                <SlidersHorizontal className="h-4 w-4 text-primary" />
               ) : (
                 <SlidersHorizontal className="h-4 w-4" />
               )}
             </button>
             {filtersExpanded ? (
-              <FilterContents
-                search={menuSearch}
-                setSearch={setMenuSearch}
-                diet={menuDiet}
-                setDiet={setMenuDiet}
-                category={menuCategory}
-                setCategory={setMenuCategory}
-                categories={categories}
-                total={includedRows.length}
-              />
+              <div className="p-3.5">
+                <FilterContents
+                  search={menuSearch}
+                  setSearch={setMenuSearch}
+                  diet={menuDiet}
+                  setDiet={setMenuDiet}
+                  category={menuCategory}
+                  setCategory={setMenuCategory}
+                  categories={categories}
+                  total={includedRows.length}
+                />
+              </div>
             ) : (
-              <div className="mt-3 grid gap-2">
+              <div className="grid gap-2 p-2">
                 <button
                   type="button"
                   onClick={() => setFiltersExpanded(true)}
-                  className="relative grid h-11 place-items-center rounded-xl bg-primary text-white"
+                  className="relative grid h-10 place-items-center rounded-lg bg-primary text-white shadow-sm"
                   aria-label="Open filters and categories"
                 >
                   <Filter className="h-4 w-4" />
@@ -422,10 +490,10 @@ export default function MenuSelectPage() {
                     key={category.id}
                     onClick={() => setMenuCategory(category.id)}
                     className={cn(
-                      'grid h-10 place-items-center rounded-xl text-xs font-bold',
+                      'grid h-10 place-items-center rounded-lg text-xs font-bold transition',
                       menuCategory === category.id
                         ? 'bg-primary/10 text-primary ring-1 ring-primary/20'
-                        : 'text-muted-foreground hover:bg-muted',
+                        : 'text-muted-foreground hover:bg-muted/70',
                     )}
                     title={category.name}
                     aria-label={`Show ${category.name}`}
@@ -438,49 +506,112 @@ export default function MenuSelectPage() {
           </div>
         </aside>
 
-        <section className="min-w-0 px-4 py-6 sm:px-6 lg:px-8">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
+        <section className="min-w-0">
+          <div className="hidden">
+            <div className="min-w-0">
               <p className="eyebrow">
                 {isMealBox ? 'Your meal box' : 'Your package menu'}
               </p>
-              <h1 className="mt-2 font-serif text-3xl font-semibold tracking-tight sm:text-4xl">
+              <h1 className="mt-2 max-w-3xl font-serif text-3xl font-semibold leading-tight tracking-tight text-charcoal sm:text-4xl">
                 {isMealBox ? 'Review your ' : 'Review your '}
                 {config.packageName}
               </h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+              <p className="mt-2 max-w-2xl text-sm leading-5 text-muted-foreground">
                 {isMealBox
                   ? 'Everything shown is included. Swap only where available.'
                   : 'Everything in the included menu is fixed. Add optional extras if you would like.'}
               </p>
             </div>
-            <span className="rounded-lg border border-primary/15 bg-primary/[0.035] px-3 py-2 text-xs font-bold text-primary">
+            <span className="mt-5 inline-flex min-h-11 max-w-full items-center rounded-full border border-accent/35 bg-accent/[0.10] px-4 text-xs font-bold text-gold-text">
               {config.packageName} · {guestCount}{' '}
               {isMealBox ? 'boxes' : 'guests'}
             </span>
           </div>
 
-          <div className="mt-5 flex flex-wrap items-center gap-2">
-            <StateBadge tone="included" label="Included" />
-            <StateBadge tone="fixed" label="Fixed" icon={LockKeyhole} />
-            {isMealBox ? (
-              <StateBadge
-                tone="swap"
-                label="Swap available"
-                icon={ArrowRightLeft}
+          <div className="grid gap-4 rounded-[18px] border border-border/80 bg-white p-4 shadow-[0_12px_32px_-28px_rgba(75,12,23,.65)] sm:grid-cols-[200px_minmax(0,1fr)] sm:items-center">
+            <div className="h-36 overflow-hidden rounded-xl border border-border/80 bg-muted sm:h-32">
+              <img
+                src={isMealBox ? '/order-mealbox.png' : '/pkg-puja.png'}
+                alt=""
+                className="h-full w-full object-cover"
               />
-            ) : (
-              <StateBadge tone="extra" label="Optional extra" />
-            )}
+            </div>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-3">
+                <h1 className="font-serif text-[30px] font-semibold leading-tight tracking-tight text-charcoal sm:text-[34px]">
+                  {config.packageName}
+                </h1>
+                <span className="rounded-full bg-accent/[0.12] px-3 py-1.5 text-xs font-bold text-gold-text">
+                  {guestCount} {isMealBox ? 'boxes' : 'guests'}
+                </span>
+              </div>
+              <p className="mt-2 max-w-2xl text-sm leading-5 text-muted-foreground">
+                {isMealBox
+                  ? 'Review the dishes included in your meal box and customise available swaps.'
+                  : 'A complete traditional spread for your special occasion.'}
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <StateBadge
+                  tone="included"
+                  label={`${includedRows.length} items included`}
+                />
+                <StateBadge
+                  tone="fixed"
+                  label={allIncludedVeg ? '100% Veg' : 'Mixed menu'}
+                />
+                <StateBadge
+                  tone={isMealBox ? 'swap' : 'extra'}
+                  label="Customisable"
+                  icon={isMealBox ? ArrowRightLeft : undefined}
+                />
+              </div>
+            </div>
           </div>
 
-          <div className="mt-5 flex items-center justify-between gap-3 border-y py-3 lg:hidden">
+          <div
+            className="mt-4 grid min-h-11 grid-cols-2 overflow-hidden rounded-lg border border-border/80 bg-white"
+            role="tablist"
+            aria-label="Menu sections"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={!extrasExpanded}
+              className={cn(
+                'border-b-2 px-4 text-sm font-bold transition',
+                !extrasExpanded
+                  ? 'border-primary bg-white text-primary'
+                  : 'border-transparent text-muted-foreground hover:bg-muted/30 hover:text-primary',
+              )}
+              onClick={() => setExtrasExpanded(false)}
+            >
+              Included in package ({includedRows.length})
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={extrasExpanded}
+              disabled={isMealBox || extraRows.length === 0}
+              className={cn(
+                'border-b-2 px-4 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-45',
+                extrasExpanded
+                  ? 'border-primary bg-white text-primary'
+                  : 'border-transparent text-muted-foreground hover:bg-muted/30 hover:text-primary',
+              )}
+              onClick={() => setExtrasExpanded(true)}
+            >
+              Extras (add more)
+            </button>
+          </div>
+
+          <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border bg-white p-2 shadow-sm lg:hidden">
             <button
               type="button"
               onClick={() => setMobileFiltersOpen(true)}
-              className="inline-flex h-11 items-center gap-2 rounded-xl border bg-white px-4 text-sm font-bold text-primary"
+              className="inline-flex min-h-11 max-w-[70%] items-center gap-2 rounded-lg border border-primary/20 bg-white px-4 text-sm font-bold text-primary"
             >
-              <SlidersHorizontal className="h-4 w-4" /> Filters & categories
+              <SlidersHorizontal className="h-4 w-4 shrink-0" />
+              <span className="truncate">Filters & categories</span>
               {activeFilterCount > 0 && (
                 <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] text-white">
                   {activeFilterCount}
@@ -492,95 +623,57 @@ export default function MenuSelectPage() {
             </span>
           </div>
 
-          <MenuSections
-            rows={visibleIncluded}
-            isMealBox={isMealBox}
-            currentSwaps={currentSwaps}
-            itemById={itemById}
-            expandedSwapId={expandedSwapId}
-            pendingSwapId={pendingSwapId}
-            setPendingSwapId={setPendingSwapId}
-            alternativesFor={alternativesFor}
-            openSwap={openSwap}
-            closeSwap={() => {
-              setExpandedSwapId(undefined);
-              setPendingSwapId(undefined);
-            }}
-            confirmSwap={confirmSwap}
-            openDetails={setDetailItem}
-          />
+          {!extrasExpanded && (
+            <MenuSections
+              rows={visibleIncluded}
+              currentSwaps={currentSwaps}
+              itemById={itemById}
+              alternativesFor={alternativesFor}
+              openSwap={openSwap}
+              openDetails={setDetailItem}
+            />
+          )}
 
-          {!isMealBox && extraRows.length > 0 && (
-            <section className="mt-8 border-t pt-6">
-              <div className="flex flex-wrap items-end justify-between gap-3">
+          {extrasExpanded && !isMealBox && extraRows.length > 0 && (
+            <section className="mt-4 rounded-xl border border-border/80 bg-white/70 p-4 shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="eyebrow">Optional extras</p>
-                  <h2 className="mt-1 font-serif text-2xl font-semibold">
+                  <h2 className="mt-1 font-serif text-xl font-semibold text-charcoal">
                     Add something more
                   </h2>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setExtrasExpanded((value) => !value)}
-                  className="inline-flex h-10 items-center gap-2 rounded-xl border px-4 text-xs font-bold text-primary hover:bg-primary/5"
-                  aria-expanded={extrasExpanded}
-                >
-                  {extrasExpanded
-                    ? 'Hide extras'
-                    : `Browse ${extraRows.length} extras`}
-                  <ChevronRight
-                    className={cn(
-                      'h-4 w-4 transition',
-                      extrasExpanded && 'rotate-90',
-                    )}
-                  />
-                </button>
+                <span className="text-xs font-bold text-primary">
+                  {selectedExtras.length} added
+                </span>
               </div>
               <p className="mt-2 text-xs text-muted-foreground">
                 {selectedExtras.length
                   ? `${selectedExtras.length} ${selectedExtras.length === 1 ? 'extra' : 'extras'} selected`
                   : 'Your included menu is complete without extras.'}
               </p>
-              {extrasExpanded ? (
-                <div className="mt-4 divide-y border-y">
-                  {visibleExtras.map((row) => (
-                    <ExtraRow
-                      key={`${row.rule.id}-${row.item.id}`}
-                      row={row}
-                      selected={selectedIds.has(row.item.id)}
-                      onToggle={() => toggleExtra(row)}
-                      onDetails={() =>
-                        setDetailItem({
-                          item: row.item,
-                          categoryName: row.rule.category.name,
-                        })
-                      }
-                    />
-                  ))}
-                </div>
-              ) : selectedExtras.length > 0 ? (
-                <div className="mt-4 divide-y border-y">
-                  {selectedExtras.map((row) => (
-                    <ExtraRow
-                      key={`${row.rule.id}-${row.item.id}`}
-                      row={row}
-                      selected
-                      onToggle={() => toggleExtra(row)}
-                      onDetails={() =>
-                        setDetailItem({
-                          item: row.item,
-                          categoryName: row.rule.category.name,
-                        })
-                      }
-                    />
-                  ))}
-                </div>
-              ) : null}
+              <div className="mt-4 grid gap-3">
+                {visibleExtras.map((row) => (
+                  <ExtraRow
+                    key={`${row.rule.id}-${row.item.id}`}
+                    row={row}
+                    selected={selectedIds.has(row.item.id)}
+                    onToggle={() => toggleExtra(row)}
+                    onDetails={() =>
+                      setDetailItem({
+                        item: row.item,
+                        categoryName: row.rule.category.name,
+                      })
+                    }
+                  />
+                ))}
+              </div>
             </section>
           )}
 
-          {visibleIncluded.length === 0 && visibleExtras.length === 0 && (
-            <div className="mt-8 rounded-2xl border bg-white p-10 text-center">
+          {((!extrasExpanded && visibleIncluded.length === 0) ||
+            (extrasExpanded && visibleExtras.length === 0)) && (
+            <div className="mt-8 rounded-2xl border border-border/80 bg-white p-10 text-center shadow-sm">
               <Search className="mx-auto h-6 w-6 text-muted-foreground" />
               <h2 className="mt-3 font-semibold">No matching dishes</h2>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -590,7 +683,7 @@ export default function MenuSelectPage() {
           )}
 
           {isMealBox && (
-            <p className="mt-6 rounded-xl border bg-muted/40 px-4 py-3 text-xs text-muted-foreground">
+            <p className="mt-6 rounded-xl border bg-white/70 px-4 py-3 text-xs text-muted-foreground shadow-sm">
               No extras are available for this meal box.
             </p>
           )}
@@ -604,7 +697,7 @@ export default function MenuSelectPage() {
           )}
         </section>
 
-        <aside className="hidden min-h-[calc(100vh-132px)] border-l bg-white/55 p-5 lg:block">
+        <aside className="hidden lg:block">
           <MenuSummary
             isMealBox={isMealBox}
             rows={summaryRows}
@@ -616,27 +709,44 @@ export default function MenuSelectPage() {
             perPerson={perPerson}
             menuSubtotal={menuSubtotal}
             saving={saving}
-            onContinue={continueToCart}
+            ctaLabel={
+              !isMealBox && !extrasExpanded
+                ? 'Continue to extras'
+                : 'Continue to event & payment'
+            }
+            onContinue={
+              !isMealBox && !extrasExpanded
+                ? () => setExtrasExpanded(true)
+                : continueToCart
+            }
           />
         </aside>
       </div>
 
-      <div className="fixed inset-x-0 bottom-16 z-40 border-t bg-white/95 p-3 shadow-[0_-14px_28px_-22px_rgba(75,12,23,.7)] backdrop-blur md:bottom-0 lg:hidden">
+      <div className="fixed inset-x-0 bottom-16 z-40 border-t border-border/80 bg-white/95 p-3 shadow-[0_-14px_28px_-22px_rgba(75,12,23,.55)] backdrop-blur lg:hidden">
         <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
           <button
             type="button"
             onClick={() => setMobileSummaryOpen(true)}
-            className="min-w-0 text-left"
+            className="min-h-11 min-w-0 flex-1 rounded-xl border border-border/80 bg-ivory px-3 py-2 text-left"
           >
             <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-              View your {isMealBox ? 'meal box' : 'menu'}
+              View summary
             </span>
             <span className="block font-bold text-primary">
               {summaryRows.length} included · {formatCurrency(perPerson)} ×{' '}
               {guestCount}
             </span>
           </button>
-          <Button onClick={continueToCart} disabled={saving}>
+          <Button
+            className="min-h-11 shrink-0 px-5"
+            onClick={
+              !isMealBox && !extrasExpanded
+                ? () => setExtrasExpanded(true)
+                : continueToCart
+            }
+            disabled={saving}
+          >
             {saving ? 'Saving…' : 'Continue'}
             <ChevronRight className="ml-1 h-4 w-4" />
           </Button>
@@ -680,10 +790,24 @@ export default function MenuSelectPage() {
             perPerson={perPerson}
             menuSubtotal={menuSubtotal}
             saving={saving}
+            ctaLabel="Continue to event & payment"
             onContinue={continueToCart}
             inline
           />
         </MobileSheet>
+      )}
+
+      {activeSwapRow && (
+        <SwapDrawer
+          row={activeSwapRow}
+          alternatives={alternativesFor(activeSwapRow.rule, activeSwapRow.item)}
+          currentSwap={currentSwaps.get(activeSwapRow.item.id)}
+          itemById={itemById}
+          pendingSwapId={pendingSwapId}
+          setPendingSwapId={setPendingSwapId}
+          onCancel={closeSwap}
+          onConfirm={() => confirmSwap(activeSwapRow)}
+        />
       )}
 
       {detailItem && (
@@ -707,6 +831,75 @@ export default function MenuSelectPage() {
   );
 }
 
+function MenuStepIndicator({
+  current,
+  context,
+  packageName,
+  guestCount,
+  isMealBox,
+}: {
+  current: 0 | 1 | 2;
+  context: 'Package' | 'Meal box';
+  packageName: string;
+  guestCount: number;
+  isMealBox: boolean;
+}) {
+  const steps = [context, 'Menu', 'Event & payment'];
+  const subtitles = [
+    `${packageName} • ${guestCount} ${isMealBox ? 'boxes' : 'guests'}`,
+    'Review & customise',
+    'Confirm & pay',
+  ];
+  return (
+    <nav
+      aria-label="Order progress"
+      className="rounded-xl border border-border/75 bg-white shadow-[0_8px_24px_-24px_rgba(75,12,23,.55)]"
+    >
+      <ol className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_1fr]">
+        {steps.map((label, index) => {
+          const complete = index < current;
+          const active = index === current;
+          return (
+            <li key={label} className="relative min-w-0">
+              {index > 0 && (
+                <span className="absolute left-0 top-1/2 hidden h-px w-10 -translate-x-1/2 bg-border sm:block" />
+              )}
+              <div
+                className={cn(
+                  'flex min-h-[66px] min-w-0 items-center gap-3 px-4 text-sm sm:px-5',
+                  active && 'bg-white text-primary',
+                  complete && 'text-primary',
+                  !active && !complete && 'text-muted-foreground',
+                )}
+                aria-current={active ? 'step' : undefined}
+              >
+                <span
+                  className={cn(
+                    'grid h-9 w-9 shrink-0 place-items-center rounded-full border text-sm font-extrabold',
+                    complete && 'border-primary bg-primary text-white',
+                    active && 'border-accent bg-accent text-accent-foreground',
+                    !complete && !active && 'border-border bg-white',
+                  )}
+                >
+                  {complete ? <Check className="h-4 w-4" /> : index + 1}
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate font-bold text-charcoal">
+                    {label}
+                  </span>
+                  <span className="mt-1 block truncate text-xs font-medium text-muted-foreground">
+                    {subtitles[index]}
+                  </span>
+                </span>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
+  );
+}
+
 function FilterContents({
   search,
   setSearch,
@@ -727,27 +920,27 @@ function FilterContents({
   total: number;
 }) {
   return (
-    <div className="mt-4">
-      <label className="flex h-11 items-center gap-2 rounded-xl border bg-white px-3">
+    <div>
+      <label className="flex min-h-11 items-center gap-2 rounded-lg border border-border/90 bg-white px-3.5 shadow-sm transition focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-primary/10">
         <Search className="h-4 w-4 text-muted-foreground" />
         <input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           placeholder="Search dishes"
-          className="min-w-0 flex-1 bg-transparent text-sm outline-none"
+          className="min-w-0 flex-1 bg-transparent text-sm text-charcoal outline-none placeholder:text-muted-foreground"
         />
       </label>
-      <div className="mt-4 flex gap-1 rounded-xl bg-muted/60 p-1">
+      <div className="hidden">
         {(['all', 'veg', 'nonveg'] as const).map((value) => (
           <button
             type="button"
             key={value}
             onClick={() => setDiet(value)}
             className={cn(
-              'flex-1 rounded-lg px-2 py-2 text-xs font-bold',
+              'min-h-11 flex-1 rounded-lg px-2 text-xs font-bold transition',
               diet === value
-                ? 'bg-white text-primary shadow-sm'
-                : 'text-muted-foreground',
+                ? 'bg-white text-primary shadow-sm ring-1 ring-border/70'
+                : 'text-muted-foreground hover:text-foreground',
             )}
             aria-pressed={diet === value}
           >
@@ -755,7 +948,7 @@ function FilterContents({
           </button>
         ))}
       </div>
-      <nav className="mt-5 space-y-1" aria-label="Menu categories">
+      <nav className="mt-4 space-y-1" aria-label="Menu categories">
         <CategoryButton
           active={category === 'all'}
           label="All items"
@@ -772,6 +965,40 @@ function FilterContents({
           />
         ))}
       </nav>
+      <div className="mt-5 border-t pt-4">
+        <p className="text-xs font-extrabold uppercase text-charcoal">
+          Diet preference
+        </p>
+        <div className="mt-3 flex gap-2">
+          {(['all', 'veg', 'nonveg'] as const).map((value) => (
+            <button
+              type="button"
+              key={value}
+              onClick={() => setDiet(value)}
+              className={cn(
+                'min-h-10 flex-1 rounded-lg border px-2 text-xs font-bold transition',
+                diet === value
+                  ? 'border-primary bg-primary text-white shadow-sm'
+                  : 'border-border bg-white text-charcoal hover:border-primary/30',
+              )}
+              aria-pressed={diet === value}
+            >
+              {value === 'all' ? 'All' : value === 'veg' ? 'Veg' : 'Non-veg'}
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setSearch('');
+            setDiet('all');
+            setCategory('all');
+          }}
+          className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-primary/30 bg-white px-4 text-sm font-bold text-primary transition hover:bg-primary/[0.04]"
+        >
+          Clear all filters
+        </button>
+      </div>
     </div>
   );
 }
@@ -792,10 +1019,10 @@ function CategoryButton({
       type="button"
       onClick={onClick}
       className={cn(
-        'flex w-full items-center justify-between rounded-xl border-l-4 px-3 py-3 text-left text-sm transition',
+        'flex min-h-10 w-full items-center justify-between border-l-2 px-3 text-left text-sm transition',
         active
-          ? 'border-primary bg-primary/[0.06] font-bold text-primary'
-          : 'border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+          ? 'border-primary bg-primary/[0.055] font-bold text-primary'
+          : 'border-transparent text-muted-foreground hover:bg-white/70 hover:text-foreground',
       )}
       aria-current={active ? 'true' : undefined}
     >
@@ -807,68 +1034,126 @@ function CategoryButton({
 
 function MenuSections({
   rows,
-  isMealBox,
   currentSwaps,
   itemById,
-  expandedSwapId,
-  pendingSwapId,
-  setPendingSwapId,
   alternativesFor,
   openSwap,
-  closeSwap,
-  confirmSwap,
   openDetails,
 }: {
   rows: MenuRow[];
-  isMealBox: boolean;
   currentSwaps: Map<string, SelectedItem>;
   itemById: Map<string, MenuSelectionItem>;
-  expandedSwapId?: string;
-  pendingSwapId?: string;
-  setPendingSwapId: (id: string) => void;
   alternativesFor: (
     rule: CategoryRule,
     item: MenuSelectionItem,
   ) => MenuSelectionItem[];
   openSwap: (row: MenuRow) => void;
-  closeSwap: () => void;
-  confirmSwap: (row: MenuRow) => void;
   openDetails: (detail: DetailItem) => void;
 }) {
-  const grouped = rows.reduce<Array<{ rule: CategoryRule; rows: MenuRow[] }>>(
-    (groups, row) => {
-      const existing = groups.find((group) => group.rule.id === row.rule.id);
-      if (existing) existing.rows.push(row);
-      else groups.push({ rule: row.rule, rows: [row] });
-      return groups;
-    },
-    [],
+  const grouped = useMemo(
+    () =>
+      rows.reduce<Array<{ rule: CategoryRule; rows: MenuRow[] }>>(
+        (groups, row) => {
+          const existing = groups.find(
+            (group) => group.rule.id === row.rule.id,
+          );
+          if (existing) existing.rows.push(row);
+          else groups.push({ rule: row.rule, rows: [row] });
+          return groups;
+        },
+        [],
+      ),
+    [rows],
   );
+  const [openCategoryIds, setOpenCategoryIds] = useState<string[]>([]);
+  const [swappableOnly, setSwappableOnly] = useState(false);
+
+  useEffect(() => {
+    setOpenCategoryIds((current) => {
+      const available = new Set(grouped.map((group) => group.rule.id));
+      const kept = current.filter((id) => available.has(id)).slice(0, 2);
+      if (kept.length > 0) return kept;
+      return grouped[0] ? [grouped[0].rule.id] : [];
+    });
+  }, [grouped]);
+
+  function toggleCategory(id: string) {
+    setOpenCategoryIds((current) =>
+      current.includes(id) ? current.filter((item) => item !== id) : [id],
+    );
+  }
 
   return (
-    <div className="mt-6 space-y-7">
-      {grouped.map((group) => (
-        <section key={group.rule.id}>
-          <div className="flex items-center gap-3 border-b pb-2">
-            <h2 className="text-xs font-extrabold uppercase tracking-[0.14em] text-primary">
-              {group.rule.category.name}
-            </h2>
-            <span className="text-xs text-muted-foreground">
-              {group.rows.length}
+    <div className="mt-4 space-y-3">
+      <div className="flex items-center justify-end">
+        <label className="inline-flex min-h-11 items-center gap-2 text-xs font-semibold text-muted-foreground">
+          <span>Show only swappable</span>
+          <button
+            type="button"
+            onClick={() => setSwappableOnly((value) => !value)}
+            className={cn(
+              'relative h-6 w-11 rounded-full border transition',
+              swappableOnly
+                ? 'border-primary bg-primary'
+                : 'border-border bg-muted',
+            )}
+            aria-pressed={swappableOnly}
+          >
+            <span
+              className={cn(
+                'absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition',
+                swappableOnly ? 'left-5' : 'left-0.5',
+              )}
+            />
+          </button>
+        </label>
+      </div>
+      {grouped.map((group) => {
+        const visibleRows = swappableOnly
+          ? group.rows.filter(
+              (row) =>
+                Boolean(row.item.isSwappable) &&
+                alternativesFor(row.rule, row.item).length > 0,
+            )
+          : group.rows;
+        const open = openCategoryIds.includes(group.rule.id);
+        if (swappableOnly && visibleRows.length === 0) return null;
+        return (
+        <section
+          key={group.rule.id}
+          className="overflow-hidden rounded-lg border border-border/80 bg-white shadow-sm"
+        >
+          <button
+            type="button"
+            onClick={() => toggleCategory(group.rule.id)}
+            className="flex min-h-14 w-full items-center justify-between gap-3 border-b border-border/80 bg-white px-4 text-left transition hover:bg-ivory/50"
+            aria-expanded={open}
+          >
+            <div className="flex items-center gap-3">
+              <span className="grid h-8 w-8 place-items-center rounded-full bg-accent/[0.10] text-primary">
+                <Leaf className="h-4 w-4" />
+              </span>
+              <h2 className="font-serif text-lg font-semibold text-charcoal">
+                {group.rule.category.name}
+              </h2>
+            </div>
+            <span className="flex items-center gap-3 text-sm font-medium text-muted-foreground">
+              {visibleRows.length} items
+              <ChevronRight
+                className={cn('h-4 w-4 transition', open && 'rotate-90')}
+              />
             </span>
-          </div>
-          <div className="divide-y">
-            {group.rows.map((row) => {
+          </button>
+          {open && (
+            <div className="divide-y divide-border/80">
+            {visibleRows.map((row) => {
               const alternatives = alternativesFor(row.rule, row.item);
               const currentSwap = currentSwaps.get(row.item.id);
               const shownItem = currentSwap
                 ? (itemById.get(currentSwap.menuItemId) ?? row.item)
                 : row.item;
               const swappable =
-                isMealBox &&
-                Boolean(row.item.isSwappable) &&
-                alternatives.length > 0;
-              const expanded = expandedSwapId === row.item.id;
+                Boolean(row.item.isSwappable) && alternatives.length > 0;
               return (
                 <div key={row.item.id}>
                   <DishRow
@@ -877,8 +1162,7 @@ function MenuSections({
                     categoryName={row.rule.category.name}
                     swappable={swappable}
                     swapped={Boolean(currentSwap)}
-                    expanded={expanded}
-                    onSwap={() => (expanded ? closeSwap() : openSwap(row))}
+                    onSwap={() => openSwap(row)}
                     onDetails={() =>
                       openDetails({
                         item: shownItem,
@@ -886,22 +1170,14 @@ function MenuSections({
                       })
                     }
                   />
-                  {expanded && (
-                    <InlineSwap
-                      original={row.item}
-                      alternatives={alternatives}
-                      pendingSwapId={pendingSwapId}
-                      setPendingSwapId={setPendingSwapId}
-                      onCancel={closeSwap}
-                      onConfirm={() => confirmSwap(row)}
-                    />
-                  )}
                 </div>
               );
             })}
-          </div>
+            </div>
+          )}
         </section>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -912,7 +1188,6 @@ function DishRow({
   categoryName,
   swappable,
   swapped,
-  expanded,
   onSwap,
   onDetails,
 }: {
@@ -921,16 +1196,15 @@ function DishRow({
   categoryName: string;
   swappable: boolean;
   swapped: boolean;
-  expanded: boolean;
   onSwap: () => void;
   onDetails: () => void;
 }) {
   return (
-    <article className="grid min-w-0 grid-cols-[72px_minmax(0,1fr)] gap-3 py-3 sm:grid-cols-[84px_minmax(0,1fr)_auto] sm:items-center sm:gap-4">
+    <article className="grid min-w-0 grid-cols-[84px_minmax(0,1fr)] gap-3 bg-white px-4 py-3 transition hover:bg-ivory/45 sm:grid-cols-[92px_minmax(0,1fr)_170px] sm:items-center">
       <button
         type="button"
         onClick={onDetails}
-        className="h-[72px] overflow-hidden rounded-lg bg-muted sm:h-[70px]"
+        className="h-[76px] overflow-hidden rounded-lg bg-muted sm:h-[84px]"
         aria-label={`View details for ${item.name}`}
       >
         <DataImage
@@ -939,35 +1213,38 @@ function DishRow({
           className="h-full w-full object-cover"
         />
       </button>
-      <button type="button" onClick={onDetails} className="min-w-0 text-left">
+      <button
+        type="button"
+        onClick={onDetails}
+        className="min-h-11 min-w-0 text-left"
+      >
         <span className="flex flex-wrap items-center gap-2">
-          <strong className="truncate font-serif text-lg leading-tight">
+          <strong className="min-w-0 break-words font-serif text-[17px] leading-tight text-charcoal">
             {item.name}
           </strong>
           <DietBadge isVeg={item.isVeg} />
         </span>
-        <span className="mt-1 block text-xs text-muted-foreground">
-          {categoryName}
+        <span className="mt-1 line-clamp-2 block text-xs leading-5 text-muted-foreground">
+          {item.description || categoryName}
           {swapped && ` · replaces ${original.name}`}
         </span>
       </button>
-      <div className="col-span-2 flex items-center justify-end gap-2 sm:col-span-1">
+      <div className="col-span-2 flex flex-wrap items-center justify-end gap-2 sm:col-span-1 sm:grid sm:justify-items-end">
         {swapped ? (
           <StateBadge tone="swap" label="Swapped" icon={ArrowRightLeft} />
         ) : swappable ? (
           <StateBadge tone="included" label="Included" />
         ) : (
-          <StateBadge tone="fixed" label="Fixed" icon={LockKeyhole} />
+          <StateBadge tone="fixed" label="Fixed" />
         )}
         {swappable && (
           <button
             type="button"
             onClick={onSwap}
-            className="inline-flex h-9 items-center gap-2 rounded-lg border border-primary/50 px-3 text-xs font-bold text-primary hover:bg-primary/5"
-            aria-expanded={expanded}
+            className="inline-flex min-h-10 min-w-32 items-center justify-center gap-2 rounded-lg border border-primary/35 bg-white px-3 text-xs font-bold text-primary transition hover:bg-primary/[0.04]"
           >
             <ArrowRightLeft className="h-3.5 w-3.5" />
-            {swapped ? 'Change' : 'Swap'}
+            {swapped ? 'Change swap' : 'Swap item'}
           </button>
         )}
       </div>
@@ -975,56 +1252,122 @@ function DishRow({
   );
 }
 
-function InlineSwap({
-  original,
+function SwapDrawer({
+  row,
   alternatives,
+  currentSwap,
+  itemById,
   pendingSwapId,
   setPendingSwapId,
   onCancel,
   onConfirm,
 }: {
-  original: MenuSelectionItem;
+  row: MenuRow;
   alternatives: MenuSelectionItem[];
+  currentSwap?: SelectedItem;
+  itemById: Map<string, MenuSelectionItem>;
   pendingSwapId?: string;
   setPendingSwapId: (id: string) => void;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  const original = row.item;
+  const currentItem = currentSwap
+    ? (itemById.get(currentSwap.menuItemId) ?? original)
+    : original;
   const selected =
     alternatives.find((item) => item.id === pendingSwapId) ?? original;
   return (
-    <div className="mb-3 rounded-xl border bg-[#fcfaf6] p-4 sm:ml-[100px]">
-      <p className="text-sm font-bold">Choose a replacement</p>
-      <div className="mt-3 grid max-h-40 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
-        <SwapChoice
-          item={original}
-          label="Keep original"
-          active={pendingSwapId === original.id}
-          onClick={() => setPendingSwapId(original.id)}
-        />
-        {alternatives.map((item) => (
-          <SwapChoice
-            key={item.id}
-            item={item}
-            active={pendingSwapId === item.id}
-            onClick={() => setPendingSwapId(item.id)}
-          />
-        ))}
-      </div>
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-3">
-        <p className="text-xs font-semibold text-muted-foreground">
-          {original.name} <ArrowRight className="mx-1 inline h-3 w-3" />{' '}
-          <span className="text-foreground">{selected.name}</span>
-        </p>
-        <div className="flex gap-2">
-          <Button type="button" variant="outline" onClick={onCancel}>
-            Cancel
-          </Button>
-          <Button type="button" onClick={onConfirm}>
-            Confirm swap
-          </Button>
+    <div className="fixed inset-0 z-50 bg-slate-950/45 lg:grid lg:justify-items-end">
+      <button
+        type="button"
+        className="absolute inset-0"
+        onClick={onCancel}
+        aria-label="Close swap options"
+      />
+      <section className="relative ml-auto flex h-full w-full flex-col bg-ivory shadow-2xl sm:max-w-[520px]">
+        <div className="border-b border-border/80 bg-white px-5 py-4">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="eyebrow text-primary">Swap item</p>
+              <h2 className="mt-1 font-serif text-2xl font-semibold text-charcoal">
+                Choose replacement
+              </h2>
+            </div>
+            <button
+              type="button"
+              onClick={onCancel}
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-full border bg-white"
+              aria-label="Close swap options"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="mt-4 rounded-xl border border-border/80 bg-[#fffdf8] p-3">
+            <p className="text-xs font-semibold text-muted-foreground">
+              Current item
+            </p>
+            <div className="mt-2 flex items-center gap-3">
+              <span className="h-14 w-16 overflow-hidden rounded-lg bg-muted">
+                <DataImage
+                  src={currentItem.imageUrl}
+                  alt=""
+                  className="h-full w-full object-cover"
+                />
+              </span>
+              <span className="min-w-0">
+                <strong className="block truncate text-sm text-charcoal">
+                  {currentItem.name}
+                </strong>
+                <span className="mt-1 block text-xs text-muted-foreground">
+                  {row.rule.category.name} constraint preserved
+                </span>
+              </span>
+            </div>
+          </div>
         </div>
-      </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+          <p className="text-sm font-bold text-charcoal">
+            Eligible replacements
+          </p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            Options are limited to the same category and configured package
+            swap rules.
+          </p>
+          <div className="mt-4 grid gap-2" role="radiogroup">
+            <SwapChoice
+              item={original}
+              label="Keep original"
+              active={pendingSwapId === original.id}
+              onClick={() => setPendingSwapId(original.id)}
+            />
+            {alternatives.map((item) => (
+              <SwapChoice
+                key={item.id}
+                item={item}
+                active={pendingSwapId === item.id}
+                onClick={() => setPendingSwapId(item.id)}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div className="border-t border-border/80 bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+          <p className="mb-3 text-xs font-semibold text-muted-foreground">
+            {original.name} <ArrowRight className="mx-1 inline h-3 w-3" />{' '}
+            <span className="text-foreground">{selected.name}</span>
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <Button type="button" variant="outline" onClick={onCancel}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={onConfirm}>
+              Confirm swap
+            </Button>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
@@ -1045,8 +1388,8 @@ function SwapChoice({
       type="button"
       onClick={onClick}
       className={cn(
-        'grid grid-cols-[64px_minmax(0,1fr)_20px] items-center gap-3 rounded-xl border bg-white p-2 text-left',
-        active && 'border-primary ring-1 ring-primary',
+        'grid min-h-11 grid-cols-[64px_minmax(0,1fr)_20px] items-center gap-3 rounded-xl border bg-white p-2 text-left transition hover:border-primary/25',
+        active && 'border-primary ring-1 ring-primary/40',
       )}
       role="radio"
       aria-checked={active}
@@ -1091,11 +1434,11 @@ function ExtraRow({
   onDetails: () => void;
 }) {
   return (
-    <article className="grid grid-cols-[72px_minmax(0,1fr)_auto] items-center gap-3 py-3 sm:grid-cols-[84px_minmax(0,1fr)_auto_auto] sm:gap-4">
+    <article className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-3 rounded-2xl border border-border/80 bg-white p-3 shadow-sm sm:grid-cols-[84px_minmax(0,1fr)_auto_auto] sm:gap-4 sm:p-4">
       <button
         type="button"
         onClick={onDetails}
-        className="h-16 overflow-hidden rounded-lg bg-muted"
+        className="h-[72px] overflow-hidden rounded-xl bg-muted"
       >
         <DataImage
           src={row.item.imageUrl}
@@ -1103,9 +1446,13 @@ function ExtraRow({
           className="h-full w-full object-cover"
         />
       </button>
-      <button type="button" onClick={onDetails} className="min-w-0 text-left">
+      <button
+        type="button"
+        onClick={onDetails}
+        className="min-h-11 min-w-0 text-left"
+      >
         <span className="flex flex-wrap items-center gap-2">
-          <strong className="truncate font-serif text-lg">
+          <strong className="min-w-0 break-words font-serif text-lg text-charcoal">
             {row.item.name}
           </strong>
           <DietBadge isVeg={row.item.isVeg} />
@@ -1114,7 +1461,7 @@ function ExtraRow({
           {row.rule.category.name}
         </span>
       </button>
-      <span className="hidden text-right text-xs font-bold sm:block">
+      <span className="hidden text-right text-xs font-bold text-primary sm:block">
         +₹{row.item.adjustmentAmount}
         <small className="block font-normal text-muted-foreground">
           per person
@@ -1124,7 +1471,7 @@ function ExtraRow({
         type="button"
         onClick={onToggle}
         className={cn(
-          'inline-flex h-9 items-center justify-center rounded-lg border px-3 text-xs font-bold',
+          'col-span-2 inline-flex min-h-11 items-center justify-center rounded-xl border px-3 text-xs font-bold sm:col-span-1',
           selected
             ? 'border-primary bg-primary text-white'
             : 'border-primary/50 text-primary hover:bg-primary/5',
@@ -1148,6 +1495,7 @@ function MenuSummary({
   perPerson,
   menuSubtotal,
   saving,
+  ctaLabel,
   onContinue,
   inline = false,
 }: {
@@ -1166,6 +1514,7 @@ function MenuSummary({
   perPerson: number;
   menuSubtotal: number;
   saving: boolean;
+  ctaLabel: string;
   onContinue: () => void;
   inline?: boolean;
 }) {
@@ -1174,20 +1523,18 @@ function MenuSummary({
       className={cn(
         'overflow-hidden bg-white',
         !inline &&
-          'sticky top-24 rounded-2xl border shadow-[0_12px_35px_-28px_rgba(75,12,23,.6)]',
+          'sticky top-[92px] rounded-[18px] border border-border/80 shadow-[0_14px_34px_-28px_rgba(75,12,23,.65)]',
       )}
     >
       {!inline && (
-        <div className="border-b px-5 py-4">
-          <h2 className="font-serif text-2xl font-semibold text-primary">
-            Your {isMealBox ? 'meal box' : 'menu'}
-          </h2>
+        <div className="border-b border-border/80 bg-white px-5 py-4">
+          <p className="eyebrow text-primary">Your menu</p>
         </div>
       )}
       <div
         className={cn(
-          'max-h-[46vh] overflow-y-auto',
-          inline ? 'divide-y' : 'divide-y px-5',
+          'max-h-[44vh] overflow-y-auto',
+          inline ? 'divide-y' : 'divide-y px-4',
         )}
       >
         {rows.map((row) => (
@@ -1200,21 +1547,19 @@ function MenuSummary({
               />
             </span>
             <span className="min-w-0 flex-1">
-              <strong className="block truncate text-xs">
+              <strong className="block break-words text-sm leading-snug text-charcoal">
                 {row.shown.name}
               </strong>
-              <span className="block truncate text-[10px] text-muted-foreground">
+              <span className="mt-0.5 block truncate text-[10px] text-muted-foreground">
                 {row.categoryName}
+                {!row.swapped && ' · Included'}
               </span>
             </span>
-            <span
-              className={cn(
-                'text-[10px] font-bold',
-                row.swapped ? 'text-emerald-700' : 'text-muted-foreground',
-              )}
-            >
-              {row.swapped ? 'Swapped' : 'Included'}
-            </span>
+            {row.swapped && (
+              <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700">
+                Swapped
+              </span>
+            )}
           </div>
         ))}
         {extras.map((row) => (
@@ -1227,7 +1572,7 @@ function MenuSummary({
               />
             </span>
             <span className="min-w-0 flex-1">
-              <strong className="block truncate text-xs">
+              <strong className="block break-words text-sm leading-snug text-charcoal">
                 {row.item.name}
               </strong>
               <span className="text-[10px] text-muted-foreground">Extra</span>
@@ -1238,8 +1583,8 @@ function MenuSummary({
           </div>
         ))}
       </div>
-      <div className="border-t p-5">
-        <div className="grid gap-3 text-sm">
+      <div className="border-t border-border/80 bg-[#fffdf8] p-5">
+        <div className="grid gap-2.5 text-sm">
           <SummaryLine label="Included" value={String(rows.length)} />
           {isMealBox && <SummaryLine label="Swaps" value={String(swaps)} />}
           {!isMealBox && (
@@ -1250,7 +1595,7 @@ function MenuSummary({
             value={String(guestCount)}
           />
         </div>
-        <div className="my-4 h-px bg-border" />
+        <div className="my-3 h-px bg-border" />
         <div className="grid gap-2 text-sm">
           <SummaryLine
             label={`Base menu per ${isMealBox ? 'box' : 'person'}`}
@@ -1273,7 +1618,7 @@ function MenuSummary({
             value={`${formatCurrency(perPerson)} × ${guestCount}`}
           />
         </div>
-        <div className="mt-4 flex items-end justify-between gap-3 border-t pt-4">
+        <div className="mt-3 flex items-end justify-between gap-3 border-t pt-3">
           <span className="text-xs text-muted-foreground">
             Estimated menu total
           </span>
@@ -1284,10 +1629,24 @@ function MenuSummary({
         <p className="mt-1 text-right text-[10px] text-muted-foreground">
           menu price × {isMealBox ? 'boxes' : 'guests'}
         </p>
-        <Button className="mt-5 w-full" onClick={onContinue} disabled={saving}>
-          {saving ? 'Saving menu…' : 'Continue to event & payment'}
+        <Button
+          className="mt-4 min-h-12 w-full rounded-lg"
+          onClick={onContinue}
+          disabled={saving}
+        >
+          {saving ? 'Saving menu...' : ctaLabel}
           <ChevronRight className="ml-1 h-4 w-4" />
         </Button>
+        {!inline && (
+          <Button
+            className="mt-3 min-h-11 w-full rounded-lg"
+            variant="outline"
+            onClick={onContinue}
+            disabled={saving}
+          >
+            View summary
+          </Button>
+        )}
       </div>
     </section>
   );
@@ -1312,15 +1671,15 @@ function StateBadge({
   icon?: typeof Check;
 }) {
   const styles = {
-    included: 'border-amber-200 bg-amber-50 text-amber-700',
-    fixed: 'border-slate-200 bg-slate-50 text-slate-600',
+    included: 'border-accent/35 bg-accent/[0.10] text-gold-text',
+    fixed: 'border-border bg-muted/55 text-charcoal/70',
     swap: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-    extra: 'border-rose-200 bg-rose-50 text-primary',
+    extra: 'border-primary/18 bg-primary/[0.055] text-primary',
   };
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-bold',
+        'inline-flex min-h-8 items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-bold shadow-[0_1px_0_rgba(255,255,255,.8)_inset]',
         styles[tone],
       )}
     >
@@ -1338,7 +1697,7 @@ function DietBadge({ isVeg }: { isVeg: boolean }) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold',
+        'inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold',
         isVeg
           ? 'bg-emerald-50 text-emerald-700'
           : 'bg-orange-50 text-orange-700',
@@ -1366,13 +1725,13 @@ function MobileSheet({
         onClick={onClose}
         aria-label={`Dismiss ${title}`}
       />
-      <section className="relative max-h-[86vh] w-full overflow-y-auto rounded-t-3xl bg-white p-5 shadow-2xl">
+      <section className="relative max-h-[86vh] w-full overflow-y-auto rounded-t-3xl bg-ivory p-5 shadow-2xl">
         <div className="flex items-center justify-between border-b pb-4">
           <h2 className="font-serif text-2xl font-semibold">{title}</h2>
           <button
             type="button"
             onClick={onClose}
-            className="grid h-10 w-10 place-items-center rounded-full border"
+            className="grid h-11 w-11 place-items-center rounded-full border bg-white"
             aria-label={`Close ${title}`}
           >
             <X className="h-4 w-4" />

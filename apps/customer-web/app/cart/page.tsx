@@ -10,10 +10,13 @@ import type {
 import {
   CalendarDays,
   CheckCircle2,
+  Clock3,
+  CreditCard,
   Leaf,
   LockKeyhole,
   MapPin,
   Pencil,
+  ReceiptText,
   ShieldCheck,
   ShoppingBag,
   Users,
@@ -76,6 +79,7 @@ export default function CartPage() {
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [paying, setPaying] = useState(false);
   const [error, setError] = useState('');
+  const [activeCategoryId, setActiveCategoryId] = useState('');
 
   const loadQuote = useCallback(async () => {
     if (!session) return;
@@ -256,6 +260,18 @@ export default function CartPage() {
     [reviewRows],
   );
 
+  useEffect(() => {
+    if (!groupedRows.length) {
+      setActiveCategoryId('');
+      return;
+    }
+    setActiveCategoryId((current) =>
+      groupedRows.some((group) => group.id === current)
+        ? current
+        : groupedRows[0].id,
+    );
+  }, [groupedRows]);
+
   async function verifyPayment(
     orderId: string,
     response: Record<string, string>,
@@ -393,43 +409,71 @@ export default function CartPage() {
       ? '/menu/visual-builder'
       : '/menu/select';
   const isMealBox = cart.package.type === 'MEAL_BOX';
+  const activeGroup =
+    groupedRows.find((group) => group.id === activeCategoryId) ??
+    groupedRows[0];
 
   return (
-    <main className="page-shell pb-28">
+    <main className="bg-background pb-28">
       <Script
         src="https://checkout.razorpay.com/v1/checkout.js"
         strategy="afterInteractive"
       />
-      <OrderProgress current={2} context={isMealBox ? 'Meal box' : 'Package'} />
-
-      <div className="mt-8 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="eyebrow">Event, review & payment</p>
-          <h1 className="mt-2 font-serif text-4xl font-semibold sm:text-5xl">
-            Complete your order.
-          </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Confirm delivery details, review the full menu, then pay securely.
-          </p>
+      <section className="relative isolate overflow-hidden bg-primary text-white">
+        <img
+          src={isMealBox ? '/order-mealbox.png' : '/order-occasion.png'}
+          alt=""
+          className="absolute inset-0 -z-20 h-full w-full object-cover opacity-40"
+        />
+        <div className="absolute inset-0 -z-10 bg-[linear-gradient(90deg,hsl(var(--primary))_0%,hsl(var(--primary)/0.90)_48%,hsl(var(--primary)/0.62)_100%)]" />
+        <div className="mx-auto max-w-[1440px] px-4 py-5 sm:px-6 lg:px-8">
+          <div className="hidden md:block">
+            <OrderProgress
+              current={2}
+              context={isMealBox ? 'Meal box' : 'Package'}
+            />
+          </div>
+          <div className="md:hidden">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-accent">
+              Step 3 of 3
+            </p>
+          </div>
+          <div className="mt-6 flex flex-wrap items-end justify-between gap-4 md:mt-7">
+            <div>
+              <p className="eyebrow">Event, review & payment</p>
+              <h1 className="mt-2 font-serif text-3xl font-semibold leading-tight sm:text-4xl">
+                Complete your order.
+              </h1>
+              <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-white/82">
+                Confirm delivery details, review the full menu, then pay
+                securely.
+              </p>
+            </div>
+            {!pendingOrder && (
+              <Button
+                asChild
+                variant="outline"
+                className="border-white/40 bg-white/10 text-white hover:bg-white hover:text-primary"
+              >
+                <Link href={editHref}>
+                  <Pencil className="mr-2 h-4 w-4" /> Edit menu
+                </Link>
+              </Button>
+            )}
+          </div>
         </div>
-        {!pendingOrder && (
-          <Button asChild variant="outline">
-            <Link href={editHref}>
-              <Pencil className="mr-2 h-4 w-4" /> Edit menu
-            </Link>
-          </Button>
+      </section>
+
+      <div className="mx-auto w-full max-w-[1440px] px-4 py-6 sm:px-6 lg:px-8">
+        {pendingOrder && (
+          <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            <strong>Payment is pending.</strong> Your order is safely reserved.
+            Retry payment without creating another order.
+          </div>
         )}
-      </div>
 
-      {pendingOrder && (
-        <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-          <strong>Payment is pending.</strong> Your order is safely reserved.
-          Retry payment without creating another order.
-        </div>
-      )}
-
-      <div className="mt-7 grid gap-7 lg:grid-cols-[minmax(0,1fr)_370px]">
-        <div className="min-w-0 space-y-6">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_392px] lg:items-start">
+        <div className="min-w-0 space-y-4">
           {pendingOrder ? (
             <EventSummary cart={cart} />
           ) : (
@@ -441,64 +485,121 @@ export default function CartPage() {
             />
           )}
 
-          <section className="overflow-hidden rounded-2xl border bg-white">
-            <div className="flex flex-wrap items-start justify-between gap-4 border-b bg-[#fcfaf6] p-5 sm:p-6">
-              <div>
-                <p className="eyebrow">Your menu</p>
-                <h2 className="mt-1 font-serif text-2xl font-semibold">
-                  {cart.package.name}
-                </h2>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {reviewRows.length} dishes ·{' '}
-                  {isMealBox ? 'complete meal box' : 'complete order menu'}
-                </p>
+          <section className="overflow-hidden rounded-2xl border border-border bg-white shadow-[0_14px_36px_-30px_rgba(75,12,23,.55)]">
+            <div className="flex flex-wrap items-center justify-between gap-4 p-5 pb-3 sm:p-6 sm:pb-4">
+              <div className="flex min-w-0 items-start gap-3">
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-primary/[0.08] text-primary">
+                  <ReceiptText className="h-5 w-5" />
+                </span>
+                <div className="min-w-0">
+                  <h2 className="font-serif text-2xl font-semibold">
+                    Your menu
+                  </h2>
+                  <p className="mt-0.5 text-sm text-muted-foreground">
+                    Review and customise your selected dishes.
+                  </p>
+                </div>
               </div>
               {!pendingOrder && (
                 <Link
                   href={editHref}
-                  className="text-sm font-bold text-primary hover:underline"
+                  className="inline-flex min-h-10 items-center rounded-full px-3 text-sm font-bold text-primary transition hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
                 >
                   Change menu
                 </Link>
               )}
             </div>
             {groupedRows.length > 0 ? (
-              <div className="p-5 sm:p-6">
-                {groupedRows.map((group, groupIndex) => (
-                  <section
-                    key={group.id}
-                    className={cn(groupIndex > 0 && 'mt-6')}
-                  >
-                    <h3 className="border-b pb-2 text-xs font-extrabold uppercase tracking-[0.14em] text-primary">
-                      {group.name} · {group.rows.length}
+              <div className="px-5 pb-5 sm:px-6 sm:pb-6">
+                <div
+                  className="flex gap-3 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                  role="tablist"
+                  aria-label="Menu categories"
+                >
+                  {groupedRows.map((group) => {
+                    const selected = group.id === activeGroup?.id;
+                    return (
+                      <button
+                        key={group.id}
+                        type="button"
+                        role="tab"
+                        aria-selected={selected}
+                        onClick={() => setActiveCategoryId(group.id)}
+                        className={cn(
+                          'inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl border px-4 text-sm font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30',
+                          selected
+                            ? 'border-primary bg-primary/[0.06] text-primary'
+                            : 'border-border bg-[#fcfaf6] text-foreground hover:border-primary/30',
+                        )}
+                      >
+                        {group.name}
+                        <span
+                          className={cn(
+                            'grid h-5 min-w-5 place-items-center rounded-full px-1 text-[11px]',
+                            selected
+                              ? 'bg-primary text-white'
+                              : 'bg-white text-muted-foreground',
+                          )}
+                        >
+                          {group.rows.length}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {activeGroup && (
+                  <section className="mt-4">
+                    <h3 className="text-xs font-extrabold uppercase tracking-[0.14em] text-primary">
+                      {activeGroup.name} ({activeGroup.rows.length})
                     </h3>
-                    <div className="divide-y">
-                      {group.rows.map((row) => (
-                        <ReviewDishRow key={row.id} row={row} />
+                    <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                      {activeGroup.rows.slice(0, 3).map((row) => (
+                        <ReviewDishCard key={row.id} row={row} />
                       ))}
                     </div>
+                    {activeGroup.rows.length > 3 && (
+                      <details className="mt-3">
+                        <summary className="cursor-pointer list-none text-center text-sm font-bold text-primary hover:underline">
+                          View all dishes
+                        </summary>
+                        <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                          {activeGroup.rows.slice(3).map((row) => (
+                            <ReviewDishCard key={row.id} row={row} />
+                          ))}
+                        </div>
+                      </details>
+                    )}
                   </section>
-                ))}
+                )}
               </div>
             ) : (
               <div className="p-8 text-center text-sm text-muted-foreground">
                 {config
                   ? 'No menu items have been selected yet.'
-                  : 'Loading your complete menu…'}
+                  : 'Loading your complete menu...'}
+                {!pendingOrder && (
+                  <Link
+                    href={editHref}
+                    className="mx-auto mt-4 inline-flex min-h-10 items-center rounded-full border border-primary/30 px-4 font-bold text-primary"
+                  >
+                    Change menu
+                  </Link>
+                )}
               </div>
             )}
           </section>
         </div>
 
         <aside className="h-fit lg:sticky lg:top-24">
-          <section className="overflow-hidden rounded-2xl border bg-white shadow-[0_16px_38px_-30px_rgba(75,12,23,.7)]">
-            <div className="border-b p-6">
+          <section className="overflow-hidden rounded-2xl border border-border bg-white shadow-[0_18px_44px_-30px_rgba(75,12,23,.8)]">
+            <div className="border-b p-6 pb-4">
               <p className="eyebrow">
                 {pendingOrder ? 'Payment pending' : 'Order summary'}
               </p>
               <h2 className="mt-2 font-serif text-2xl font-semibold">
                 {cart.package.name}
               </h2>
+              {!pendingOrder && <OrderFacts cart={cart} quote={quote} />}
             </div>
             {pendingOrder ? (
               <div className="p-6">
@@ -533,19 +634,29 @@ export default function CartPage() {
                       : 'Confirm the delivery time and venue to calculate the final total.'}
                   </div>
                 )}
+                <div className="mt-5 rounded-xl border border-amber-200/80 bg-[#fff8ea] p-3">
+                  <p className="flex items-center gap-2 text-sm font-bold text-foreground">
+                    <LockKeyhole className="h-4 w-4 text-primary" />
+                    Safe & secure payments
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    Your payment details are handled securely.
+                  </p>
+                </div>
                 <Button
-                  className="mt-6 w-full"
+                  className="mt-4 h-12 w-full"
                   onClick={pay}
                   disabled={!ready || !quote?.valid || quoteLoading || paying}
                 >
                   <LockKeyhole className="mr-2 h-4 w-4" />
-                  {paying ? 'Opening payment…' : 'Pay securely'}
+                  {paying ? 'Opening payment...' : 'Proceed to Payment'}
                 </Button>
-                {!ready && (
-                  <p className="mt-2 text-center text-xs text-muted-foreground">
-                    Delivery time, venue, and guest count are required.
-                  </p>
-                )}
+                <p className="mt-3 flex items-center justify-center gap-2 text-center text-xs text-muted-foreground">
+                  <ShieldCheck className="h-4 w-4 shrink-0" />
+                  {ready
+                    ? 'You will be redirected to our secure payment partner.'
+                    : 'Venue, date, time, and guest count are required.'}
+                </p>
                 {error && (
                   <p
                     role="alert"
@@ -554,20 +665,13 @@ export default function CartPage() {
                     {error}
                   </p>
                 )}
-                <div className="mt-6 space-y-3 border-t pt-5 text-xs text-muted-foreground">
-                  <p className="flex gap-2">
-                    <ShieldCheck className="h-4 w-4 shrink-0 text-primary" />
-                    Payment details are handled securely by Razorpay.
-                  </p>
-                  <p className="flex gap-2">
-                    <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" />
-                    Your order is confirmed after payment verification.
-                  </p>
-                </div>
               </div>
             )}
           </section>
         </aside>
+        </div>
+
+        <TrustStrip />
       </div>
     </main>
   );
@@ -580,6 +684,17 @@ function eventReady(cart: CartSummary) {
     cart.event.eventTimeStart &&
     cart.event.guestCount,
   );
+}
+
+function formatCartDate(value?: string) {
+  if (!value) return 'Not set';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(date);
 }
 
 function EventSummary({ cart }: { cart: CartSummary }) {
@@ -615,7 +730,7 @@ function EventSummary({ cart }: { cart: CartSummary }) {
   );
 }
 
-function ReviewDishRow({ row }: { row: ReviewRow }) {
+function ReviewDishCard({ row }: { row: ReviewRow }) {
   const state =
     row.role === 'SWAP'
       ? 'Swapped'
@@ -624,42 +739,136 @@ function ReviewDishRow({ row }: { row: ReviewRow }) {
         : row.role === 'CUSTOM'
           ? 'Selected'
           : 'Included';
+  const adjustment = Number(row.adjustmentAmount);
   return (
-    <div className="grid grid-cols-[64px_minmax(0,1fr)_auto] items-center gap-3 py-3">
-      <span className="h-14 overflow-hidden rounded-lg bg-muted">
+    <article className="grid min-h-[104px] grid-cols-[84px_minmax(0,1fr)] gap-3 rounded-xl border border-border bg-[#fffdfa] p-2.5 transition hover:border-primary/25">
+      <span className="h-full min-h-[84px] overflow-hidden rounded-lg bg-muted">
         <DataImage
           src={row.imageUrl}
           alt=""
           className="h-full w-full object-cover"
         />
       </span>
-      <span className="min-w-0">
-        <strong className="block truncate font-serif text-lg">
-          {row.name}
-        </strong>
-        <span className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          <span className="inline-flex items-center gap-1">
-            <Leaf className="h-3 w-3" /> {row.isVeg ? 'Veg' : 'Non-veg'}
+      <span className="flex min-w-0 flex-col justify-between py-1">
+        <span className="min-w-0">
+          <strong className="block truncate text-sm font-bold text-foreground">
+            {row.name}
+          </strong>
+          <span className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1">
+              <Leaf className="h-3 w-3" /> {row.isVeg ? 'Veg' : 'Non-veg'}
+            </span>
+            {adjustment > 0 && <span>{formatCurrency(adjustment)} / plate</span>}
           </span>
-          {row.replacedName && <span>replaces {row.replacedName}</span>}
+          {row.replacedName && (
+            <span className="mt-1 block truncate text-[11px] text-muted-foreground">
+              Replaces {row.replacedName}
+            </span>
+          )}
+        </span>
+        <span
+          className={cn(
+            'mt-2 inline-flex w-fit items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-bold',
+            row.role === 'SWAP' &&
+              'border-emerald-200 bg-emerald-50 text-emerald-700',
+            row.role === 'EXTRA' && 'border-rose-200 bg-rose-50 text-primary',
+            row.role === 'CUSTOM' &&
+              'border-primary/20 bg-primary/5 text-primary',
+            row.role === 'INCLUDED' &&
+              'border-amber-200 bg-amber-50 text-amber-700',
+          )}
+        >
+          <CheckCircle2 className="h-3 w-3" />
+          {state}
         </span>
       </span>
-      <span
-        className={cn(
-          'rounded-lg border px-2.5 py-1 text-[10px] font-bold',
-          row.role === 'SWAP' &&
-            'border-emerald-200 bg-emerald-50 text-emerald-700',
-          row.role === 'EXTRA' && 'border-rose-200 bg-rose-50 text-primary',
-          row.role === 'CUSTOM' &&
-            'border-primary/20 bg-primary/5 text-primary',
-          row.role === 'INCLUDED' &&
-            'border-amber-200 bg-amber-50 text-amber-700',
-        )}
-      >
-        {state}
-        {Number(row.adjustmentAmount) > 0 && ` · +₹${row.adjustmentAmount}`}
-      </span>
-    </div>
+    </article>
+  );
+}
+
+function OrderFacts({
+  cart,
+  quote,
+}: {
+  cart: CartSummary;
+  quote?: PackageSelectionPrice;
+}) {
+  const address = cart.event?.address;
+  const facts = [
+    ['Package', cart.package.name],
+    [
+      cart.package.type === 'MEAL_BOX' ? 'Boxes' : 'Guests',
+      String(quote?.guestCount ?? cart.event?.guestCount ?? 'Not set'),
+    ],
+    ['Delivery date', formatCartDate(cart.event?.eventDate)],
+    ['Delivery time', cart.event?.eventTimeStart || 'Not set'],
+    [
+      'Delivery venue',
+      address
+        ? `${address.label || address.addressLine1}, ${address.city}`
+        : 'Not set',
+    ],
+  ];
+
+  return (
+    <dl className="mt-4 space-y-2 border-t pt-4 text-sm">
+      {facts.map(([label, value]) => (
+        <div key={label} className="flex items-start justify-between gap-4">
+          <dt className="text-muted-foreground">{label}</dt>
+          <dd className="max-w-[58%] text-right font-semibold">{value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function TrustStrip() {
+  const items = [
+    {
+      icon: ShieldCheck,
+      title: 'Hygienic & Safe',
+      body: 'Prepared with quality ingredients',
+    },
+    {
+      icon: Clock3,
+      title: 'On-time Delivery',
+      body: 'Planned around your serving time',
+    },
+    {
+      icon: CheckCircle2,
+      title: 'Trusted catering service',
+      body: 'Support from enquiry to delivery',
+    },
+    {
+      icon: CreditCard,
+      title: 'Transparent Pricing',
+      body: 'Review the complete quote before payment',
+    },
+  ];
+
+  return (
+    <section className="mt-6 grid gap-0 overflow-hidden rounded-2xl border border-border bg-[#fff8ea] sm:grid-cols-2 lg:grid-cols-4">
+      {items.map(({ icon: Icon, title, body }, index) => (
+        <div
+          key={title}
+          className={cn(
+            'flex items-center gap-3 p-4',
+            index > 0 && 'border-t sm:border-l sm:border-t-0',
+            index === 2 && 'sm:border-t lg:border-t-0',
+          )}
+        >
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-primary">
+            <Icon className="h-5 w-5" />
+          </span>
+          <span>
+            <strong className="block text-sm">{title}</strong>
+            <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">
+              {body}
+            </span>
+          </span>
+        </div>
+      ))}
+    </section>
   );
 }
 

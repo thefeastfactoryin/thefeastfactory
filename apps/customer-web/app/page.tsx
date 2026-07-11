@@ -130,9 +130,12 @@ export default function HomePage() {
       setPackage(selected);
       setDbCartId(cart?.id, session?.user.id);
       setGuestCount(pkg.activeVersion.minGuestCount);
-      router.push(
-        pkg.type === 'CUSTOM_PACKAGE' ? '/menu/visual-builder' : '/menu/select',
-      );
+      const builder =
+        pkg.type === 'CUSTOM_PACKAGE' ? '/packages/build' : '/menu/select';
+      const next = new URLSearchParams({
+        packageVersionId: pkg.activeVersion.id,
+      });
+      router.push(`${builder}?${next.toString()}`);
     } catch (reason) {
       setSelectionError((reason as Error).message);
       setSelecting('');
@@ -141,44 +144,50 @@ export default function HomePage() {
 
   return (
     <main className="bg-background">
-      <section className="overflow-hidden bg-[radial-gradient(circle_at_28%_35%,hsl(var(--accent)/0.10),transparent_34%),radial-gradient(circle_at_50%_50%,transparent_56%,rgba(28,0,8,0.22)_100%),linear-gradient(135deg,hsl(var(--hero-start)),hsl(var(--hero-end)))] text-white">
+      <section
+        className="overflow-hidden text-white"
+        style={{
+          background:
+            'radial-gradient(circle at 28% 35%, hsl(41 56% 44% / 0.10), transparent 34%), radial-gradient(circle at 50% 50%, transparent 56%, rgba(28, 0, 8, 0.22) 100%), linear-gradient(135deg, hsl(352 62% 16%), hsl(352 62% 13%))',
+        }}
+      >
         <div className="container-pad">
-          <div className="grid items-center gap-8 py-9 sm:py-11 lg:min-h-[500px] lg:grid-cols-[0.88fr_1.12fr] lg:gap-12 lg:py-12">
+          <div className="grid items-center gap-6 py-8 sm:gap-8 sm:py-10 lg:min-h-[448px] lg:grid-cols-[0.88fr_1.12fr] lg:gap-12 lg:py-12">
             <div className="max-w-xl">
               <p className="eyebrow">Premium bulk catering</p>
-              <h1 className="mt-4 font-serif text-[2.55rem] font-bold leading-[0.98] tracking-tight sm:text-[3rem] lg:text-[4rem]">
+              <h1 className="mt-4 font-serif text-4xl font-bold leading-[0.98] tracking-tight sm:text-[42px] lg:text-[3.75rem]">
                 Premium food for every{' '}
                 <span className="italic text-accent">occasion</span>.
               </h1>
-              <p className="mt-5 max-w-[470px] text-[15px] leading-7 text-white/75 sm:text-base">
+              <p className="mt-4 max-w-[460px] text-[15px] leading-7 text-white/75">
                 Premium catering for birthdays, weddings, office events and
                 celebrations. Freshly prepared, beautifully presented and
                 delivered on time.
               </p>
 
-              <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+              <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                 <Link
                   href="/packages"
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-white px-7 text-sm font-bold text-primary shadow-[0_9px_22px_rgba(0,0,0,0.16)] transition-all duration-250 ease-premium hover:-translate-y-0.5 hover:bg-white/90 hover:shadow-[0_13px_28px_rgba(0,0,0,0.18)]"
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-white px-6 text-sm font-bold text-primary shadow-[0_9px_22px_rgba(0,0,0,0.16)] transition-all duration-250 ease-premium hover:-translate-y-0.5 hover:bg-white/90 hover:shadow-[0_13px_28px_rgba(0,0,0,0.18)]"
                 >
                   View packages <ArrowRight className="h-4 w-4" />
                 </Link>
                 <Link
                   href="/menu"
-                  className="inline-flex h-12 items-center justify-center rounded-full border border-accent/35 bg-primary/15 px-7 text-sm font-bold text-white transition-all duration-250 ease-premium hover:-translate-y-0.5 hover:bg-white/10"
+                  className="inline-flex h-11 items-center justify-center rounded-full border border-accent/30 bg-primary/15 px-6 text-sm font-bold text-white transition-all duration-250 ease-premium hover:-translate-y-0.5 hover:bg-white/10"
                 >
                   Browse menu
                 </Link>
               </div>
 
-              <div className="mt-7 grid gap-3 sm:grid-cols-3">
+              <div className="mt-6 grid gap-3 lg:grid-cols-3">
                 {heroTrust.map(({ icon: Icon, label }) => (
                   <div
                     key={label}
-                    className="flex items-center gap-2 text-[13px] font-bold leading-tight text-white/90"
+                    className="flex items-center gap-2 whitespace-nowrap text-[13px] font-bold leading-tight text-white/90"
                   >
-                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/5 text-accent">
-                      <Icon className="h-4 w-4" aria-hidden="true" />
+                    <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md border border-white/10 bg-white/5 text-accent">
+                      <Icon className="h-3.5 w-3.5" aria-hidden="true" />
                     </span>
                     {label}
                   </div>
@@ -186,13 +195,13 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className="relative">
-              <div className="absolute -bottom-3 -right-3 hidden h-full w-full rounded-3xl border border-accent/15 lg:block" />
-              <div className="relative overflow-hidden rounded-3xl border border-accent/15 shadow-hero">
+            <div className="relative lg:-mr-16">
+              <div className="absolute -bottom-3 -right-3 hidden h-full w-full rounded-[24px] border border-accent/15 lg:block" />
+              <div className="relative overflow-hidden rounded-[24px] border border-accent/15 shadow-[0_22px_52px_rgba(0,0,0,0.30)]">
                 <img
                   src="/Hero.png"
                   alt="Catering trays prepared for a celebration"
-                  className="aspect-video w-full object-cover transition-transform duration-500 ease-premium hover:scale-[1.02] lg:aspect-[1.7/1]"
+                  className="aspect-[16/9] w-full scale-[1.03] object-cover transition-transform duration-500 ease-premium hover:scale-[1.045] lg:aspect-[1.7/1] lg:scale-[1.18] lg:hover:scale-[1.2]"
                 />
               </div>
             </div>

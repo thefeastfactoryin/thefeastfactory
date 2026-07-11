@@ -3,7 +3,7 @@ import type { OrderingOfferingCode } from '@aranyam/shared-types';
 export const offeringDisplay: Record<OrderingOfferingCode, { href: string }> = {
   MEAL_BOX: { href: '/packages/meal-boxes' },
   PACKAGES: { href: '/packages' },
-  CUSTOM_MENU: { href: '/menu/visual-builder' },
+  CUSTOM_MENU: { href: '/packages/build' },
 };
 
 export const catalogCopy = {
