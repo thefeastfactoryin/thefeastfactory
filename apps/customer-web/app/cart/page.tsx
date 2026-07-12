@@ -59,6 +59,8 @@ type ReviewRow = {
   role: 'INCLUDED' | 'SWAP' | 'EXTRA' | 'CUSTOM';
   replacedName?: string | null;
   adjustmentAmount: string;
+  quantity: number;
+  totalAdjustmentAmount?: string;
 };
 
 export default function CartPage() {
@@ -164,7 +166,7 @@ export default function CartPage() {
 
   const reviewRows = useMemo<ReviewRow[]>(() => {
     if (!cart || !config) return [];
-    if (quote) {
+    if (quote && config.packageType !== 'FIXED_PACKAGE') {
       return quote.items.map((item) => {
         const configured = configItems.get(item.menuItemId);
         return {
@@ -177,6 +179,8 @@ export default function CartPage() {
           role: item.role ?? 'INCLUDED',
           replacedName: item.replacedMenuItemName,
           adjustmentAmount: item.adjustmentAmount,
+          quantity: item.quantity,
+          totalAdjustmentAmount: item.totalAdjustmentAmount,
         };
       });
     }
@@ -193,6 +197,7 @@ export default function CartPage() {
           isVeg: item.isVeg,
           role: 'CUSTOM',
           adjustmentAmount: configured?.adjustmentAmount ?? '0.00',
+          quantity: item.quantity,
         };
       });
     }
@@ -220,6 +225,7 @@ export default function CartPage() {
             role: swap ? ('SWAP' as const) : ('INCLUDED' as const),
             replacedName: swap ? item.name : undefined,
             adjustmentAmount: shown.adjustmentAmount,
+            quantity: swap?.quantity ?? 1,
           };
         }),
     );
@@ -236,6 +242,7 @@ export default function CartPage() {
           isVeg: item.isVeg,
           role: 'EXTRA' as const,
           adjustmentAmount: configured?.adjustmentAmount ?? '0.00',
+          quantity: item.quantity,
         };
       });
     return [...included, ...extras];
@@ -473,202 +480,202 @@ export default function CartPage() {
         )}
 
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_392px] lg:items-start">
-        <div className="min-w-0 space-y-4">
-          {pendingOrder ? (
-            <EventSummary cart={cart} />
-          ) : (
-            <SelectionContextPanel
-              packageVersionId={cart.packageVersionId}
-              minPax={cart.package.minGuestCount}
-              maxPax={cart.package.maxGuestCount}
-              onSaved={onEventSaved}
-            />
-          )}
-
-          <section className="overflow-hidden rounded-2xl border border-border bg-white shadow-[0_14px_36px_-30px_rgba(75,12,23,.55)]">
-            <div className="flex flex-wrap items-center justify-between gap-4 p-5 pb-3 sm:p-6 sm:pb-4">
-              <div className="flex min-w-0 items-start gap-3">
-                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-primary/[0.08] text-primary">
-                  <ReceiptText className="h-5 w-5" />
-                </span>
-                <div className="min-w-0">
-                  <h2 className="font-serif text-2xl font-semibold">
-                    Your menu
-                  </h2>
-                  <p className="mt-0.5 text-sm text-muted-foreground">
-                    Review and customise your selected dishes.
-                  </p>
-                </div>
-              </div>
-              {!pendingOrder && (
-                <Link
-                  href={editHref}
-                  className="inline-flex min-h-10 items-center rounded-full px-3 text-sm font-bold text-primary transition hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
-                >
-                  Change menu
-                </Link>
-              )}
-            </div>
-            {groupedRows.length > 0 ? (
-              <div className="px-5 pb-5 sm:px-6 sm:pb-6">
-                <div
-                  className="flex gap-3 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-                  role="tablist"
-                  aria-label="Menu categories"
-                >
-                  {groupedRows.map((group) => {
-                    const selected = group.id === activeGroup?.id;
-                    return (
-                      <button
-                        key={group.id}
-                        type="button"
-                        role="tab"
-                        aria-selected={selected}
-                        onClick={() => setActiveCategoryId(group.id)}
-                        className={cn(
-                          'inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl border px-4 text-sm font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30',
-                          selected
-                            ? 'border-primary bg-primary/[0.06] text-primary'
-                            : 'border-border bg-[#fcfaf6] text-foreground hover:border-primary/30',
-                        )}
-                      >
-                        {group.name}
-                        <span
-                          className={cn(
-                            'grid h-5 min-w-5 place-items-center rounded-full px-1 text-[11px]',
-                            selected
-                              ? 'bg-primary text-white'
-                              : 'bg-white text-muted-foreground',
-                          )}
-                        >
-                          {group.rows.length}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-                {activeGroup && (
-                  <section className="mt-4">
-                    <h3 className="text-xs font-extrabold uppercase tracking-[0.14em] text-primary">
-                      {activeGroup.name} ({activeGroup.rows.length})
-                    </h3>
-                    <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                      {activeGroup.rows.slice(0, 3).map((row) => (
-                        <ReviewDishCard key={row.id} row={row} />
-                      ))}
-                    </div>
-                    {activeGroup.rows.length > 3 && (
-                      <details className="mt-3">
-                        <summary className="cursor-pointer list-none text-center text-sm font-bold text-primary hover:underline">
-                          View all dishes
-                        </summary>
-                        <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                          {activeGroup.rows.slice(3).map((row) => (
-                            <ReviewDishCard key={row.id} row={row} />
-                          ))}
-                        </div>
-                      </details>
-                    )}
-                  </section>
-                )}
-              </div>
+          <div className="min-w-0 space-y-4">
+            {pendingOrder ? (
+              <EventSummary cart={cart} />
             ) : (
-              <div className="p-8 text-center text-sm text-muted-foreground">
-                {config
-                  ? 'No menu items have been selected yet.'
-                  : 'Loading your complete menu...'}
+              <SelectionContextPanel
+                packageVersionId={cart.packageVersionId}
+                minPax={cart.package.minGuestCount}
+                maxPax={cart.package.maxGuestCount}
+                onSaved={onEventSaved}
+              />
+            )}
+
+            <section className="overflow-hidden rounded-2xl border border-border bg-white shadow-[0_14px_36px_-30px_rgba(75,12,23,.55)]">
+              <div className="flex flex-wrap items-center justify-between gap-4 p-5 pb-3 sm:p-6 sm:pb-4">
+                <div className="flex min-w-0 items-start gap-3">
+                  <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-primary/[0.08] text-primary">
+                    <ReceiptText className="h-5 w-5" />
+                  </span>
+                  <div className="min-w-0">
+                    <h2 className="font-serif text-2xl font-semibold">
+                      Your menu
+                    </h2>
+                    <p className="mt-0.5 text-sm text-muted-foreground">
+                      Review and customise your selected dishes.
+                    </p>
+                  </div>
+                </div>
                 {!pendingOrder && (
                   <Link
                     href={editHref}
-                    className="mx-auto mt-4 inline-flex min-h-10 items-center rounded-full border border-primary/30 px-4 font-bold text-primary"
+                    className="inline-flex min-h-10 items-center rounded-full px-3 text-sm font-bold text-primary transition hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
                   >
                     Change menu
                   </Link>
                 )}
               </div>
-            )}
-          </section>
-        </div>
-
-        <aside className="h-fit lg:sticky lg:top-24">
-          <section className="overflow-hidden rounded-2xl border border-border bg-white shadow-[0_18px_44px_-30px_rgba(75,12,23,.8)]">
-            <div className="border-b p-6 pb-4">
-              <p className="eyebrow">
-                {pendingOrder ? 'Payment pending' : 'Order summary'}
-              </p>
-              <h2 className="mt-2 font-serif text-2xl font-semibold">
-                {cart.package.name}
-              </h2>
-              {!pendingOrder && <OrderFacts cart={cart} quote={quote} />}
-            </div>
-            {pendingOrder ? (
-              <div className="p-6">
-                <div className="flex items-end justify-between border-b pb-5">
-                  <span className="font-semibold">Total</span>
-                  <strong className="font-serif text-3xl">
-                    ₹{pendingOrder.totalAmount}
-                  </strong>
-                </div>
-                <div className="mt-5">
-                  <RetryPaymentButton order={pendingOrder} />
-                </div>
-                <Button asChild variant="outline" className="mt-3 w-full">
-                  <Link href={`/orders/${pendingOrder.id}`}>
-                    View saved order
-                  </Link>
-                </Button>
-              </div>
-            ) : (
-              <div className="p-6">
-                {quote ? (
-                  <PriceSummary
-                    quote={quote}
-                    unitLabel={
-                      cart.package.type === 'MEAL_BOX' ? 'box' : 'person'
-                    }
-                  />
-                ) : (
-                  <div className="rounded-xl bg-muted/50 p-4 text-sm leading-6 text-muted-foreground">
-                    {quoteLoading
-                      ? 'Refreshing your final quote…'
-                      : 'Confirm the delivery time and venue to calculate the final total.'}
-                  </div>
-                )}
-                <div className="mt-5 rounded-xl border border-amber-200/80 bg-[#fff8ea] p-3">
-                  <p className="flex items-center gap-2 text-sm font-bold text-foreground">
-                    <LockKeyhole className="h-4 w-4 text-primary" />
-                    Safe & secure payments
-                  </p>
-                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                    Your payment details are handled securely.
-                  </p>
-                </div>
-                <Button
-                  className="mt-4 h-12 w-full"
-                  onClick={pay}
-                  disabled={!ready || !quote?.valid || quoteLoading || paying}
-                >
-                  <LockKeyhole className="mr-2 h-4 w-4" />
-                  {paying ? 'Opening payment...' : 'Proceed to Payment'}
-                </Button>
-                <p className="mt-3 flex items-center justify-center gap-2 text-center text-xs text-muted-foreground">
-                  <ShieldCheck className="h-4 w-4 shrink-0" />
-                  {ready
-                    ? 'You will be redirected to our secure payment partner.'
-                    : 'Venue, date, time, and guest count are required.'}
-                </p>
-                {error && (
-                  <p
-                    role="alert"
-                    className="mt-4 rounded-xl border border-red-100 bg-red-50 p-3 text-sm text-red-800"
+              {groupedRows.length > 0 ? (
+                <div className="px-5 pb-5 sm:px-6 sm:pb-6">
+                  <div
+                    className="flex gap-3 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                    role="tablist"
+                    aria-label="Menu categories"
                   >
-                    {error}
-                  </p>
-                )}
+                    {groupedRows.map((group) => {
+                      const selected = group.id === activeGroup?.id;
+                      return (
+                        <button
+                          key={group.id}
+                          type="button"
+                          role="tab"
+                          aria-selected={selected}
+                          onClick={() => setActiveCategoryId(group.id)}
+                          className={cn(
+                            'inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl border px-4 text-sm font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30',
+                            selected
+                              ? 'border-primary bg-primary/[0.06] text-primary'
+                              : 'border-border bg-[#fcfaf6] text-foreground hover:border-primary/30',
+                          )}
+                        >
+                          {group.name}
+                          <span
+                            className={cn(
+                              'grid h-5 min-w-5 place-items-center rounded-full px-1 text-[11px]',
+                              selected
+                                ? 'bg-primary text-white'
+                                : 'bg-white text-muted-foreground',
+                            )}
+                          >
+                            {group.rows.length}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {activeGroup && (
+                    <section className="mt-4">
+                      <h3 className="text-xs font-extrabold uppercase tracking-[0.14em] text-primary">
+                        {activeGroup.name} ({activeGroup.rows.length})
+                      </h3>
+                      <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                        {activeGroup.rows.slice(0, 3).map((row) => (
+                          <ReviewDishCard key={row.id} row={row} />
+                        ))}
+                      </div>
+                      {activeGroup.rows.length > 3 && (
+                        <details className="mt-3">
+                          <summary className="cursor-pointer list-none text-center text-sm font-bold text-primary hover:underline">
+                            View all dishes
+                          </summary>
+                          <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                            {activeGroup.rows.slice(3).map((row) => (
+                              <ReviewDishCard key={row.id} row={row} />
+                            ))}
+                          </div>
+                        </details>
+                      )}
+                    </section>
+                  )}
+                </div>
+              ) : (
+                <div className="p-8 text-center text-sm text-muted-foreground">
+                  {config
+                    ? 'No menu items have been selected yet.'
+                    : 'Loading your complete menu...'}
+                  {!pendingOrder && (
+                    <Link
+                      href={editHref}
+                      className="mx-auto mt-4 inline-flex min-h-10 items-center rounded-full border border-primary/30 px-4 font-bold text-primary"
+                    >
+                      Change menu
+                    </Link>
+                  )}
+                </div>
+              )}
+            </section>
+          </div>
+
+          <aside className="h-fit lg:sticky lg:top-24">
+            <section className="overflow-hidden rounded-2xl border border-border bg-white shadow-[0_18px_44px_-30px_rgba(75,12,23,.8)]">
+              <div className="border-b p-6 pb-4">
+                <p className="eyebrow">
+                  {pendingOrder ? 'Payment pending' : 'Order summary'}
+                </p>
+                <h2 className="mt-2 font-serif text-2xl font-semibold">
+                  {cart.package.name}
+                </h2>
+                {!pendingOrder && <OrderFacts cart={cart} quote={quote} />}
               </div>
-            )}
-          </section>
-        </aside>
+              {pendingOrder ? (
+                <div className="p-6">
+                  <div className="flex items-end justify-between border-b pb-5">
+                    <span className="font-semibold">Total</span>
+                    <strong className="font-serif text-3xl">
+                      ₹{pendingOrder.totalAmount}
+                    </strong>
+                  </div>
+                  <div className="mt-5">
+                    <RetryPaymentButton order={pendingOrder} />
+                  </div>
+                  <Button asChild variant="outline" className="mt-3 w-full">
+                    <Link href={`/orders/${pendingOrder.id}`}>
+                      View saved order
+                    </Link>
+                  </Button>
+                </div>
+              ) : (
+                <div className="p-6">
+                  {quote ? (
+                    <PriceSummary
+                      quote={quote}
+                      unitLabel={
+                        cart.package.type === 'MEAL_BOX' ? 'box' : 'person'
+                      }
+                    />
+                  ) : (
+                    <div className="rounded-xl bg-muted/50 p-4 text-sm leading-6 text-muted-foreground">
+                      {quoteLoading
+                        ? 'Refreshing your final quote…'
+                        : 'Confirm the delivery time and venue to calculate the final total.'}
+                    </div>
+                  )}
+                  <div className="mt-5 rounded-xl border border-amber-200/80 bg-[#fff8ea] p-3">
+                    <p className="flex items-center gap-2 text-sm font-bold text-foreground">
+                      <LockKeyhole className="h-4 w-4 text-primary" />
+                      Safe & secure payments
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                      Your payment details are handled securely.
+                    </p>
+                  </div>
+                  <Button
+                    className="mt-4 h-12 w-full"
+                    onClick={pay}
+                    disabled={!ready || !quote?.valid || quoteLoading || paying}
+                  >
+                    <LockKeyhole className="mr-2 h-4 w-4" />
+                    {paying ? 'Opening payment...' : 'Proceed to Payment'}
+                  </Button>
+                  <p className="mt-3 flex items-center justify-center gap-2 text-center text-xs text-muted-foreground">
+                    <ShieldCheck className="h-4 w-4 shrink-0" />
+                    {ready
+                      ? 'You will be redirected to our secure payment partner.'
+                      : 'Venue, date, time, and guest count are required.'}
+                  </p>
+                  {error && (
+                    <p
+                      role="alert"
+                      className="mt-4 rounded-xl border border-red-100 bg-red-50 p-3 text-sm text-red-800"
+                    >
+                      {error}
+                    </p>
+                  )}
+                </div>
+              )}
+            </section>
+          </aside>
         </div>
 
         <TrustStrip />
@@ -758,11 +765,18 @@ function ReviewDishCard({ row }: { row: ReviewRow }) {
             <span className="inline-flex items-center gap-1">
               <Leaf className="h-3 w-3" /> {row.isVeg ? 'Veg' : 'Non-veg'}
             </span>
-            {adjustment > 0 && <span>{formatCurrency(adjustment)} / plate</span>}
+            {adjustment > 0 && (
+              <span>{formatCurrency(adjustment)} / plate</span>
+            )}
           </span>
           {row.replacedName && (
             <span className="mt-1 block truncate text-[11px] text-muted-foreground">
               Replaces {row.replacedName}
+            </span>
+          )}
+          {row.role === 'EXTRA' && (
+            <span className="mt-1 block text-[11px] text-muted-foreground">
+              {row.quantity} portion{row.quantity === 1 ? '' : 's'}
             </span>
           )}
         </span>
@@ -780,6 +794,13 @@ function ReviewDishCard({ row }: { row: ReviewRow }) {
         >
           <CheckCircle2 className="h-3 w-3" />
           {state}
+          {Number(row.adjustmentAmount) > 0 &&
+            ` · +${formatCurrency(
+              row.totalAdjustmentAmount ??
+                (row.role === 'EXTRA'
+                  ? Number(row.adjustmentAmount) * row.quantity
+                  : Number(row.adjustmentAmount)),
+            )}`}
         </span>
       </span>
     </article>
@@ -897,7 +918,7 @@ function PriceSummary({
         />
         {Number(quote.totalCustomizationCharges) > 0 && (
           <PriceLine
-            label={`Extras per ${unitLabel}`}
+            label={`Extras adjustment per ${unitLabel}`}
             value={`+${formatCurrency(quote.totalCustomizationCharges)}`}
           />
         )}

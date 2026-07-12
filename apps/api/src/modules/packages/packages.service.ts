@@ -359,7 +359,7 @@ export class PackagesService {
           ? await this.customCategoryRules(version, publicOnly)
           : version.package.type === PackageType.MEAL_BOX
             ? await this.mealBoxCategoryRules(version)
-            : this.configuredCategoryRules(version),
+            : await this.fixedPackageCategoryRules(version),
     };
   }
 
@@ -402,6 +402,61 @@ export class PackagesService {
         this.serializeConfigItem(row.menuItem, row.role, row.isSwappable),
       ),
     }));
+  }
+
+  private async fixedPackageCategoryRules(version: VersionConfiguration) {
+    const configuredRules = this.configuredCategoryRules(version);
+    const includedRows = version.packageMenuItems.filter(
+      (row) => row.role === PackageMenuItemRole.INCLUDED && row.isSwappable,
+    );
+    if (!includedRows.length) return configuredRules;
+
+    const categoryIds = [...new Set(includedRows.map((row) => row.categoryId))];
+    const catalogItems = await this.prisma.menuItem.findMany({
+      where: {
+        categoryId: { in: categoryIds },
+        isActive: true,
+        deletedAt: null,
+      },
+      include: { category: true },
+      orderBy: [{ category: { displayOrder: 'asc' } }, { name: 'asc' }],
+    });
+
+    const ruleByCategoryId = new Map(
+      configuredRules.map((rule) => [rule.category.id, rule]),
+    );
+    for (const included of includedRows) {
+      const rule = ruleByCategoryId.get(included.categoryId);
+      if (!rule) continue;
+      const replacements = catalogItems
+        .filter(
+          (item) =>
+            item.categoryId === included.categoryId &&
+            item.isVeg === included.menuItem.isVeg &&
+            item.id !== included.menuItemId,
+        )
+        .map((item) => {
+          const adjustmentAmount = Prisma.Decimal.max(
+            item.generalPrice.minus(included.menuItem.generalPrice),
+            0,
+          );
+          return this.serializeConfigItem(
+            item,
+            PackageMenuItemRole.INCLUDED,
+            false,
+            {
+              itemPrice: item.generalPrice,
+              includedValue: included.menuItem.generalPrice,
+              adjustmentAmount,
+              swapForMenuItemId: included.menuItemId,
+              swapForMenuItemName: included.menuItem.name,
+            },
+          );
+        });
+      rule.items.push(...replacements);
+    }
+
+    return configuredRules;
   }
 
   private async mealBoxCategoryRules(version: VersionConfiguration) {
@@ -547,6 +602,7 @@ export class PackagesService {
     role: PackageMenuItemRole,
     isSwappable = false,
     overrides?: {
+      itemPrice?: Prisma.Decimal;
       includedValue?: Prisma.Decimal;
       adjustmentAmount?: Prisma.Decimal;
       swapForMenuItemId?: string | null;
@@ -554,7 +610,8 @@ export class PackagesService {
     },
   ) {
     const isBox = role === PackageMenuItemRole.INCLUDED;
-    const itemPrice = isBox ? item.boxPrice : item.generalPrice;
+    const itemPrice =
+      overrides?.itemPrice ?? (isBox ? item.boxPrice : item.generalPrice);
     const includedValue =
       overrides?.includedValue ??
       (isBox ? item.boxPrice : new Prisma.Decimal(0));

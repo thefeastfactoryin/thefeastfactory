@@ -191,6 +191,7 @@ export type PackageSelection = {
     menuItemId: string;
     replacedMenuItemId?: string | null;
     role?: SelectedItemRole;
+    quantity?: number;
   }>;
 };
 
@@ -220,6 +221,8 @@ export type PackageSelectionPrice = {
     itemPrice: string;
     includedValue: string;
     adjustmentAmount: string;
+    quantity: number;
+    totalAdjustmentAmount: string;
   }>;
 };
 
@@ -325,6 +328,8 @@ export type OrderSelectedItem = {
   itemPrice: string;
   includedValue: string;
   adjustmentAmount: string;
+  quantity: number;
+  totalAdjustmentAmount?: string;
 };
 
 export type OrderStatusEntry = {

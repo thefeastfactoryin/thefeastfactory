@@ -41,11 +41,25 @@ export class CartService {
   ) {}
 
   async upsert(userId: string, dto: UpdateCartDto) {
-    const cart = await this.createOrFetch(userId, { packageVersionId: dto.packageVersionId });
-    const eventFields = [dto.addressId, dto.eventDate, dto.eventTimeStart, dto.guestCount];
+    const cart = await this.createOrFetch(userId, {
+      packageVersionId: dto.packageVersionId,
+    });
+    const eventFields = [
+      dto.addressId,
+      dto.eventDate,
+      dto.eventTimeStart,
+      dto.guestCount,
+    ];
     if (eventFields.some((value) => value !== undefined)) {
-      if (!dto.addressId || !dto.eventDate || !dto.eventTimeStart || !dto.guestCount) {
-        throw new BadRequestException('Address, event date, time, and pax are required together');
+      if (
+        !dto.addressId ||
+        !dto.eventDate ||
+        !dto.eventTimeStart ||
+        !dto.guestCount
+      ) {
+        throw new BadRequestException(
+          'Address, event date, time, and pax are required together',
+        );
       }
       const event = await this.validateEventDetails(userId, dto);
       const updated = await this.prisma.cart.update({
@@ -168,8 +182,7 @@ export class CartService {
 
   async quote(userId: string, id: string) {
     const cart = await this.assertActiveCart(userId, id);
-    const guestCount =
-      cart.guestCount ?? cart.packageVersion.minGuestCount;
+    const guestCount = cart.guestCount ?? cart.packageVersion.minGuestCount;
     const quote = await this.pricing.quote(
       cart.packageVersionId,
       guestCount,
@@ -178,6 +191,7 @@ export class CartService {
         menuItemId: item.menuItemId,
         replacedMenuItemId: item.replacedMenuItemId,
         role: item.role,
+        quantity: item.quantity,
       })),
     );
     await this.prisma.cart.update({
@@ -203,8 +217,15 @@ export class CartService {
 
   async checkout(userId: string, id: string) {
     const cart = await this.assertActiveCart(userId, id);
-    if (!cart.addressId || !cart.eventDate || !cart.eventTimeStart || !cart.guestCount) {
-      throw new BadRequestException('Add event and venue details before checkout');
+    if (
+      !cart.addressId ||
+      !cart.eventDate ||
+      !cart.eventTimeStart ||
+      !cart.guestCount
+    ) {
+      throw new BadRequestException(
+        'Add event and venue details before checkout',
+      );
     }
     const order = await this.orders.create(
       userId,
@@ -214,6 +235,7 @@ export class CartService {
           menuItemId: item.menuItemId,
           replacedMenuItemId: item.replacedMenuItemId,
           role: item.role,
+          quantity: item.quantity,
         })),
       },
       cart.id,
@@ -230,7 +252,11 @@ export class CartService {
     items: CartSelectionItemDto[],
   ) {
     const version = await this.assertPackageVersion(packageVersionId);
-    const guestCount = version.minGuestCount;
+    const maxItemQuantity = Math.max(
+      0,
+      ...items.map((item) => item.quantity ?? 1),
+    );
+    const guestCount = Math.max(version.minGuestCount, maxItemQuantity);
     await this.pricing.quote(packageVersionId, guestCount, items);
   }
 
@@ -302,7 +328,8 @@ export class CartService {
         ? {
             eventName: cart.eventName,
             eventDate: cart.eventDate.toISOString().slice(0, 10),
-            eventTimeStart: cart.eventTimeStart?.toISOString().slice(11, 16) ?? null,
+            eventTimeStart:
+              cart.eventTimeStart?.toISOString().slice(11, 16) ?? null,
             guestCount: cart.guestCount,
             address: cart.address,
             region: cart.region ? this.regions.serialize(cart.region) : null,
@@ -333,7 +360,9 @@ export class CartService {
 
   private async validateEventDetails(userId: string, dto: UpdateCartDto) {
     const [address, version, settingRows] = await Promise.all([
-      this.prisma.userAddress.findFirst({ where: { id: dto.addressId!, userId } }),
+      this.prisma.userAddress.findFirst({
+        where: { id: dto.addressId!, userId },
+      }),
       this.prisma.packageVersion.findFirst({
         where: {
           id: dto.packageVersionId,
@@ -355,8 +384,10 @@ export class CartService {
         },
       }),
     ]);
-    if (!address) throw new BadRequestException('Address does not belong to customer');
-    if (!version) throw new BadRequestException('Package version is not available');
+    if (!address)
+      throw new BadRequestException('Address does not belong to customer');
+    if (!version)
+      throw new BadRequestException('Package version is not available');
     if (
       dto.guestCount! < version.minGuestCount ||
       (version.maxGuestCount && dto.guestCount! > version.maxGuestCount)
@@ -364,7 +395,9 @@ export class CartService {
       throw new BadRequestException('Guest count is outside package limits');
     }
     const eventDate = new Date(`${dto.eventDate}T00:00:00.000Z`);
-    const eventInstant = new Date(`${dto.eventDate}T${dto.eventTimeStart}:00.000Z`);
+    const eventInstant = new Date(
+      `${dto.eventDate}T${dto.eventTimeStart}:00.000Z`,
+    );
     const settings = Object.fromEntries(
       settingRows.map((setting) => [setting.key, setting.value]),
     );
@@ -373,7 +406,9 @@ export class CartService {
       10,
     );
     if (eventInstant.getTime() - Date.now() < leadHours * 3_600_000) {
-      throw new BadRequestException(`Event requires at least ${leadHours} hours advance booking`);
+      throw new BadRequestException(
+        `Event requires at least ${leadHours} hours advance booking`,
+      );
     }
     const startTime = settings.event_service_start_time ?? '06:00';
     const endTime = settings.event_service_end_time ?? '23:30';
@@ -399,7 +434,10 @@ export class CartService {
       );
     }
     const eventTime = new Date(`1970-01-01T${dto.eventTimeStart}:00.000Z`);
-    const assignment = await this.regions.assign(address.latitude, address.longitude);
+    const assignment = await this.regions.assign(
+      address.latitude,
+      address.longitude,
+    );
     return { eventDate, eventTime, ...assignment };
   }
 }
