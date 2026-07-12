@@ -15,19 +15,14 @@ import {
   MessageCircle,
   Package as PackageIcon,
   ShieldCheck,
-  Truck,
   Users,
   type LucideIcon,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import {
-  catalogCopy,
-  offeringDisplay,
-} from '../lib/catalog-display';
+import { catalogCopy, offeringDisplay } from '../lib/catalog-display';
 import { apiRequest } from '../lib/api';
-import { Advantages } from '../components/home/advantages';
 import { DataImage } from '../components/data-image';
 import {
   PackageChangeDialog,
@@ -38,10 +33,32 @@ import { useSessionStore } from '../store/session.store';
 import { usePublicSettings } from '../components/public-settings-provider';
 
 const trustIcons = [Users, Clock, CreditCard, MessageCircle];
-const heroTrust = [
-  { icon: ShieldCheck, label: 'Hygienic preparation' },
-  { icon: Truck, label: 'On-time delivery' },
-  { icon: CreditCard, label: 'Transparent pricing' },
+const fssaiLicenseNumber = '12321011000123';
+// Change: Use several existing food-and-gathering photographs so the hero feels warm and occasion-led, not like a corporate buffet.
+const heroImages = [
+  {
+    src: '/about-gathering.png',
+    alt: 'A generous Indian meal arranged for sharing at a family gathering',
+  },
+  {
+    src: '/packages-hero-food.png',
+    alt: 'Indian dishes plated and ready to be served',
+  },
+  {
+    src: '/pkg-puja.png',
+    alt: 'A warmly decorated puja gathering catered for family and friends',
+  },
+  {
+    src: '/home-hero.png',
+    alt: 'Freshly prepared food presented for a celebration',
+  },
+];
+
+// Change: Keep unverified social proof visibly marked so placeholder reviews can never be mistaken for real customer claims.
+const testimonialPlaceholders = [
+  { name: 'Customer first name', locality: 'Hyderabad locality' },
+  { name: 'Customer first name', locality: 'Hyderabad locality' },
+  { name: 'Customer first name', locality: 'Hyderabad locality' },
 ];
 const offeringIcons: Record<string, LucideIcon> = {
   MEAL_BOX: PackageIcon,
@@ -65,6 +82,15 @@ export default function HomePage() {
   const [pendingPackage, setPendingPackage] = useState<PackageSummary>();
   const [selecting, setSelecting] = useState('');
   const [selectionError, setSelectionError] = useState('');
+  const [activeHeroImage, setActiveHeroImage] = useState(0);
+  // Change: Cross-fade the gallery at a calm pace to add warmth without distracting from the ordering CTAs.
+  useEffect(() => {
+    const interval = window.setInterval(
+      () => setActiveHeroImage((current) => (current + 1) % heroImages.length),
+      5000,
+    );
+    return () => window.clearInterval(interval);
+  }, []);
   useEffect(() => {
     Promise.all([
       apiRequest<OrderingOffering[]>('/catalog/ordering-offerings'),
@@ -159,10 +185,11 @@ export default function HomePage() {
                 Premium food for every{' '}
                 <span className="italic text-accent">occasion</span>.
               </h1>
-              <p className="mt-4 max-w-[460px] text-[15px] leading-7 text-white/75">
-                Premium catering for birthdays, weddings, office events and
-                celebrations. Freshly prepared, beautifully presented and
-                delivered on time.
+              {/* Change: Lead with the family occasions the service is built around, while keeping corporate catering secondary. */}
+              <p className="mt-4 max-w-[480px] text-[15px] leading-7 text-white/75">
+                Premium catering for birthdays, housewarmings, pujas and family
+                gatherings, with thoughtful menus for corporate events too.
+                Freshly prepared, beautifully presented and delivered on time.
               </p>
 
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">
@@ -180,34 +207,90 @@ export default function HomePage() {
                 </Link>
               </div>
 
-              <div className="mt-6 grid gap-3 lg:grid-cols-3">
-                {heroTrust.map(({ icon: Icon, label }) => (
+              <div
+                className="mt-4 grid grid-cols-1 gap-2 sm:w-max lg:grid-cols-[repeat(3,max-content)]"
+                aria-label="Service trust signals"
+              >
+                {/* Keep this guard so removing the temporary hardcoded number also hides the credential chip. */}
+                {fssaiLicenseNumber && (
                   <div
-                    key={label}
-                    className="flex items-center gap-2 whitespace-nowrap text-[13px] font-bold leading-tight text-white/90"
+                    className="inline-flex h-8 w-full items-center gap-2 rounded-full bg-white/[0.08] px-3 text-[11px] font-medium text-white/85 ring-1 ring-inset ring-white/15 sm:w-auto"
+                    title={`FSSAI License No. ${fssaiLicenseNumber}`}
+                    aria-label={`FSSAI Licensed, license number ${fssaiLicenseNumber}`}
                   >
-                    <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md border border-white/10 bg-white/5 text-accent">
-                      <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white/10 text-accent">
+                      <ShieldCheck className="h-3 w-3" aria-hidden="true" />
                     </span>
-                    {label}
+                    <span className="whitespace-nowrap">FSSAI Licensed</span>
                   </div>
-                ))}
+                )}
+                <div className="inline-flex h-8 w-full items-center gap-2 rounded-full bg-white/[0.08] px-3 text-[11px] font-medium text-white/85 ring-1 ring-inset ring-white/15 sm:w-auto">
+                  <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white/10 text-accent">
+                    <ChefHat className="h-3 w-3" aria-hidden="true" />
+                  </span>
+                  <span className="whitespace-nowrap">Hygienically Prepared Kitchens</span>
+                </div>
+                <div className="inline-flex h-8 w-full items-center gap-2 rounded-full bg-white/[0.08] px-3 text-[11px] font-medium text-white/85 ring-1 ring-inset ring-white/15 sm:w-auto">
+                  <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white/10 text-accent">
+                    <Clock className="h-3 w-3" aria-hidden="true" />
+                  </span>
+                  <span className="whitespace-nowrap">On-Time Delivery, Every Time</span>
+                </div>
               </div>
             </div>
 
             <div className="relative lg:-mr-16">
-              <div className="absolute -bottom-3 -right-3 hidden h-full w-full rounded-[24px] border border-accent/15 lg:block" />
-              <div className="relative overflow-hidden rounded-[24px] border border-accent/15 shadow-[0_22px_52px_rgba(0,0,0,0.30)]">
-                <img
-                  src="/Hero.png"
-                  alt="Catering trays prepared for a celebration"
-                  className="aspect-[16/9] w-full scale-[1.03] object-cover transition-transform duration-500 ease-premium hover:scale-[1.045] lg:aspect-[1.7/1] lg:scale-[1.18] lg:hover:scale-[1.2]"
-                />
+              {/* Change: Replace the single tray photograph with a restrained cross-fade gallery and a straighter crop for visual contrast. */}
+              <div className="relative aspect-[16/9] overflow-hidden rounded-[10px] border border-accent/15 shadow-[0_22px_52px_rgba(0,0,0,0.30)] lg:aspect-[1.7/1]">
+                {heroImages.map((image, index) => (
+                  <img
+                    key={image.src}
+                    src={image.src}
+                    alt={index === activeHeroImage ? image.alt : ''}
+                    aria-hidden={index !== activeHeroImage}
+                    className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-1000 motion-reduce:transition-none ${
+                      index === activeHeroImage ? 'opacity-100' : 'opacity-0'
+                    }`}
+                  />
+                ))}
               </div>
             </div>
           </div>
         </div>
       </section>
+
+      {/* Change: Consolidate all service assurances into one squared-off trust band directly beneath the hero. */}
+      <section className="border-b border-border bg-ivory">
+        <div className="container-pad grid sm:grid-cols-2 lg:grid-cols-4">
+          {catalogCopy.trust.map(([title, configuredDescription], index) => {
+            const Icon = trustIcons[index]!;
+            const description =
+              title === 'Advance booking'
+                ? publicSettings
+                  ? `At least ${publicSettings.minBookingLeadHours} hours`
+                  : 'Loading booking policy…'
+                : configuredDescription;
+            return (
+              <div
+                key={title}
+                className="flex items-start gap-3 border-border px-4 py-5 sm:border-r sm:last:border-r-0 lg:px-5"
+              >
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] bg-primary/10 text-primary">
+                  <Icon className="h-4 w-4" aria-hidden="true" />
+                </span>
+                <div>
+                  <h2 className="text-sm font-extrabold">{title}</h2>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    {description}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+
 
       <section className="container-pad py-10 lg:py-12">
         <div className="mx-auto mb-7 max-w-2xl text-center">
@@ -358,36 +441,7 @@ export default function HomePage() {
         )}
       </section>
 
-      <section className="container-pad pb-14 lg:pb-20">
-        <div className="grid overflow-hidden rounded-2xl border border-border/80 bg-ivory shadow-[0_2px_14px_rgba(0,0,0,0.04)] sm:grid-cols-2 lg:grid-cols-4">
-          {catalogCopy.trust.map(([title, configuredDescription], index) => {
-            const Icon = trustIcons[index]!;
-            const desc =
-              title === 'Advance booking'
-                ? publicSettings
-                  ? `At least ${publicSettings.minBookingLeadHours} hours`
-                  : 'Loading booking policy…'
-                : configuredDescription;
-            return (
-              <div
-                key={title}
-                className="flex items-start gap-3 border-border p-5 lg:border-r last:border-r-0"
-              >
-                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
-                  <Icon className="h-4 w-4" aria-hidden="true" />
-                </span>
-                <div>
-                  <h3 className="text-sm font-extrabold">{title}</h3>
-                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                    {desc}
-                  </p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </section>
-      <Advantages />
+      {/* Change: Remove the duplicate lower trust and promise rows now that assurances live in one band beneath the hero. */}
       {detailsPackage && (
         <PackageDetailsModal
           pkg={detailsPackage}

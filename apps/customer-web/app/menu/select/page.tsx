@@ -412,9 +412,9 @@ function MenuSelectContent() {
     includedRows.length > 0 && includedRows.every(({ item }) => item.isVeg);
 
   return (
-    <main className="bg-ivory pb-36 text-charcoal lg:pb-16">
+    <main className="bg-ivory pb-44 text-charcoal md:pb-20 lg:pb-16">
       <div className="border-b border-border/70 bg-ivory">
-        <div className="mx-auto max-w-[1440px] px-3 py-3 sm:px-5 lg:px-6">
+        <div className="mx-auto max-w-[1440px] px-3 py-2 sm:px-5 sm:py-3 lg:px-6">
           <MenuStepIndicator
             current={1}
             context={isMealBox ? 'Meal box' : 'Package'}
@@ -528,8 +528,8 @@ function MenuSelectContent() {
             </span>
           </div>
 
-          <div className="grid gap-4 rounded-[18px] border border-border/80 bg-white p-4 shadow-[0_12px_32px_-28px_rgba(75,12,23,.65)] sm:grid-cols-[200px_minmax(0,1fr)] sm:items-center">
-            <div className="h-36 overflow-hidden rounded-xl border border-border/80 bg-muted sm:h-32">
+          <div className="grid gap-3 rounded-[18px] border border-border/80 bg-white p-3 shadow-[0_12px_32px_-28px_rgba(75,12,23,.65)] sm:grid-cols-[200px_minmax(0,1fr)] sm:items-center sm:gap-4 sm:p-4">
+            <div className="h-32 overflow-hidden rounded-xl border border-border/80 bg-muted sm:h-32">
               <img
                 src={isMealBox ? '/order-mealbox.png' : '/pkg-puja.png'}
                 alt=""
@@ -537,11 +537,11 @@ function MenuSelectContent() {
               />
             </div>
             <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-3">
-                <h1 className="font-serif text-[30px] font-semibold leading-tight tracking-tight text-charcoal sm:text-[34px]">
+              <div className="flex flex-wrap items-start gap-2 sm:items-center sm:gap-3">
+                <h1 className="min-w-0 flex-1 font-serif text-[25px] font-semibold leading-[1.08] tracking-tight text-charcoal sm:text-[34px]">
                   {config.packageName}
                 </h1>
-                <span className="rounded-full bg-accent/[0.12] px-3 py-1.5 text-xs font-bold text-gold-text">
+                <span className="shrink-0 rounded-full bg-accent/[0.12] px-3 py-1.5 text-xs font-bold text-gold-text">
                   {guestCount} {isMealBox ? 'boxes' : 'guests'}
                 </span>
               </div>
@@ -550,7 +550,7 @@ function MenuSelectContent() {
                   ? 'Review the dishes included in your meal box and customise available swaps.'
                   : 'A complete traditional spread for your special occasion.'}
               </p>
-              <div className="mt-4 flex flex-wrap gap-2">
+              <div className="mt-4 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] sm:flex-wrap sm:overflow-visible sm:pb-0 [&::-webkit-scrollbar]:hidden">
                 <StateBadge
                   tone="included"
                   label={`${includedRows.length} items included`}
@@ -578,14 +578,17 @@ function MenuSelectContent() {
               role="tab"
               aria-selected={!extrasExpanded}
               className={cn(
-                'border-b-2 px-4 text-sm font-bold transition',
+                'border-b-2 px-2 py-2 text-xs font-bold leading-tight transition sm:px-4 sm:text-sm',
                 !extrasExpanded
                   ? 'border-primary bg-white text-primary'
                   : 'border-transparent text-muted-foreground hover:bg-muted/30 hover:text-primary',
               )}
               onClick={() => setExtrasExpanded(false)}
             >
-              Included in package ({includedRows.length})
+              <span className="sm:hidden">Included ({includedRows.length})</span>
+              <span className="hidden sm:inline">
+                Included in package ({includedRows.length})
+              </span>
             </button>
             <button
               type="button"
@@ -593,22 +596,23 @@ function MenuSelectContent() {
               aria-selected={extrasExpanded}
               disabled={isMealBox || extraRows.length === 0}
               className={cn(
-                'border-b-2 px-4 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-45',
+                'border-b-2 px-2 py-2 text-xs font-bold leading-tight transition disabled:cursor-not-allowed disabled:opacity-45 sm:px-4 sm:text-sm',
                 extrasExpanded
                   ? 'border-primary bg-white text-primary'
                   : 'border-transparent text-muted-foreground hover:bg-muted/30 hover:text-primary',
               )}
               onClick={() => setExtrasExpanded(true)}
             >
-              Extras (add more)
+              <span className="sm:hidden">Extras</span>
+              <span className="hidden sm:inline">Extras (add more)</span>
             </button>
           </div>
 
-          <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border bg-white p-2 shadow-sm lg:hidden">
+          <div className="mt-4 flex items-center justify-between gap-2 rounded-xl border bg-white p-2 shadow-sm lg:hidden">
             <button
               type="button"
               onClick={() => setMobileFiltersOpen(true)}
-              className="inline-flex min-h-11 max-w-[70%] items-center gap-2 rounded-lg border border-primary/20 bg-white px-4 text-sm font-bold text-primary"
+              className="inline-flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-lg border border-primary/20 bg-white px-3 text-sm font-bold text-primary"
             >
               <SlidersHorizontal className="h-4 w-4 shrink-0" />
               <span className="truncate">Filters & categories</span>
@@ -618,7 +622,7 @@ function MenuSelectContent() {
                 </span>
               )}
             </button>
-            <span className="truncate text-xs font-semibold text-muted-foreground">
+            <span className="hidden max-w-[38%] truncate text-xs font-semibold text-muted-foreground sm:block">
               {activeCategoryName}
             </span>
           </div>
@@ -673,7 +677,7 @@ function MenuSelectContent() {
 
           {((!extrasExpanded && visibleIncluded.length === 0) ||
             (extrasExpanded && visibleExtras.length === 0)) && (
-            <div className="mt-8 rounded-2xl border border-border/80 bg-white p-10 text-center shadow-sm">
+            <div className="mt-6 rounded-2xl border border-border/80 bg-white p-6 text-center shadow-sm sm:mt-8 sm:p-10">
               <Search className="mx-auto h-6 w-6 text-muted-foreground" />
               <h2 className="mt-3 font-semibold">No matching dishes</h2>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -723,7 +727,7 @@ function MenuSelectContent() {
         </aside>
       </div>
 
-      <div className="fixed inset-x-0 bottom-16 z-40 border-t border-border/80 bg-white/95 p-3 shadow-[0_-14px_28px_-22px_rgba(75,12,23,.55)] backdrop-blur lg:hidden">
+      <div className="fixed inset-x-0 bottom-16 z-40 border-t border-border/80 bg-white/95 px-3 py-2 shadow-[0_-14px_28px_-22px_rgba(75,12,23,.55)] backdrop-blur md:bottom-0 lg:hidden">
         <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
           <button
             type="button"
@@ -733,13 +737,13 @@ function MenuSelectContent() {
             <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
               View summary
             </span>
-            <span className="block font-bold text-primary">
+            <span className="block truncate font-bold text-primary">
               {summaryRows.length} included · {formatCurrency(perPerson)} ×{' '}
               {guestCount}
             </span>
           </button>
           <Button
-            className="min-h-11 shrink-0 px-5"
+            className="min-h-11 shrink-0 px-4 sm:px-5"
             onClick={
               !isMealBox && !extrasExpanded
                 ? () => setExtrasExpanded(true)
@@ -855,18 +859,15 @@ function MenuStepIndicator({
       aria-label="Order progress"
       className="rounded-xl border border-border/75 bg-white shadow-[0_8px_24px_-24px_rgba(75,12,23,.55)]"
     >
-      <ol className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_1fr]">
+      <ol className="grid grid-cols-3">
         {steps.map((label, index) => {
           const complete = index < current;
           const active = index === current;
           return (
             <li key={label} className="relative min-w-0">
-              {index > 0 && (
-                <span className="absolute left-0 top-1/2 hidden h-px w-10 -translate-x-1/2 bg-border sm:block" />
-              )}
               <div
                 className={cn(
-                  'flex min-h-[66px] min-w-0 items-center gap-3 px-4 text-sm sm:px-5',
+                  'flex min-h-[58px] min-w-0 items-center justify-center gap-1.5 px-2 text-center text-xs sm:min-h-[66px] sm:justify-start sm:gap-3 sm:px-5 sm:text-sm sm:text-left',
                   active && 'bg-white text-primary',
                   complete && 'text-primary',
                   !active && !complete && 'text-muted-foreground',
@@ -875,7 +876,7 @@ function MenuStepIndicator({
               >
                 <span
                   className={cn(
-                    'grid h-9 w-9 shrink-0 place-items-center rounded-full border text-sm font-extrabold',
+                    'grid h-7 w-7 shrink-0 place-items-center rounded-full border text-xs font-extrabold sm:h-9 sm:w-9 sm:text-sm',
                     complete && 'border-primary bg-primary text-white',
                     active && 'border-accent bg-accent text-accent-foreground',
                     !complete && !active && 'border-border bg-white',
@@ -887,7 +888,7 @@ function MenuStepIndicator({
                   <span className="block truncate font-bold text-charcoal">
                     {label}
                   </span>
-                  <span className="mt-1 block truncate text-xs font-medium text-muted-foreground">
+                  <span className="mt-1 hidden truncate text-xs font-medium text-muted-foreground sm:block">
                     {subtitles[index]}
                   </span>
                 </span>
@@ -1119,33 +1120,33 @@ function MenuSections({
         const open = openCategoryIds.includes(group.rule.id);
         if (swappableOnly && visibleRows.length === 0) return null;
         return (
-        <section
-          key={group.rule.id}
-          className="overflow-hidden rounded-lg border border-border/80 bg-white shadow-sm"
-        >
+          <section
+            key={group.rule.id}
+            className="overflow-hidden rounded-lg border border-border/80 bg-white shadow-sm"
+          >
           <button
             type="button"
             onClick={() => toggleCategory(group.rule.id)}
-            className="flex min-h-14 w-full items-center justify-between gap-3 border-b border-border/80 bg-white px-4 text-left transition hover:bg-ivory/50"
+            className="flex min-h-14 w-full items-center justify-between gap-2 border-b border-border/80 bg-white px-3 text-left transition hover:bg-ivory/50 sm:gap-3 sm:px-4"
             aria-expanded={open}
           >
-            <div className="flex items-center gap-3">
-              <span className="grid h-8 w-8 place-items-center rounded-full bg-accent/[0.10] text-primary">
+            <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent/[0.10] text-primary">
                 <Leaf className="h-4 w-4" />
               </span>
-              <h2 className="font-serif text-lg font-semibold text-charcoal">
+              <h2 className="truncate font-serif text-base font-semibold text-charcoal sm:text-lg">
                 {group.rule.category.name}
               </h2>
             </div>
-            <span className="flex items-center gap-3 text-sm font-medium text-muted-foreground">
+            <span className="flex shrink-0 items-center gap-2 text-xs font-medium text-muted-foreground sm:gap-3 sm:text-sm">
               {visibleRows.length} items
               <ChevronRight
                 className={cn('h-4 w-4 transition', open && 'rotate-90')}
               />
             </span>
           </button>
-          {open && (
-            <div className="divide-y divide-border/80">
+            {open && (
+              <div className="divide-y divide-border/80">
             {visibleRows.map((row) => {
               const alternatives = alternativesFor(row.rule, row.item);
               const currentSwap = currentSwaps.get(row.item.id);
@@ -1173,9 +1174,9 @@ function MenuSections({
                 </div>
               );
             })}
-            </div>
-          )}
-        </section>
+              </div>
+            )}
+          </section>
         );
       })}
     </div>
@@ -1200,11 +1201,11 @@ function DishRow({
   onDetails: () => void;
 }) {
   return (
-    <article className="grid min-w-0 grid-cols-[84px_minmax(0,1fr)] gap-3 bg-white px-4 py-3 transition hover:bg-ivory/45 sm:grid-cols-[92px_minmax(0,1fr)_170px] sm:items-center">
+    <article className="grid min-w-0 grid-cols-[72px_minmax(0,1fr)] gap-3 bg-white px-3 py-3 transition hover:bg-ivory/45 sm:grid-cols-[92px_minmax(0,1fr)_170px] sm:items-center sm:px-4">
       <button
         type="button"
         onClick={onDetails}
-        className="h-[76px] overflow-hidden rounded-lg bg-muted sm:h-[84px]"
+        className="h-[68px] overflow-hidden rounded-lg bg-muted sm:h-[84px]"
         aria-label={`View details for ${item.name}`}
       >
         <DataImage
@@ -1219,7 +1220,7 @@ function DishRow({
         className="min-h-11 min-w-0 text-left"
       >
         <span className="flex flex-wrap items-center gap-2">
-          <strong className="min-w-0 break-words font-serif text-[17px] leading-tight text-charcoal">
+          <strong className="min-w-0 break-words font-serif text-[16px] leading-tight text-charcoal sm:text-[17px]">
             {item.name}
           </strong>
           <DietBadge isVeg={item.isVeg} />
@@ -1229,7 +1230,7 @@ function DishRow({
           {swapped && ` · replaces ${original.name}`}
         </span>
       </button>
-      <div className="col-span-2 flex flex-wrap items-center justify-end gap-2 sm:col-span-1 sm:grid sm:justify-items-end">
+      <div className="col-span-2 flex flex-wrap items-center justify-between gap-2 sm:col-span-1 sm:grid sm:justify-items-end">
         {swapped ? (
           <StateBadge tone="swap" label="Swapped" icon={ArrowRightLeft} />
         ) : swappable ? (
@@ -1241,7 +1242,7 @@ function DishRow({
           <button
             type="button"
             onClick={onSwap}
-            className="inline-flex min-h-10 min-w-32 items-center justify-center gap-2 rounded-lg border border-primary/35 bg-white px-3 text-xs font-bold text-primary transition hover:bg-primary/[0.04]"
+            className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg border border-primary/35 bg-white px-3 text-xs font-bold text-primary transition hover:bg-primary/[0.04] sm:min-w-32 sm:flex-none"
           >
             <ArrowRightLeft className="h-3.5 w-3.5" />
             {swapped ? 'Change swap' : 'Swap item'}
@@ -1434,11 +1435,11 @@ function ExtraRow({
   onDetails: () => void;
 }) {
   return (
-    <article className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-3 rounded-2xl border border-border/80 bg-white p-3 shadow-sm sm:grid-cols-[84px_minmax(0,1fr)_auto_auto] sm:gap-4 sm:p-4">
+    <article className="grid grid-cols-[68px_minmax(0,1fr)] items-center gap-3 rounded-2xl border border-border/80 bg-white p-3 shadow-sm sm:grid-cols-[84px_minmax(0,1fr)_auto_auto] sm:gap-4 sm:p-4">
       <button
         type="button"
         onClick={onDetails}
-        className="h-[72px] overflow-hidden rounded-xl bg-muted"
+        className="h-[68px] overflow-hidden rounded-xl bg-muted sm:h-[72px]"
       >
         <DataImage
           src={row.item.imageUrl}
@@ -1452,7 +1453,7 @@ function ExtraRow({
         className="min-h-11 min-w-0 text-left"
       >
         <span className="flex flex-wrap items-center gap-2">
-          <strong className="min-w-0 break-words font-serif text-lg text-charcoal">
+          <strong className="min-w-0 break-words font-serif text-base leading-tight text-charcoal sm:text-lg">
             {row.item.name}
           </strong>
           <DietBadge isVeg={row.item.isVeg} />
@@ -1679,7 +1680,7 @@ function StateBadge({
   return (
     <span
       className={cn(
-        'inline-flex min-h-8 items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-bold shadow-[0_1px_0_rgba(255,255,255,.8)_inset]',
+        'inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-bold shadow-[0_1px_0_rgba(255,255,255,.8)_inset]',
         styles[tone],
       )}
     >
@@ -1725,9 +1726,11 @@ function MobileSheet({
         onClick={onClose}
         aria-label={`Dismiss ${title}`}
       />
-      <section className="relative max-h-[86vh] w-full overflow-y-auto rounded-t-3xl bg-ivory p-5 shadow-2xl">
+      <section className="relative max-h-[86vh] w-full overflow-y-auto rounded-t-3xl bg-ivory p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl sm:p-5">
         <div className="flex items-center justify-between border-b pb-4">
-          <h2 className="font-serif text-2xl font-semibold">{title}</h2>
+          <h2 className="min-w-0 truncate font-serif text-2xl font-semibold">
+            {title}
+          </h2>
           <button
             type="button"
             onClick={onClose}
@@ -1757,26 +1760,26 @@ function ItemDetails({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/55 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 grid place-items-end bg-slate-950/55 p-0 backdrop-blur-sm sm:place-items-center sm:p-4">
       <button
         type="button"
         className="absolute inset-0"
         onClick={onClose}
         aria-label="Close dish details"
       />
-      <section className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl sm:grid sm:grid-cols-[.9fr_1.1fr]">
-        <div className="min-h-56 bg-muted">
+      <section className="relative max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-3xl bg-white shadow-2xl sm:grid sm:max-h-[90vh] sm:grid-cols-[.9fr_1.1fr] sm:rounded-2xl">
+        <div className="min-h-44 bg-muted sm:min-h-56">
           <DataImage
             src={detail.item.imageUrl}
             alt={detail.item.name}
-            className="h-full min-h-56 w-full object-cover"
+            className="h-full min-h-44 w-full object-cover sm:min-h-56"
           />
         </div>
-        <div className="p-6">
+        <div className="p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6">
           <div className="flex items-start justify-between gap-4">
             <div>
               <DietBadge isVeg={detail.item.isVeg} />
-              <h2 className="mt-3 font-serif text-3xl font-semibold">
+              <h2 className="mt-3 font-serif text-2xl font-semibold leading-tight sm:text-3xl">
                 {detail.item.name}
               </h2>
               <p className="mt-1 text-sm font-semibold text-primary">

@@ -171,20 +171,25 @@ function GuestStepper({
   onInputBlur: () => void;
 }) {
   return (
-    <div className="min-w-0">
-      <label
-        htmlFor="guest-count"
-        className="mb-1 block text-xs font-bold text-muted-foreground"
-      >
-        Guests
-      </label>
-      <div className="flex min-h-11 w-full items-center rounded-xl border border-border bg-white shadow-sm focus-within:ring-2 focus-within:ring-primary/20 sm:w-auto">
+    <div className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-border bg-white px-3 py-2 shadow-sm">
+      <div className="min-w-0">
+        <label
+          htmlFor="guest-count"
+          className="block text-xs font-extrabold uppercase tracking-[0.08em] text-muted-foreground"
+        >
+          Guests
+        </label>
+        <p className="mt-0.5 text-[11px] font-semibold leading-4 text-muted-foreground">
+          Min {MIN_GUESTS}
+        </p>
+      </div>
+      <div className="flex h-10 shrink-0 items-center overflow-hidden rounded-lg border border-border bg-[#fbf8f2] focus-within:ring-2 focus-within:ring-primary/20">
         <button
           type="button"
           aria-label="Decrease guest count"
           disabled={guestCount <= MIN_GUESTS}
           onClick={() => onStep(-1)}
-          className="grid h-11 w-11 shrink-0 place-items-center rounded-l-xl text-primary transition hover:bg-primary hover:text-white disabled:cursor-not-allowed disabled:text-muted-foreground/40 disabled:hover:bg-transparent"
+          className="grid h-10 w-10 shrink-0 place-items-center text-primary transition hover:bg-primary hover:text-white disabled:cursor-not-allowed disabled:text-muted-foreground/40 disabled:hover:bg-transparent"
         >
           <Minus className="h-4 w-4" />
         </button>
@@ -196,23 +201,18 @@ function GuestStepper({
           value={guestInput}
           onBlur={onInputBlur}
           onChange={(event) => onInputChange(event.target.value)}
-          className="h-11 w-[78px] border-x border-border bg-white text-center text-sm font-extrabold text-foreground outline-none"
+          className="h-10 w-14 border-x border-border bg-white text-center text-sm font-extrabold text-foreground outline-none"
         />
         <button
           type="button"
           aria-label="Increase guest count"
           disabled={guestCount >= MAX_GUESTS}
           onClick={() => onStep(1)}
-          className="grid h-11 w-11 shrink-0 place-items-center rounded-r-xl text-primary transition hover:bg-primary hover:text-white disabled:cursor-not-allowed disabled:text-muted-foreground/40 disabled:hover:bg-transparent"
+          className="grid h-10 w-10 shrink-0 place-items-center text-primary transition hover:bg-primary hover:text-white disabled:cursor-not-allowed disabled:text-muted-foreground/40 disabled:hover:bg-transparent"
         >
           <Plus className="h-4 w-4" />
         </button>
       </div>
-      {guestCount <= MIN_GUESTS && (
-        <p className="mt-1 text-xs font-semibold text-muted-foreground">
-          Minimum {MIN_GUESTS} guests
-        </p>
-      )}
     </div>
   );
 }
@@ -791,16 +791,16 @@ function BuildPackageContent() {
 
   const visual = (
     <section className="min-w-0">
-      <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div className="min-w-0">
-          <h1 className="font-serif text-[28px] font-bold leading-tight text-foreground">
+      <div className="mb-4 flex flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 max-w-[560px]">
+          <h1 className="font-serif text-[30px] font-bold leading-[1.05] text-foreground">
             Build Your Own Package
           </h1>
-          <p className="mt-0.5 truncate text-sm font-semibold leading-5 text-muted-foreground">
+          <p className="mt-1 text-sm font-semibold leading-5 text-muted-foreground">
             Choose your favourite dishes and customize a menu that fits your occasion.
           </p>
         </div>
-        <div className="shrink-0 sm:w-[190px]">
+        <div className="shrink-0 sm:w-[244px]">
           <GuestStepper
             guestCount={guestCount}
             guestInput={guestInput}
