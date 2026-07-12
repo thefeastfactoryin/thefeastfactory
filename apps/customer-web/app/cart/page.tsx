@@ -33,6 +33,7 @@ import { Button } from '../../components/ui/button';
 import { AuthRequiredPanel, StatePanel } from '../../components/ui/state-panel';
 import { apiRequest } from '../../lib/api';
 import { formatCurrency } from '../../lib/format';
+import { formatMenuCalculation } from '../../lib/menu-price-calculation';
 import { cn } from '../../lib/utils';
 import { useOrderBuilderStore } from '../../store/order-builder.store';
 import { useSessionStore } from '../../store/session.store';
@@ -900,35 +901,18 @@ function PriceSummary({
   quote: PackageSelectionPrice;
   unitLabel: 'box' | 'person';
 }) {
-  const units = `${quote.guestCount} ${
-    unitLabel === 'box'
-      ? quote.guestCount === 1
-        ? 'box'
-        : 'boxes'
-      : quote.guestCount === 1
-        ? 'guest'
-        : 'guests'
-  }`;
+  const menuCalculation = formatMenuCalculation({
+    basePrice: quote.basePerPlatePrice,
+    guestCount: quote.guestCount,
+    unitLabel: unitLabel === 'box' ? 'box' : 'guest',
+    items: quote.items,
+  });
   return (
     <>
       <div className="space-y-3 text-sm">
         <PriceLine
-          label={`Base menu per ${unitLabel}`}
-          value={formatCurrency(quote.basePerPlatePrice)}
-        />
-        {Number(quote.totalCustomizationCharges) > 0 && (
-          <PriceLine
-            label={`Extras adjustment per ${unitLabel}`}
-            value={`+${formatCurrency(quote.totalCustomizationCharges)}`}
-          />
-        )}
-        <PriceLine
-          label={`Final menu price per ${unitLabel}`}
-          value={formatCurrency(quote.finalPerPlatePrice)}
-        />
-        <PriceLine
           label="Menu calculation"
-          value={`${formatCurrency(quote.finalPerPlatePrice)} × ${units}`}
+          value={menuCalculation}
         />
         <PriceLine
           label="Menu subtotal"

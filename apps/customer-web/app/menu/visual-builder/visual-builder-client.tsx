@@ -33,6 +33,7 @@ import {
 } from '../../../components/visual-buffet-builder';
 import { apiRequest } from '../../../lib/api';
 import { formatCurrency } from '../../../lib/format';
+import { formatMenuCalculation } from '../../../lib/menu-price-calculation';
 import { usePackagePreviewQuote } from '../../../lib/use-package-preview-quote';
 import { cn } from '../../../lib/utils';
 import {
@@ -659,6 +660,7 @@ function PackageSummary({
   selectedItems,
   selectedCount,
   guestCount,
+  menuCalculation,
   estimate,
   subtotal,
   charges,
@@ -671,6 +673,7 @@ function PackageSummary({
   selectedItems: SelectedItem[];
   selectedCount: number;
   guestCount: number;
+  menuCalculation: string;
   estimate: number;
   subtotal: number;
   charges: number;
@@ -794,6 +797,7 @@ function PackageSummary({
       <div className="border-t border-border/80 bg-white p-5">
         <SummaryLine label="Selected items" value={String(selectedCount)} />
         <SummaryLine label="Guests" value={String(guestCount)} />
+        <SummaryLine label="Calculation" value={menuCalculation} />
         <SummaryLine label="Subtotal" value={formatCurrency(subtotal)} />
         <SummaryLine label="Taxes & charges" value={formatCurrency(charges)} />
         <div className="mt-2.5 border-t border-border/80 pt-2.5">
@@ -1184,6 +1188,12 @@ export function VisualBuilderClient({
   const estimate = Number(preview.quote?.totalAmount ?? perPlate * guestCount);
   const subtotal = Number(preview.quote?.subtotalAmount ?? estimate);
   const charges = Math.max(estimate - subtotal, 0);
+  const menuCalculation = formatMenuCalculation({
+    basePrice: preview.quote?.basePerPlatePrice ?? effectivePackage?.basePricePerPlate ?? 0,
+    guestCount,
+    unitLabel: isMealBox ? 'box' : 'guest',
+    items: preview.quote?.items ?? selectedItems,
+  });
   function resetFilters() {
     setActiveCategory('');
     setSearch('');
@@ -1410,6 +1420,7 @@ export function VisualBuilderClient({
             selectedItems={selectedItems}
             selectedCount={selectedItems.length}
             guestCount={guestCount}
+            menuCalculation={menuCalculation}
             estimate={estimate}
             subtotal={subtotal}
             charges={charges}
