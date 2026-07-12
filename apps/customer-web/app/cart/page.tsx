@@ -56,6 +56,8 @@ type ReviewRow = {
   role: 'INCLUDED' | 'SWAP' | 'EXTRA' | 'CUSTOM';
   replacedName?: string | null;
   adjustmentAmount: string;
+  quantity: number;
+  totalAdjustmentAmount?: string;
 };
 
 export default function CartPage() {
@@ -160,7 +162,7 @@ export default function CartPage() {
 
   const reviewRows = useMemo<ReviewRow[]>(() => {
     if (!cart || !config) return [];
-    if (quote) {
+    if (quote && config.packageType !== 'FIXED_PACKAGE') {
       return quote.items.map((item) => {
         const configured = configItems.get(item.menuItemId);
         return {
@@ -173,6 +175,8 @@ export default function CartPage() {
           role: item.role ?? 'INCLUDED',
           replacedName: item.replacedMenuItemName,
           adjustmentAmount: item.adjustmentAmount,
+          quantity: item.quantity,
+          totalAdjustmentAmount: item.totalAdjustmentAmount,
         };
       });
     }
@@ -189,6 +193,7 @@ export default function CartPage() {
           isVeg: item.isVeg,
           role: 'CUSTOM',
           adjustmentAmount: configured?.adjustmentAmount ?? '0.00',
+          quantity: item.quantity,
         };
       });
     }
@@ -216,6 +221,7 @@ export default function CartPage() {
             role: swap ? ('SWAP' as const) : ('INCLUDED' as const),
             replacedName: swap ? item.name : undefined,
             adjustmentAmount: shown.adjustmentAmount,
+            quantity: swap?.quantity ?? 1,
           };
         }),
     );
@@ -232,6 +238,7 @@ export default function CartPage() {
           isVeg: item.isVeg,
           role: 'EXTRA' as const,
           adjustmentAmount: configured?.adjustmentAmount ?? '0.00',
+          quantity: item.quantity,
         };
       });
     return [...included, ...extras];
@@ -642,6 +649,11 @@ function ReviewDishRow({ row }: { row: ReviewRow }) {
             <Leaf className="h-3 w-3" /> {row.isVeg ? 'Veg' : 'Non-veg'}
           </span>
           {row.replacedName && <span>replaces {row.replacedName}</span>}
+          {row.role === 'EXTRA' && (
+            <span>
+              {row.quantity} portion{row.quantity === 1 ? '' : 's'}
+            </span>
+          )}
         </span>
       </span>
       <span
@@ -657,7 +669,13 @@ function ReviewDishRow({ row }: { row: ReviewRow }) {
         )}
       >
         {state}
-        {Number(row.adjustmentAmount) > 0 && ` · +₹${row.adjustmentAmount}`}
+        {Number(row.adjustmentAmount) > 0 &&
+          ` · +${formatCurrency(
+            row.totalAdjustmentAmount ??
+              (row.role === 'EXTRA'
+                ? Number(row.adjustmentAmount) * row.quantity
+                : Number(row.adjustmentAmount)),
+          )}`}
       </span>
     </div>
   );
@@ -688,7 +706,7 @@ function PriceSummary({
         />
         {Number(quote.totalCustomizationCharges) > 0 && (
           <PriceLine
-            label={`Extras per ${unitLabel}`}
+            label={`Extras adjustment per ${unitLabel}`}
             value={`+${formatCurrency(quote.totalCustomizationCharges)}`}
           />
         )}

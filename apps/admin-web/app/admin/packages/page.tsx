@@ -1085,9 +1085,9 @@ export default function AdminPackages() {
                         Menu composition
                       </h3>
                       <p className="mt-1 text-sm text-muted-foreground">
-                        Swaps are category-based: mark an included meal-box item
-                        as swappable and customers can swap within that item’s
-                        category.
+                        Swaps are category-based: mark an included meal-box or
+                        package item as swappable and customers can swap within
+                        that item’s category.
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -1225,7 +1225,8 @@ export default function AdminPackages() {
                                 </Select>
                               </td>
                               <td>
-                                {selectedPackage.type === 'MEAL_BOX' &&
+                                {(selectedPackage.type === 'MEAL_BOX' ||
+                                  selectedPackage.type === 'FIXED_PACKAGE') &&
                                 role === 'INCLUDED' ? (
                                   <label className="flex items-center gap-2 text-sm">
                                     <Switch

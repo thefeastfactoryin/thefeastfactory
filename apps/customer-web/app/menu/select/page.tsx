@@ -10,6 +10,8 @@ import {
   Filter,
   Leaf,
   LockKeyhole,
+  Minus,
+  Plus,
   Search,
   ShoppingBag,
   SlidersHorizontal,
@@ -47,6 +49,9 @@ export default function MenuSelectPage() {
   const setDbCartId = useOrderBuilderStore((state) => state.setDbCartId);
   const toggleItem = useOrderBuilderStore((state) => state.toggleItem);
   const toggleSwap = useOrderBuilderStore((state) => state.toggleSwap);
+  const updateItemQuantity = useOrderBuilderStore(
+    (state) => state.updateItemQuantity,
+  );
   const removeSwap = useOrderBuilderStore((state) => state.removeSwap);
   const session = useSessionStore((state) => state.session);
 
@@ -87,6 +92,7 @@ export default function MenuSelectPage() {
   }, []);
 
   const isMealBox = config?.packageType === 'MEAL_BOX';
+  const supportsSwaps = config?.packageType !== 'CUSTOM_PACKAGE';
   const includedRows = useMemo<MenuRow[]>(() => {
     if (!config) return [];
     return config.categoryRules.flatMap((rule) =>
@@ -112,6 +118,10 @@ export default function MenuSelectPage() {
   }, [config]);
   const selectedIds = useMemo(
     () => new Set(selectedItems.map((item) => item.menuItemId)),
+    [selectedItems],
+  );
+  const selectedItemById = useMemo(
+    () => new Map(selectedItems.map((item) => [item.menuItemId, item])),
     [selectedItems],
   );
   const selectedExtras = useMemo(
@@ -186,12 +196,16 @@ export default function MenuSelectPage() {
   const localPerPerson =
     Number(cartPackage?.basePricePerPlate ?? 0) +
     selectedItems.reduce(
-      (total, item) => total + Number(item.adjustmentAmount || 0),
+      (total, item) =>
+        total +
+        (item.role === 'EXTRA'
+          ? (Number(item.itemPrice || item.adjustmentAmount || 0) *
+              (item.quantity ?? guestCount)) /
+            Math.max(guestCount, 1)
+          : Number(item.adjustmentAmount || 0)),
       0,
     );
-  const perPerson = Number(
-    preview.quote?.finalPerPlatePrice ?? localPerPerson,
-  );
+  const perPerson = Number(preview.quote?.finalPerPlatePrice ?? localPerPerson);
   const basePerPerson = Number(
     preview.quote?.basePerPlatePrice ?? cartPackage?.basePricePerPlate ?? 0,
   );
@@ -253,6 +267,7 @@ export default function MenuSelectPage() {
         itemPrice: row.item.itemPrice,
         includedValue: row.item.includedValue,
         adjustmentAmount: row.item.adjustmentAmount,
+        quantity: guestCount,
         isVeg: row.item.isVeg,
       },
       row.rule.maxSelections,
@@ -261,6 +276,13 @@ export default function MenuSelectPage() {
       changed
         ? ''
         : `${row.rule.category.name} allows up to ${row.rule.maxSelections} extras.`,
+    );
+  }
+
+  function setExtraQuantity(menuItemId: string, quantity: number) {
+    updateItemQuantity(
+      menuItemId,
+      Math.min(Math.max(Math.round(quantity) || 1, 1), guestCount),
     );
   }
 
@@ -293,8 +315,9 @@ export default function MenuSelectPage() {
               categoryId: item.categoryId,
               menuItemId: item.menuItemId,
               replacedMenuItemId: item.replacedMenuItemId,
-              role: isMealBox ? 'SWAP' : 'EXTRA',
-              quantity: 1,
+              role: item.role ?? (item.replacedMenuItemId ? 'SWAP' : 'EXTRA'),
+              quantity:
+                item.role === 'EXTRA' ? (item.quantity ?? guestCount) : 1,
             })),
           }),
         },
@@ -451,7 +474,7 @@ export default function MenuSelectPage() {
               <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
                 {isMealBox
                   ? 'Everything shown is included. Swap only where available.'
-                  : 'Everything in the included menu is fixed. Add optional extras if you would like.'}
+                  : 'Everything in the included menu is part of the package. Swap where available, or add optional extras.'}
               </p>
             </div>
             <span className="rounded-lg border border-primary/15 bg-primary/[0.035] px-3 py-2 text-xs font-bold text-primary">
@@ -463,15 +486,14 @@ export default function MenuSelectPage() {
           <div className="mt-5 flex flex-wrap items-center gap-2">
             <StateBadge tone="included" label="Included" />
             <StateBadge tone="fixed" label="Fixed" icon={LockKeyhole} />
-            {isMealBox ? (
+            {supportsSwaps && (
               <StateBadge
                 tone="swap"
                 label="Swap available"
                 icon={ArrowRightLeft}
               />
-            ) : (
-              <StateBadge tone="extra" label="Optional extra" />
             )}
+            {!isMealBox && <StateBadge tone="extra" label="Optional extra" />}
           </div>
 
           <div className="mt-5 flex items-center justify-between gap-3 border-y py-3 lg:hidden">
@@ -494,7 +516,7 @@ export default function MenuSelectPage() {
 
           <MenuSections
             rows={visibleIncluded}
-            isMealBox={isMealBox}
+            supportsSwaps={supportsSwaps}
             currentSwaps={currentSwaps}
             itemById={itemById}
             expandedSwapId={expandedSwapId}
@@ -548,7 +570,15 @@ export default function MenuSelectPage() {
                       key={`${row.rule.id}-${row.item.id}`}
                       row={row}
                       selected={selectedIds.has(row.item.id)}
+                      quantity={
+                        selectedItemById.get(row.item.id)?.quantity ??
+                        guestCount
+                      }
+                      maxQuantity={guestCount}
                       onToggle={() => toggleExtra(row)}
+                      onQuantityChange={(quantity) =>
+                        setExtraQuantity(row.item.id, quantity)
+                      }
                       onDetails={() =>
                         setDetailItem({
                           item: row.item,
@@ -565,7 +595,15 @@ export default function MenuSelectPage() {
                       key={`${row.rule.id}-${row.item.id}`}
                       row={row}
                       selected
+                      quantity={
+                        selectedItemById.get(row.item.id)?.quantity ??
+                        guestCount
+                      }
+                      maxQuantity={guestCount}
                       onToggle={() => toggleExtra(row)}
+                      onQuantityChange={(quantity) =>
+                        setExtraQuantity(row.item.id, quantity)
+                      }
                       onDetails={() =>
                         setDetailItem({
                           item: row.item,
@@ -609,6 +647,7 @@ export default function MenuSelectPage() {
             isMealBox={isMealBox}
             rows={summaryRows}
             extras={selectedExtras}
+            selectedItemById={selectedItemById}
             swaps={currentSwaps.size}
             guestCount={guestCount}
             basePerPerson={basePerPerson}
@@ -673,6 +712,7 @@ export default function MenuSelectPage() {
             isMealBox={isMealBox}
             rows={summaryRows}
             extras={selectedExtras}
+            selectedItemById={selectedItemById}
             swaps={currentSwaps.size}
             guestCount={guestCount}
             basePerPerson={basePerPerson}
@@ -807,7 +847,7 @@ function CategoryButton({
 
 function MenuSections({
   rows,
-  isMealBox,
+  supportsSwaps,
   currentSwaps,
   itemById,
   expandedSwapId,
@@ -820,7 +860,7 @@ function MenuSections({
   openDetails,
 }: {
   rows: MenuRow[];
-  isMealBox: boolean;
+  supportsSwaps: boolean;
   currentSwaps: Map<string, SelectedItem>;
   itemById: Map<string, MenuSelectionItem>;
   expandedSwapId?: string;
@@ -865,7 +905,7 @@ function MenuSections({
                 ? (itemById.get(currentSwap.menuItemId) ?? row.item)
                 : row.item;
               const swappable =
-                isMealBox &&
+                supportsSwaps &&
                 Boolean(row.item.isSwappable) &&
                 alternatives.length > 0;
               const expanded = expandedSwapId === row.item.id;
@@ -1082,16 +1122,26 @@ function SwapChoice({
 function ExtraRow({
   row,
   selected,
+  quantity,
+  maxQuantity,
   onToggle,
+  onQuantityChange,
   onDetails,
 }: {
   row: MenuRow;
   selected: boolean;
+  quantity: number;
+  maxQuantity: number;
   onToggle: () => void;
+  onQuantityChange: (quantity: number) => void;
   onDetails: () => void;
 }) {
+  const unitPrice = Number(
+    row.item.itemPrice || row.item.adjustmentAmount || 0,
+  );
+  const lineTotal = unitPrice * quantity;
   return (
-    <article className="grid grid-cols-[72px_minmax(0,1fr)_auto] items-center gap-3 py-3 sm:grid-cols-[84px_minmax(0,1fr)_auto_auto] sm:gap-4">
+    <article className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-3 py-3 sm:grid-cols-[84px_minmax(0,1fr)_auto_auto_auto] sm:gap-4">
       <button
         type="button"
         onClick={onDetails}
@@ -1115,23 +1165,59 @@ function ExtraRow({
         </span>
       </button>
       <span className="hidden text-right text-xs font-bold sm:block">
-        +₹{row.item.adjustmentAmount}
+        +₹{row.item.itemPrice}
         <small className="block font-normal text-muted-foreground">
-          per person
+          per portion
         </small>
       </span>
+      {selected && (
+        <div className="col-span-2 flex items-center justify-between gap-3 rounded-lg bg-muted/50 px-2 py-2 sm:col-span-1 sm:w-40 sm:bg-transparent sm:p-0">
+          <span className="text-[11px] font-semibold text-muted-foreground sm:hidden">
+            {formatCurrency(lineTotal)}
+          </span>
+          <div className="ml-auto inline-flex h-9 items-center rounded-lg border bg-white">
+            <button
+              type="button"
+              onClick={() => onQuantityChange(quantity - 1)}
+              className="grid h-8 w-8 place-items-center text-primary disabled:text-muted-foreground"
+              disabled={quantity <= 1}
+              aria-label={`Reduce ${row.item.name} portions`}
+            >
+              <Minus className="h-3.5 w-3.5" />
+            </button>
+            <input
+              value={quantity}
+              onChange={(event) =>
+                onQuantityChange(Number(event.currentTarget.value))
+              }
+              className="h-8 w-10 border-x text-center text-xs font-bold outline-none"
+              inputMode="numeric"
+              aria-label={`${row.item.name} portions`}
+            />
+            <button
+              type="button"
+              onClick={() => onQuantityChange(quantity + 1)}
+              className="grid h-8 w-8 place-items-center text-primary disabled:text-muted-foreground"
+              disabled={quantity >= maxQuantity}
+              aria-label={`Increase ${row.item.name} portions`}
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
       <button
         type="button"
         onClick={onToggle}
         className={cn(
-          'inline-flex h-9 items-center justify-center rounded-lg border px-3 text-xs font-bold',
+          'col-span-2 inline-flex h-9 items-center justify-center rounded-lg border px-3 text-xs font-bold sm:col-span-1',
           selected
             ? 'border-primary bg-primary text-white'
             : 'border-primary/50 text-primary hover:bg-primary/5',
         )}
       >
         {selected ? <Check className="mr-1.5 h-3.5 w-3.5" /> : null}
-        {selected ? 'Selected' : `Add · ₹${row.item.adjustmentAmount}`}
+        {selected ? 'Remove extra' : `Add · ₹${row.item.itemPrice}`}
       </button>
     </article>
   );
@@ -1141,6 +1227,7 @@ function MenuSummary({
   isMealBox,
   rows,
   extras,
+  selectedItemById,
   swaps,
   guestCount,
   basePerPerson,
@@ -1159,6 +1246,7 @@ function MenuSummary({
     swapped: boolean;
   }>;
   extras: MenuRow[];
+  selectedItemById: Map<string, SelectedItem>;
   swaps: number;
   guestCount: number;
   basePerPerson: number;
@@ -1217,31 +1305,41 @@ function MenuSummary({
             </span>
           </div>
         ))}
-        {extras.map((row) => (
-          <div key={row.item.id} className="flex items-center gap-3 py-2.5">
-            <span className="h-10 w-12 shrink-0 overflow-hidden rounded-md bg-muted">
-              <DataImage
-                src={row.item.imageUrl}
-                alt=""
-                className="h-full w-full object-cover"
-              />
-            </span>
-            <span className="min-w-0 flex-1">
-              <strong className="block truncate text-xs">
-                {row.item.name}
-              </strong>
-              <span className="text-[10px] text-muted-foreground">Extra</span>
-            </span>
-            <span className="text-[10px] font-bold text-primary">
-              +₹{row.item.adjustmentAmount}
-            </span>
-          </div>
-        ))}
+        {extras.map((row) => {
+          const quantity = selectedItemById.get(row.item.id)?.quantity ?? 1;
+          const lineTotal =
+            Number(row.item.itemPrice || row.item.adjustmentAmount || 0) *
+            quantity;
+          return (
+            <div key={row.item.id} className="flex items-center gap-3 py-2.5">
+              <span className="h-10 w-12 shrink-0 overflow-hidden rounded-md bg-muted">
+                <DataImage
+                  src={row.item.imageUrl}
+                  alt=""
+                  className="h-full w-full object-cover"
+                />
+              </span>
+              <span className="min-w-0 flex-1">
+                <strong className="block truncate text-xs">
+                  {row.item.name}
+                </strong>
+                <span className="text-[10px] text-muted-foreground">
+                  Extra · {quantity} portion{quantity === 1 ? '' : 's'}
+                </span>
+              </span>
+              <span className="text-[10px] font-bold text-primary">
+                +{formatCurrency(lineTotal)}
+              </span>
+            </div>
+          );
+        })}
       </div>
       <div className="border-t p-5">
         <div className="grid gap-3 text-sm">
           <SummaryLine label="Included" value={String(rows.length)} />
-          {isMealBox && <SummaryLine label="Swaps" value={String(swaps)} />}
+          {(isMealBox || swaps > 0) && (
+            <SummaryLine label="Swaps" value={String(swaps)} />
+          )}
           {!isMealBox && (
             <SummaryLine label="Extras" value={String(extras.length)} />
           )}
@@ -1259,7 +1357,9 @@ function MenuSummary({
           {extrasPerPerson > 0 && (
             <SummaryLine
               label={
-                isMealBox ? 'Swap adjustment per box' : 'Extras per person'
+                isMealBox
+                  ? 'Swap adjustment per box'
+                  : 'Extras adjustment per person'
               }
               value={`+${formatCurrency(extrasPerPerson)}`}
             />

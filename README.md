@@ -142,6 +142,9 @@ npm run lint
 npm run build
 npm run contracts:check
 npm run test:contracts
+npm run test:api
+npm run test:client
+npm run test:business
 ```
 
 Individual targets are available as `build:api`, `build:customer`, and `build:admin`, along with each workspace's lint command.

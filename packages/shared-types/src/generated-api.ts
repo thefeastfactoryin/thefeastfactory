@@ -1241,6 +1241,8 @@ export interface components {
             readonly categoryId: string;
             /** Format: uuid */
             readonly menuItemId: string;
+            /** @default 1 */
+            readonly quantity: number;
             /** Format: uuid */
             readonly replacedMenuItemId?: string | null;
             /** @enum {string} */

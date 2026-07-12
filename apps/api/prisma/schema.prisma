@@ -413,6 +413,7 @@ model OrderSelectedItem {
   menuItemId         String           @map("menu_item_id")
   replacedMenuItemId String?          @map("replaced_menu_item_id")
   role               SelectedItemRole
+  quantity           Int              @default(1)
 
   menuItemName         String   @map("menu_item_name") @db.VarChar(150)
   categoryName         String   @map("category_name") @db.VarChar(100)

@@ -12,6 +12,7 @@ type PreviewItem = {
   menuItemId: string;
   replacedMenuItemId?: string | null;
   role?: SelectedItemRole;
+  quantity?: number;
 };
 
 export function usePackagePreviewQuote({
@@ -36,7 +37,7 @@ export function usePackagePreviewQuote({
       selectedItems
         .map(
           (item) =>
-            `${item.categoryId}:${item.menuItemId}:${item.replacedMenuItemId ?? ''}:${item.role ?? ''}`,
+            `${item.categoryId}:${item.menuItemId}:${item.replacedMenuItemId ?? ''}:${item.role ?? ''}:${item.quantity ?? ''}`,
         )
         .sort()
         .join('|'),

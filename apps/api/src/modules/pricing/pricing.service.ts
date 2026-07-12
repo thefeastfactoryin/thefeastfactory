@@ -16,6 +16,7 @@ export type SelectedItemInput = {
   menuItemId: string;
   replacedMenuItemId?: string | null;
   role?: SelectedItemRole;
+  quantity?: number;
 };
 
 type VersionForQuote = Prisma.PackageVersionGetPayload<{
@@ -39,6 +40,8 @@ type QuoteItem = {
   itemPrice: Prisma.Decimal;
   includedValue: Prisma.Decimal;
   adjustmentAmount: Prisma.Decimal;
+  quantity: number;
+  totalAdjustmentAmount: Prisma.Decimal;
 };
 
 @Injectable()
@@ -77,7 +80,7 @@ export class PricingService {
       throw new BadRequestException('Guest count is outside package limits');
     }
 
-    const items = await this.evaluate(version, selectedItems);
+    const items = await this.evaluate(version, selectedItems, guestCount);
     const customization = items.reduce(
       (sum, item) => sum.plus(item.adjustmentAmount),
       new Prisma.Decimal(0),
@@ -99,6 +102,7 @@ export class PricingService {
   private async evaluate(
     version: VersionForQuote,
     selectedItems: SelectedItemInput[],
+    guestCount: number,
   ) {
     if (version.package.type === PackageType.CUSTOM_PACKAGE) {
       return this.customItems(selectedItems);
@@ -106,7 +110,7 @@ export class PricingService {
     if (version.package.type === PackageType.MEAL_BOX) {
       return this.mealBoxItems(version, selectedItems);
     }
-    return this.fixedPackageItems(version, selectedItems);
+    return this.fixedPackageItems(version, selectedItems, guestCount);
   }
 
   private async customItems(
@@ -141,6 +145,8 @@ export class PricingService {
           itemPrice: item.generalPrice,
           includedValue: new Prisma.Decimal(0),
           adjustmentAmount: item.generalPrice,
+          quantity: 1,
+          totalAdjustmentAmount: item.generalPrice,
         },
       ];
     });
@@ -149,39 +155,124 @@ export class PricingService {
     return items;
   }
 
-  private fixedPackageItems(
+  private async fixedPackageItems(
     version: VersionForQuote,
     selectedItems: SelectedItemInput[],
-  ): QuoteItem[] {
+    guestCount: number,
+  ): Promise<QuoteItem[]> {
     const errors = this.duplicateErrors(selectedItems);
     const extras = new Map(
       version.packageMenuItems
         .filter((row) => row.role === PackageMenuItemRole.EXTRA)
         .map((row) => [row.menuItemId, row]),
     );
-    const items = selectedItems.flatMap((selection) => {
-      const row = extras.get(selection.menuItemId);
-      if (!row || row.categoryId !== selection.categoryId) {
-        errors.push(`Menu item ${selection.menuItemId} is not a valid extra`);
+    const includedRows = version.packageMenuItems.filter(
+      (row) => row.role === PackageMenuItemRole.INCLUDED,
+    );
+    const includedById = new Map(
+      includedRows.map((row) => [row.menuItemId, row]),
+    );
+    const swapSelections = selectedItems.filter(
+      (selection) => selection.replacedMenuItemId,
+    );
+    const replacementIds = swapSelections.map((item) => item.menuItemId);
+    const replacementRows = replacementIds.length
+      ? await this.prisma.menuItem.findMany({
+          where: {
+            id: { in: replacementIds },
+            isActive: true,
+            deletedAt: null,
+          },
+        })
+      : [];
+    const replacementById = new Map(
+      replacementRows.map((item) => [item.id, item] as const),
+    );
+
+    const extraItems = selectedItems
+      .filter((selection) => !selection.replacedMenuItemId)
+      .flatMap((selection) => {
+        const row = extras.get(selection.menuItemId);
+        if (!row || row.categoryId !== selection.categoryId) {
+          errors.push(`Menu item ${selection.menuItemId} is not a valid extra`);
+          return [];
+        }
+        const quantity = selection.quantity ?? guestCount;
+        if (quantity < 1 || quantity > guestCount) {
+          errors.push(
+            `${row.menuItem.name} quantity must be between 1 and ${guestCount}`,
+          );
+          return [];
+        }
+        const totalAdjustmentAmount = row.menuItem.generalPrice.mul(quantity);
+        return [
+          {
+            categoryId: row.categoryId,
+            categoryName: row.category.name,
+            menuItemId: row.menuItemId,
+            menuItemName: row.menuItem.name,
+            role: SelectedItemRole.EXTRA,
+            isVeg: row.menuItem.isVeg,
+            itemPrice: row.menuItem.generalPrice,
+            includedValue: new Prisma.Decimal(0),
+            adjustmentAmount: totalAdjustmentAmount.div(guestCount),
+            quantity,
+            totalAdjustmentAmount,
+          },
+        ];
+      });
+
+    const swapItems = swapSelections.flatMap((selection) => {
+      const included = includedById.get(selection.replacedMenuItemId!);
+      const replacement = replacementById.get(selection.menuItemId);
+      if (!included) {
+        errors.push(
+          `Replacement target ${selection.replacedMenuItemId} is not in this package`,
+        );
         return [];
       }
+      if (!included.isSwappable) {
+        errors.push(`${included.menuItem.name} cannot be swapped`);
+        return [];
+      }
+      if (!replacement) {
+        errors.push(`Invalid replacement item ${selection.menuItemId}`);
+        return [];
+      }
+      if (
+        replacement.categoryId !== included.categoryId ||
+        replacement.isVeg !== included.menuItem.isVeg
+      ) {
+        errors.push(
+          `${replacement.name} is not eligible to replace ${included.menuItem.name}`,
+        );
+        return [];
+      }
+      const adjustmentAmount = Prisma.Decimal.max(
+        replacement.generalPrice.minus(included.menuItem.generalPrice),
+        0,
+      );
       return [
         {
-          categoryId: row.categoryId,
-          categoryName: row.category.name,
-          menuItemId: row.menuItemId,
-          menuItemName: row.menuItem.name,
-          role: SelectedItemRole.EXTRA,
-          isVeg: row.menuItem.isVeg,
-          itemPrice: row.menuItem.generalPrice,
-          includedValue: new Prisma.Decimal(0),
-          adjustmentAmount: row.menuItem.generalPrice,
+          categoryId: replacement.categoryId,
+          categoryName: included.category.name,
+          menuItemId: replacement.id,
+          menuItemName: replacement.name,
+          replacedMenuItemId: included.menuItemId,
+          replacedMenuItemName: included.menuItem.name,
+          role: SelectedItemRole.SWAP,
+          isVeg: replacement.isVeg,
+          itemPrice: replacement.generalPrice,
+          includedValue: included.menuItem.generalPrice,
+          adjustmentAmount,
+          quantity: 1,
+          totalAdjustmentAmount: adjustmentAmount,
         },
       ];
     });
 
     this.throwIfErrors(errors, 'Invalid fixed package selection');
-    return items;
+    return [...extraItems, ...swapItems];
   }
 
   private async mealBoxItems(
@@ -232,6 +323,8 @@ export class PricingService {
           itemPrice: included.menuItem.boxPrice,
           includedValue: included.menuItem.boxPrice,
           adjustmentAmount: new Prisma.Decimal(0),
+          quantity: 1,
+          totalAdjustmentAmount: new Prisma.Decimal(0),
         });
         continue;
       }
@@ -270,6 +363,8 @@ export class PricingService {
         itemPrice: replacement.boxPrice,
         includedValue: included.menuItem.boxPrice,
         adjustmentAmount,
+        quantity: 1,
+        totalAdjustmentAmount: adjustmentAmount,
       });
     }
 
@@ -324,6 +419,8 @@ export class PricingService {
         itemPrice: item.itemPrice.toFixed(2),
         includedValue: item.includedValue.toFixed(2),
         adjustmentAmount: item.adjustmentAmount.toFixed(2),
+        quantity: item.quantity,
+        totalAdjustmentAmount: item.totalAdjustmentAmount.toFixed(2),
       })),
     };
   }

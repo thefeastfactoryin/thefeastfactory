@@ -1,4 +1,8 @@
-import type { CartSummary, PackageType, SelectedItemRole } from '@aranyam/shared-types';
+import type {
+  CartSummary,
+  PackageType,
+  SelectedItemRole,
+} from '@aranyam/shared-types';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
@@ -32,6 +36,7 @@ export type SelectedItem = {
   itemPrice: string;
   includedValue?: string;
   adjustmentAmount: string;
+  quantity?: number;
   isVeg: boolean;
 };
 
@@ -51,6 +56,7 @@ type OrderBuilderState = {
   setGuestCount: (guestCount: number) => void;
   toggleItem: (item: SelectedItem, maxSelections: number) => boolean;
   toggleSwap: (item: SelectedItem) => boolean;
+  updateItemQuantity: (menuItemId: string, quantity: number) => void;
   removeItem: (menuItemId: string) => void;
   removeSwap: (replacedMenuItemId: string) => void;
   clearSelections: () => void;
@@ -81,9 +87,7 @@ export const useOrderBuilderStore = create<OrderBuilderState>()(
       setDbCartId: (cartId, ownerUserId) =>
         set({
           dbCartId: cartId,
-          ...(cartId
-            ? { draftSource: 'server' as const, ownerUserId }
-            : {}),
+          ...(cartId ? { draftSource: 'server' as const, ownerUserId } : {}),
         }),
       setPendingOrderId: (orderId) => set({ pendingOrderId: orderId }),
       setGuestCount: (guestCount) => set({ guestCount }),
@@ -113,8 +117,7 @@ export const useOrderBuilderStore = create<OrderBuilderState>()(
         if (!item.replacedMenuItemId) return false;
         const state = get();
         const existingForTarget = state.selectedItems.find(
-          (selected) =>
-            selected.replacedMenuItemId === item.replacedMenuItemId,
+          (selected) => selected.replacedMenuItemId === item.replacedMenuItemId,
         );
         if (existingForTarget?.menuItemId === item.menuItemId) {
           set({
@@ -136,6 +139,14 @@ export const useOrderBuilderStore = create<OrderBuilderState>()(
         });
         return true;
       },
+      updateItemQuantity: (menuItemId, quantity) =>
+        set((state) => ({
+          selectedItems: state.selectedItems.map((selected) =>
+            selected.menuItemId === menuItemId
+              ? { ...selected, quantity }
+              : selected,
+          ),
+        })),
       removeItem: (menuItemId) =>
         set((state) => ({
           selectedItems: state.selectedItems.filter(
@@ -145,47 +156,53 @@ export const useOrderBuilderStore = create<OrderBuilderState>()(
       removeSwap: (replacedMenuItemId) =>
         set((state) => ({
           selectedItems: state.selectedItems.filter(
-            (selected) =>
-              selected.replacedMenuItemId !== replacedMenuItemId,
+            (selected) => selected.replacedMenuItemId !== replacedMenuItemId,
           ),
         })),
       clearSelections: () => set({ selectedItems: [] }),
-      hydrateFromCart: (cart, ownerUserId) => set({
-        dbCartId: cart.id,
-        draftSource: 'server',
-        ownerUserId,
-        pendingOrderId: cart.pendingOrderId ?? undefined,
-        package: {
-          packageId: cart.package.id,
-          packageVersionId: cart.packageVersionId,
-          packageName: cart.package.name,
-          packageType: cart.package.type,
-          isCustom: cart.package.type === 'CUSTOM_PACKAGE',
-          basePricePerPlate: cart.package.basePricePerPlate,
-          minGuestCount: cart.package.minGuestCount,
-          maxGuestCount: cart.package.maxGuestCount,
-        },
-        guestCount: cart.event?.guestCount ?? cart.package.minGuestCount,
-        event: cart.event ? {
-          addressId: cart.event.address?.id,
-          eventName: cart.event.eventName ?? undefined,
-          eventDate: cart.event.eventDate,
-          eventTimeStart: cart.event.eventTimeStart ?? undefined,
-          addressLabel: cart.event.address?.label || cart.event.address?.addressLine1 || '',
-        } : undefined,
-        selectedItems: cart.items.map((item) => ({
-          categoryId: item.categoryId,
-          categoryName: item.categoryName,
-          menuItemId: item.menuItemId,
-          menuItemName: item.menuItemName,
-          replacedMenuItemId: item.replacedMenuItemId,
-          replacedMenuItemName: item.replacedMenuItemName,
-          role: item.role,
-          itemPrice: '0.00',
-          adjustmentAmount: '0.00',
-          isVeg: item.isVeg,
-        })),
-      }),
+      hydrateFromCart: (cart, ownerUserId) =>
+        set({
+          dbCartId: cart.id,
+          draftSource: 'server',
+          ownerUserId,
+          pendingOrderId: cart.pendingOrderId ?? undefined,
+          package: {
+            packageId: cart.package.id,
+            packageVersionId: cart.packageVersionId,
+            packageName: cart.package.name,
+            packageType: cart.package.type,
+            isCustom: cart.package.type === 'CUSTOM_PACKAGE',
+            basePricePerPlate: cart.package.basePricePerPlate,
+            minGuestCount: cart.package.minGuestCount,
+            maxGuestCount: cart.package.maxGuestCount,
+          },
+          guestCount: cart.event?.guestCount ?? cart.package.minGuestCount,
+          event: cart.event
+            ? {
+                addressId: cart.event.address?.id,
+                eventName: cart.event.eventName ?? undefined,
+                eventDate: cart.event.eventDate,
+                eventTimeStart: cart.event.eventTimeStart ?? undefined,
+                addressLabel:
+                  cart.event.address?.label ||
+                  cart.event.address?.addressLine1 ||
+                  '',
+              }
+            : undefined,
+          selectedItems: cart.items.map((item) => ({
+            categoryId: item.categoryId,
+            categoryName: item.categoryName,
+            menuItemId: item.menuItemId,
+            menuItemName: item.menuItemName,
+            replacedMenuItemId: item.replacedMenuItemId,
+            replacedMenuItemName: item.replacedMenuItemName,
+            role: item.role,
+            itemPrice: '0.00',
+            adjustmentAmount: '0.00',
+            quantity: item.quantity,
+            isVeg: item.isVeg,
+          })),
+        }),
       reset: () =>
         set({
           package: undefined,
@@ -201,7 +218,16 @@ export const useOrderBuilderStore = create<OrderBuilderState>()(
     {
       name: 'aranyam-order-cart',
       version: 2,
-      partialize: ({ package: pkg, event, draftSource, ownerUserId, dbCartId, pendingOrderId, guestCount, selectedItems }) => ({
+      partialize: ({
+        package: pkg,
+        event,
+        draftSource,
+        ownerUserId,
+        dbCartId,
+        pendingOrderId,
+        guestCount,
+        selectedItems,
+      }) => ({
         package: pkg,
         event,
         draftSource,

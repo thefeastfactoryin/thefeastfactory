@@ -3,8 +3,10 @@ import { Type } from 'class-transformer';
 import {
   IsArray,
   IsEnum,
+  IsInt,
   IsOptional,
   IsUUID,
+  Min,
   ValidateNested,
 } from 'class-validator';
 import { SelectedItemRole } from '@prisma/client';
@@ -27,6 +29,12 @@ export class SelectedPackageItemDto {
   @IsOptional()
   @IsEnum(SelectedItemRole)
   role?: SelectedItemRole;
+
+  @ApiProperty({ required: false, default: 1 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  quantity?: number;
 }
 
 export class PackageSelectionDto {

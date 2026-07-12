@@ -37,6 +37,21 @@ type CalendarEvent = {
   }>;
 };
 
+type RevenueReport = { netRevenue: number };
+type OrderStatusRow = { orderStatus: string; _count: number };
+type OrdersReport = { total: number; byStatus: OrderStatusRow[] };
+type PaymentsReport = { total: number };
+type OperationsQueue = {
+  upcomingEvents: CalendarEvent[];
+  pendingRefunds: unknown[];
+};
+type DashboardData = {
+  revenue: RevenueReport;
+  orders: OrdersReport;
+  payments: PaymentsReport;
+  queue: OperationsQueue;
+};
+
 const dayFormatter = new Intl.DateTimeFormat('en-IN', { weekday: 'short' });
 const dateFormatter = new Intl.DateTimeFormat('en-IN', {
   day: 'numeric',
@@ -50,7 +65,7 @@ const rangeFormatter = new Intl.DateTimeFormat('en-IN', {
 
 export default function Dashboard() {
   const session = useAdminSessionStore((state) => state.session);
-  const [data, setData] = useState<any>();
+  const [data, setData] = useState<DashboardData>();
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
   const [regions, setRegions] = useState<OperatingRegion[]>([]);
   const [regionId, setRegionId] = useState('');
@@ -81,10 +96,26 @@ export default function Dashboard() {
     if (!session) return;
     const suffix = regionQuery ? `?${regionQuery}` : '';
     Promise.all([
-      apiRequest(`/admin/reports/revenue${suffix}`, {}, session.accessToken),
-      apiRequest(`/admin/reports/orders${suffix}`, {}, session.accessToken),
-      apiRequest(`/admin/reports/payments${suffix}`, {}, session.accessToken),
-      apiRequest(`/admin/operations/queue${suffix}`, {}, session.accessToken),
+      apiRequest<RevenueReport>(
+        `/admin/reports/revenue${suffix}`,
+        {},
+        session.accessToken,
+      ),
+      apiRequest<OrdersReport>(
+        `/admin/reports/orders${suffix}`,
+        {},
+        session.accessToken,
+      ),
+      apiRequest<PaymentsReport>(
+        `/admin/reports/payments${suffix}`,
+        {},
+        session.accessToken,
+      ),
+      apiRequest<OperationsQueue>(
+        `/admin/operations/queue${suffix}`,
+        {},
+        session.accessToken,
+      ),
     ])
       .then(([revenue, orders, payments, queue]) =>
         setData({ revenue, orders, payments, queue }),
@@ -302,7 +333,7 @@ export default function Dashboard() {
             <CalendarDays className="h-5 w-5 text-primary" />
           </div>
           <div className="mt-4 space-y-3">
-            {data.queue.upcomingEvents.slice(0, 7).map((event: any) => (
+            {data.queue.upcomingEvents.slice(0, 7).map((event) => (
               <div
                 key={event.id}
                 className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-muted/55 p-4"
@@ -331,7 +362,7 @@ export default function Dashboard() {
         <section className="admin-card">
           <h2 className="text-xl font-semibold">Order status</h2>
           <div className="mt-4 space-y-3">
-            {data.orders.byStatus.map((row: any) => (
+            {data.orders.byStatus.map((row) => (
               <div
                 key={row.orderStatus}
                 className="flex items-center justify-between rounded-xl border p-3"

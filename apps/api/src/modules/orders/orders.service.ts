@@ -3,11 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import {
-  CancellationActor,
-  CartStatus,
-  OrderStatus,
-} from '@prisma/client';
+import { CancellationActor, CartStatus, OrderStatus } from '@prisma/client';
 import type {
   OperatingRegion,
   Order,
@@ -46,8 +42,16 @@ export class OrdersService {
       where: { id: cartId, userId, status: CartStatus.ACTIVE },
       include: { address: true, region: true, order: true },
     });
-    if (!cart || !cart.address || !cart.eventDate || !cart.eventTimeStart || !cart.guestCount) {
-      throw new BadRequestException('Complete event and venue details before checkout');
+    if (
+      !cart ||
+      !cart.address ||
+      !cart.eventDate ||
+      !cart.eventTimeStart ||
+      !cart.guestCount
+    ) {
+      throw new BadRequestException(
+        'Complete event and venue details before checkout',
+      );
     }
     const existingOrder = cart.order;
     if (existingOrder?.orderStatus === OrderStatus.PENDING_PAYMENT) {
@@ -67,13 +71,23 @@ export class OrdersService {
             distanceKm: cart.distanceKm,
             deliveryFee: cart.deliveryFee,
           }
-        : await this.regions.assign(cart.address.latitude, cart.address.longitude);
+        : await this.regions.assign(
+            cart.address.latitude,
+            cart.address.longitude,
+          );
     const totalAmount = menuQuote.totalAmount.plus(assignment.deliveryFee);
     const eventDate = cart.eventDate;
     const addressId = cart.addressId!;
     const eventInstant = new Date(eventDate);
-    eventInstant.setUTCHours(cart.eventTimeStart.getUTCHours(), cart.eventTimeStart.getUTCMinutes(), 0, 0);
-    const leadHours = Math.floor((eventInstant.getTime() - Date.now()) / 3_600_000);
+    eventInstant.setUTCHours(
+      cart.eventTimeStart.getUTCHours(),
+      cart.eventTimeStart.getUTCMinutes(),
+      0,
+      0,
+    );
+    const leadHours = Math.floor(
+      (eventInstant.getTime() - Date.now()) / 3_600_000,
+    );
     return this.prisma.$transaction(async (tx) => {
       const order = await tx.order.create({
         data: {
@@ -103,6 +117,7 @@ export class OrdersService {
               menuItemId: item.menuItemId,
               replacedMenuItemId: item.replacedMenuItemId ?? null,
               role: item.role,
+              quantity: item.quantity,
               menuItemName: item.menuItemName,
               categoryName: item.categoryName,
               replacedMenuItemName: item.replacedMenuItemName ?? null,
@@ -119,7 +134,12 @@ export class OrdersService {
             },
           },
         },
-        include: { selectedItems: true, statusHistory: true, region: true, address: true },
+        include: {
+          selectedItems: true,
+          statusHistory: true,
+          region: true,
+          address: true,
+        },
       });
       return this.serializeOrder(order);
     });
@@ -164,22 +184,22 @@ export class OrdersService {
       throw new BadRequestException('Order cannot be cancelled');
     }
     const updated = await this.prisma.order.update({
-        where: { id },
-        data: {
-          orderStatus: OrderStatus.CANCELLED,
-          cancelledAt: new Date(),
-          cancelledBy: CancellationActor.CUSTOMER,
-          cancellationReason: dto.reason,
-          statusHistory: {
-            create: {
-              fromStatus: order.orderStatus,
-              toStatus: OrderStatus.CANCELLED,
-              notes: dto.reason,
-            },
+      where: { id },
+      data: {
+        orderStatus: OrderStatus.CANCELLED,
+        cancelledAt: new Date(),
+        cancelledBy: CancellationActor.CUSTOMER,
+        cancellationReason: dto.reason,
+        statusHistory: {
+          create: {
+            fromStatus: order.orderStatus,
+            toStatus: OrderStatus.CANCELLED,
+            notes: dto.reason,
           },
         },
-        include: { selectedItems: true, payments: true, statusHistory: true },
-      });
+      },
+      include: { selectedItems: true, payments: true, statusHistory: true },
+    });
     return this.serializeOrder(updated);
   }
 
@@ -191,19 +211,22 @@ export class OrdersService {
   serializeOrder(order: SerializableOrder) {
     const region = order.region ? this.regions.serialize(order.region) : null;
     const selectedItems = order.selectedItems?.map((item) => ({
-        ...item,
-        itemPrice: item.itemPrice.toFixed(2),
-        includedValue: item.includedValue.toFixed(2),
-        adjustmentAmount: item.adjustmentAmount.toFixed(2),
-      }));
+      ...item,
+      itemPrice: item.itemPrice.toFixed(2),
+      includedValue: item.includedValue.toFixed(2),
+      adjustmentAmount: item.adjustmentAmount.toFixed(2),
+      totalAdjustmentAmount: item.adjustmentAmount
+        .mul(order.guestCount)
+        .toFixed(2),
+    }));
     const payments = order.payments?.map((payment) => ({
-        ...payment,
-        amount: payment.amount.toFixed(2),
-        refunds: payment.refunds?.map((refund) => ({
-          ...refund,
-          amount: refund.amount.toFixed(2),
-        })),
-      }));
+      ...payment,
+      amount: payment.amount.toFixed(2),
+      refunds: payment.refunds?.map((refund) => ({
+        ...refund,
+        amount: refund.amount.toFixed(2),
+      })),
+    }));
     const distanceKm = order.distanceKm?.toFixed(2) ?? null;
     const deliveryFee = order.deliveryFee.toFixed(2);
     return {
