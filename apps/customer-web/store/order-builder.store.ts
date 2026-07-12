@@ -64,6 +64,51 @@ type OrderBuilderState = {
   hydrateFromCart: (cart: CartSummary, ownerUserId?: string) => void;
 };
 
+type PersistedOrderBuilderState = Pick<
+  OrderBuilderState,
+  | 'package'
+  | 'event'
+  | 'draftSource'
+  | 'ownerUserId'
+  | 'dbCartId'
+  | 'pendingOrderId'
+  | 'guestCount'
+  | 'selectedItems'
+>;
+
+const emptyPersistedOrderBuilderState = (): PersistedOrderBuilderState => ({
+  package: undefined,
+  event: undefined,
+  draftSource: undefined,
+  ownerUserId: undefined,
+  dbCartId: undefined,
+  pendingOrderId: undefined,
+  guestCount: 0,
+  selectedItems: [],
+});
+
+const migrateOrderBuilderState = (
+  persistedState: unknown,
+): PersistedOrderBuilderState => {
+  if (!persistedState || typeof persistedState !== 'object')
+    return emptyPersistedOrderBuilderState();
+
+  const state = persistedState as Partial<PersistedOrderBuilderState>;
+
+  return {
+    package: state.package,
+    event: state.event,
+    draftSource: state.draftSource,
+    ownerUserId: state.ownerUserId,
+    dbCartId: state.dbCartId,
+    pendingOrderId: state.pendingOrderId,
+    guestCount: typeof state.guestCount === 'number' ? state.guestCount : 0,
+    selectedItems: Array.isArray(state.selectedItems)
+      ? state.selectedItems
+      : [],
+  };
+};
+
 export const useOrderBuilderStore = create<OrderBuilderState>()(
   persist(
     (set, get) => ({
@@ -218,6 +263,7 @@ export const useOrderBuilderStore = create<OrderBuilderState>()(
     {
       name: 'aranyam-order-cart',
       version: 2,
+      migrate: migrateOrderBuilderState,
       partialize: ({
         package: pkg,
         event,
@@ -227,7 +273,7 @@ export const useOrderBuilderStore = create<OrderBuilderState>()(
         pendingOrderId,
         guestCount,
         selectedItems,
-      }) => ({
+      }): PersistedOrderBuilderState => ({
         package: pkg,
         event,
         draftSource,

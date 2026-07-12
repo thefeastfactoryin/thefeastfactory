@@ -15,7 +15,7 @@ const quickLinks = [
 const services = [
   { href: '/packages/meal-boxes', label: 'Meal Boxes' },
   { href: '/packages', label: 'Occasion Packages' },
-  { href: '/menu/visual-builder', label: 'Build Your Own Menu' },
+  { href: '/packages/build', label: 'Build Your Own Menu' },
   { href: '/packages', label: 'Corporate Catering' },
 ];
 

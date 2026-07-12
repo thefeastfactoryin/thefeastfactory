@@ -23,16 +23,16 @@ type BuffetSlot = {
 };
 
 const desktopSlots: BuffetSlot[] = [
-  { id: 'top-left', x: 32, y: 22, rotation: -10, size: 'lg' },
-  { id: 'top-center', x: 50, y: 16, rotation: 1, size: 'lg' },
-  { id: 'top-right', x: 68, y: 22, rotation: 10, size: 'lg' },
-  { id: 'right-upper', x: 84, y: 39, rotation: 15, size: 'md' },
-  { id: 'right-lower', x: 79, y: 66, rotation: -11, size: 'md' },
-  { id: 'bottom-right', x: 61, y: 80, rotation: 2, size: 'md' },
-  { id: 'bottom-center', x: 45, y: 84, rotation: -4, size: 'md' },
-  { id: 'bottom-left', x: 29, y: 76, rotation: 8, size: 'md' },
-  { id: 'left-lower', x: 18, y: 56, rotation: -14, size: 'md' },
-  { id: 'left-upper', x: 17, y: 34, rotation: 12, size: 'sm' },
+  { id: 'top-left', x: 30, y: 32, rotation: -2, size: 'md' },
+  { id: 'top-center', x: 46, y: 27, rotation: 1, size: 'md' },
+  { id: 'top-right', x: 61, y: 30, rotation: 2, size: 'md' },
+  { id: 'right-upper', x: 76, y: 43, rotation: 5, size: 'md' },
+  { id: 'right-lower', x: 80, y: 66, rotation: 8, size: 'md' },
+  { id: 'bottom-right', x: 64, y: 79, rotation: 1, size: 'md' },
+  { id: 'bottom-center', x: 49, y: 82, rotation: 0, size: 'md' },
+  { id: 'bottom-left', x: 34, y: 78, rotation: -3, size: 'md' },
+  { id: 'left-lower', x: 22, y: 63, rotation: -9, size: 'md' },
+  { id: 'left-upper', x: 20, y: 45, rotation: -7, size: 'md' },
 ];
 
 const mobileSlots: BuffetSlot[] = [
@@ -46,9 +46,9 @@ const mobileSlots: BuffetSlot[] = [
 ];
 
 function traySizeClass(size: BuffetSlot['size']) {
-  if (size === 'lg') return 'h-28 w-36 sm:h-32 sm:w-44';
-  if (size === 'md') return 'h-24 w-32 sm:h-28 sm:w-36';
-  return 'h-20 w-28 sm:h-24 sm:w-32';
+  if (size === 'lg') return 'h-24 w-32 sm:h-28 sm:w-40';
+  if (size === 'md') return 'h-20 w-28 sm:h-24 sm:w-32';
+  return 'h-16 w-24 sm:h-20 sm:w-28';
 }
 
 function BuffetTray({
@@ -74,11 +74,11 @@ function BuffetTray({
     >
       <div
         className={cn(
-          'visual-tray relative rounded-[1.35rem] border border-amber-200/90 bg-gradient-to-br from-amber-200 via-yellow-500 to-amber-800 p-1 shadow-[0_18px_35px_-20px_rgba(61,34,5,0.75)]',
+          'visual-tray relative rounded-[1rem] border border-amber-200/70 bg-gradient-to-br from-amber-200 via-yellow-500 to-amber-800 p-0.5 shadow-[0_16px_28px_-20px_rgba(61,34,5,0.75)]',
           traySizeClass(slot.size),
         )}
       >
-        <div className="relative h-full overflow-hidden rounded-[1.05rem] border border-white/50 bg-gradient-to-br from-stone-100 via-zinc-300 to-stone-500">
+        <div className="relative h-full overflow-hidden rounded-[0.85rem] border border-white/50 bg-gradient-to-br from-stone-100 via-zinc-300 to-stone-500">
           {item ? (
             <div className="visual-tray-fill h-full">
               <DataImage
@@ -120,8 +120,8 @@ function BuffetTray({
               aria-label="Open menu to add an item"
             >
               <span>
-                <Plus className="mx-auto h-7 w-7" />
-                <span className="mt-1 block text-xs font-semibold">
+                <Plus className="mx-auto h-5 w-5" />
+                <span className="mt-0.5 block text-[11px] font-semibold">
                   Add item
                 </span>
               </span>
@@ -146,20 +146,21 @@ export function VisualBuffetBuilder({
   const visibleItems = items.slice(0, maxSlots);
 
   return (
-    <section className="visual-table relative isolate min-h-[560px] w-full max-w-full overflow-hidden rounded-xl border border-white/70 bg-[hsl(var(--muted))] shadow-[0_28px_80px_-45px_rgba(111,29,45,0.55)] sm:aspect-[16/10] sm:min-h-0">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.95)_0,rgba(255,246,226,0.92)_30%,rgba(203,151,79,0.58)_67%,rgba(101,44,32,0.24)_100%)]" />
-      <div className="absolute left-1/2 top-[52%] h-[72%] w-[82%] -translate-x-1/2 -translate-y-1/2 rounded-[50%] border border-amber-200/70 bg-[radial-gradient(circle,rgba(255,255,255,0.62),rgba(248,229,190,0.42)_62%,rgba(126,72,35,0.2))] shadow-inner" />
-      <div className="absolute inset-x-0 top-0 h-28 bg-[radial-gradient(circle_at_12%_20%,rgba(255,255,255,0.92),transparent_5rem),radial-gradient(circle_at_88%_24%,rgba(255,255,255,0.85),transparent_5rem)] opacity-90" />
+    <section className="visual-table relative isolate min-h-[430px] w-full max-w-full overflow-hidden rounded-lg border border-border/70 bg-stone-200 shadow-none sm:aspect-[16/9] sm:min-h-0">
+      <img
+        src="/buffet-table-builder-bg.png"
+        alt=""
+        aria-hidden="true"
+        className="absolute inset-0 h-full w-full object-cover"
+      />
+      <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-black/12" />
 
-      <div className="absolute left-1/2 top-1/2 z-0 w-64 -translate-x-1/2 -translate-y-1/2 text-center text-primary/80">
-        <div className="mx-auto grid h-16 w-16 place-items-center rounded-full border border-primary/30 bg-white/45 text-2xl font-bold shadow-sm">
-          TFF
-        </div>
-        <p className="mt-3 font-serif text-4xl font-semibold leading-none">
-          The Feast Factory
+      <div className="absolute left-1/2 top-[55%] z-0 w-72 -translate-x-1/2 -translate-y-1/2 text-center text-[#4b2d10]/85">
+        <p className="font-serif text-3xl font-semibold leading-none sm:text-4xl">
+          MY FEAST FACTORY
         </p>
-        <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.26em] text-primary/60">
-          Great food. Lasting impressions.
+        <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.22em] text-[#4b2d10]/70">
+          Food for every celebration
         </p>
       </div>
 
@@ -186,7 +187,7 @@ export function VisualBuffetBuilder({
         ))}
       </div>
 
-      <div className="absolute bottom-4 left-4 z-20 rounded-full bg-white/92 px-4 py-2 text-sm font-bold shadow-sm backdrop-blur">
+      <div className="absolute bottom-4 left-4 z-20 rounded-md bg-white/90 px-4 py-2 text-sm font-bold shadow-sm backdrop-blur">
         {items.length} {items.length === 1 ? 'item' : 'items'}
       </div>
       {items.length > maxSlots && (
