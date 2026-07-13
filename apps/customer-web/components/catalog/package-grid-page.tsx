@@ -199,83 +199,86 @@ export function PackageGridPage({
           { Icon: IndianRupee, label: 'Transparent Pricing' },
         ]),
   ];
-  const trustStrip = [
-    {
-      Icon: Users,
-      label:
-        type === 'MEAL_BOX'
-          ? 'Packed for offices and groups'
-          : 'Trusted for family celebrations',
-    },
-    { Icon: PackageIcon, label: 'Freshly cooked for every order' },
-    { Icon: ShieldCheck, label: 'Support from enquiry to delivery' },
-    {
-      Icon: Users,
-      label: isMealBox ? 'Boxes for 20+ guests' : 'Menus for 20-1000 guests',
-    },
-  ];
-
   return (
     <main className="min-h-screen overflow-x-clip bg-background [font-family:var(--font-package-sans),sans-serif]">
-      <section className="relative isolate overflow-hidden border-b bg-hero-end text-white">
-        <img
-          src={
-            type === 'MEAL_BOX'
-              ? '/order-mealbox.png'
-              : '/packages-hero-food.png'
-          }
-          alt=""
-          className={`absolute inset-0 -z-20 h-full w-full ${type === 'MEAL_BOX' ? 'object-cover opacity-50' : 'object-cover object-center'}`}
-        />
-        <div className="absolute inset-0 -z-10 bg-[linear-gradient(90deg,hsl(var(--hero-end)/0.99)_0%,hsl(var(--hero-start)/0.88)_42%,hsl(var(--hero-start)/0.38)_72%,rgba(0,0,0,0.16)_100%)]" />
-        <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_18%_30%,hsl(var(--accent)/0.10),transparent_28%),linear-gradient(180deg,rgba(0,0,0,0.06)_0%,hsl(var(--hero-end)/0.18)_100%)]" />
-        <div className="container-pad pb-6 pt-10 sm:pt-12 lg:pb-8 lg:pl-16 lg:pt-14">
-          <div className="max-w-[560px]">
-            <p className="eyebrow">
-              {isMealBox ? 'Packed meals for groups' : 'Premium Bulk Catering'}
-            </p>
-            <h1 className="mt-3 font-serif text-[40px] font-bold leading-[0.95] tracking-tight text-white sm:text-[56px] lg:text-[86px]">
-              {heroTitleLead && <span>{heroTitleLead} </span>}
-              <span className="block text-accent">{heroTitleAccent}</span>
-            </h1>
-            <p className="mt-4 max-w-[470px] text-base font-semibold leading-7 text-white/85 sm:text-lg lg:text-xl">
-              {heroDescription}
-            </p>
-            <div className="mt-6 grid max-w-[560px] gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
-              {heroTrust.map(({ Icon, label }) => (
-                <div
-                  key={label}
-                  className="flex min-h-12 items-center gap-2.5 rounded-[18px] border border-white/10 bg-black/10 px-3 py-2 text-white shadow-[0_8px_22px_rgba(0,0,0,0.10)] backdrop-blur-sm"
-                >
-                  <Icon
-                    className="h-[19px] w-[19px] shrink-0 text-accent"
-                    aria-hidden="true"
-                    strokeWidth={2}
-                  />
-                  <span className="text-[12.5px] font-extrabold leading-[1.15]">
-                    {label}
-                  </span>
-                </div>
-              ))}
+      {isMealBox ? (
+        // Height/content rationale: a compact product banner gets shoppers to the box grid quickly; the isolated open box makes this read unlike the Packages spread.
+        <section className="relative isolate overflow-hidden border-b bg-[hsl(38_42%_94%)]">
+          <div className="container-pad grid min-h-[280px] items-center gap-6 py-7 sm:grid-cols-[1fr_300px] sm:py-8 lg:min-h-[320px] lg:grid-cols-[1fr_380px] lg:px-16">
+            <div className="max-w-[650px]">
+              <p className="eyebrow text-primary">Packed meals for groups</p>
+              <h1 className="mt-2 font-serif text-[38px] font-bold leading-none tracking-tight text-foreground sm:text-[52px]">
+                {heroTitleLead && <span>{heroTitleLead} </span>}
+                <span className="text-primary">{heroTitleAccent}</span>
+              </h1>
+              <p className="mt-3 max-w-[580px] text-sm font-semibold leading-6 text-muted-foreground sm:text-base">
+                {heroDescription}
+              </p>
+              <div className="mt-5 flex flex-wrap gap-2">
+                {heroTrust.map(({ Icon, label }) => (
+                  <div
+                    key={label}
+                    className="flex items-center gap-2 rounded-full border border-primary/10 bg-white/80 px-3 py-2 text-xs font-extrabold text-foreground shadow-sm"
+                  >
+                    <Icon
+                      className="h-4 w-4 text-primary"
+                      aria-hidden="true"
+                      strokeWidth={2}
+                    />
+                    <span>{label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="relative mx-auto aspect-square w-[210px] overflow-hidden rounded-[30px] border-8 border-white bg-white shadow-[0_18px_45px_rgba(63,35,21,0.18)] sm:w-[260px] lg:w-[300px]">
+              <img
+                src="/order-mealbox.png"
+                alt="An opened, individually portioned meal box"
+                className="h-full w-full object-cover"
+              />
             </div>
           </div>
-          <div className="mt-8 max-w-[840px] rounded-br-[22px] rounded-tr-[22px] border border-[hsl(35_24%_84%)] bg-[hsl(39_50%_97%)] px-4 py-[18px] text-foreground shadow-[0_14px_34px_rgba(33,18,12,0.13)] sm:px-6">
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {trustStrip.map(({ Icon, label }) => (
-                <div
-                  key={label}
-                  className="flex items-center gap-3 text-[13px] font-bold leading-snug"
-                >
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[14px] bg-[hsl(37_38%_92%)] text-[hsl(31_28%_43%)]">
-                    <Icon className="h-5 w-5" strokeWidth={2.15} />
-                  </span>
-                  <span>{label}</span>
-                </div>
-              ))}
+        </section>
+      ) : (
+        // Height/content rationale: this split banner is less than half a landing hero and pairs browsing copy with a curated plated spread—not buffet trays.
+        <section className="relative isolate overflow-hidden border-b bg-hero-end text-white">
+          <img
+            src="/packages-hero-plated.png"
+            alt="A curated menu of four plated dishes"
+            className="absolute inset-0 -z-20 h-full w-full object-cover object-center"
+          />
+          <div className="absolute inset-0 -z-10 bg-[linear-gradient(90deg,hsl(var(--hero-end)/0.99)_0%,hsl(var(--hero-start)/0.94)_40%,hsl(var(--hero-start)/0.30)_72%,rgba(0,0,0,0.08)_100%)]" />
+          <div className="container-pad flex min-h-[300px] items-center py-7 sm:min-h-[330px] lg:min-h-[360px] lg:px-16 lg:py-9">
+            <div className="max-w-[620px]">
+              <p className="eyebrow">Premium Bulk Catering</p>
+              <h1 className="mt-2 font-serif text-[40px] font-bold leading-[0.95] tracking-tight text-white sm:text-[54px] lg:text-[64px]">
+                {heroTitleLead && <span>{heroTitleLead} </span>}
+                <span className="text-accent">{heroTitleAccent}</span>
+              </h1>
+              <p className="mt-3 max-w-[520px] text-base font-semibold leading-6 text-white/85 sm:text-lg">
+                {heroDescription}
+              </p>
+              <div className="mt-5 grid max-w-[600px] grid-cols-2 gap-2 sm:grid-cols-4">
+                {heroTrust.map(({ Icon, label }) => (
+                  <div
+                    key={label}
+                    className="flex min-h-11 items-center gap-2 rounded-xl border border-white/10 bg-black/15 px-2.5 py-2 text-white backdrop-blur-sm"
+                  >
+                    <Icon
+                      className="h-[18px] w-[18px] shrink-0 text-accent"
+                      aria-hidden="true"
+                      strokeWidth={2}
+                    />
+                    <span className="text-[11px] font-extrabold leading-tight">
+                      {label}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
       <div className="mx-auto w-full max-w-7xl px-4 pb-2 pt-6 sm:px-6 lg:px-8 lg:pt-7">
         <div className="mb-5 text-center">
           <div className="flex items-center justify-center gap-3">

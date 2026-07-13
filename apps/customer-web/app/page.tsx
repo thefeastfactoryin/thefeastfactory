@@ -34,23 +34,18 @@ import { usePublicSettings } from '../components/public-settings-provider';
 
 const trustIcons = [Users, Clock, CreditCard, MessageCircle];
 const fssaiLicenseNumber = '12321011000123';
-// Change: Use several existing food-and-gathering photographs so the hero feels warm and occasion-led, not like a corporate buffet.
 const heroImages = [
   {
-    src: '/about-gathering.png',
-    alt: 'A generous Indian meal arranged for sharing at a family gathering',
+    src: '/office-hero.png',
+    alt: 'A catered Indian buffet arranged in a modern office meeting room',
   },
   {
-    src: '/packages-hero-food.png',
-    alt: 'Indian dishes plated and ready to be served',
+    src: '/pooja-thali.png',
+    alt: 'A festive Indian pooja thali served beside flowers and a lit diya',
   },
   {
-    src: '/pkg-puja.png',
-    alt: 'A warmly decorated puja gathering catered for family and friends',
-  },
-  {
-    src: '/home-hero.png',
-    alt: 'Freshly prepared food presented for a celebration',
+    src: '/farmhouse-hero.png',
+    alt: 'An outdoor farmhouse catering spread prepared for an evening event',
   },
 ];
 

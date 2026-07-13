@@ -22,20 +22,98 @@ const MIN_GUESTS = 20;
 const MAX_GUESTS = 1000;
 
 const DISHES = [
-  { id: 'vs1', name: 'Crispy Corn', price: 180, veg: true, cat: 'veg-starters' },
-  { id: 'vs2', name: 'Paneer Tikka', price: 220, veg: true, cat: 'veg-starters' },
-  { id: 'vs3', name: 'Veg Manchurian', price: 190, veg: true, cat: 'veg-starters' },
-  { id: 'vs4', name: 'Hara Bhara Kebab', price: 210, veg: true, cat: 'veg-starters' },
-  { id: 'vs5', name: 'Cheesy Corn Balls', price: 200, veg: true, cat: 'veg-starters' },
-  { id: 'nv1', name: 'Chicken Tikka', price: 260, veg: false, cat: 'non-veg-starters' },
-  { id: 'nv2', name: 'Chilli Chicken', price: 240, veg: false, cat: 'non-veg-starters' },
-  { id: 'nv3', name: 'Fish Amritsari', price: 290, veg: false, cat: 'non-veg-starters' },
-  { id: 'nv4', name: 'Mutton Seekh Kebab', price: 320, veg: false, cat: 'non-veg-starters' },
-  { id: 'mc1', name: 'Paneer Butter Masala', price: 250, veg: true, cat: 'main-course' },
+  {
+    id: 'vs1',
+    name: 'Crispy Corn',
+    price: 180,
+    veg: true,
+    cat: 'veg-starters',
+  },
+  {
+    id: 'vs2',
+    name: 'Paneer Tikka',
+    price: 220,
+    veg: true,
+    cat: 'veg-starters',
+  },
+  {
+    id: 'vs3',
+    name: 'Veg Manchurian',
+    price: 190,
+    veg: true,
+    cat: 'veg-starters',
+  },
+  {
+    id: 'vs4',
+    name: 'Hara Bhara Kebab',
+    price: 210,
+    veg: true,
+    cat: 'veg-starters',
+  },
+  {
+    id: 'vs5',
+    name: 'Cheesy Corn Balls',
+    price: 200,
+    veg: true,
+    cat: 'veg-starters',
+  },
+  {
+    id: 'nv1',
+    name: 'Chicken Tikka',
+    price: 260,
+    veg: false,
+    cat: 'non-veg-starters',
+  },
+  {
+    id: 'nv2',
+    name: 'Chilli Chicken',
+    price: 240,
+    veg: false,
+    cat: 'non-veg-starters',
+  },
+  {
+    id: 'nv3',
+    name: 'Fish Amritsari',
+    price: 290,
+    veg: false,
+    cat: 'non-veg-starters',
+  },
+  {
+    id: 'nv4',
+    name: 'Mutton Seekh Kebab',
+    price: 320,
+    veg: false,
+    cat: 'non-veg-starters',
+  },
+  {
+    id: 'mc1',
+    name: 'Paneer Butter Masala',
+    price: 250,
+    veg: true,
+    cat: 'main-course',
+  },
   { id: 'mc2', name: 'Dal Makhani', price: 200, veg: true, cat: 'main-course' },
-  { id: 'mc3', name: 'Veg Kofta Curry', price: 230, veg: true, cat: 'main-course' },
-  { id: 'mc4', name: 'Chicken Curry', price: 280, veg: false, cat: 'main-course' },
-  { id: 'mc5', name: 'Mutton Rogan Josh', price: 340, veg: false, cat: 'main-course' },
+  {
+    id: 'mc3',
+    name: 'Veg Kofta Curry',
+    price: 230,
+    veg: true,
+    cat: 'main-course',
+  },
+  {
+    id: 'mc4',
+    name: 'Chicken Curry',
+    price: 280,
+    veg: false,
+    cat: 'main-course',
+  },
+  {
+    id: 'mc5',
+    name: 'Mutton Rogan Josh',
+    price: 340,
+    veg: false,
+    cat: 'main-course',
+  },
   { id: 'rb1', name: 'Jeera Rice', price: 120, veg: true, cat: 'rice-bread' },
   { id: 'rb2', name: 'Veg Biryani', price: 220, veg: true, cat: 'rice-bread' },
   { id: 'rb3', name: 'Steamed Rice', price: 110, veg: true, cat: 'rice-bread' },
@@ -44,8 +122,20 @@ const DISHES = [
   { id: 'ds1', name: 'Gulab Jamun', price: 120, veg: true, cat: 'dessert' },
   { id: 'ds2', name: 'Rasmalai', price: 150, veg: true, cat: 'dessert' },
   { id: 'ds3', name: 'Gajar Halwa', price: 140, veg: true, cat: 'dessert' },
-  { id: 'ds4', name: 'Vanilla Ice Cream', price: 100, veg: true, cat: 'dessert' },
-  { id: 'bv1', name: 'Fresh Lime Juice', price: 60, veg: true, cat: 'beverage' },
+  {
+    id: 'ds4',
+    name: 'Vanilla Ice Cream',
+    price: 100,
+    veg: true,
+    cat: 'dessert',
+  },
+  {
+    id: 'bv1',
+    name: 'Fresh Lime Juice',
+    price: 60,
+    veg: true,
+    cat: 'beverage',
+  },
   { id: 'bv2', name: 'Masala Chaas', price: 50, veg: true, cat: 'beverage' },
   { id: 'bv3', name: 'Soft Drinks', price: 40, veg: true, cat: 'beverage' },
   { id: 'bv4', name: 'Mango Lassi', price: 80, veg: true, cat: 'beverage' },
@@ -289,7 +379,9 @@ function BanquetTable({
                     <span className="grid h-5 w-5 place-items-center rounded-full border border-muted-foreground/50">
                       <Plus className="h-3 w-3" strokeWidth={2.4} />
                     </span>
-                    <span className="font-serif text-[10px] italic">Add Item</span>
+                    <span className="font-serif text-[10px] italic">
+                      Add Item
+                    </span>
                   </div>
                 )}
               </div>
@@ -403,7 +495,12 @@ function DishCatalogue({
                   )}
                 >
                   {cat.label}
-                  <span className={cn('ml-1.5', active ? 'text-white/75' : 'text-muted-foreground')}>
+                  <span
+                    className={cn(
+                      'ml-1.5',
+                      active ? 'text-white/75' : 'text-muted-foreground',
+                    )}
+                  >
                     {counts[cat.id]}
                   </span>
                 </button>
@@ -539,7 +636,9 @@ function SummaryPanel({
         </div>
         <div className="flex justify-between gap-4">
           <span className="text-muted-foreground">Per guest estimate</span>
-          <strong>{subtotalPerPlate ? formatCurrency(subtotalPerPlate) : '-'}</strong>
+          <strong>
+            {subtotalPerPlate ? formatCurrency(subtotalPerPlate) : '-'}
+          </strong>
         </div>
         <div className="flex justify-between gap-4">
           <span className="font-bold text-primary">Estimated subtotal</span>
@@ -568,7 +667,8 @@ function SummaryPanel({
           onClick={onAddToCart}
           className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-primary px-4 text-sm font-extrabold text-white transition hover:bg-primary/90 disabled:bg-primary/35"
         >
-          <ShoppingBag className="h-4 w-4" /> {saving ? 'Adding...' : 'Add to Cart'}
+          <ShoppingBag className="h-4 w-4" />{' '}
+          {saving ? 'Adding...' : 'Add to Cart'}
         </button>
         {order.length === 0 && (
           <p className="text-center text-xs font-semibold text-muted-foreground">
@@ -652,7 +752,9 @@ function BuildPackageContent() {
     });
   }, [cat, diet, dishes, search]);
 
-  const categories = useMemo<Array<{ id: CategoryFilter; label: string }>>(() => {
+  const categories = useMemo<
+    Array<{ id: CategoryFilter; label: string }>
+  >(() => {
     if (dishes === FALLBACK_DISHES) return CATS;
     const seen = new Map<string, string>();
     for (const dish of dishes) seen.set(dish.categoryId, dish.categoryName);
@@ -663,10 +765,9 @@ function BuildPackageContent() {
   }, [dishes]);
 
   const counts = useMemo(() => {
-    const initial = Object.fromEntries(categories.map((cat) => [cat.id, 0])) as Record<
-      CategoryFilter,
-      number
-    >;
+    const initial = Object.fromEntries(
+      categories.map((cat) => [cat.id, 0]),
+    ) as Record<CategoryFilter, number>;
     for (const dish of dishes) {
       initial.all += 1;
       initial[dish.cat] += 1;
@@ -676,7 +777,11 @@ function BuildPackageContent() {
 
   const addedIds = useMemo(() => new Set(order), [order]);
   const dishMap = useMemo(
-    () => Object.fromEntries(dishes.map((dish) => [dish.id, dish])) as Record<string, Dish>,
+    () =>
+      Object.fromEntries(dishes.map((dish) => [dish.id, dish])) as Record<
+        string,
+        Dish
+      >,
     [dishes],
   );
   const vegCount = order.filter((id) => dishMap[id]?.veg).length;
@@ -758,7 +863,8 @@ function BuildPackageContent() {
               .map((dish) => ({
                 categoryId: dish.categoryId,
                 menuItemId: dish.id,
-                role: config?.packageType === 'FIXED_PACKAGE' ? 'EXTRA' : 'CUSTOM',
+                role:
+                  config?.packageType === 'FIXED_PACKAGE' ? 'EXTRA' : 'CUSTOM',
                 quantity: 1,
               })),
           }),
@@ -791,23 +897,40 @@ function BuildPackageContent() {
 
   const visual = (
     <section className="min-w-0">
-      <div className="mb-4 flex flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0 max-w-[560px]">
-          <h1 className="font-serif text-[30px] font-bold leading-[1.05] text-foreground">
-            Build Your Own Package
-          </h1>
-          <p className="mt-1 text-sm font-semibold leading-5 text-muted-foreground">
-            Choose your favourite dishes and customize a menu that fits your occasion.
-          </p>
+      {/* Height/content rationale: the builder uses a short functional header—no photo—so guest setup and the plate-building signature lead directly into the tool. */}
+      <div className="relative mb-4 overflow-hidden rounded-2xl bg-[hsl(var(--hero-end))] px-5 py-5 text-white shadow-[0_8px_24px_rgba(45,20,20,0.12)] sm:px-7">
+        <div
+          className="absolute -right-10 -top-24 h-56 w-56 rounded-full border-[28px] border-accent/15"
+          aria-hidden="true"
+        />
+        <div
+          className="absolute right-16 top-7 hidden h-20 w-20 place-items-center rounded-full border border-dashed border-accent/55 bg-white/5 sm:grid"
+          aria-hidden="true"
+        >
+          <div className="h-11 w-11 rounded-full border-[6px] border-white/70 shadow-[0_0_0_5px_hsl(var(--accent)/0.18)]" />
         </div>
-        <div className="shrink-0 sm:w-[244px]">
-          <GuestStepper
-            guestCount={guestCount}
-            guestInput={guestInput}
-            onInputBlur={handleGuestBlur}
-            onInputChange={handleGuestInput}
-            onStep={(delta) => setClampedGuestCount(guestCount + delta)}
-          />
+        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0 max-w-[560px] sm:pr-24">
+            <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-accent">
+              Build your plate
+            </p>
+            <h1 className="mt-1 font-serif text-[30px] font-bold leading-[1.05] text-white sm:text-[34px]">
+              Build Your Own Package
+            </h1>
+            <p className="mt-1.5 text-sm font-semibold leading-5 text-white/75">
+              Choose your favourite dishes and customize a menu that fits your
+              occasion.
+            </p>
+          </div>
+          <div className="relative shrink-0 sm:w-[244px] [&>div]:border-white/15 [&>div]:bg-white/95">
+            <GuestStepper
+              guestCount={guestCount}
+              guestInput={guestInput}
+              onInputBlur={handleGuestBlur}
+              onInputChange={handleGuestInput}
+              onStep={(delta) => setClampedGuestCount(guestCount + delta)}
+            />
+          </div>
         </div>
       </div>
       <div className="relative overflow-hidden rounded-2xl border border-border bg-[linear-gradient(180deg,rgba(40,20,10,0.32),rgba(40,20,10,0.5)),url('/order-occasion.png')] bg-cover bg-center shadow-[0_8px_22px_rgba(45,31,20,0.045)]">
@@ -866,13 +989,28 @@ function BuildPackageContent() {
       </div>
 
       <div className="mx-auto grid max-w-[1480px] gap-4 px-4 py-4 sm:px-5 lg:grid-cols-[330px_minmax(0,1fr)_286px] lg:items-start lg:px-6">
-        <div className={cn(mobileTab === 'dishes' ? 'block' : 'hidden', 'lg:block')}>
+        <div
+          className={cn(
+            mobileTab === 'dishes' ? 'block' : 'hidden',
+            'lg:block',
+          )}
+        >
           {catalogue}
         </div>
-        <div className={cn(mobileTab === 'visual' ? 'block' : 'hidden', 'lg:block')}>
+        <div
+          className={cn(
+            mobileTab === 'visual' ? 'block' : 'hidden',
+            'lg:block',
+          )}
+        >
           {visual}
         </div>
-        <div className={cn(mobileTab === 'summary' ? 'block' : 'hidden', 'lg:block')}>
+        <div
+          className={cn(
+            mobileTab === 'summary' ? 'block' : 'hidden',
+            'lg:block',
+          )}
+        >
           {summary}
         </div>
       </div>
@@ -884,7 +1022,9 @@ function BuildPackageContent() {
               {order.length} selected for {guestCount} guests
             </p>
             <p className="truncate font-serif text-xl font-bold text-primary">
-              {estimatedSubtotal ? formatCurrency(estimatedSubtotal) : 'Select dishes'}
+              {estimatedSubtotal
+                ? formatCurrency(estimatedSubtotal)
+                : 'Select dishes'}
             </p>
           </div>
           <button
@@ -893,7 +1033,8 @@ function BuildPackageContent() {
             onClick={addToCart}
             className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-full bg-primary px-5 text-sm font-extrabold text-white disabled:bg-primary/35"
           >
-            {saving ? 'Adding...' : 'Add to Cart'} <ArrowRight className="h-4 w-4" />
+            {saving ? 'Adding...' : 'Add to Cart'}{' '}
+            <ArrowRight className="h-4 w-4" />
           </button>
         </div>
       </div>
