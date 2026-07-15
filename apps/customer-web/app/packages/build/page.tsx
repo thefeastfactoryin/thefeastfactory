@@ -21,126 +21,6 @@ import { useSessionStore } from '../../../store/session.store';
 const MIN_GUESTS = 20;
 const MAX_GUESTS = 1000;
 
-const DISHES = [
-  {
-    id: 'vs1',
-    name: 'Crispy Corn',
-    price: 180,
-    veg: true,
-    cat: 'veg-starters',
-  },
-  {
-    id: 'vs2',
-    name: 'Paneer Tikka',
-    price: 220,
-    veg: true,
-    cat: 'veg-starters',
-  },
-  {
-    id: 'vs3',
-    name: 'Veg Manchurian',
-    price: 190,
-    veg: true,
-    cat: 'veg-starters',
-  },
-  {
-    id: 'vs4',
-    name: 'Hara Bhara Kebab',
-    price: 210,
-    veg: true,
-    cat: 'veg-starters',
-  },
-  {
-    id: 'vs5',
-    name: 'Cheesy Corn Balls',
-    price: 200,
-    veg: true,
-    cat: 'veg-starters',
-  },
-  {
-    id: 'nv1',
-    name: 'Chicken Tikka',
-    price: 260,
-    veg: false,
-    cat: 'non-veg-starters',
-  },
-  {
-    id: 'nv2',
-    name: 'Chilli Chicken',
-    price: 240,
-    veg: false,
-    cat: 'non-veg-starters',
-  },
-  {
-    id: 'nv3',
-    name: 'Fish Amritsari',
-    price: 290,
-    veg: false,
-    cat: 'non-veg-starters',
-  },
-  {
-    id: 'nv4',
-    name: 'Mutton Seekh Kebab',
-    price: 320,
-    veg: false,
-    cat: 'non-veg-starters',
-  },
-  {
-    id: 'mc1',
-    name: 'Paneer Butter Masala',
-    price: 250,
-    veg: true,
-    cat: 'main-course',
-  },
-  { id: 'mc2', name: 'Dal Makhani', price: 200, veg: true, cat: 'main-course' },
-  {
-    id: 'mc3',
-    name: 'Veg Kofta Curry',
-    price: 230,
-    veg: true,
-    cat: 'main-course',
-  },
-  {
-    id: 'mc4',
-    name: 'Chicken Curry',
-    price: 280,
-    veg: false,
-    cat: 'main-course',
-  },
-  {
-    id: 'mc5',
-    name: 'Mutton Rogan Josh',
-    price: 340,
-    veg: false,
-    cat: 'main-course',
-  },
-  { id: 'rb1', name: 'Jeera Rice', price: 120, veg: true, cat: 'rice-bread' },
-  { id: 'rb2', name: 'Veg Biryani', price: 220, veg: true, cat: 'rice-bread' },
-  { id: 'rb3', name: 'Steamed Rice', price: 110, veg: true, cat: 'rice-bread' },
-  { id: 'rb4', name: 'Butter Naan', price: 40, veg: true, cat: 'rice-bread' },
-  { id: 'rb5', name: 'Tandoori Roti', price: 25, veg: true, cat: 'rice-bread' },
-  { id: 'ds1', name: 'Gulab Jamun', price: 120, veg: true, cat: 'dessert' },
-  { id: 'ds2', name: 'Rasmalai', price: 150, veg: true, cat: 'dessert' },
-  { id: 'ds3', name: 'Gajar Halwa', price: 140, veg: true, cat: 'dessert' },
-  {
-    id: 'ds4',
-    name: 'Vanilla Ice Cream',
-    price: 100,
-    veg: true,
-    cat: 'dessert',
-  },
-  {
-    id: 'bv1',
-    name: 'Fresh Lime Juice',
-    price: 60,
-    veg: true,
-    cat: 'beverage',
-  },
-  { id: 'bv2', name: 'Masala Chaas', price: 50, veg: true, cat: 'beverage' },
-  { id: 'bv3', name: 'Soft Drinks', price: 40, veg: true, cat: 'beverage' },
-  { id: 'bv4', name: 'Mango Lassi', price: 80, veg: true, cat: 'beverage' },
-] as const;
-
 type Dish = {
   id: string;
   name: string;
@@ -157,35 +37,6 @@ type DishId = string;
 type CategoryFilter = 'all' | string;
 type DietFilter = 'all' | 'veg' | 'nonveg';
 type MobileTab = 'dishes' | 'visual' | 'summary';
-
-const FALLBACK_DISHES: Dish[] = DISHES.map((dish) => ({
-  ...dish,
-  categoryId: dish.cat,
-  categoryName:
-    dish.cat === 'veg-starters'
-      ? 'Veg Starters'
-      : dish.cat === 'non-veg-starters'
-        ? 'Non-Veg Starters'
-        : dish.cat === 'main-course'
-          ? 'Main Course'
-          : dish.cat === 'rice-bread'
-            ? 'Rice & Bread'
-            : dish.cat === 'dessert'
-              ? 'Desserts'
-              : 'Beverages',
-  itemPrice: String(dish.price),
-  adjustmentAmount: '0.00',
-}));
-
-const CATS: Array<{ id: CategoryFilter; label: string }> = [
-  { id: 'all', label: 'All' },
-  { id: 'veg-starters', label: 'Veg Starters' },
-  { id: 'non-veg-starters', label: 'Non-Veg Starters' },
-  { id: 'main-course', label: 'Main Course' },
-  { id: 'rice-bread', label: 'Rice & Bread' },
-  { id: 'dessert', label: 'Desserts' },
-  { id: 'beverage', label: 'Beverages' },
-];
 
 function dishesFromConfig(config: PackageConfiguration): Dish[] {
   return config.categoryRules.flatMap((rule) =>
@@ -704,7 +555,9 @@ function BuildPackageContent() {
   const searchParams = useSearchParams();
   const session = useSessionStore((state) => state.session);
   const setDbCartId = useOrderBuilderStore((state) => state.setDbCartId);
-  const packageVersionId = searchParams.get('packageVersionId');
+  const requestedVersionId = searchParams.get('packageVersionId');
+  const packageId = searchParams.get('packageId');
+  const [packageVersionId, setPackageVersionId] = useState(requestedVersionId);
   const [cat, setCat] = useState<CategoryFilter>('all');
   const [diet, setDiet] = useState<DietFilter>('all');
   const [search, setSearch] = useState('');
@@ -712,10 +565,27 @@ function BuildPackageContent() {
   const [guestCount, setGuestCount] = useState(150);
   const [guestInput, setGuestInput] = useState('150');
   const [mobileTab, setMobileTab] = useState<MobileTab>('visual');
-  const [dishes, setDishes] = useState<Dish[]>(FALLBACK_DISHES);
+  const [dishes, setDishes] = useState<Dish[]>([]);
   const [config, setConfig] = useState<PackageConfiguration>();
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    if (requestedVersionId || !packageId) return;
+    let active = true;
+    apiRequest<Array<{ id: string; activeVersion?: { id: string } | null }>>('/packages')
+      .then((packages) => {
+        const latestVersion = packages.find((pkg) => pkg.id === packageId)?.activeVersion?.id;
+        if (active && latestVersion) setPackageVersionId(latestVersion);
+        if (active && !latestVersion) setMessage('Package is currently unavailable.');
+      })
+      .catch(() => {
+        if (active) setMessage('Package is currently unavailable.');
+      });
+    return () => {
+      active = false;
+    };
+  }, [packageId, requestedVersionId]);
 
   useEffect(() => {
     if (!packageVersionId) return;
@@ -727,14 +597,17 @@ function BuildPackageContent() {
         if (!active) return;
         const nextDishes = dishesFromConfig(nextConfig);
         setConfig(nextConfig);
-        setDishes(nextDishes.length ? nextDishes : FALLBACK_DISHES);
+        setDishes(nextDishes);
         setClampedGuestCount(nextConfig.minGuestCount || MIN_GUESTS);
         setOrder((current) =>
           current.filter((id) => nextDishes.some((dish) => dish.id === id)),
         );
       })
       .catch((reason) => {
-        if (active) setMessage((reason as Error).message);
+        if (active) {
+          setDishes([]);
+          setMessage((reason as Error).message || 'Menu is currently unavailable.');
+        }
       });
     return () => {
       active = false;
@@ -755,7 +628,6 @@ function BuildPackageContent() {
   const categories = useMemo<
     Array<{ id: CategoryFilter; label: string }>
   >(() => {
-    if (dishes === FALLBACK_DISHES) return CATS;
     const seen = new Map<string, string>();
     for (const dish of dishes) seen.set(dish.categoryId, dish.categoryName);
     return [
@@ -961,6 +833,21 @@ function BuildPackageContent() {
       vegCount={vegCount}
     />
   );
+
+  if (!dishes.length && (message || !packageVersionId)) {
+    return (
+      <main className="grid min-h-[60vh] place-items-center bg-background p-6">
+        <section className="max-w-md rounded-2xl border border-border bg-white p-8 text-center shadow-sm">
+          <h1 className="font-serif text-2xl font-bold text-foreground">
+            Menu currently unavailable
+          </h1>
+          <p className="mt-3 text-sm leading-6 text-muted-foreground">
+            We could not load the menu right now. Please try again in a moment.
+          </p>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen overflow-x-clip bg-background pb-28 lg:pb-16">
