@@ -1,7 +1,7 @@
 'use client';
 
 import { importLibrary, setOptions } from '@googlemaps/js-api-loader';
-import { Crosshair, LoaderCircle, MapPin } from 'lucide-react';
+import { Crosshair, LoaderCircle, MapPin, Search } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { publicEnv } from '../lib/public-env';
 import { Button } from './ui/button';
@@ -26,6 +26,52 @@ type PickerStatus =
   | 'error';
 
 const INDIA_CENTER = { lat: 22.9734, lng: 78.6569 };
+
+const MAP_STYLES: google.maps.MapTypeStyle[] = [
+  { elementType: 'geometry', stylers: [{ color: '#f5f0e8' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#554b45' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#faf7f2' }] },
+  {
+    featureType: 'administrative',
+    elementType: 'geometry.stroke',
+    stylers: [{ color: '#d9cfc4' }],
+  },
+  {
+    featureType: 'poi',
+    elementType: 'geometry',
+    stylers: [{ color: '#eee8df' }],
+  },
+  {
+    featureType: 'poi.park',
+    elementType: 'geometry',
+    stylers: [{ color: '#dfe8d8' }],
+  },
+  {
+    featureType: 'road',
+    elementType: 'geometry',
+    stylers: [{ color: '#ffffff' }],
+  },
+  {
+    featureType: 'road.arterial',
+    elementType: 'geometry',
+    stylers: [{ color: '#f7f2eb' }],
+  },
+  {
+    featureType: 'road.highway',
+    elementType: 'geometry',
+    stylers: [{ color: '#ead9bd' }],
+  },
+  {
+    featureType: 'transit',
+    elementType: 'geometry',
+    stylers: [{ color: '#e7dfd6' }],
+  },
+  {
+    featureType: 'water',
+    elementType: 'geometry',
+    stylers: [{ color: '#d7e5e7' }],
+  },
+];
 
 function componentValue(
   components: google.maps.GeocoderAddressComponent[],
@@ -154,6 +200,10 @@ export function AddressMapPicker({
         map.current = new google.maps.Map(mapElement.current, {
           center: INDIA_CENTER,
           zoom: 5,
+          styles: MAP_STYLES,
+          backgroundColor: '#f5f0e8',
+          controlSize: 36,
+          gestureHandling: 'cooperative',
           streetViewControl: false,
           mapTypeControl: false,
           fullscreenControl: false,
@@ -161,6 +211,14 @@ export function AddressMapPicker({
         marker.current = new google.maps.Marker({
           map: map.current,
           draggable: true,
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 9,
+            fillColor: '#7a1f2b',
+            fillOpacity: 1,
+            strokeColor: '#c49a36',
+            strokeWeight: 4,
+          },
         });
         geocoder.current = new google.maps.Geocoder();
 
@@ -170,7 +228,7 @@ export function AddressMapPicker({
           requestedLanguage: 'en',
           requestedRegion: 'in',
         });
-        placeAutocomplete.className = 'block w-full';
+        placeAutocomplete.className = 'map-place-autocomplete';
         placeAutocomplete.addEventListener('gmp-select', async (event) => {
           setStatus('geocoding');
           setMessage('Loading the selected place…');
@@ -277,20 +335,32 @@ export function AddressMapPicker({
 
   const busy =
     status === 'loading-map' || status === 'locating' || status === 'geocoding';
+  const statusStyle =
+    status === 'error'
+      ? 'border-red-200 bg-red-50 text-red-800'
+      : status === 'ready'
+        ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+        : 'border-border bg-white text-muted-foreground';
 
   return (
-    <div>
+    <div className="address-map-picker rounded-2xl border border-border bg-[hsl(var(--ivory))] p-3 shadow-sm sm:p-4">
       <div className="flex flex-col gap-3 sm:flex-row">
-        <div
-          ref={searchElement}
-          className="min-h-12 flex-1"
-          aria-label="Search Google Maps"
-        />
+        <div className="map-search-shell flex min-h-12 min-w-0 flex-1 items-center overflow-hidden rounded-xl border border-border bg-white shadow-sm transition focus-within:border-primary/50 focus-within:ring-4 focus-within:ring-primary/10">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center border-r border-border bg-muted/40 text-primary">
+            <Search className="h-4 w-4" />
+          </span>
+          <div
+            ref={searchElement}
+            className="map-place-search min-h-12 min-w-0 flex-1"
+            aria-label="Search Google Maps"
+          />
+        </div>
         <Button
           type="button"
           variant="outline"
           onClick={useCurrentLocation}
           disabled={busy}
+          className="h-12 rounded-xl border-primary/25 bg-primary/[0.04] px-5 font-semibold text-primary shadow-sm hover:border-primary/40 hover:bg-primary/10 hover:text-primary"
         >
           {status === 'locating' ? (
             <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
@@ -300,13 +370,19 @@ export function AddressMapPicker({
           Use my location
         </Button>
       </div>
+      <div className="relative mt-3 overflow-hidden rounded-2xl border-4 border-white bg-muted shadow-[0_16px_40px_rgba(74,43,35,0.14)] ring-1 ring-border">
+        <div
+          ref={mapElement}
+          className="h-[320px] w-full sm:h-[420px]"
+          aria-label="Choose address on Google Map"
+        />
+        <div className="pointer-events-none absolute left-3 top-3 flex items-center gap-2 rounded-full border border-white/80 bg-white/95 px-3 py-2 text-xs font-semibold text-foreground shadow-md backdrop-blur">
+          <MapPin className="h-3.5 w-3.5 text-primary" />
+          Click the map or drag the pin
+        </div>
+      </div>
       <div
-        ref={mapElement}
-        className="mt-4 h-[320px] w-full overflow-hidden rounded-xl border bg-muted sm:h-[420px]"
-        aria-label="Choose address on Google Map"
-      />
-      <p
-        className="mt-3 flex items-start gap-2 text-sm text-muted-foreground"
+        className={`mt-3 flex min-h-12 items-start gap-2 rounded-xl border px-3.5 py-3 text-sm leading-5 ${statusStyle}`}
         role="status"
       >
         {busy ? (
@@ -314,8 +390,8 @@ export function AddressMapPicker({
         ) : (
           <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
         )}
-        {message}
-      </p>
+        <span>{message}</span>
+      </div>
     </div>
   );
 }

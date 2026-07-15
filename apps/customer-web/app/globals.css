@@ -152,3 +152,49 @@ body {
     @apply rounded-full px-3 py-1 text-xs font-bold;
   }
 }
+
+/* Google Maps renders the search field and controls outside Tailwind's reach. */
+.address-map-picker .map-place-autocomplete {
+  display: block;
+  width: 100%;
+  min-height: 46px;
+  border: 0 !important;
+  border-radius: 0 0.75rem 0.75rem 0;
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  box-shadow: none !important;
+  color: #1a1a1a !important;
+  color-scheme: light;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  --gmpx-color-primary: #7a1f2b;
+  --gmpx-color-on-surface: #1a1a1a;
+  --gmpx-color-surface: #ffffff;
+  --gmpx-font-family-base:
+    var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+.address-map-picker .map-place-autocomplete::part(input) {
+  min-height: 46px;
+  border: 0;
+  background: #ffffff !important;
+  color: #1a1a1a !important;
+  font-size: 0.875rem;
+  outline: none;
+}
+
+.address-map-picker .map-place-autocomplete::part(input-container),
+.address-map-picker .map-place-autocomplete::part(container) {
+  background: #ffffff !important;
+  color: #1a1a1a !important;
+}
+
+.address-map-picker .gm-control-active,
+.address-map-picker .gm-style .gm-style-mtc button {
+  border-radius: 0.625rem !important;
+  box-shadow: 0 4px 14px rgb(74 43 35 / 14%) !important;
+}
+
+.address-map-picker .gm-style .gm-style-iw-c {
+  border-radius: 0.75rem !important;
+  box-shadow: 0 8px 24px rgb(74 43 35 / 16%) !important;
+}
