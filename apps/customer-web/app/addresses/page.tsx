@@ -34,6 +34,7 @@ const initialForm = {
 
 export default function AddressesPage() {
   const router = useRouter();
+  const [activeTab, setActiveTab] = useState<'saved' | 'map'>('saved');
   const [returnTo, setReturnTo] = useState<string | null>(null);
   const session = useSessionStore((state) => state.session);
   const [addresses, setAddresses] = useState<UserAddress[]>([]);
@@ -41,16 +42,19 @@ export default function AddressesPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  useEffect(
-    () =>
-      setReturnTo(
-        safeReturnPath(
-          new URLSearchParams(window.location.search).get('returnTo'),
-          '',
-        ) || null,
-      ),
-    [],
-  );
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const destination = safeReturnPath(params.get('returnTo'), '') || null;
+    setReturnTo(destination);
+    setActiveTab(params.get('tab') === 'map' ? 'map' : 'saved');
+  }, []);
+
+  function switchTab(tab: 'saved' | 'map') {
+    setActiveTab(tab);
+    const params = new URLSearchParams(window.location.search);
+    params.set('tab', tab);
+    router.replace(`/addresses?${params.toString()}`, { scroll: false });
+  }
 
   async function load() {
     if (!session) return;
@@ -79,7 +83,7 @@ export default function AddressesPage() {
       <AuthRequiredPanel
         title="Sign in to manage venues"
         description="Saved addresses make event planning faster and keep checkout from asking for venue details again."
-        returnHref="/addresses"
+        returnHref={`/addresses?tab=${activeTab}`}
       />
     );
   }
@@ -124,194 +128,242 @@ export default function AddressesPage() {
   }
 
   return (
-    <main className="page-shell pb-28">
-      <div className="max-w-2xl">
+    <main className="page-shell pb-20">
+      <div className="max-w-3xl">
         <p className="eyebrow">Your venues</p>
-        <h1 className="mt-3 font-serif text-5xl font-semibold">
-          Saved addresses
+        <h1 className="mt-2 font-serif text-4xl font-semibold sm:text-5xl">
+          Venues & addresses
         </h1>
-        <p className="mt-3 leading-7 text-muted-foreground">
-          Keep home, office, and event locations ready for faster planning.
+        <p className="mt-2 leading-6 text-muted-foreground">
+          Save frequently used places or choose an exact event location on the
+          map for faster planning.
         </p>
       </div>
 
-      <section className="surface-card mt-8 p-5 sm:p-7">
-        <div className="mb-5">
-          <p className="eyebrow">Choose on map</p>
-          <h2 className="mt-2 font-serif text-3xl font-semibold">
-            Find the exact location
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            Search for a venue, click anywhere, drag the pin, or use your
-            current location. You can review and edit the detected address
-            before saving.
-          </p>
-        </div>
-        <AddressMapPicker
-          onAddress={(address) => {
-            setError('');
-            setForm((current) => ({ ...current, ...address }));
-          }}
-        />
-      </section>
-
-      <div className="mt-8 grid gap-8 lg:grid-cols-[420px_1fr]">
-        <form onSubmit={add} className="surface-card h-fit p-6 sm:p-7">
-          <div className="flex items-center gap-3">
-            <span className="grid h-10 w-10 place-items-center rounded-full bg-primary/10 text-primary">
-              <Plus className="h-5 w-5" />
+      <div
+        className="mt-6 inline-flex w-full rounded-xl border border-border bg-muted/60 p-1 sm:w-auto"
+        role="tablist"
+        aria-label="Venue options"
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'saved'}
+          onClick={() => switchTab('saved')}
+          className={`flex-1 rounded-lg px-5 py-2.5 text-sm font-semibold transition sm:flex-none ${
+            activeTab === 'saved'
+              ? 'bg-white text-primary shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          Saved addresses
+          {addresses.length > 0 && (
+            <span className="numeric-text ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">
+              {addresses.length}
             </span>
-            <h2 className="font-serif text-2xl font-semibold">
-              Add an address
-            </h2>
-          </div>
-
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
-            <Field label="Address type">
-              <Select
-                value={form.addressType}
-                onChange={(event) =>
-                  setForm({
-                    ...form,
-                    addressType: event.target.value as AddressType,
-                  })
-                }
-              >
-                <option value="HOME">Home</option>
-                <option value="OFFICE">Office</option>
-                <option value="EVENT_VENUE">Event venue</option>
-                <option value="OTHER">Other</option>
-              </Select>
-            </Field>
-            <Field label="Label">
-              <Input
-                placeholder="e.g. Home or Garden venue"
-                maxLength={50}
-                value={form.label}
-                onChange={(event) =>
-                  setForm({ ...form, label: event.target.value })
-                }
-              />
-            </Field>
-            <Field
-              label="Address line 1"
-              className="sm:col-span-2 lg:col-span-1"
-            >
-              <Input
-                placeholder="House, flat, building, or street"
-                maxLength={255}
-                value={form.addressLine1}
-                onChange={(event) =>
-                  setForm({ ...form, addressLine1: event.target.value })
-                }
-                required
-              />
-            </Field>
-            <Field
-              label="Address line 2"
-              optional
-              className="sm:col-span-2 lg:col-span-1"
-            >
-              <Input
-                placeholder="Area or locality"
-                maxLength={255}
-                value={form.addressLine2}
-                onChange={(event) =>
-                  setForm({ ...form, addressLine2: event.target.value })
-                }
-              />
-            </Field>
-            <Field label="City">
-              <Input
-                placeholder="City"
-                maxLength={100}
-                value={form.city}
-                onChange={(event) =>
-                  setForm({ ...form, city: event.target.value })
-                }
-                required
-              />
-            </Field>
-            <Field label="State">
-              <Select
-                value={form.state}
-                onChange={(event) =>
-                  setForm({ ...form, state: event.target.value })
-                }
-                required
-              >
-                <option value="">Select state</option>
-                {form.state &&
-                  !indianStateOptions.includes(
-                    form.state as (typeof indianStateOptions)[number],
-                  ) && <option value={form.state}>{form.state}</option>}
-                {indianStateOptions.map((state) => (
-                  <option key={state} value={state}>
-                    {state}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Pincode">
-              <Input
-                placeholder="6-digit pincode"
-                inputMode="numeric"
-                pattern="[0-9]{6}"
-                minLength={6}
-                maxLength={6}
-                value={form.pincode}
-                onChange={(event) =>
-                  setForm({
-                    ...form,
-                    pincode: event.target.value.replace(/\D/g, ''),
-                  })
-                }
-                required
-              />
-            </Field>
-            <Field label="Landmark" optional>
-              <Input
-                placeholder="Nearby landmark"
-                maxLength={255}
-                value={form.landmark}
-                onChange={(event) =>
-                  setForm({ ...form, landmark: event.target.value })
-                }
-              />
-            </Field>
-          </div>
-
-          <Checkbox
-            className="mt-5"
-            label="Make this my default address"
-            description="We will preselect this venue when planning your next event."
-            checked={form.isDefault}
-            onCheckedChange={(checked) =>
-              setForm({ ...form, isDefault: checked })
-            }
-          />
-
-          {form.latitude && form.longitude && (
-            <p className="mt-3 text-xs text-muted-foreground">
-              Map pin: {Number(form.latitude).toFixed(5)},{' '}
-              {Number(form.longitude).toFixed(5)}
-            </p>
           )}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'map'}
+          onClick={() => switchTab('map')}
+          className={`flex-1 rounded-lg px-5 py-2.5 text-sm font-semibold transition sm:flex-none ${
+            activeTab === 'map'
+              ? 'bg-primary text-white shadow-sm'
+              : 'text-primary hover:bg-primary/10'
+          }`}
+        >
+          Choose on map
+        </button>
+      </div>
 
-          {error && (
-            <p
-              role="alert"
-              className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700"
-            >
-              {error}
-            </p>
-          )}
-          <Button className="mt-5 w-full" disabled={submitting}>
-            {submitting ? 'Saving address…' : 'Save address'}
-          </Button>
-        </form>
+      {activeTab === 'map' && (
+        <div
+          className="mt-5 grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_420px]"
+          role="tabpanel"
+        >
+          <section className="surface-card p-4 sm:p-5">
+            <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="font-serif text-2xl font-semibold">
+                Find the exact location
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                Search, click, drag the pin, or use your location
+              </p>
+            </div>
+            <AddressMapPicker
+              onAddress={(address) => {
+                setError('');
+                setForm((current) => ({ ...current, ...address }));
+              }}
+            />
+          </section>
 
-        <section>
+          <form onSubmit={add} className="surface-card h-fit p-5 sm:p-6">
+            <div className="flex items-center gap-3">
+              <span className="grid h-10 w-10 place-items-center rounded-full bg-primary/10 text-primary">
+                <Plus className="h-5 w-5" />
+              </span>
+              <div>
+                <h2 className="font-serif text-2xl font-semibold">
+                  Address details
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  Review the detected details before saving
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+              <Field label="Address type">
+                <Select
+                  value={form.addressType}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      addressType: event.target.value as AddressType,
+                    })
+                  }
+                >
+                  <option value="HOME">Home</option>
+                  <option value="OFFICE">Office</option>
+                  <option value="EVENT_VENUE">Event venue</option>
+                  <option value="OTHER">Other</option>
+                </Select>
+              </Field>
+              <Field label="Label">
+                <Input
+                  placeholder="e.g. Home or Garden venue"
+                  maxLength={50}
+                  value={form.label}
+                  onChange={(event) =>
+                    setForm({ ...form, label: event.target.value })
+                  }
+                />
+              </Field>
+              <Field
+                label="Address line 1"
+                className="sm:col-span-2 lg:col-span-1"
+              >
+                <Input
+                  placeholder="House, flat, building, or street"
+                  maxLength={255}
+                  value={form.addressLine1}
+                  onChange={(event) =>
+                    setForm({ ...form, addressLine1: event.target.value })
+                  }
+                  required
+                />
+              </Field>
+              <Field
+                label="Address line 2"
+                optional
+                className="sm:col-span-2 lg:col-span-1"
+              >
+                <Input
+                  placeholder="Area or locality"
+                  maxLength={255}
+                  value={form.addressLine2}
+                  onChange={(event) =>
+                    setForm({ ...form, addressLine2: event.target.value })
+                  }
+                />
+              </Field>
+              <Field label="City">
+                <Input
+                  placeholder="City"
+                  maxLength={100}
+                  value={form.city}
+                  onChange={(event) =>
+                    setForm({ ...form, city: event.target.value })
+                  }
+                  required
+                />
+              </Field>
+              <Field label="State">
+                <Select
+                  value={form.state}
+                  onChange={(event) =>
+                    setForm({ ...form, state: event.target.value })
+                  }
+                  required
+                >
+                  <option value="">Select state</option>
+                  {form.state &&
+                    !indianStateOptions.includes(
+                      form.state as (typeof indianStateOptions)[number],
+                    ) && <option value={form.state}>{form.state}</option>}
+                  {indianStateOptions.map((state) => (
+                    <option key={state} value={state}>
+                      {state}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Pincode">
+                <Input
+                  placeholder="6-digit pincode"
+                  inputMode="numeric"
+                  pattern="[0-9]{6}"
+                  minLength={6}
+                  maxLength={6}
+                  value={form.pincode}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      pincode: event.target.value.replace(/\D/g, ''),
+                    })
+                  }
+                  required
+                />
+              </Field>
+              <Field label="Landmark" optional>
+                <Input
+                  placeholder="Nearby landmark"
+                  maxLength={255}
+                  value={form.landmark}
+                  onChange={(event) =>
+                    setForm({ ...form, landmark: event.target.value })
+                  }
+                />
+              </Field>
+            </div>
+
+            <Checkbox
+              className="mt-5"
+              label="Make this my default address"
+              description="We will preselect this venue when planning your next event."
+              checked={form.isDefault}
+              onCheckedChange={(checked) =>
+                setForm({ ...form, isDefault: checked })
+              }
+            />
+
+            {form.latitude && form.longitude && (
+              <p className="mt-3 text-xs text-muted-foreground">
+                Map pin: {Number(form.latitude).toFixed(5)},{' '}
+                {Number(form.longitude).toFixed(5)}
+              </p>
+            )}
+
+            {error && (
+              <p
+                role="alert"
+                className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700"
+              >
+                {error}
+              </p>
+            )}
+            <Button className="mt-5 w-full" disabled={submitting}>
+              {submitting ? 'Saving address…' : 'Save address'}
+            </Button>
+          </form>
+        </div>
+      )}
+
+      {activeTab === 'saved' && (
+        <section className="mt-5" role="tabpanel">
           <div className="flex items-center justify-between">
             <h2 className="font-serif text-2xl font-semibold">
               Your saved places
@@ -358,6 +410,19 @@ export default function AddressesPage() {
                       Near {address.landmark}
                     </p>
                   )}
+                  {returnTo && (
+                    <Button
+                      type="button"
+                      className="mt-4 w-full"
+                      onClick={() =>
+                        router.replace(
+                          returnTo.replace('ADDRESS_ID', address.id),
+                        )
+                      }
+                    >
+                      Select this address
+                    </Button>
+                  )}
                 </article>
               ))}
             </div>
@@ -371,7 +436,7 @@ export default function AddressesPage() {
             </div>
           )}
         </section>
-      </div>
+      )}
     </main>
   );
 }

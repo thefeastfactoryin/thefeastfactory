@@ -146,7 +146,7 @@ export default function ProfilePage() {
             </span>
           </Link>
           <Link
-            href="/addresses"
+            href="/addresses?tab=saved"
             className="surface-card flex items-center gap-4 p-5 transition hover:border-primary/30"
           >
             <span className="grid h-11 w-11 place-items-center rounded-full bg-primary/10 text-primary">

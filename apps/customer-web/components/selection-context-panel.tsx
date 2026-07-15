@@ -648,7 +648,7 @@ export function SelectionContextPanel({
         </div>
         <Link
           className="inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-full px-3 text-sm font-bold text-primary transition hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
-          href={`/addresses?returnTo=${encodeURIComponent(returnTo)}`}
+          href={`/addresses?tab=map&returnTo=${encodeURIComponent(returnTo)}`}
         >
           <Plus className="h-4 w-4" /> Add new address
         </Link>
@@ -717,7 +717,7 @@ export function SelectionContextPanel({
         </div>
       ) : (
         <Link
-          href={`/addresses?returnTo=${encodeURIComponent(returnTo)}`}
+          href={`/addresses?tab=map&returnTo=${encodeURIComponent(returnTo)}`}
           className="mt-3 flex min-h-28 flex-col items-center justify-center gap-2 rounded-xl border border-dashed bg-[#fcfaf6] p-5 text-center text-sm font-semibold text-primary transition hover:border-primary/40"
         >
           <MapPinned className="h-5 w-5" />
