@@ -28,6 +28,7 @@
     "db:migrate": "npm run db:migrate -w @aranyam/api",
     "db:deploy": "npm run db:deploy -w @aranyam/api",
     "db:seed": "npm run db:seed -w @aranyam/api",
+    "db:package-swaps": "npm run db:package-swaps -w @aranyam/api",
     "db:triggers": "npm run db:triggers -w @aranyam/api"
   },
   "overrides": {

@@ -50,6 +50,12 @@ body {
   overflow-x: hidden;
 }
 
+.numeric-text,
+.numeric-text input {
+  font-family: Arial, Helvetica, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
 ::selection {
   background: hsl(var(--accent) / 0.18);
 }

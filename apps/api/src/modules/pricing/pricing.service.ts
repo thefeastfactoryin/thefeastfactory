@@ -198,10 +198,8 @@ export class PricingService {
           return [];
         }
         const quantity = selection.quantity ?? guestCount;
-        if (quantity < 1 || quantity > guestCount) {
-          errors.push(
-            `${row.menuItem.name} quantity must be between 1 and ${guestCount}`,
-          );
+        if (quantity < 1) {
+          errors.push(`${row.menuItem.name} quantity must be at least 1`);
           return [];
         }
         const totalAdjustmentAmount = row.menuItem.generalPrice.mul(quantity);

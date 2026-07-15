@@ -8,11 +8,10 @@ import {
   Plus,
   Search,
   ShoppingBag,
-  Trash2,
   X,
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { apiRequest } from '../../../lib/api';
 import { cn } from '../../../lib/utils';
 import { useOrderBuilderStore } from '../../../store/order-builder.store';
@@ -36,7 +35,7 @@ type Dish = {
 type DishId = string;
 type CategoryFilter = 'all' | string;
 type DietFilter = 'all' | 'veg' | 'nonveg';
-type MobileTab = 'dishes' | 'visual' | 'summary';
+type MobileTab = 'dishes' | 'summary';
 
 function dishesFromConfig(config: PackageConfiguration): Dish[] {
   return config.categoryRules.flatMap((rule) =>
@@ -368,8 +367,13 @@ function DishCatalogue({
             return (
               <article
                 key={dish.id}
-                className="grid min-h-[88px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-border bg-white px-3 py-2.5 transition hover:border-primary/25 hover:bg-[#fffdf8]"
+                className="grid min-h-[88px] grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-border bg-white px-3 py-2.5 transition hover:border-primary/25 hover:bg-[#fffdf8]"
               >
+                <img
+                  src={getDishImage(dish)}
+                  alt=""
+                  className="h-14 w-14 rounded-lg object-cover"
+                />
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <VegDot veg={dish.veg} />
@@ -436,6 +440,7 @@ function SummaryPanel({
   message,
   nonVegCount,
   onAddToCart,
+  onViewSummary,
   order,
   saving,
   subtotalPerPlate,
@@ -446,6 +451,7 @@ function SummaryPanel({
   message: string;
   nonVegCount: number;
   onAddToCart: () => void;
+  onViewSummary: () => void;
   order: DishId[];
   saving: boolean;
   subtotalPerPlate: number;
@@ -508,6 +514,8 @@ function SummaryPanel({
       <div className="mt-4 grid gap-2">
         <button
           type="button"
+          onClick={onViewSummary}
+          disabled={order.length === 0}
           className="min-h-11 rounded-full border border-primary/35 bg-white px-4 text-sm font-extrabold text-primary transition hover:bg-primary/5"
         >
           View Summary
@@ -555,6 +563,9 @@ function BuildPackageContent() {
   const searchParams = useSearchParams();
   const session = useSessionStore((state) => state.session);
   const setDbCartId = useOrderBuilderStore((state) => state.setDbCartId);
+  const setStoredGuestCount = useOrderBuilderStore(
+    (state) => state.setGuestCount,
+  );
   const requestedVersionId = searchParams.get('packageVersionId');
   const packageId = searchParams.get('packageId');
   const [packageVersionId, setPackageVersionId] = useState(requestedVersionId);
@@ -564,20 +575,26 @@ function BuildPackageContent() {
   const [order, setOrder] = useState<DishId[]>([]);
   const [guestCount, setGuestCount] = useState(150);
   const [guestInput, setGuestInput] = useState('150');
-  const [mobileTab, setMobileTab] = useState<MobileTab>('visual');
+  const [mobileTab, setMobileTab] = useState<MobileTab>('dishes');
   const [dishes, setDishes] = useState<Dish[]>([]);
   const [config, setConfig] = useState<PackageConfiguration>();
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const hydratedCartVersion = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     if (requestedVersionId || !packageId) return;
     let active = true;
-    apiRequest<Array<{ id: string; activeVersion?: { id: string } | null }>>('/packages')
+    apiRequest<Array<{ id: string; activeVersion?: { id: string } | null }>>(
+      '/packages',
+    )
       .then((packages) => {
-        const latestVersion = packages.find((pkg) => pkg.id === packageId)?.activeVersion?.id;
+        const latestVersion = packages.find((pkg) => pkg.id === packageId)
+          ?.activeVersion?.id;
         if (active && latestVersion) setPackageVersionId(latestVersion);
-        if (active && !latestVersion) setMessage('Package is currently unavailable.');
+        if (active && !latestVersion)
+          setMessage('Package is currently unavailable.');
       })
       .catch(() => {
         if (active) setMessage('Package is currently unavailable.');
@@ -606,13 +623,55 @@ function BuildPackageContent() {
       .catch((reason) => {
         if (active) {
           setDishes([]);
-          setMessage((reason as Error).message || 'Menu is currently unavailable.');
+          setMessage(
+            (reason as Error).message || 'Menu is currently unavailable.',
+          );
         }
       });
     return () => {
       active = false;
     };
   }, [packageVersionId]);
+
+  useEffect(() => {
+    if (
+      !session ||
+      !packageVersionId ||
+      !dishes.length ||
+      hydratedCartVersion.current === packageVersionId
+    ) {
+      return;
+    }
+
+    let active = true;
+    apiRequest<CartSummary | null>('/cart', {}, session.accessToken)
+      .then((cart) => {
+        if (!active) return;
+        hydratedCartVersion.current = packageVersionId;
+        if (!cart || cart.packageVersionId !== packageVersionId) return;
+
+        const availableIds = new Set(dishes.map((dish) => dish.id));
+        setOrder(
+          cart.items
+            .filter(
+              (item) =>
+                item.role === 'CUSTOM' && availableIds.has(item.menuItemId),
+            )
+            .map((item) => item.menuItemId),
+        );
+
+        const savedGuestCount = cart.event?.guestCount ?? cart.guestCount;
+        if (savedGuestCount) setClampedGuestCount(savedGuestCount);
+        setDbCartId(cart.id, session.user.id);
+      })
+      .catch((reason) => {
+        if (active) setMessage((reason as Error).message);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [dishes, packageVersionId, session, setDbCartId]);
 
   const visible = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -667,6 +726,7 @@ function BuildPackageContent() {
   function setClampedGuestCount(value: number) {
     const next = clampGuestCount(value);
     setGuestCount(next);
+    setStoredGuestCount(next);
     setGuestInput(String(next));
   }
 
@@ -674,7 +734,9 @@ function BuildPackageContent() {
     const digits = value.replace(/\D/g, '');
     setGuestInput(digits);
     if (!digits) return;
-    setGuestCount(clampGuestCount(Number(digits)));
+    const next = clampGuestCount(Number(digits));
+    setGuestCount(next);
+    setStoredGuestCount(next);
   }
 
   function handleGuestBlur() {
@@ -691,10 +753,6 @@ function BuildPackageContent() {
       if (current.length >= 12) return current;
       return [...current, id];
     });
-  }
-
-  function clear() {
-    setOrder([]);
   }
 
   async function addToCart() {
@@ -719,7 +777,7 @@ function BuildPackageContent() {
         '/cart',
         {
           method: 'PUT',
-          body: JSON.stringify({ packageVersionId }),
+          body: JSON.stringify({ packageVersionId, guestCount }),
         },
         session.accessToken,
       );
@@ -767,57 +825,46 @@ function BuildPackageContent() {
     />
   );
 
-  const visual = (
-    <section className="min-w-0">
-      {/* Height/content rationale: the builder uses a short functional header—no photo—so guest setup and the plate-building signature lead directly into the tool. */}
-      <div className="relative mb-4 overflow-hidden rounded-2xl bg-[hsl(var(--hero-end))] px-5 py-5 text-white shadow-[0_8px_24px_rgba(45,20,20,0.12)] sm:px-7">
-        <div
-          className="absolute -right-10 -top-24 h-56 w-56 rounded-full border-[28px] border-accent/15"
-          aria-hidden="true"
+  const builderHeader = (
+    <div className="relative overflow-hidden rounded-2xl bg-[hsl(var(--hero-end))] px-5 py-5 text-white shadow-[0_8px_24px_rgba(45,20,20,0.12)] sm:px-7">
+      <div
+        className="absolute -right-10 -top-24 h-56 w-56 rounded-full border-[28px] border-accent/15"
+        aria-hidden="true"
+      />
+      <div
+        className="absolute right-16 top-7 hidden h-20 w-20 place-items-center rounded-full border border-dashed border-accent/55 bg-white/5 sm:grid"
+        aria-hidden="true"
+      >
+        <img
+          src="/logo.png"
+          alt=""
+          className="h-14 w-14 rounded-xl object-cover shadow-[0_0_0_5px_hsl(var(--accent)/0.18)]"
         />
-        <div
-          className="absolute right-16 top-7 hidden h-20 w-20 place-items-center rounded-full border border-dashed border-accent/55 bg-white/5 sm:grid"
-          aria-hidden="true"
-        >
-          <div className="h-11 w-11 rounded-full border-[6px] border-white/70 shadow-[0_0_0_5px_hsl(var(--accent)/0.18)]" />
+      </div>
+      <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0 max-w-[560px] sm:pr-24">
+          <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-accent">
+            Build your menu
+          </p>
+          <h1 className="mt-1 font-serif text-[30px] font-bold leading-[1.05] text-white sm:text-[34px]">
+            Build Your Own Package
+          </h1>
+          <p className="mt-1.5 text-sm font-semibold leading-5 text-white/75">
+            Choose your favourite dishes and customize a menu that fits your
+            occasion.
+          </p>
         </div>
-        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0 max-w-[560px] sm:pr-24">
-            <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-accent">
-              Build your plate
-            </p>
-            <h1 className="mt-1 font-serif text-[30px] font-bold leading-[1.05] text-white sm:text-[34px]">
-              Build Your Own Package
-            </h1>
-            <p className="mt-1.5 text-sm font-semibold leading-5 text-white/75">
-              Choose your favourite dishes and customize a menu that fits your
-              occasion.
-            </p>
-          </div>
-          <div className="relative shrink-0 sm:w-[244px] [&>div]:border-white/15 [&>div]:bg-white/95">
-            <GuestStepper
-              guestCount={guestCount}
-              guestInput={guestInput}
-              onInputBlur={handleGuestBlur}
-              onInputChange={handleGuestInput}
-              onStep={(delta) => setClampedGuestCount(guestCount + delta)}
-            />
-          </div>
+        <div className="relative shrink-0 sm:w-[244px] [&>div]:border-white/15 [&>div]:bg-white/95">
+          <GuestStepper
+            guestCount={guestCount}
+            guestInput={guestInput}
+            onInputBlur={handleGuestBlur}
+            onInputChange={handleGuestInput}
+            onStep={(delta) => setClampedGuestCount(guestCount + delta)}
+          />
         </div>
       </div>
-      <div className="relative overflow-hidden rounded-2xl border border-border bg-[linear-gradient(180deg,rgba(40,20,10,0.32),rgba(40,20,10,0.5)),url('/order-occasion.png')] bg-cover bg-center shadow-[0_8px_22px_rgba(45,31,20,0.045)]">
-        {order.length > 0 && (
-          <button
-            type="button"
-            onClick={clear}
-            className="absolute right-3 top-3 z-40 inline-flex min-h-10 items-center gap-2 rounded-full bg-white/95 px-4 text-xs font-extrabold text-primary shadow-sm transition hover:bg-primary hover:text-white"
-          >
-            <Trash2 className="h-4 w-4" /> Clear All
-          </button>
-        )}
-        <BanquetTable dishMap={dishMap} order={order} />
-      </div>
-    </section>
+    </div>
   );
 
   const summary = (
@@ -827,6 +874,7 @@ function BuildPackageContent() {
       message={message}
       nonVegCount={nonVegCount}
       onAddToCart={addToCart}
+      onViewSummary={() => setSummaryOpen(true)}
       order={order}
       saving={saving}
       subtotalPerPlate={subtotalPerPlate}
@@ -852,10 +900,9 @@ function BuildPackageContent() {
   return (
     <main className="min-h-screen overflow-x-clip bg-background pb-28 lg:pb-16">
       <div className="lg:hidden">
-        <div className="mx-auto grid max-w-[720px] grid-cols-3 gap-1 px-4 py-3">
+        <div className="mx-auto grid max-w-[720px] grid-cols-2 gap-1 px-4 py-3">
           {[
             ['dishes', 'Add Dishes'],
-            ['visual', 'Visual Package'],
             ['summary', 'Summary'],
           ].map(([id, label]) => (
             <button
@@ -875,32 +922,118 @@ function BuildPackageContent() {
         </div>
       </div>
 
-      <div className="mx-auto grid max-w-[1480px] gap-4 px-4 py-4 sm:px-5 lg:grid-cols-[330px_minmax(0,1fr)_286px] lg:items-start lg:px-6">
-        <div
-          className={cn(
-            mobileTab === 'dishes' ? 'block' : 'hidden',
-            'lg:block',
-          )}
-        >
-          {catalogue}
-        </div>
-        <div
-          className={cn(
-            mobileTab === 'visual' ? 'block' : 'hidden',
-            'lg:block',
-          )}
-        >
-          {visual}
-        </div>
-        <div
-          className={cn(
-            mobileTab === 'summary' ? 'block' : 'hidden',
-            'lg:block',
-          )}
-        >
-          {summary}
+      <div className="mx-auto max-w-6xl px-4 py-4 sm:px-5 lg:px-6">
+        {builderHeader}
+        <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+          <div
+            className={cn(
+              mobileTab === 'dishes' ? 'block' : 'hidden',
+              'lg:block',
+            )}
+          >
+            {catalogue}
+          </div>
+          <div
+            className={cn(
+              mobileTab === 'summary' ? 'block' : 'hidden',
+              'lg:block',
+            )}
+          >
+            {summary}
+          </div>
         </div>
       </div>
+
+      {summaryOpen && (
+        <div className="fixed inset-0 z-[60] grid place-items-center bg-slate-950/45 p-4">
+          <button
+            type="button"
+            className="absolute inset-0"
+            onClick={() => setSummaryOpen(false)}
+            aria-label="Close menu summary"
+          />
+          <section className="relative flex max-h-[min(720px,90dvh)] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="flex shrink-0 items-start justify-between gap-4 border-b p-5">
+              <div className="flex min-w-0 items-center gap-3">
+                <img
+                  src="/logo.png"
+                  alt="The Feast Factory"
+                  className="h-12 w-12 shrink-0 rounded-xl object-cover shadow-sm"
+                />
+                <div className="min-w-0">
+                  <p className="eyebrow text-primary">Custom menu</p>
+                  <h2 className="mt-1 font-serif text-2xl font-bold">
+                    Order summary
+                  </h2>
+                  <p className="numeric-text mt-1 text-sm text-muted-foreground">
+                    {guestCount} guests · {order.length} selected items
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSummaryOpen(false)}
+                className="grid h-10 w-10 place-items-center rounded-full border"
+                aria-label="Close menu summary"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5">
+              <div className="divide-y rounded-xl border">
+                {order.map((id) => {
+                  const dish = dishMap[id];
+                  if (!dish) return null;
+                  return (
+                    <div
+                      key={id}
+                      className="flex items-center justify-between gap-4 p-3"
+                    >
+                      <img
+                        src={getDishImage(dish)}
+                        alt=""
+                        className="h-12 w-14 shrink-0 rounded-lg object-cover"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-bold">
+                          {dish.name}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {dish.categoryName}
+                        </p>
+                      </div>
+                      <span className="numeric-text shrink-0 text-sm font-semibold">
+                        {formatCurrency(dish.price)} / guest
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="shrink-0 border-t bg-[#fffdf8] p-5">
+              <div className="flex items-end justify-between gap-4">
+                <span className="text-sm text-muted-foreground">
+                  Estimated total
+                </span>
+                <strong className="numeric-text text-2xl">
+                  {formatCurrency(estimatedSubtotal)}
+                </strong>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSummaryOpen(false);
+                  void addToCart();
+                }}
+                disabled={saving}
+                className="mt-4 min-h-11 w-full rounded-full bg-primary px-4 text-sm font-extrabold text-white disabled:bg-primary/35"
+              >
+                {saving ? 'Adding...' : 'Add to Cart'}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
 
       <div className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-white p-3 shadow-[0_-8px_24px_rgba(45,31,20,0.10)] lg:hidden">
         <div className="mx-auto flex max-w-[720px] items-center justify-between gap-3">

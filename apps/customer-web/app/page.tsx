@@ -143,7 +143,10 @@ export default function HomePage() {
             '/cart',
             {
               method: 'PUT',
-              body: JSON.stringify({ packageVersionId: pkg.activeVersion.id }),
+              body: JSON.stringify({
+                packageVersionId: pkg.activeVersion.id,
+                guestCount: pkg.activeVersion.minGuestCount,
+              }),
             },
             session.accessToken,
           )
@@ -223,13 +226,17 @@ export default function HomePage() {
                   <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white/10 text-accent">
                     <ChefHat className="h-3 w-3" aria-hidden="true" />
                   </span>
-                  <span className="whitespace-nowrap">Hygienically Prepared Kitchens</span>
+                  <span className="whitespace-nowrap">
+                    Hygienically Prepared Kitchens
+                  </span>
                 </div>
                 <div className="inline-flex h-8 w-full items-center gap-2 rounded-full bg-white/[0.08] px-3 text-[11px] font-medium text-white/85 ring-1 ring-inset ring-white/15 sm:w-auto">
                   <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white/10 text-accent">
                     <Clock className="h-3 w-3" aria-hidden="true" />
                   </span>
-                  <span className="whitespace-nowrap">On-Time Delivery, Every Time</span>
+                  <span className="whitespace-nowrap">
+                    On-Time Delivery, Every Time
+                  </span>
                 </div>
               </div>
             </div>
@@ -284,8 +291,6 @@ export default function HomePage() {
           })}
         </div>
       </section>
-
-
 
       <section className="container-pad py-10 lg:py-12">
         <div className="mx-auto mb-7 max-w-2xl text-center">

@@ -154,7 +154,10 @@ export function PackageGridPage({
             '/cart',
             {
               method: 'PUT',
-              body: JSON.stringify({ packageVersionId: pkg.activeVersion.id }),
+              body: JSON.stringify({
+                packageVersionId: pkg.activeVersion.id,
+                guestCount: pkg.activeVersion.minGuestCount,
+              }),
             },
             session.accessToken,
           )

@@ -414,7 +414,7 @@ export default function CartPage() {
   const ready = eventReady(cart);
   const editHref =
     cart.package.type === 'CUSTOM_PACKAGE'
-      ? '/menu/visual-builder'
+      ? `/packages/build?packageVersionId=${cart.packageVersionId}`
       : '/menu/select';
   const isMealBox = cart.package.type === 'MEAL_BOX';
   const activeGroup =
@@ -439,6 +439,7 @@ export default function CartPage() {
             <OrderProgress
               current={2}
               context={isMealBox ? 'Meal box' : 'Package'}
+              inverse
             />
           </div>
           <div className="md:hidden">
@@ -722,7 +723,7 @@ function EventSummary({ cart }: { cart: CartSummary }) {
         <Info
           icon={Users}
           label={cart.package.type === 'MEAL_BOX' ? 'Boxes' : 'Guests'}
-          value={String(cart.event?.guestCount ?? 'Not set')}
+          value={String(cart.event?.guestCount ?? cart.guestCount ?? 'Not set')}
         />
         <Info
           icon={MapPin}
@@ -766,7 +767,7 @@ function ReviewDishCard({ row }: { row: ReviewRow }) {
             <span className="inline-flex items-center gap-1">
               <Leaf className="h-3 w-3" /> {row.isVeg ? 'Veg' : 'Non-veg'}
             </span>
-            {adjustment > 0 && (
+            {row.role !== 'CUSTOM' && adjustment > 0 && (
               <span>{formatCurrency(adjustment)} / plate</span>
             )}
           </span>
@@ -820,7 +821,12 @@ function OrderFacts({
     ['Package', cart.package.name],
     [
       cart.package.type === 'MEAL_BOX' ? 'Boxes' : 'Guests',
-      String(quote?.guestCount ?? cart.event?.guestCount ?? 'Not set'),
+      String(
+        quote?.guestCount ??
+          cart.event?.guestCount ??
+          cart.guestCount ??
+          'Not set',
+      ),
     ],
     ['Delivery date', formatCartDate(cart.event?.eventDate)],
     ['Delivery time', cart.event?.eventTimeStart || 'Not set'],
@@ -910,10 +916,7 @@ function PriceSummary({
   return (
     <>
       <div className="space-y-3 text-sm">
-        <PriceLine
-          label="Menu calculation"
-          value={menuCalculation}
-        />
+        <PriceLine label="Menu calculation" value={menuCalculation} />
         <PriceLine
           label="Menu subtotal"
           value={formatCurrency(quote.subtotalAmount)}

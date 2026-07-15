@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Filter,
   Leaf,
+  Lock,
   Minus,
   Plus,
   Search,
@@ -23,7 +24,6 @@ import { Button } from '../../../components/ui/button';
 import { StatePanel } from '../../../components/ui/state-panel';
 import { apiRequest } from '../../../lib/api';
 import { formatCurrency } from '../../../lib/format';
-import { formatMenuCalculation } from '../../../lib/menu-price-calculation';
 import { usePackagePreviewQuote } from '../../../lib/use-package-preview-quote';
 import { cn } from '../../../lib/utils';
 import {
@@ -58,6 +58,7 @@ function MenuSelectContent() {
   const searchParams = useSearchParams();
   const cartPackage = useOrderBuilderStore((state) => state.package);
   const guestCount = useOrderBuilderStore((state) => state.guestCount);
+  const setGuestCount = useOrderBuilderStore((state) => state.setGuestCount);
   const selectedItems = useOrderBuilderStore((state) => state.selectedItems);
   const setPackage = useOrderBuilderStore((state) => state.setPackage);
   const setDbCartId = useOrderBuilderStore((state) => state.setDbCartId);
@@ -83,6 +84,9 @@ function MenuSelectContent() {
   const [pendingSwapId, setPendingSwapId] = useState<string>();
   const [detailItem, setDetailItem] = useState<DetailItem>();
   const [saving, setSaving] = useState(false);
+  const [boxCountInput, setBoxCountInput] = useState(String(guestCount));
+
+  useEffect(() => setBoxCountInput(String(guestCount)), [guestCount]);
 
   useEffect(() => {
     const requestedVersionId = searchParams.get('packageVersionId');
@@ -260,12 +264,6 @@ function MenuSelectContent() {
   const menuSubtotal = Number(
     preview.quote?.totalAmount ?? localPerPerson * guestCount,
   );
-  const menuCalculation = formatMenuCalculation({
-    basePrice: basePerPerson,
-    guestCount,
-    unitLabel: isMealBox ? 'box' : 'guest',
-    items: preview.quote?.items ?? selectedItems,
-  });
 
   function alternativesFor(rule: CategoryRule, included: MenuSelectionItem) {
     return rule.items
@@ -344,10 +342,18 @@ function MenuSelectContent() {
   }
 
   function setExtraQuantity(menuItemId: string, quantity: number) {
-    updateItemQuantity(
-      menuItemId,
-      Math.min(Math.max(Math.round(quantity) || 1, 1), guestCount),
+    updateItemQuantity(menuItemId, Math.max(Math.round(quantity) || 1, 1));
+  }
+
+  function updateBoxCount(value: number) {
+    const minimum = config?.minGuestCount ?? 1;
+    const maximum = config?.maxGuestCount ?? Number.MAX_SAFE_INTEGER;
+    const next = Math.min(
+      Math.max(Math.round(value) || minimum, minimum),
+      maximum,
     );
+    setGuestCount(next);
+    setBoxCountInput(String(next));
   }
 
   async function continueToCart() {
@@ -365,6 +371,7 @@ function MenuSelectContent() {
           method: 'PUT',
           body: JSON.stringify({
             packageVersionId: cartPackage.packageVersionId,
+            guestCount,
           }),
         },
         session.accessToken,
@@ -441,8 +448,6 @@ function MenuSelectContent() {
   const activeCategoryName =
     categories.find((category) => category.id === menuCategory)?.name ??
     'All items';
-  const allIncludedVeg =
-    includedRows.length > 0 && includedRows.every(({ item }) => item.isVeg);
 
   return (
     <main className="bg-ivory pb-44 text-charcoal md:pb-20 lg:pb-16">
@@ -574,35 +579,56 @@ function MenuSelectContent() {
                 <h1 className="min-w-0 flex-1 font-serif text-[25px] font-semibold leading-[1.08] tracking-tight text-charcoal sm:text-[34px]">
                   {config.packageName}
                 </h1>
-                <span className="shrink-0 rounded-full bg-accent/[0.12] px-3 py-1.5 text-xs font-bold text-gold-text">
-                  {guestCount} {isMealBox ? 'boxes' : 'guests'}
-                </span>
+                {isMealBox ? (
+                  <div className="numeric-text inline-flex h-10 shrink-0 items-center overflow-hidden rounded-lg border border-border bg-white">
+                    <button
+                      type="button"
+                      aria-label="Decrease meal-box count"
+                      disabled={guestCount <= (config.minGuestCount ?? 1)}
+                      onClick={() => updateBoxCount(guestCount - 1)}
+                      className="grid h-10 w-10 place-items-center text-primary disabled:text-muted-foreground/40"
+                    >
+                      <Minus className="h-4 w-4" />
+                    </button>
+                    <input
+                      aria-label="Meal-box count"
+                      inputMode="numeric"
+                      value={boxCountInput}
+                      onChange={(event) => {
+                        const digits = event.target.value.replace(/\D/g, '');
+                        setBoxCountInput(digits);
+                        if (digits) updateBoxCount(Number(digits));
+                      }}
+                      onBlur={() => updateBoxCount(Number(boxCountInput))}
+                      className="h-10 w-14 border-x text-center text-sm font-bold outline-none"
+                    />
+                    <button
+                      type="button"
+                      aria-label="Increase meal-box count"
+                      disabled={Boolean(
+                        config.maxGuestCount &&
+                        guestCount >= config.maxGuestCount,
+                      )}
+                      onClick={() => updateBoxCount(guestCount + 1)}
+                      className="grid h-10 w-10 place-items-center text-primary disabled:text-muted-foreground/40"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </button>
+                    <span className="px-3 text-xs font-semibold text-muted-foreground">
+                      boxes
+                    </span>
+                  </div>
+                ) : (
+                  <span className="numeric-text shrink-0 rounded-full bg-accent/[0.12] px-3 py-1.5 text-xs font-bold text-gold-text">
+                    {guestCount} guests
+                  </span>
+                )}
               </div>
               <p className="mt-2 max-w-2xl text-sm leading-5 text-muted-foreground">
                 {isMealBox
                   ? 'Review the dishes included in your meal box and customise available swaps.'
                   : 'A complete traditional spread for your special occasion.'}
               </p>
-              <div className="mt-4 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] sm:flex-wrap sm:overflow-visible sm:pb-0 [&::-webkit-scrollbar]:hidden">
-                <StateBadge
-                  tone="included"
-                  label={`${includedRows.length} items included`}
-                />
-                <StateBadge
-                  tone="fixed"
-                  label={allIncludedVeg ? '100% Veg' : 'Mixed menu'}
-                />
-                {supportsSwaps && (
-                  <StateBadge
-                    tone="swap"
-                    label="Swap available"
-                    icon={ArrowRightLeft}
-                  />
-                )}
-                {!isMealBox && (
-                  <StateBadge tone="extra" label="Optional extra" />
-                )}
-              </div>
             </div>
           </div>
 
@@ -623,7 +649,9 @@ function MenuSelectContent() {
               )}
               onClick={() => setExtrasExpanded(false)}
             >
-              <span className="sm:hidden">Included ({includedRows.length})</span>
+              <span className="sm:hidden">
+                Included ({includedRows.length})
+              </span>
               <span className="hidden sm:inline">
                 Included in package ({includedRows.length})
               </span>
@@ -704,7 +732,6 @@ function MenuSelectContent() {
                     quantity={
                       selectedItemById.get(row.item.id)?.quantity ?? guestCount
                     }
-                    maxQuantity={guestCount}
                     onToggle={() => toggleExtra(row)}
                     onQuantityChange={(quantity) =>
                       setExtraQuantity(row.item.id, quantity)
@@ -755,7 +782,7 @@ function MenuSelectContent() {
             selectedItemById={selectedItemById}
             swaps={currentSwaps.size}
             guestCount={guestCount}
-            menuCalculation={menuCalculation}
+            basePerPerson={basePerPerson}
             menuSubtotal={menuSubtotal}
             saving={saving}
             ctaLabel={
@@ -783,7 +810,8 @@ function MenuSelectContent() {
               View summary
             </span>
             <span className="block truncate font-bold text-primary">
-              {summaryRows.length} included · {formatCurrency(menuSubtotal)} total
+              {summaryRows.length} included · {formatCurrency(menuSubtotal)}{' '}
+              total
             </span>
           </button>
           <Button
@@ -834,7 +862,7 @@ function MenuSelectContent() {
             selectedItemById={selectedItemById}
             swaps={currentSwaps.size}
             guestCount={guestCount}
-            menuCalculation={menuCalculation}
+            basePerPerson={basePerPerson}
             menuSubtotal={menuSubtotal}
             saving={saving}
             ctaLabel="Continue to event & payment"
@@ -1277,24 +1305,30 @@ function DishRow({
           {swapped && ` · replaces ${original.name}`}
         </span>
       </button>
-      <div className="col-span-2 flex flex-wrap items-center justify-between gap-2 sm:col-span-1 sm:grid sm:justify-items-end">
-        {swapped ? (
-          <StateBadge tone="swap" label="Swapped" icon={ArrowRightLeft} />
-        ) : swappable ? (
-          <StateBadge tone="included" label="Included" />
-        ) : (
-          <StateBadge tone="fixed" label="Fixed" />
-        )}
-        {swappable && (
-          <button
-            type="button"
-            onClick={onSwap}
-            className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg border border-primary/35 bg-white px-3 text-xs font-bold text-primary transition hover:bg-primary/[0.04] sm:min-w-32 sm:flex-none"
-          >
+      <div className="col-span-2 sm:col-span-1 sm:justify-self-end">
+        <button
+          type="button"
+          onClick={onSwap}
+          disabled={!swappable}
+          className={cn(
+            'inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border px-3 text-xs font-bold transition sm:min-w-32',
+            swappable
+              ? 'border-primary/35 bg-white text-primary hover:bg-primary/[0.04]'
+              : 'cursor-not-allowed border-border bg-muted/50 text-muted-foreground/70',
+          )}
+          aria-label={
+            swappable
+              ? `${swapped ? 'Change swap for' : 'Swap'} ${original.name}`
+              : `${original.name} cannot be swapped`
+          }
+        >
+          {swappable ? (
             <ArrowRightLeft className="h-3.5 w-3.5" />
-            {swapped ? 'Change swap' : 'Swap item'}
-          </button>
-        )}
+          ) : (
+            <Lock className="h-3.5 w-3.5" />
+          )}
+          {swappable ? (swapped ? 'Change swap' : 'Swap item') : 'Locked'}
+        </button>
       </div>
     </article>
   );
@@ -1333,8 +1367,8 @@ function SwapDrawer({
         onClick={onCancel}
         aria-label="Close swap options"
       />
-      <section className="relative ml-auto flex h-full w-full flex-col bg-ivory shadow-2xl sm:max-w-[520px]">
-        <div className="border-b border-border/80 bg-white px-5 py-4">
+      <section className="relative ml-auto flex h-[100dvh] min-h-0 w-full flex-col overflow-hidden bg-ivory shadow-2xl sm:max-w-[520px]">
+        <div className="shrink-0 border-b border-border/80 bg-white px-5 py-4">
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="eyebrow text-primary">Swap item</p>
@@ -1375,7 +1409,7 @@ function SwapDrawer({
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        <div className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain p-4 [-webkit-overflow-scrolling:touch]">
           <p className="text-sm font-bold text-charcoal">
             Eligible replacements
           </p>
@@ -1401,7 +1435,7 @@ function SwapDrawer({
           </div>
         </div>
 
-        <div className="border-t border-border/80 bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+        <div className="shrink-0 border-t border-border/80 bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
           <p className="mb-3 text-xs font-semibold text-muted-foreground">
             {original.name} <ArrowRight className="mx-1 inline h-3 w-3" />{' '}
             <span className="text-foreground">{selected.name}</span>
@@ -1474,7 +1508,6 @@ function ExtraRow({
   row,
   selected,
   quantity,
-  maxQuantity,
   onToggle,
   onQuantityChange,
   onDetails,
@@ -1482,7 +1515,6 @@ function ExtraRow({
   row: MenuRow;
   selected: boolean;
   quantity: number;
-  maxQuantity: number;
   onToggle: () => void;
   onQuantityChange: (quantity: number) => void;
   onDetails: () => void;
@@ -1553,7 +1585,6 @@ function ExtraRow({
               type="button"
               onClick={() => onQuantityChange(quantity + 1)}
               className="grid h-8 w-8 place-items-center text-primary disabled:text-muted-foreground"
-              disabled={quantity >= maxQuantity}
               aria-label={`Increase ${row.item.name} portions`}
             >
               <Plus className="h-3.5 w-3.5" />
@@ -1585,7 +1616,7 @@ function MenuSummary({
   selectedItemById,
   swaps,
   guestCount,
-  menuCalculation,
+  basePerPerson,
   menuSubtotal,
   saving,
   ctaLabel,
@@ -1603,13 +1634,20 @@ function MenuSummary({
   selectedItemById: Map<string, SelectedItem>;
   swaps: number;
   guestCount: number;
-  menuCalculation: string;
+  basePerPerson: number;
   menuSubtotal: number;
   saving: boolean;
   ctaLabel: string;
   onContinue: () => void;
   inline?: boolean;
 }) {
+  const extrasTotal = extras.reduce((total, row) => {
+    const quantity = selectedItemById.get(row.item.id)?.quantity ?? 1;
+    return (
+      total +
+      Number(row.item.itemPrice || row.item.adjustmentAmount || 0) * quantity
+    );
+  }, 0);
   return (
     <section
       className={cn(
@@ -1684,31 +1722,43 @@ function MenuSummary({
         })}
       </div>
       <div className="border-t border-border/80 bg-[#fffdf8] p-5">
-        <div className="grid gap-2.5 text-sm">
-          <SummaryLine label="Included" value={String(rows.length)} />
-          {(isMealBox || swaps > 0) && (
-            <SummaryLine label="Swaps" value={String(swaps)} />
+        <div className="space-y-2 text-sm">
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-muted-foreground">Base package</span>
+            <span className="numeric-text text-right font-semibold text-charcoal">
+              {formatCurrency(basePerPerson)} per {isMealBox ? 'box' : 'guest'}
+            </span>
+          </div>
+          {extrasTotal > 0 && (
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-muted-foreground">Additional items</span>
+              <span className="numeric-text font-semibold text-charcoal">
+                {formatCurrency(extrasTotal)}
+              </span>
+            </div>
           )}
-          {!isMealBox && (
-            <SummaryLine label="Extras" value={String(extras.length)} />
+          {swaps > 0 && (
+            <div className="flex items-center justify-between gap-4 text-muted-foreground">
+              <span>Menu substitutions</span>
+              <span className="numeric-text">{swaps}</span>
+            </div>
           )}
-          <SummaryLine
-            label={isMealBox ? 'Boxes' : 'Guests'}
-            value={String(guestCount)}
-          />
-        </div>
-        <div className="my-3 h-px bg-border" />
-        <div className="grid gap-2 text-sm">
-          <SummaryLine
-            label="Calculation"
-            value={menuCalculation}
-          />
+          <p className="numeric-text pt-1 text-xs text-muted-foreground">
+            For {guestCount}{' '}
+            {isMealBox
+              ? guestCount === 1
+                ? 'box'
+                : 'boxes'
+              : guestCount === 1
+                ? 'guest'
+                : 'guests'}
+          </p>
         </div>
         <div className="mt-3 flex items-end justify-between gap-3 border-t pt-3">
           <span className="text-xs text-muted-foreground">
             Estimated menu total
           </span>
-          <strong className="font-serif text-2xl">
+          <strong className="numeric-text text-2xl font-bold text-charcoal">
             {formatCurrency(menuSubtotal)}
           </strong>
         </div>
@@ -1732,47 +1782,6 @@ function MenuSummary({
         )}
       </div>
     </section>
-  );
-}
-
-function SummaryLine({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between">
-      <span className="text-muted-foreground">{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
-
-function StateBadge({
-  tone,
-  label,
-  icon: Icon,
-}: {
-  tone: 'included' | 'fixed' | 'swap' | 'extra';
-  label: string;
-  icon?: typeof Check;
-}) {
-  const styles = {
-    included: 'border-accent/35 bg-accent/[0.10] text-gold-text',
-    fixed: 'border-border bg-muted/55 text-charcoal/70',
-    swap: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-    extra: 'border-primary/18 bg-primary/[0.055] text-primary',
-  };
-  return (
-    <span
-      className={cn(
-        'inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-bold shadow-[0_1px_0_rgba(255,255,255,.8)_inset]',
-        styles[tone],
-      )}
-    >
-      {Icon ? (
-        <Icon className="h-3.5 w-3.5" />
-      ) : (
-        <Check className="h-3.5 w-3.5" />
-      )}
-      {label}
-    </span>
   );
 }
 

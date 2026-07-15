@@ -6,9 +6,11 @@ import { cn } from '../lib/utils';
 export function OrderProgress({
   current,
   context = 'Package',
+  inverse = false,
 }: {
   current: 0 | 1 | 2;
   context?: 'Package' | 'Meal box';
+  inverse?: boolean;
 }) {
   const steps = [context, 'Menu', 'Event & payment'];
   return (
@@ -25,11 +27,16 @@ export function OrderProgress({
               <span
                 className={cn(
                   'grid h-8 w-8 place-items-center rounded-full border text-xs font-extrabold',
-                  complete && 'border-primary bg-primary text-white',
+                  complete &&
+                    (inverse
+                      ? 'border-white bg-white text-primary shadow-sm'
+                      : 'border-primary bg-primary text-white'),
                   active && 'border-accent bg-accent text-accent-foreground',
                   !complete &&
                     !active &&
-                    'border-border bg-white text-muted-foreground',
+                    (inverse
+                      ? 'border-white/30 bg-white/10 text-white/70'
+                      : 'border-border bg-white text-muted-foreground'),
                 )}
                 aria-current={active ? 'step' : undefined}
               >
@@ -39,8 +46,14 @@ export function OrderProgress({
                 className={cn(
                   'hidden whitespace-nowrap text-sm sm:block',
                   active
-                    ? 'font-bold text-foreground'
-                    : 'text-muted-foreground',
+                    ? inverse
+                      ? 'font-bold text-white'
+                      : 'font-bold text-foreground'
+                    : inverse
+                      ? complete
+                        ? 'font-semibold text-white/90'
+                        : 'text-white/60'
+                      : 'text-muted-foreground',
                 )}
               >
                 {label}
@@ -50,7 +63,13 @@ export function OrderProgress({
               <span
                 className={cn(
                   'mx-3 h-px min-w-5 flex-1 sm:mx-5',
-                  index < current ? 'bg-primary/60' : 'bg-border',
+                  index < current
+                    ? inverse
+                      ? 'h-0.5 bg-accent'
+                      : 'bg-primary/60'
+                    : inverse
+                      ? 'bg-white/25'
+                      : 'bg-border',
                 )}
               />
             )}

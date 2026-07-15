@@ -69,6 +69,65 @@ test('fixed package extras are priced only for the selected quantity', async () 
   assert.equal(serialized.items[0].totalAdjustmentAmount, '600.00');
 });
 
+test('fixed package extras may exceed the guest count', async () => {
+  const category = {
+    id: '11111111-1111-1111-1111-111111111111',
+    name: 'Dessert',
+  };
+  const menuItem = {
+    id: '22222222-2222-2222-2222-222222222222',
+    categoryId: category.id,
+    name: 'Gulab Jamun',
+    isVeg: true,
+    boxPrice: new Prisma.Decimal('0.00'),
+    generalPrice: new Prisma.Decimal('100.00'),
+  };
+  const prisma = {
+    packageVersion: {
+      findFirst: async () => ({
+        id: '33333333-3333-3333-3333-333333333333',
+        versionNo: 1,
+        minGuestCount: 20,
+        maxGuestCount: null,
+        basePricePerPlate: new Prisma.Decimal('500.00'),
+        package: {
+          id: '44444444-4444-4444-4444-444444444444',
+          name: 'Fixed Package',
+          type: PackageType.FIXED_PACKAGE,
+        },
+        packageMenuItems: [
+          {
+            menuItemId: menuItem.id,
+            categoryId: category.id,
+            role: PackageMenuItemRole.EXTRA,
+            menuItem,
+            category,
+          },
+        ],
+      }),
+    },
+  };
+  const service = new PricingService(prisma as never);
+
+  const quote = await service.quote(
+    '33333333-3333-3333-3333-333333333333',
+    20,
+    [
+      {
+        categoryId: category.id,
+        menuItemId: menuItem.id,
+        role: SelectedItemRole.EXTRA,
+        quantity: 50,
+      },
+    ],
+  );
+  const serialized = service.serialize(quote);
+
+  assert.equal(serialized.items[0].quantity, 50);
+  assert.equal(serialized.items[0].totalAdjustmentAmount, '5000.00');
+  assert.equal(serialized.totalAmount, '15000.00');
+});
+
 test('fixed package included items can be swapped within category', async () => {
   const category = { id: '11111111-1111-1111-1111-111111111111', name: 'Main' };
   const includedItem = {

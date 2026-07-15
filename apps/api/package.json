@@ -12,6 +12,7 @@
     "db:migrate": "prisma migrate dev --schema=prisma/schema.prisma",
     "db:deploy": "prisma migrate deploy --schema=prisma/schema.prisma",
     "db:seed": "tsx prisma/seed.ts",
+    "db:package-swaps": "node scripts/enable-package-swaps.mjs",
     "db:triggers": "prisma db execute --schema=prisma/schema.prisma --file=prisma/sql/feastfactory-updated-at-triggers.sql",
     "test:business": "tsx prisma/verify-business-rules.ts",
     "test:api": "tsx --test tests/**/*.test.ts",

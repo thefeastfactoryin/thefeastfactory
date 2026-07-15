@@ -221,7 +221,10 @@ export const useOrderBuilderStore = create<OrderBuilderState>()(
             minGuestCount: cart.package.minGuestCount,
             maxGuestCount: cart.package.maxGuestCount,
           },
-          guestCount: cart.event?.guestCount ?? cart.package.minGuestCount,
+          guestCount:
+            cart.event?.guestCount ??
+            cart.guestCount ??
+            cart.package.minGuestCount,
           event: cart.event
             ? {
                 addressId: cart.event.address?.id,

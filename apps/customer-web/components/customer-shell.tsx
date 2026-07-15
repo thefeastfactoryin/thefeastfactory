@@ -59,8 +59,7 @@ export function CustomerShell({
   const hydrateFromCart = useOrderBuilderStore((s) => s.hydrateFromCart);
   const [mounted, setMounted] = useState(false);
   const [storesHydrated, setStoresHydrated] = useState(false);
-  const [serverCartConflict, setServerCartConflict] =
-    useState<CartSummary>();
+  const [serverCartConflict, setServerCartConflict] = useState<CartSummary>();
   const [resolvingConflict, setResolvingConflict] = useState(false);
   const [conflictError, setConflictError] = useState('');
 
@@ -107,6 +106,7 @@ export function CustomerShell({
           method: 'PUT',
           body: JSON.stringify({
             packageVersionId: draft.package.packageVersionId,
+            guestCount: draft.guestCount || draft.package.minGuestCount,
           }),
         },
         session.accessToken,
@@ -127,7 +127,7 @@ export function CustomerShell({
                   : draft.package?.packageType === 'FIXED_PACKAGE'
                     ? 'EXTRA'
                     : 'CUSTOM'),
-              quantity: 1,
+              quantity: item.quantity ?? 1,
             })),
           }),
         },
@@ -309,13 +309,17 @@ export function CustomerShell({
             <span className="grid h-11 w-11 place-items-center rounded-full bg-primary/10 text-primary">
               <ShoppingBag className="h-5 w-5" />
             </span>
-            <h2 id="cart-conflict-title" className="mt-4 font-serif text-2xl font-bold">
+            <h2
+              id="cart-conflict-title"
+              className="mt-4 font-serif text-2xl font-bold"
+            >
               Which cart should we use?
             </h2>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
               This device has <strong>{cartPackage.packageName}</strong>, while
-              your account has <strong>{serverCartConflict.package.name}</strong>.
-              Nothing will be replaced without your choice.
+              your account has{' '}
+              <strong>{serverCartConflict.package.name}</strong>. Nothing will
+              be replaced without your choice.
             </p>
             {conflictError && (
               <p className="mt-4 rounded-xl border border-red-100 bg-red-50 p-3 text-sm text-red-800">

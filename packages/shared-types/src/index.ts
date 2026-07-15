@@ -229,6 +229,7 @@ export type PackageSelectionPrice = {
 export type CartSummary = {
   id: string;
   packageVersionId: string;
+  guestCount?: number | null;
   pendingOrderId?: string | null;
   package: {
     id: string;

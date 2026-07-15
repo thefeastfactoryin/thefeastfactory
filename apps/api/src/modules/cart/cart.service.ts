@@ -44,12 +44,7 @@ export class CartService {
     const cart = await this.createOrFetch(userId, {
       packageVersionId: dto.packageVersionId,
     });
-    const eventFields = [
-      dto.addressId,
-      dto.eventDate,
-      dto.eventTimeStart,
-      dto.guestCount,
-    ];
+    const eventFields = [dto.addressId, dto.eventDate, dto.eventTimeStart];
     if (eventFields.some((value) => value !== undefined)) {
       if (
         !dto.addressId ||
@@ -74,6 +69,25 @@ export class CartService {
           distanceKm: event.distanceKm,
           deliveryFee: event.deliveryFee,
           specialNotes: dto.specialNotes,
+          lastQuotedAt: null,
+          expiresAt: this.expiryDate(),
+        },
+        include: this.cartInclude(),
+      });
+      return this.serializeCart(updated);
+    }
+    if (dto.guestCount !== undefined) {
+      const version = await this.assertPackageVersion(dto.packageVersionId);
+      if (
+        dto.guestCount < version.minGuestCount ||
+        (version.maxGuestCount && dto.guestCount > version.maxGuestCount)
+      ) {
+        throw new BadRequestException('Guest count is outside package limits');
+      }
+      const updated = await this.prisma.cart.update({
+        where: { id: cart.id },
+        data: {
+          guestCount: dto.guestCount,
           lastQuotedAt: null,
           expiresAt: this.expiryDate(),
         },
@@ -301,6 +315,7 @@ export class CartService {
       id: cart.id,
       userId: cart.userId,
       packageVersionId: cart.packageVersionId,
+      guestCount: cart.guestCount,
       status: cart.status,
       expiresAt: cart.expiresAt?.toISOString() ?? null,
       lastQuotedAt: cart.lastQuotedAt?.toISOString() ?? null,
