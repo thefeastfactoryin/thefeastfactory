@@ -538,7 +538,7 @@ export default function CartPage() {
                             'inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl border px-4 text-sm font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30',
                             selected
                               ? 'border-primary bg-primary/[0.06] text-primary'
-                              : 'border-border bg-[#fcfaf6] text-foreground hover:border-primary/30',
+                              : 'border-border bg-ivory text-foreground hover:border-primary/30',
                           )}
                         >
                           {group.name}
@@ -643,7 +643,7 @@ export default function CartPage() {
                         : 'Confirm the delivery time and venue to calculate the final total.'}
                     </div>
                   )}
-                  <div className="mt-5 rounded-xl border border-amber-200/80 bg-[#fff8ea] p-3">
+                  <div className="mt-5 rounded-xl border border-accent/30 bg-accent/[0.08] p-3">
                     <p className="flex items-center gap-2 text-sm font-bold text-foreground">
                       <LockKeyhole className="h-4 w-4 text-primary" />
                       Safe & secure payments
@@ -750,7 +750,7 @@ function ReviewDishCard({ row }: { row: ReviewRow }) {
           : 'Included';
   const adjustment = Number(row.adjustmentAmount);
   return (
-    <article className="grid min-h-[104px] grid-cols-[84px_minmax(0,1fr)] gap-3 rounded-xl border border-border bg-[#fffdfa] p-2.5 transition hover:border-primary/25">
+    <article className="grid min-h-[104px] grid-cols-[84px_minmax(0,1fr)] gap-3 rounded-xl border border-border bg-ivory p-2.5 transition hover:border-primary/25">
       <span className="h-full min-h-[84px] overflow-hidden rounded-lg bg-muted">
         <DataImage
           src={row.imageUrl}
@@ -875,7 +875,7 @@ function TrustStrip() {
   ];
 
   return (
-    <section className="mt-6 grid gap-0 overflow-hidden rounded-2xl border border-border bg-[#fff8ea] sm:grid-cols-2 lg:grid-cols-4">
+    <section className="mt-6 grid gap-0 overflow-hidden rounded-2xl border border-border bg-ivory-warm sm:grid-cols-2 lg:grid-cols-4">
       {items.map(({ icon: Icon, title, body }, index) => (
         <div
           key={title}

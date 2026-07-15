@@ -206,7 +206,8 @@ export function PackageGridPage({
     <main className="min-h-screen overflow-x-clip bg-background [font-family:var(--font-package-sans),sans-serif]">
       {isMealBox ? (
         // Height/content rationale: a compact product banner gets shoppers to the box grid quickly; the isolated open box makes this read unlike the Packages spread.
-        <section className="relative isolate overflow-hidden border-b bg-[hsl(38_42%_94%)]">
+        <section className="relative isolate overflow-hidden border-b border-border bg-ivory-warm">
+          <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_20%_35%,hsl(var(--accent)/0.12),transparent_34%),radial-gradient(circle_at_78%_30%,hsl(var(--primary)/0.07),transparent_32%)]" />
           <div className="container-pad grid min-h-[280px] items-center gap-6 py-7 sm:grid-cols-[1fr_300px] sm:py-8 lg:min-h-[320px] lg:grid-cols-[1fr_380px] lg:px-16">
             <div className="max-w-[650px]">
               <p className="eyebrow text-primary">Packed meals for groups</p>
@@ -380,7 +381,7 @@ export function PackageGridPage({
                 <article
                   key={pkg.id}
                   data-testid={`package-card-${pkg.id}`}
-                  className="group flex min-w-0 flex-col overflow-hidden rounded-[18px] border border-[hsl(35_22%_86%)] bg-white shadow-[0_7px_20px_rgba(45,31,20,0.045)] transition-all duration-[250ms] [transition-timing-function:cubic-bezier(.22,.61,.36,1)] hover:-translate-y-0.5 hover:border-[hsla(41,56%,52%,0.42)] hover:shadow-[0_14px_30px_rgba(45,31,20,0.075)]"
+                  className="group flex min-w-0 flex-col overflow-hidden rounded-[18px] border border-border bg-card shadow-card transition-all duration-250 ease-premium hover:-translate-y-0.5 hover:border-accent/45 hover:shadow-card-hover"
                 >
                   <button
                     type="button"
@@ -412,13 +413,13 @@ export function PackageGridPage({
                           <h2 className="text-[20px] font-bold leading-[1.12] text-foreground [font-family:var(--font-package-heading),serif]">
                             {pkg.name}
                           </h2>
-                          <p className="mt-1.5 line-clamp-2 min-h-[38px] text-[13px] leading-[1.42] text-[hsl(0_0%_40%)]">
+                          <p className="mt-1.5 line-clamp-2 min-h-[38px] text-[13px] leading-[1.42] text-muted-foreground">
                             {pkg.description}
                           </p>
                         </div>
                       </div>
-                      <div className="mt-3 grid grid-cols-2 overflow-hidden rounded-[14px] border border-[hsl(35_22%_88%)] bg-[hsl(39_50%_98%)]">
-                        <div className="border-r border-[hsl(35_22%_88%)] px-3 py-2">
+                      <div className="mt-3 grid grid-cols-2 overflow-hidden rounded-[14px] border border-border bg-ivory">
+                        <div className="border-r border-border px-3 py-2">
                           <p className="text-[10.5px] font-extrabold uppercase tracking-[0.12em] text-muted-foreground">
                             From
                           </p>
@@ -465,9 +466,9 @@ export function PackageGridPage({
                   </button>
                   <div className="px-4 pb-4">
                     <div>
-                      <div className="mb-2 flex items-center justify-between gap-3 text-[12px] font-extrabold text-[hsl(0_0%_30%)]">
+                      <div className="mb-2 flex items-center justify-between gap-3 text-[12px] font-extrabold text-charcoal">
                         <p>Includes</p>
-                        <span className="rounded-full bg-[hsl(41_55%_94%)] px-2 py-0.5 text-[10.5px] font-extrabold text-[hsl(38_52%_34%)]">
+                        <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10.5px] font-extrabold text-gold-text">
                           {pkg.isCustom
                             ? 'Custom menu selection'
                             : `${Math.max(included.length, visibleIncluded.length)} menu highlights`}
@@ -478,14 +479,10 @@ export function PackageGridPage({
                           {visibleIncluded.slice(0, 4).map((item) => (
                             <li
                               key={`${item.categoryId}-${item.id}`}
-                              className="flex min-w-0 items-center gap-2.5 text-[13px] leading-[1.25] text-[hsl(0_0%_26%)]"
+                              className="flex min-w-0 items-center gap-2.5 text-[13px] leading-[1.25] text-foreground/85"
                             >
                               <Check
-                                className={`h-[15px] w-[15px] shrink-0 ${
-                                  pkg.isCustom
-                                    ? 'text-emerald-600'
-                                    : 'text-primary'
-                                }`}
+                                className="h-[15px] w-[15px] shrink-0 text-primary"
                                 strokeWidth={2.6}
                               />
                               <span className="min-w-0 truncate">
@@ -511,10 +508,10 @@ export function PackageGridPage({
                           ].map((item) => (
                             <li
                               key={item}
-                              className="flex min-w-0 items-center gap-2.5 text-[13px] leading-[1.25] text-[hsl(0_0%_26%)]"
+                              className="flex min-w-0 items-center gap-2.5 text-[13px] leading-[1.25] text-foreground/85"
                             >
                               <Check
-                                className="h-[15px] w-[15px] shrink-0 text-emerald-600"
+                                className="h-[15px] w-[15px] shrink-0 text-primary"
                                 strokeWidth={2.6}
                               />
                               <span className="min-w-0 truncate">{item}</span>
@@ -534,7 +531,7 @@ export function PackageGridPage({
                                 key={`${item.categoryId}-${item.id}`}
                                 className="flex gap-2 text-sm"
                               >
-                                <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                                <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                                 <span>
                                   <strong>{item.name}</strong>
                                   <span className="text-xs text-muted-foreground">

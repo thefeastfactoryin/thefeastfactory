@@ -3,7 +3,14 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { CancellationActor, CartStatus, OrderStatus } from '@prisma/client';
+import {
+  CancellationActor,
+  CartStatus,
+  OrderStatus,
+  PackageMenuItemRole,
+  PackageType,
+  SelectedItemRole,
+} from '@prisma/client';
 import type {
   OperatingRegion,
   Order,
@@ -171,7 +178,60 @@ export class OrdersService {
       },
     });
     if (!order) throw new NotFoundException('Order not found');
-    return this.serializeOrder(order);
+    const serialized = this.serializeOrder(order);
+    if (!order.cartId) return serialized;
+    const cart = await this.prisma.cart.findUnique({
+      where: { id: order.cartId },
+      include: {
+        packageVersion: {
+          include: {
+            package: true,
+            packageMenuItems: {
+              where: {
+                role: PackageMenuItemRole.INCLUDED,
+                isAvailable: true,
+              },
+              include: { menuItem: true, category: true },
+              orderBy: [{ displayOrder: 'asc' }, { menuItem: { name: 'asc' } }],
+            },
+          },
+        },
+      },
+    });
+    if (cart?.packageVersion.package.type !== PackageType.FIXED_PACKAGE) {
+      return serialized;
+    }
+
+    const selectedItems = serialized.selectedItems ?? [];
+    const replacedIds = new Set(
+      order.selectedItems
+        ?.map((item) => item.replacedMenuItemId)
+        .filter((item): item is string => Boolean(item)) ?? [],
+    );
+    const includedItems = cart.packageVersion.packageMenuItems
+      .filter((row) => !replacedIds.has(row.menuItemId))
+      .map((row) => ({
+        id: `included:${row.id}`,
+        orderId: order.id,
+        categoryId: row.categoryId,
+        menuItemId: row.menuItemId,
+        replacedMenuItemId: null,
+        role: SelectedItemRole.INCLUDED,
+        quantity: 1,
+        menuItemName: row.menuItem.name,
+        categoryName: row.category.name,
+        replacedMenuItemName: null,
+        isVeg: row.menuItem.isVeg,
+        itemPrice: row.menuItem.generalPrice.toFixed(2),
+        includedValue: row.menuItem.generalPrice.toFixed(2),
+        adjustmentAmount: '0.00',
+        totalAdjustmentAmount: '0.00',
+        createdAt: order.createdAt,
+      }));
+    return {
+      ...serialized,
+      selectedItems: [...includedItems, ...selectedItems],
+    };
   }
 
   async cancel(userId: string, id: string, dto: CancelOrderDto) {

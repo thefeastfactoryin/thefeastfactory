@@ -323,6 +323,8 @@ export type OrderSelectedItem = {
   id: string;
   menuItemId: string;
   menuItemName: string;
+  replacedMenuItemId?: string | null;
+  replacedMenuItemName?: string | null;
   categoryName: string;
   role: SelectedItemRole;
   isVeg: boolean;
