@@ -62,10 +62,6 @@ function formatCurrency(value: number) {
   }).format(value);
 }
 
-function clampGuestCount(value: number) {
-  return Math.min(MAX_GUESTS, Math.max(MIN_GUESTS, value));
-}
-
 function roundSlotValue(value: number, digits = 4) {
   return Number(value.toFixed(digits));
 }
@@ -100,12 +96,16 @@ function VegDot({ veg }: { veg: boolean }) {
 function GuestStepper({
   guestCount,
   guestInput,
+  minGuestCount,
+  maxGuestCount,
   onStep,
   onInputChange,
   onInputBlur,
 }: {
   guestCount: number;
   guestInput: string;
+  minGuestCount: number;
+  maxGuestCount?: number | null;
   onStep: (delta: number) => void;
   onInputChange: (value: string) => void;
   onInputBlur: () => void;
@@ -120,14 +120,14 @@ function GuestStepper({
           Guests
         </label>
         <p className="mt-0.5 text-[11px] font-semibold leading-4 text-muted-foreground">
-          Min {MIN_GUESTS}
+          Min {minGuestCount}
         </p>
       </div>
       <div className="flex h-10 shrink-0 items-center overflow-hidden rounded-lg border border-border bg-[#fbf8f2] focus-within:ring-2 focus-within:ring-primary/20">
         <button
           type="button"
           aria-label="Decrease guest count"
-          disabled={guestCount <= MIN_GUESTS}
+          disabled={guestCount <= minGuestCount}
           onClick={() => onStep(-1)}
           className="grid h-10 w-10 shrink-0 place-items-center text-primary transition hover:bg-primary hover:text-white disabled:cursor-not-allowed disabled:text-muted-foreground/40 disabled:hover:bg-transparent"
         >
@@ -136,8 +136,6 @@ function GuestStepper({
         <input
           id="guest-count"
           inputMode="numeric"
-          min={MIN_GUESTS}
-          max={MAX_GUESTS}
           value={guestInput}
           onBlur={onInputBlur}
           onChange={(event) => onInputChange(event.target.value)}
@@ -146,7 +144,7 @@ function GuestStepper({
         <button
           type="button"
           aria-label="Increase guest count"
-          disabled={guestCount >= MAX_GUESTS}
+          disabled={Boolean(maxGuestCount && guestCount >= maxGuestCount)}
           onClick={() => onStep(1)}
           className="grid h-10 w-10 shrink-0 place-items-center text-primary transition hover:bg-primary hover:text-white disabled:cursor-not-allowed disabled:text-muted-foreground/40 disabled:hover:bg-transparent"
         >
@@ -724,7 +722,9 @@ function BuildPackageContent() {
   const estimatedSubtotal = subtotalPerPlate * guestCount;
 
   function setClampedGuestCount(value: number) {
-    const next = clampGuestCount(value);
+    const minimum = config?.minGuestCount ?? MIN_GUESTS;
+    const maximum = config?.maxGuestCount ?? MAX_GUESTS;
+    const next = Math.min(maximum, Math.max(minimum, value));
     setGuestCount(next);
     setStoredGuestCount(next);
     setGuestInput(String(next));
@@ -733,10 +733,6 @@ function BuildPackageContent() {
   function handleGuestInput(value: string) {
     const digits = value.replace(/\D/g, '');
     setGuestInput(digits);
-    if (!digits) return;
-    const next = clampGuestCount(Number(digits));
-    setGuestCount(next);
-    setStoredGuestCount(next);
   }
 
   function handleGuestBlur() {
@@ -858,6 +854,8 @@ function BuildPackageContent() {
           <GuestStepper
             guestCount={guestCount}
             guestInput={guestInput}
+            minGuestCount={config?.minGuestCount ?? MIN_GUESTS}
+            maxGuestCount={config?.maxGuestCount}
             onInputBlur={handleGuestBlur}
             onInputChange={handleGuestInput}
             onStep={(delta) => setClampedGuestCount(guestCount + delta)}

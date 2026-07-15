@@ -44,15 +44,15 @@ function buildDeliveryTimeSlots(
   const interval = Math.max(1, intervalMinutes);
   const count = Math.max(0, Math.floor((end - start) / interval) + 1);
   return Array.from({ length: count }, (_, index) => {
-  const totalMinutes = start + index * interval;
-  const hour = Math.floor(totalMinutes / 60);
-  const minute = totalMinutes % 60;
-  const period = hour >= 12 ? 'PM' : 'AM';
-  const displayHour = hour % 12 || 12;
-  return {
-    value: `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
-    label: `${displayHour}:${String(minute).padStart(2, '0')} ${period}`,
-  };
+    const totalMinutes = start + index * interval;
+    const hour = Math.floor(totalMinutes / 60);
+    const minute = totalMinutes % 60;
+    const period = hour >= 12 ? 'PM' : 'AM';
+    const displayHour = hour % 12 || 12;
+    return {
+      value: `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
+      label: `${displayHour}:${String(minute).padStart(2, '0')} ${period}`,
+    };
   });
 }
 
@@ -392,7 +392,23 @@ export function SelectionContextPanel({
   );
   const [saving, setSaving] = useState(false);
   const [expanded, setExpanded] = useState(!sidebar);
+  const [guestInput, setGuestInput] = useState(String(guestCount));
   const hydrated = useRef(false);
+
+  useEffect(() => setGuestInput(String(guestCount)), [guestCount]);
+
+  function commitGuestCount(value: string) {
+    const parsed = Number(value);
+    const next = Math.min(
+      Math.max(
+        Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed) : minPax,
+        minPax,
+      ),
+      maxPax ?? Number.MAX_SAFE_INTEGER,
+    );
+    setGuestCount(next);
+    setGuestInput(String(next));
+  }
 
   useEffect(() => {
     setSelectedAddress(
@@ -583,7 +599,7 @@ export function SelectionContextPanel({
             <button
               type="button"
               aria-label={`Decrease ${guestLabel.toLowerCase()}`}
-              onClick={() => setGuestCount(Math.max(minPax, guestCount - 1))}
+              onClick={() => commitGuestCount(String(guestCount - 1))}
               disabled={guestCount <= minPax}
               className="grid h-9 w-9 place-items-center rounded-lg text-primary transition hover:bg-primary/5 disabled:opacity-35"
             >
@@ -593,11 +609,12 @@ export function SelectionContextPanel({
               <Users className="h-4 w-4 text-primary" />
               <span className="sr-only">{guestLabel}</span>
               <input
-                type="number"
-                min={minPax}
-                max={maxPax ?? undefined}
-                value={guestCount}
-                onChange={(event) => setGuestCount(Number(event.target.value))}
+                inputMode="numeric"
+                value={guestInput}
+                onChange={(event) =>
+                  setGuestInput(event.target.value.replace(/\D/g, ''))
+                }
+                onBlur={() => commitGuestCount(guestInput)}
                 className="w-16 bg-transparent text-center font-serif text-xl font-semibold outline-none"
                 required
               />
@@ -605,11 +622,7 @@ export function SelectionContextPanel({
             <button
               type="button"
               aria-label={`Increase ${guestLabel.toLowerCase()}`}
-              onClick={() =>
-                setGuestCount(
-                  maxPax ? Math.min(maxPax, guestCount + 1) : guestCount + 1,
-                )
-              }
+              onClick={() => commitGuestCount(String(guestCount + 1))}
               disabled={Boolean(maxPax && guestCount >= maxPax)}
               className="grid h-9 w-9 place-items-center rounded-lg text-primary transition hover:bg-primary/5 disabled:opacity-35"
             >

@@ -597,7 +597,6 @@ function MenuSelectContent() {
                       onChange={(event) => {
                         const digits = event.target.value.replace(/\D/g, '');
                         setBoxCountInput(digits);
-                        if (digits) updateBoxCount(Number(digits));
                       }}
                       onBlur={() => updateBoxCount(Number(boxCountInput))}
                       className="h-10 w-14 border-x text-center text-sm font-bold outline-none"
