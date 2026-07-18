@@ -126,6 +126,61 @@ function parseAddress(
   };
 }
 
+function placeComponentValue(
+  components: google.maps.places.AddressComponent[],
+  ...types: string[]
+) {
+  return (
+    components.find((component) =>
+      types.some((type) => component.types.includes(type)),
+    )?.longText ?? ''
+  );
+}
+
+function parsePlaceAddress(
+  place: google.maps.places.Place,
+  position: google.maps.LatLngLiteral,
+): MapAddress {
+  const components = place.addressComponents ?? [];
+  const streetNumber = placeComponentValue(components, 'street_number');
+  const route = placeComponentValue(components, 'route');
+  const premise = placeComponentValue(components, 'premise');
+  const subpremise = placeComponentValue(components, 'subpremise');
+  const locality = placeComponentValue(
+    components,
+    'sublocality_level_1',
+    'sublocality',
+    'neighborhood',
+  );
+  const displayName = place.displayName?.trim() ?? '';
+  const formattedAddress = place.formattedAddress?.trim() ?? '';
+
+  return {
+    addressLine1:
+      [subpremise, premise, streetNumber, route].filter(Boolean).join(', ') ||
+      displayName ||
+      formattedAddress.split(',')[0] ||
+      '',
+    addressLine2: locality,
+    city: placeComponentValue(
+      components,
+      'locality',
+      'postal_town',
+      'administrative_area_level_2',
+    ),
+    state: placeComponentValue(components, 'administrative_area_level_1'),
+    pincode: placeComponentValue(components, 'postal_code'),
+    landmark:
+      displayName &&
+      displayName !== premise &&
+      !formattedAddress.startsWith(displayName)
+        ? displayName
+        : '',
+    latitude: position.lat.toFixed(8),
+    longitude: position.lng.toFixed(8),
+  };
+}
+
 export function AddressMapPicker({
   onAddress,
 }: {
@@ -234,11 +289,34 @@ export function AddressMapPicker({
           setMessage('Loading the selected place…');
           try {
             const place = event.placePrediction.toPlace();
-            await place.fetchFields({ fields: ['location'] });
+            await place.fetchFields({
+              fields: [
+                'addressComponents',
+                'displayName',
+                'formattedAddress',
+                'location',
+                'viewport',
+              ],
+            });
             const location = place.location;
             if (!location) throw new Error('Selected place has no location');
-            await selectPosition({ lat: location.lat(), lng: location.lng() });
-          } catch {
+            const position = { lat: location.lat(), lng: location.lng() };
+            marker.current?.setPosition(position);
+            if (place.viewport) map.current?.fitBounds(place.viewport);
+            else {
+              map.current?.panTo(position);
+              map.current?.setZoom(17);
+            }
+            const address = parsePlaceAddress(place, position);
+            onAddress(address);
+            setStatus('ready');
+            setMessage(
+              address.pincode
+                ? 'Location selected. Review the address below.'
+                : 'Location selected, but the pincode needs to be entered manually.',
+            );
+          } catch (reason) {
+            console.error('[AddressMapPicker] Place selection failed', reason);
             setStatus('error');
             setMessage(
               'We could not load that place. Try another result or choose a point on the map.',
@@ -345,7 +423,7 @@ export function AddressMapPicker({
   return (
     <div className="address-map-picker rounded-2xl border border-border bg-[hsl(var(--ivory))] p-3 shadow-sm sm:p-4">
       <div className="flex flex-col gap-3 sm:flex-row">
-        <div className="map-search-shell flex min-h-12 min-w-0 flex-1 items-center overflow-hidden rounded-xl border border-border bg-white shadow-sm transition focus-within:border-primary/50 focus-within:ring-4 focus-within:ring-primary/10">
+        <div className="map-search-shell relative z-20 flex min-h-12 min-w-0 flex-1 items-center overflow-visible rounded-xl border border-border bg-white shadow-sm transition focus-within:border-primary/50 focus-within:ring-4 focus-within:ring-primary/10">
           <span className="flex h-12 w-12 shrink-0 items-center justify-center border-r border-border bg-muted/40 text-primary">
             <Search className="h-4 w-4" />
           </span>
