@@ -320,7 +320,7 @@ export function PackageGridPage({
           </div>
           <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-[15px]">
               {isMealBox
-                ? 'Explore neatly packed meal boxes with clear portions, reliable delivery, and menu choices for groups.'
+                ? 'Simple, well-balanced meals designed for groups'
               : 'Explore curated packages for poojas, birthdays, corporate meals, house gatherings, and large events.'}
           </p>
         </div>
@@ -458,7 +458,7 @@ export function PackageGridPage({
                           <p className="text-[10.5px] font-extrabold uppercase tracking-[0.12em] text-muted-foreground">
                             From
                           </p>
-                          <strong className="mt-0.5 block text-[18px] font-bold leading-none text-primary [font-family:var(--font-package-heading),serif]">
+                          <strong className="mt-0.5 block text-[18px] font-bold leading-none text-primary [font-family:Manrope,serif]">
                             &#8377;{version.basePricePerPlate}
                           </strong>
                           <p className="mt-0.5 text-[10.5px] font-semibold text-muted-foreground">
