@@ -21,6 +21,7 @@ import { DataImage } from '../../components/data-image';
 import { useOrderBuilderStore } from '../../store/order-builder.store';
 import { useSessionStore } from '../../store/session.store';
 import { apiRequest } from '../../lib/api';
+import { generateWhatsAppLink, whatsappMessages } from '../../lib/generate-whatsapp-link';
 import { cn } from '../../lib/utils';
 
 type DietaryFilter = 'all' | 'veg' | 'non-veg';
@@ -581,6 +582,16 @@ export default function PublicMenuPage() {
                     </div>
                   </section>
                 ))}
+                <div className="flex justify-center border-t border-border pt-8">
+                  <a
+                    href={generateWhatsAppLink(whatsappMessages.recommendation)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex h-11 items-center justify-center rounded-full border border-primary/35 px-5 text-sm font-bold text-primary transition-colors hover:bg-primary/5"
+                  >
+                    Confused? Get help on WhatsApp
+                  </a>
+                </div>
               </div>
             )}
 

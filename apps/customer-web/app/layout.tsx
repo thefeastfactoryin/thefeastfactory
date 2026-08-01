@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import {
+  Cormorant_Garamond,
   Inter,
   Nunito_Sans,
   Playfair_Display,
@@ -13,6 +14,12 @@ const inter = Inter({
   subsets: ['latin'],
   variable: '--font-sans',
   weight: ['400', '500', '600', '700'],
+});
+
+const cormorantGaramond = Cormorant_Garamond({
+  subsets: ['latin'],
+  variable: '--font-home-display',
+  weight: ['600'],
 });
 
 const playfair = Playfair_Display({
@@ -46,7 +53,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${inter.variable} ${playfair.variable} ${nunitoSans.variable} ${zillaSlab.variable} font-sans antialiased`}
+        className={`${inter.variable} ${cormorantGaramond.variable} ${playfair.variable} ${nunitoSans.variable} ${zillaSlab.variable} font-sans antialiased`}
       >
         <PublicSettingsProvider>
           <CustomerShell>{children}</CustomerShell>

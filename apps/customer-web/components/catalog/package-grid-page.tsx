@@ -94,8 +94,8 @@ export function PackageGridPage({
   }, [type]);
 
   const shown = useMemo(
-    () =>
-      packages.filter((pkg) => {
+    () => {
+      const visible = packages.filter((pkg) => {
         if (type !== 'MEAL_BOX' || diet === 'all') return true;
         const included =
           configs[pkg.id]?.categoryRules.flatMap((rule) =>
@@ -106,7 +106,31 @@ export function PackageGridPage({
         return diet === 'veg'
           ? included.every((item) => item.isVeg)
           : included.some((item) => !item.isVeg);
-      }),
+      });
+
+      if (type !== 'MEAL_BOX' || diet !== 'all') return visible;
+
+      return visible.sort((first, second) => {
+        const firstIncluded =
+          configs[first.id]?.categoryRules.flatMap((rule) =>
+            rule.items.filter(
+              (item) => item.role === 'INCLUDED' && !item.swapForMenuItemId,
+            ),
+          ) ?? [];
+        const secondIncluded =
+          configs[second.id]?.categoryRules.flatMap((rule) =>
+            rule.items.filter(
+              (item) => item.role === 'INCLUDED' && !item.swapForMenuItemId,
+            ),
+          ) ?? [];
+        const firstIsVeg =
+          firstIncluded.length > 0 && firstIncluded.every((item) => item.isVeg);
+        const secondIsVeg =
+          secondIncluded.length > 0 && secondIncluded.every((item) => item.isVeg);
+
+        return Number(secondIsVeg) - Number(firstIsVeg);
+      });
+    },
     [packages, configs, diet, type],
   );
   const detailsId = searchParams.get('details');
@@ -295,8 +319,8 @@ export function PackageGridPage({
             <span className="h-px w-8 rounded-full bg-accent/45" />
           </div>
           <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-[15px]">
-            {isMealBox
-              ? 'Explore neatly packed meal boxes with clear portions, reliable delivery, and menu choices for groups.'
+              {isMealBox
+                ? 'Explore neatly packed meal boxes with clear portions, reliable delivery, and menu choices for groups.'
               : 'Explore curated packages for poojas, birthdays, corporate meals, house gatherings, and large events.'}
           </p>
         </div>
@@ -345,7 +369,7 @@ export function PackageGridPage({
           </div>
         ) : (
           <div
-            className={`grid items-start gap-4 sm:grid-cols-2 ${
+            className={`grid items-stretch gap-4 sm:grid-cols-2 ${
               isMealBox ? 'xl:grid-cols-3' : 'lg:grid-cols-4'
             }`}
           >
@@ -377,11 +401,22 @@ export function PackageGridPage({
                 included.length > 0 && included.every((item) => item.isVeg);
               const visibleIncluded = included.slice(0, 6);
               const remainingIncluded = included.slice(6);
+              const categoryHighlights = (config?.categoryRules ?? []).flatMap(
+                (rule) => {
+                  const count = rule.items.filter(
+                    (item) =>
+                      item.role === 'INCLUDED' && !item.swapForMenuItemId,
+                  ).length;
+                  return count
+                    ? [{ categoryName: rule.category.name, count }]
+                    : [];
+                },
+              );
               return (
                 <article
                   key={pkg.id}
                   data-testid={`package-card-${pkg.id}`}
-                  className="group flex min-w-0 flex-col overflow-hidden rounded-[18px] border border-border bg-card shadow-card transition-all duration-250 ease-premium hover:-translate-y-0.5 hover:border-accent/45 hover:shadow-card-hover"
+                  className="group flex h-full min-w-0 flex-col overflow-hidden rounded-[18px] border border-border bg-card shadow-card transition-all duration-250 ease-premium hover:-translate-y-0.5 hover:border-accent/45 hover:shadow-card-hover"
                 >
                   <button
                     type="button"
@@ -464,17 +499,33 @@ export function PackageGridPage({
                       </span>
                     </div>
                   </button>
-                  <div className="px-4 pb-4">
+                  <div className="mt-auto px-4 pb-4">
                     <div>
                       <div className="mb-2 flex items-center justify-between gap-3 text-[12px] font-extrabold text-charcoal">
-                        <p>Includes</p>
+                        <p>Highlights</p>
                         <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10.5px] font-extrabold text-gold-text">
                           {pkg.isCustom
                             ? 'Custom menu selection'
-                            : `${Math.max(included.length, visibleIncluded.length)} menu highlights`}
+                              : `${Math.max(included.length, visibleIncluded.length)} menu highlights`}
                         </span>
                       </div>
-                      {visibleIncluded.length ? (
+                      {categoryHighlights.length ? (
+                        <div className="mb-4 flex flex-wrap gap-2">
+                          {categoryHighlights.map(({ categoryName, count }) => (
+                            <span
+                              key={categoryName}
+                              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-ivory px-2.5 py-1 text-[11px] font-semibold leading-4 text-foreground/85"
+                            >
+                              <Check
+                                className="h-3 w-3 shrink-0 text-primary"
+                                strokeWidth={2.4}
+                                aria-hidden="true"
+                              />
+                              {count} {categoryName}
+                            </span>
+                          ))}
+                        </div>
+                      ) : visibleIncluded.length ? (
                         <ul className="mb-4 space-y-1.5">
                           {visibleIncluded.slice(0, 4).map((item) => (
                             <li
@@ -519,7 +570,9 @@ export function PackageGridPage({
                           ))}
                         </ul>
                       )}
-                      {isMealBox && remainingIncluded.length > 0 && (
+                      {isMealBox &&
+                        categoryHighlights.length === 0 &&
+                        remainingIncluded.length > 0 && (
                         <details className="mt-3 border-t pt-3">
                           <summary className="cursor-pointer text-sm font-bold text-primary">
                             View {remainingIncluded.length} more included item
@@ -591,7 +644,9 @@ export function PackageGridPage({
                         ? 'Selecting...'
                         : pkg.type === 'CUSTOM_PACKAGE'
                           ? 'Build menu'
-                          : 'Select package'}
+                          : pkg.type === 'MEAL_BOX'
+                            ? 'Select Meal Box'
+                            : 'Select Package'}
                       <ArrowRight className="h-4 w-4" />
                     </button>
                   </div>

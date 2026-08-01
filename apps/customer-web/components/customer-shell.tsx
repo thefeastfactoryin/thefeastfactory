@@ -10,6 +10,7 @@ import {
   User,
 } from 'lucide-react';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import type { CartSummary } from '@aranyam/shared-types';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -49,6 +50,11 @@ const mobileLinks = [
   { href: '/packages', label: 'Packages', icon: Package },
 ];
 
+const WhatsAppConcierge = dynamic(
+  () => import('./WhatsAppConcierge').then((module) => module.WhatsAppConcierge),
+  { ssr: false },
+);
+
 export function CustomerShell({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
@@ -58,6 +64,7 @@ export function CustomerShell({
   const cartPackage = useOrderBuilderStore((s) => s.package);
   const hydrateFromCart = useOrderBuilderStore((s) => s.hydrateFromCart);
   const [mounted, setMounted] = useState(false);
+  const [conciergeReady, setConciergeReady] = useState(false);
   const [storesHydrated, setStoresHydrated] = useState(false);
   const [serverCartConflict, setServerCartConflict] = useState<CartSummary>();
   const [resolvingConflict, setResolvingConflict] = useState(false);
@@ -69,6 +76,10 @@ export function CustomerShell({
       useSessionStore.persist.rehydrate(),
       useOrderBuilderStore.persist.rehydrate(),
     ]).finally(() => setStoresHydrated(true));
+  }, []);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setConciergeReady(true), 0);
+    return () => window.clearTimeout(timer);
   }, []);
   useEffect(() => {
     if (!storesHydrated || !session) return;
@@ -176,9 +187,9 @@ export function CustomerShell({
               <span className="block font-serif text-[18px] font-semibold leading-none tracking-[-0.01em] text-primary">
                 The Feast Factory
               </span>
-              <span className="mt-1 block text-[9.5px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+              {/* <span className="mt-1 block text-[9.5px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
                 Curated food experiences
-              </span>
+              </span> */}
             </span>
           </Link>
 
@@ -259,6 +270,7 @@ export function CustomerShell({
       {children}
 
       <Footer />
+      {conciergeReady && <WhatsAppConcierge />}
 
       {/* ─── Mobile bottom nav ─── */}
       <nav

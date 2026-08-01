@@ -63,7 +63,7 @@ function MenuSelectContent() {
   const setPackage = useOrderBuilderStore((state) => state.setPackage);
   const setDbCartId = useOrderBuilderStore((state) => state.setDbCartId);
   const toggleItem = useOrderBuilderStore((state) => state.toggleItem);
-  const toggleSwap = useOrderBuilderStore((state) => state.toggleSwap);
+  const setSwap = useOrderBuilderStore((state) => state.setSwap);
   const updateItemQuantity = useOrderBuilderStore(
     (state) => state.updateItemQuantity,
   );
@@ -295,12 +295,11 @@ function MenuSelectContent() {
     if (!pendingSwapId || pendingSwapId === row.item.id) {
       removeSwap(row.item.id);
     } else {
-      const current = currentSwaps.get(row.item.id);
       const alternative = alternativesFor(row.rule, row.item).find(
         (item) => item.id === pendingSwapId,
       );
-      if (alternative && current?.menuItemId !== alternative.id) {
-        toggleSwap({
+      if (alternative) {
+        setSwap({
           categoryId: row.rule.category.id,
           categoryName: row.rule.category.name,
           menuItemId: alternative.id,
@@ -579,49 +578,43 @@ function MenuSelectContent() {
                 <h1 className="min-w-0 flex-1 font-serif text-[25px] font-semibold leading-[1.08] tracking-tight text-charcoal sm:text-[34px]">
                   {config.packageName}
                 </h1>
-                {isMealBox ? (
-                  <div className="numeric-text inline-flex h-10 shrink-0 items-center overflow-hidden rounded-lg border border-border bg-white">
-                    <button
-                      type="button"
-                      aria-label="Decrease meal-box count"
-                      disabled={guestCount <= (config.minGuestCount ?? 1)}
-                      onClick={() => updateBoxCount(guestCount - 1)}
-                      className="grid h-10 w-10 place-items-center text-primary disabled:text-muted-foreground/40"
-                    >
-                      <Minus className="h-4 w-4" />
-                    </button>
-                    <input
-                      aria-label="Meal-box count"
-                      inputMode="numeric"
-                      value={boxCountInput}
-                      onChange={(event) => {
-                        const digits = event.target.value.replace(/\D/g, '');
-                        setBoxCountInput(digits);
-                      }}
-                      onBlur={() => updateBoxCount(Number(boxCountInput))}
-                      className="h-10 w-14 border-x text-center text-sm font-bold outline-none"
-                    />
-                    <button
-                      type="button"
-                      aria-label="Increase meal-box count"
-                      disabled={Boolean(
-                        config.maxGuestCount &&
-                        guestCount >= config.maxGuestCount,
-                      )}
-                      onClick={() => updateBoxCount(guestCount + 1)}
-                      className="grid h-10 w-10 place-items-center text-primary disabled:text-muted-foreground/40"
-                    >
-                      <Plus className="h-4 w-4" />
-                    </button>
-                    <span className="px-3 text-xs font-semibold text-muted-foreground">
-                      boxes
-                    </span>
-                  </div>
-                ) : (
-                  <span className="numeric-text shrink-0 rounded-full bg-accent/[0.12] px-3 py-1.5 text-xs font-bold text-gold-text">
-                    {guestCount} guests
+                <div className="numeric-text inline-flex h-10 shrink-0 items-center overflow-hidden rounded-lg border border-border bg-white">
+                  <button
+                    type="button"
+                    aria-label={`Decrease ${isMealBox ? 'meal-box' : 'guest'} count`}
+                    disabled={guestCount <= (config.minGuestCount ?? 1)}
+                    onClick={() => updateBoxCount(guestCount - 1)}
+                    className="grid h-10 w-10 place-items-center text-primary disabled:text-muted-foreground/40"
+                  >
+                    <Minus className="h-4 w-4" />
+                  </button>
+                  <input
+                    aria-label={isMealBox ? 'Meal-box count' : 'Guest count'}
+                    inputMode="numeric"
+                    value={boxCountInput}
+                    onChange={(event) => {
+                      const digits = event.target.value.replace(/\D/g, '');
+                      setBoxCountInput(digits);
+                    }}
+                    onBlur={() => updateBoxCount(Number(boxCountInput))}
+                    className="h-10 w-14 border-x text-center text-sm font-bold outline-none"
+                  />
+                  <button
+                    type="button"
+                    aria-label={`Increase ${isMealBox ? 'meal-box' : 'guest'} count`}
+                    disabled={Boolean(
+                      config.maxGuestCount &&
+                      guestCount >= config.maxGuestCount,
+                    )}
+                    onClick={() => updateBoxCount(guestCount + 1)}
+                    className="grid h-10 w-10 place-items-center text-primary disabled:text-muted-foreground/40"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                  <span className="px-3 text-xs font-semibold text-muted-foreground">
+                    {isMealBox ? 'boxes' : 'guests'}
                   </span>
-                )}
+                </div>
               </div>
               <p className="mt-2 max-w-2xl text-sm leading-5 text-muted-foreground">
                 {isMealBox
@@ -875,8 +868,6 @@ function MenuSelectContent() {
         <SwapDrawer
           row={activeSwapRow}
           alternatives={alternativesFor(activeSwapRow.rule, activeSwapRow.item)}
-          currentSwap={currentSwaps.get(activeSwapRow.item.id)}
-          itemById={itemById}
           pendingSwapId={pendingSwapId}
           setPendingSwapId={setPendingSwapId}
           onCancel={closeSwap}
@@ -1336,8 +1327,6 @@ function DishRow({
 function SwapDrawer({
   row,
   alternatives,
-  currentSwap,
-  itemById,
   pendingSwapId,
   setPendingSwapId,
   onCancel,
@@ -1345,17 +1334,12 @@ function SwapDrawer({
 }: {
   row: MenuRow;
   alternatives: MenuSelectionItem[];
-  currentSwap?: SelectedItem;
-  itemById: Map<string, MenuSelectionItem>;
   pendingSwapId?: string;
   setPendingSwapId: (id: string) => void;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
   const original = row.item;
-  const currentItem = currentSwap
-    ? (itemById.get(currentSwap.menuItemId) ?? original)
-    : original;
   const selected =
     alternatives.find((item) => item.id === pendingSwapId) ?? original;
   return (
@@ -1386,19 +1370,19 @@ function SwapDrawer({
           </div>
           <div className="mt-4 rounded-xl border border-border/80 bg-[#fffdf8] p-3">
             <p className="text-xs font-semibold text-muted-foreground">
-              Current item
+              Selected item
             </p>
             <div className="mt-2 flex items-center gap-3">
               <span className="h-14 w-16 overflow-hidden rounded-lg bg-muted">
                 <DataImage
-                  src={currentItem.imageUrl}
+                  src={selected.imageUrl}
                   alt=""
                   className="h-full w-full object-cover"
                 />
               </span>
               <span className="min-w-0">
                 <strong className="block truncate text-sm text-charcoal">
-                  {currentItem.name}
+                  {selected.name}
                 </strong>
                 <span className="mt-1 block text-xs text-muted-foreground">
                   {row.rule.category.name} constraint preserved

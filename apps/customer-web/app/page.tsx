@@ -23,6 +23,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { catalogCopy, offeringDisplay } from '../lib/catalog-display';
 import { apiRequest } from '../lib/api';
+import { generateWhatsAppLink } from '../lib/generate-whatsapp-link';
 import { DataImage } from '../components/data-image';
 import {
   PackageChangeDialog,
@@ -59,6 +60,11 @@ const offeringIcons: Record<string, LucideIcon> = {
   MEAL_BOX: PackageIcon,
   PACKAGES: CalendarDays,
   CUSTOM_MENU: ChefHat,
+};
+const offeringFallbackImages: Record<string, string> = {
+  MEAL_BOX: '/ordering-meal-box-v2.png',
+  PACKAGES: '/farmhouse-hero.png',
+  CUSTOM_MENU: '/packages-hero-plated.png',
 };
 export default function HomePage() {
   const publicSettings = usePublicSettings();
@@ -190,20 +196,20 @@ export default function HomePage() {
                 Freshly prepared, beautifully presented and delivered on time.
               </p>
 
-              <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                <Link
-                  href="/packages"
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-white px-6 text-sm font-bold text-primary shadow-[0_9px_22px_rgba(0,0,0,0.16)] transition-all duration-250 ease-premium hover:-translate-y-0.5 hover:bg-white/90 hover:shadow-[0_13px_28px_rgba(0,0,0,0.18)]"
-                >
-                  View packages <ArrowRight className="h-4 w-4" />
-                </Link>
-                <Link
-                  href="/menu"
-                  className="inline-flex h-11 items-center justify-center rounded-full border border-accent/30 bg-primary/15 px-6 text-sm font-bold text-white transition-all duration-250 ease-premium hover:-translate-y-0.5 hover:bg-white/10"
-                >
-                  Browse menu
-                </Link>
-              </div>
+              <Link
+                href="#ordering-styles"
+                className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-full bg-white px-6 text-sm font-bold text-primary shadow-[0_9px_22px_rgba(0,0,0,0.16)] transition-all duration-250 ease-premium hover:-translate-y-0.5 hover:bg-white/90 hover:shadow-[0_13px_28px_rgba(0,0,0,0.18)]"
+              >
+                Choose ordering style <ArrowRight className="h-4 w-4" />
+              </Link>
+              <a
+                href={generateWhatsAppLink()}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-3 inline-flex h-10 items-center justify-center rounded-full border border-white/40 px-5 text-sm font-bold text-white transition-colors hover:bg-white/10"
+              >
+                Plan your event with us
+              </a>
 
               <div
                 className="mt-4 grid grid-cols-1 gap-2 sm:w-max lg:grid-cols-[repeat(3,max-content)]"
@@ -292,46 +298,46 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="container-pad py-10 lg:py-12">
-        <div className="mx-auto mb-7 max-w-2xl text-center">
-          <p className="eyebrow">How you order</p>
-          <h2 className="mt-2 font-serif text-2xl font-bold tracking-tight sm:text-[1.8rem]">
+      <section id="ordering-styles" className="container-pad py-10 lg:py-12">
+        <div className="mx-auto mb-8 max-w-2xl text-center">
+          <p className="eyebrow font-semibold">How you order</p>
+          <h2 className="mt-2 font-[family-name:var(--font-home-display)] text-3xl font-semibold leading-10 tracking-tight sm:text-4xl">
             Choose the ordering style that fits your event
           </h2>
         </div>
-        <div className="grid gap-4 lg:grid-cols-3">
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {offerings.map((offering) => {
             const display = offeringDisplay[offering.code];
             const Icon = offeringIcons[offering.code] ?? PackageIcon;
+            const imageSrc =
+              offering.imageUrl ?? offeringFallbackImages[offering.code]!;
             return (
               <Link
                 key={offering.id}
                 href={display.href}
-                className="group grid min-h-[200px] overflow-hidden rounded-2xl border border-border/80 bg-card shadow-[0_2px_14px_rgba(0,0,0,0.045)] transition-all duration-250 ease-premium hover:-translate-y-1 hover:border-primary/25 hover:shadow-card-hover sm:grid-cols-[1fr_38%] lg:grid-cols-[1fr_34%]"
+                className="group flex h-[340px] flex-col overflow-hidden rounded-xl border border-border bg-card shadow-card transition-all duration-300 ease-premium hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-card-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
               >
-                <div className="flex flex-col justify-between p-5">
-                  <div>
-                    <span className="grid h-9 w-9 place-items-center rounded-xl bg-primary/10 text-primary">
-                      <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
-                    </span>
-                    <h3 className="mt-4 font-serif text-xl font-bold leading-tight">
-                      {offering.title}
-                    </h3>
-                    <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                      {offering.description}
-                    </p>
-                  </div>
-                  <span className="mt-4 inline-flex items-center gap-1.5 text-sm font-bold text-primary">
-                    {offering.ctaLabel || 'Explore'}
-                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-                  </span>
-                </div>
-                <div className="relative min-h-44 overflow-hidden sm:min-h-full">
-                  <DataImage
-                    src={offering.imageUrl}
-                    alt={offering.title}
-                    className="h-full w-full object-cover transition duration-500 ease-premium group-hover:scale-105"
+                <div className="relative h-40 shrink-0 overflow-hidden bg-muted">
+                  <img
+                    src={imageSrc}
+                    alt={`${offering.title} catering presentation`}
+                    className="h-full w-full object-cover transition-transform duration-500 ease-premium group-hover:scale-[1.035] motion-reduce:transition-none"
                   />
+                </div>
+                <div className="relative flex min-h-0 flex-1 flex-col px-6 pb-5 pt-7">
+                  <span className="absolute -top-5 left-6 grid h-10 w-10 place-items-center rounded-lg border border-border bg-ivory text-primary shadow-sm">
+                    <Icon className="h-5 w-5" aria-hidden="true" />
+                  </span>
+                  <h3 className="font-[family-name:var(--font-home-display)] text-[36px] font-semibold leading-10 tracking-tight text-foreground">
+                    {offering.title}
+                  </h3>
+                  <p className="mt-1 line-clamp-2 text-base leading-6 text-muted-foreground">
+                    {offering.description}
+                  </p>
+                  <span className="mt-auto inline-flex items-center gap-2 text-[15px] font-semibold text-primary">
+                    {offering.ctaLabel || 'Explore'}
+                    <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1 motion-reduce:transition-none" />
+                  </span>
                 </div>
               </Link>
             );

@@ -56,6 +56,7 @@ type OrderBuilderState = {
   setGuestCount: (guestCount: number) => void;
   toggleItem: (item: SelectedItem, maxSelections: number) => boolean;
   toggleSwap: (item: SelectedItem) => boolean;
+  setSwap: (item: SelectedItem) => boolean;
   updateItemQuantity: (menuItemId: string, quantity: number) => void;
   removeItem: (menuItemId: string) => void;
   removeSwap: (replacedMenuItemId: string) => void;
@@ -182,6 +183,19 @@ export const useOrderBuilderStore = create<OrderBuilderState>()(
             item,
           ],
         });
+        return true;
+      },
+      setSwap: (item) => {
+        if (!item.replacedMenuItemId) return false;
+        set((state) => ({
+          selectedItems: [
+            ...state.selectedItems.filter(
+              (selected) =>
+                selected.replacedMenuItemId !== item.replacedMenuItemId,
+            ),
+            item,
+          ],
+        }));
         return true;
       },
       updateItemQuantity: (menuItemId, quantity) =>
