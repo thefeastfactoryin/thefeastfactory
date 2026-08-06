@@ -288,10 +288,6 @@ function DishCatalogue({
                     </h3>
                   </div>
                   <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <span className="text-xs font-semibold text-muted-foreground">
-                      {dish.categoryName}
-                    </span>
-                    <span className="h-1 w-1 rounded-full bg-border" />
                     <span className="text-[13px] font-extrabold text-foreground">
                       {formatCurrency(dish.price)} / plate
                     </span>

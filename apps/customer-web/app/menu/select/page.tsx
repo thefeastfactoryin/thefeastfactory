@@ -1114,38 +1114,14 @@ function MenuSections({
   openSwap: (row: MenuRow) => void;
   openDetails: (detail: DetailItem) => void;
 }) {
-  const grouped = useMemo(
-    () =>
-      rows.reduce<Array<{ rule: CategoryRule; rows: MenuRow[] }>>(
-        (groups, row) => {
-          const existing = groups.find(
-            (group) => group.rule.id === row.rule.id,
-          );
-          if (existing) existing.rows.push(row);
-          else groups.push({ rule: row.rule, rows: [row] });
-          return groups;
-        },
-        [],
-      ),
-    [rows],
-  );
-  const [openCategoryIds, setOpenCategoryIds] = useState<string[]>([]);
   const [swappableOnly, setSwappableOnly] = useState(false);
-
-  useEffect(() => {
-    setOpenCategoryIds((current) => {
-      const available = new Set(grouped.map((group) => group.rule.id));
-      const kept = current.filter((id) => available.has(id)).slice(0, 2);
-      if (kept.length > 0) return kept;
-      return grouped[0] ? [grouped[0].rule.id] : [];
-    });
-  }, [grouped]);
-
-  function toggleCategory(id: string) {
-    setOpenCategoryIds((current) =>
-      current.includes(id) ? current.filter((item) => item !== id) : [id],
-    );
-  }
+  const visibleRows = swappableOnly
+    ? rows.filter(
+        (row) =>
+          Boolean(row.item.isSwappable) &&
+          alternativesFor(row.rule, row.item).length > 0,
+      )
+    : rows;
 
   return (
     <div className="mt-4 space-y-3">
@@ -1172,78 +1148,37 @@ function MenuSections({
           </button>
         </label>
       </div>
-      {grouped.map((group) => {
-        const visibleRows = swappableOnly
-          ? group.rows.filter(
-              (row) =>
-                Boolean(row.item.isSwappable) &&
-                alternativesFor(row.rule, row.item).length > 0,
-            )
-          : group.rows;
-        const open = openCategoryIds.includes(group.rule.id);
-        if (swappableOnly && visibleRows.length === 0) return null;
-        return (
-          <section
-            key={group.rule.id}
-            className="overflow-hidden rounded-lg border border-border/80 bg-white shadow-sm"
-          >
-            <button
-              type="button"
-              onClick={() => toggleCategory(group.rule.id)}
-              className="flex min-h-14 w-full items-center justify-between gap-3 border-b border-border/80 bg-white px-4 text-left transition hover:bg-ivory/50"
-              aria-expanded={open}
-            >
-              <div className="flex items-center gap-3">
-                <span className="grid h-8 w-8 place-items-center rounded-full bg-accent/[0.10] text-primary">
-                  <Leaf className="h-4 w-4" />
-                </span>
-                <h2 className="font-serif text-lg font-semibold text-charcoal">
-                  {group.rule.category.name}
-                </h2>
-              </div>
-              <span className="flex items-center gap-3 text-sm font-medium text-muted-foreground">
-                {visibleRows.length} items
-                <ChevronRight
-                  className={cn('h-4 w-4 transition', open && 'rotate-90')}
-                />
-              </span>
-            </button>
-            {open && (
-              <div className="divide-y divide-border/80">
-                {visibleRows.map((row) => {
-                  const alternatives = alternativesFor(row.rule, row.item);
-                  const currentSwap = currentSwaps.get(row.item.id);
-                  const shownItem = currentSwap
-                    ? (itemById.get(currentSwap.menuItemId) ?? row.item)
-                    : row.item;
-                  const swappable =
-                    supportsSwaps &&
-                    Boolean(row.item.isSwappable) &&
-                    alternatives.length > 0;
-                  return (
-                    <div key={row.item.id}>
-                      <DishRow
-                        item={shownItem}
-                        original={row.item}
-                        categoryName={row.rule.category.name}
-                        swappable={swappable}
-                        swapped={Boolean(currentSwap)}
-                        onSwap={() => openSwap(row)}
-                        onDetails={() =>
-                          openDetails({
-                            item: shownItem,
-                            categoryName: row.rule.category.name,
-                          })
-                        }
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </section>
-        );
-      })}
+      <section className="overflow-hidden rounded-lg border border-border/80 bg-white shadow-sm">
+        <div className="divide-y divide-border/80">
+          {visibleRows.map((row) => {
+            const alternatives = alternativesFor(row.rule, row.item);
+            const currentSwap = currentSwaps.get(row.item.id);
+            const shownItem = currentSwap
+              ? (itemById.get(currentSwap.menuItemId) ?? row.item)
+              : row.item;
+            const swappable =
+              supportsSwaps &&
+              Boolean(row.item.isSwappable) &&
+              alternatives.length > 0;
+            return (
+              <DishRow
+                key={row.item.id}
+                item={shownItem}
+                original={row.item}
+                swappable={swappable}
+                swapped={Boolean(currentSwap)}
+                onSwap={() => openSwap(row)}
+                onDetails={() =>
+                  openDetails({
+                    item: shownItem,
+                    categoryName: row.rule.category.name,
+                  })
+                }
+              />
+            );
+          })}
+        </div>
+      </section>
     </div>
   );
 }
@@ -1251,7 +1186,6 @@ function MenuSections({
 function DishRow({
   item,
   original,
-  categoryName,
   swappable,
   swapped,
   onSwap,
@@ -1259,7 +1193,6 @@ function DishRow({
 }: {
   item: MenuSelectionItem;
   original: MenuSelectionItem;
-  categoryName: string;
   swappable: boolean;
   swapped: boolean;
   onSwap: () => void;
@@ -1290,10 +1223,12 @@ function DishRow({
           </strong>
           <DietBadge isVeg={item.isVeg} />
         </span>
-        <span className="mt-1 line-clamp-2 block text-xs leading-5 text-muted-foreground">
-          {item.description || categoryName}
-          {swapped && ` · replaces ${original.name}`}
-        </span>
+        {(item.description || swapped) && (
+          <span className="mt-1 line-clamp-2 block text-xs leading-5 text-muted-foreground">
+            {item.description}
+            {swapped && `${item.description ? ' · ' : ''}replaces ${original.name}`}
+          </span>
+        )}
       </button>
       <div className="col-span-2 sm:col-span-1 sm:justify-self-end">
         <button
