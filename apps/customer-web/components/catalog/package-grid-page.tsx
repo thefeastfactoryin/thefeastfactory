@@ -68,10 +68,15 @@ export function PackageGridPage({
       apiRequest<MenuCategory[]>('/menu/categories'),
     ])
       .then(async ([rows, categoryRows]) => {
+        const requestedType = searchParams.get('type');
         const visible = rows.filter(
           (row) =>
             row.activeVersion &&
-            (type === 'PACKAGES' ? row.type !== 'MEAL_BOX' : row.type === type),
+            (type === 'PACKAGES'
+              ? requestedType === 'CUSTOM_PACKAGE'
+                ? row.type === 'CUSTOM_PACKAGE'
+                : row.type !== 'MEAL_BOX'
+              : row.type === type),
         );
         setPackages(visible);
         setCategories(categoryRows);
@@ -91,7 +96,7 @@ export function PackageGridPage({
       })
       .catch((reason) => setError((reason as Error).message))
       .finally(() => setLoading(false));
-  }, [type]);
+  }, [type, searchParams]);
 
   const shown = useMemo(
     () => {
@@ -478,6 +483,9 @@ export function PackageGridPage({
                           </span>
                         </div>
                       </div>
+                      <span className="mt-2 inline-flex w-fit rounded-full bg-emerald-50 px-2.5 py-1 text-[10.5px] font-extrabold text-emerald-800 ring-1 ring-inset ring-emerald-200">
+                        Includes packaging
+                      </span>
                       <div className="hidden">
                         <strong className="text-xl text-primary">
                           ₹{version.basePricePerPlate}

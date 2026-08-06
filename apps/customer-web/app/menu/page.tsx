@@ -2,7 +2,6 @@
 
 import type { MenuCategory, MenuItem } from '@aranyam/shared-types';
 import {
-  ArrowRight,
   ChevronDown,
   Coffee,
   Cookie,
@@ -10,16 +9,12 @@ import {
   LayoutGrid,
   Leaf,
   Search,
-  ShoppingBag,
   Utensils,
   UtensilsCrossed,
 } from 'lucide-react';
-import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { StatePanel } from '../../components/ui/state-panel';
 import { DataImage } from '../../components/data-image';
-import { useOrderBuilderStore } from '../../store/order-builder.store';
-import { useSessionStore } from '../../store/session.store';
 import { apiRequest } from '../../lib/api';
 import { generateWhatsAppLink, whatsappMessages } from '../../lib/generate-whatsapp-link';
 import { cn } from '../../lib/utils';

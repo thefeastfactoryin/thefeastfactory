@@ -68,6 +68,8 @@ export default function Settings() {
   const [values, setValues] = useState<Record<string, string>>({});
   const [readiness, setReadiness] = useState<IntegrationReadiness>();
   const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
   useEffect(() => {
     if (!session) return;
     Promise.all([
@@ -88,7 +90,12 @@ export default function Settings() {
   }, [session]);
   async function save(event: React.FormEvent) {
     event.preventDefault();
-    await apiRequest(
+    if (!session || saving) return;
+    setSaving(true);
+    setMessage('');
+    setError('');
+    try {
+      await apiRequest(
       '/admin/settings',
       {
         method: 'PATCH',
@@ -102,9 +109,14 @@ export default function Settings() {
             .map(([key, value]) => ({ key, value })),
         }),
       },
-      session!.accessToken,
-    );
-    setMessage('Settings saved.');
+        session.accessToken,
+      );
+      setMessage('Settings saved.');
+    } catch (reason) {
+      setError((reason as Error).message);
+    } finally {
+      setSaving(false);
+    }
   }
   return (
     <main className="admin-page">
@@ -147,7 +159,10 @@ export default function Settings() {
           {message && (
             <p className="mt-4 text-sm text-emerald-700">{message}</p>
           )}
-          <Button className="mt-5">Save settings</Button>
+          {error && <p className="mt-4 text-sm text-red-700">{error}</p>}
+          <Button className="mt-5" disabled={saving}>
+            {saving ? 'Saving…' : 'Save settings'}
+          </Button>
         </form>
         <aside className="space-y-6">
           <section className="admin-card">

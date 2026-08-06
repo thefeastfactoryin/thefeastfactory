@@ -22,7 +22,6 @@ import { apiRequest } from '../lib/api';
 
 const navLinks = [
   { href: '/', label: 'Home', activeKey: '/', icon: Home },
-  { href: '/menu', label: 'Menu', activeKey: '/menu', icon: BookOpen },
   {
     href: '/packages',
     label: 'Packages',
@@ -41,6 +40,7 @@ const navLinks = [
     activeKey: '/orders',
     icon: ClipboardList,
   },
+  { href: '/menu', label: 'Menu', activeKey: '/menu', icon: BookOpen },
   { href: '/about', label: 'About Us', activeKey: '/about', icon: Home },
 ];
 

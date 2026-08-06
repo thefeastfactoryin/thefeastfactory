@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Get,
   Headers,
   Param,
   Post,
@@ -16,6 +17,7 @@ import { CustomerAuthGuard } from '../../common/guards/customer-auth.guard';
 import { VerifyPaymentDto } from './dto/verify-payment.dto';
 import { PaymentsService } from './payments.service';
 import type { RazorpayWebhookPayload } from './payments.service';
+import { CreateBatchPaymentDto } from './dto/create-batch-payment.dto';
 
 @ApiTags('payments')
 @Controller()
@@ -26,6 +28,23 @@ export class PaymentsController {
   @UseGuards(CustomerAuthGuard)
   create(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.payments.createGatewayOrder(user.sub, id);
+  }
+
+  @Get('orders/:id/payment-batch')
+  @ApiBearerAuth()
+  @UseGuards(CustomerAuthGuard)
+  batchSummary(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.payments.getPaymentBatchSummary(user.sub, id);
+  }
+
+  @Post('payments/razorpay/batch-order')
+  @ApiBearerAuth()
+  @UseGuards(CustomerAuthGuard)
+  createBatch(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: CreateBatchPaymentDto,
+  ) {
+    return this.payments.createBatchGatewayOrder(user.sub, dto.orderIds);
   }
 
   @Post('payments/razorpay/verify')

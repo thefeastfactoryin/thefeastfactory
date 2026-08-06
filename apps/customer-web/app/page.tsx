@@ -50,12 +50,6 @@ const heroImages = [
   },
 ];
 
-// Change: Keep unverified social proof visibly marked so placeholder reviews can never be mistaken for real customer claims.
-const testimonialPlaceholders = [
-  { name: 'Customer first name', locality: 'Hyderabad locality' },
-  { name: 'Customer first name', locality: 'Hyderabad locality' },
-  { name: 'Customer first name', locality: 'Hyderabad locality' },
-];
 const offeringIcons: Record<string, LucideIcon> = {
   MEAL_BOX: PackageIcon,
   PACKAGES: CalendarDays,
@@ -413,6 +407,9 @@ export default function HomePage() {
                         / person
                       </span>
                     </p>
+                    <span className="mt-2 inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-[10.5px] font-extrabold text-emerald-800 ring-1 ring-inset ring-emerald-200">
+                      Includes packaging
+                    </span>
                   </div>
                 </button>
                 <div className="grid grid-cols-2 gap-2 p-4 pt-2">

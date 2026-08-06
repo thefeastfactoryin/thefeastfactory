@@ -19,7 +19,7 @@ export const businessInfo = {
   gstin: 'GSTIN to be updated',
   registrationNumber: 'Business registration to be updated',
   supportEmail: 'support@thefeastfactory.in',
-  supportPhone: '+91 90000 00000',
+  supportPhone: '+91 89775 04943',
   supportHours: '10:00 AM to 8:00 PM IST',
   socials: [
     { label: 'Instagram', href: 'https://instagram.com/thefeastfactory' },

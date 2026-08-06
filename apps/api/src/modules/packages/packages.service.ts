@@ -219,7 +219,9 @@ export class PackagesService {
     const current = await this.assertVersion(id);
     this.assertGuestRange(
       dto.minGuestCount ?? current.minGuestCount,
-      dto.maxGuestCount ?? current.maxGuestCount,
+      dto.maxGuestCount === undefined
+        ? current.maxGuestCount
+        : dto.maxGuestCount,
     );
     if (dto.publishedAt) {
       await this.assertPublishable(

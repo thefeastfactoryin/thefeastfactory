@@ -311,15 +311,16 @@ export function PackageChangeDialog({
           <PackageIcon className="h-5 w-5" />
         </span>
         <h2 id="change-package-title" className="mt-4 font-serif text-2xl font-bold">
-          Change your package?
+          Add another package?
         </h2>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">
-          You’re switching from <strong className="text-foreground">{currentName}</strong>{' '}
-          to <strong className="text-foreground">{nextName}</strong>.
+          Keep <strong className="text-foreground">{currentName}</strong> in
+          your cart and configure{' '}
+          <strong className="text-foreground">{nextName}</strong> separately.
         </p>
         <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
-          Your current menu selections and event details will be cleared so the
-          new package can start with valid choices.
+          The current package stays in your cart. The editor will switch to the
+          new package so it can have its own count and menu selections.
         </div>
         <div className="mt-6 grid gap-3 sm:grid-cols-2">
           <button
@@ -327,7 +328,7 @@ export function PackageChangeDialog({
             onClick={onCancel}
             className="rounded-xl border px-4 py-3 text-sm font-bold hover:bg-muted"
           >
-            Keep current
+            Cancel
           </button>
           <button
             type="button"
@@ -335,7 +336,7 @@ export function PackageChangeDialog({
             disabled={selecting}
             className="rounded-xl bg-primary px-4 py-3 text-sm font-bold text-white hover:bg-primary/90 disabled:opacity-60"
           >
-            {selecting ? 'Changing…' : 'Change package'}
+            {selecting ? 'Adding…' : 'Add package'}
           </button>
         </div>
       </section>

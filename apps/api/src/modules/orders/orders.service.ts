@@ -154,7 +154,10 @@ export class OrdersService {
 
   async list(userId: string) {
     const orders = await this.prisma.order.findMany({
-      where: { userId },
+      where: {
+        userId,
+        orderStatus: { not: OrderStatus.PENDING_PAYMENT },
+      },
       include: {
         address: true,
         region: true,

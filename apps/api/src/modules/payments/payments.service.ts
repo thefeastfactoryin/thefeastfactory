@@ -61,11 +61,22 @@ export class PaymentsService {
         payment.razorpayOrderId,
     );
     if (existing) {
+      const linkedPayments = await this.prisma.payment.findMany({
+        where: {
+          razorpayOrderId: existing.razorpayOrderId,
+          paymentStatus: PaymentStatus.PENDING,
+          order: { userId },
+        },
+      });
+      const linkedAmount = linkedPayments.reduce(
+        (sum, payment) => sum.plus(payment.amount),
+        new Prisma.Decimal(0),
+      );
       return {
         paymentId: existing.id,
         keyId: this.keyId() || 'local',
         id: existing.razorpayOrderId,
-        amount: existing.amount.mul(100).toNumber(),
+        amount: linkedAmount.mul(100).toNumber(),
         currency,
         localMode: !this.isConfigured(),
         reused: true,
@@ -104,13 +115,117 @@ export class PaymentsService {
     };
   }
 
+  async getPaymentBatchSummary(userId: string, orderId: string) {
+    const payment = await this.prisma.payment.findFirst({
+      where: { orderId, order: { userId } },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!payment) throw new NotFoundException('Payment not found');
+    const payments = payment.razorpayOrderId
+      ? await this.prisma.payment.findMany({
+          where: {
+            razorpayOrderId: payment.razorpayOrderId,
+            order: { userId },
+          },
+          include: { order: { select: { id: true, orderNumber: true } } },
+        })
+      : [payment];
+    const totalAmount = payments.reduce(
+      (sum, row) => sum.plus(row.amount),
+      new Prisma.Decimal(0),
+    );
+    return {
+      orderCount: payments.length,
+      orderIds: payments.map((row) => row.orderId),
+      totalAmount: totalAmount.toFixed(2),
+    };
+  }
+
+  async createBatchGatewayOrder(userId: string, orderIds: string[]) {
+    const uniqueIds = [...new Set(orderIds)];
+    const orders = await this.prisma.order.findMany({
+      where: { id: { in: uniqueIds }, userId },
+      include: { payments: { orderBy: { createdAt: 'desc' } } },
+    });
+    if (orders.length !== uniqueIds.length) {
+      throw new NotFoundException('One or more orders were not found');
+    }
+    if (orders.some((order) => order.orderStatus !== OrderStatus.PENDING_PAYMENT)) {
+      throw new BadRequestException('Every order must be awaiting payment');
+    }
+    const total = orders.reduce(
+      (sum, order) => sum.plus(order.totalAmount),
+      new Prisma.Decimal(0),
+    );
+    const currency = await this.currency();
+    const reusableGatewayId = orders[0].payments.find(
+      (payment) =>
+        payment.paymentStatus === PaymentStatus.PENDING &&
+        payment.razorpayOrderId &&
+        orders.every((order) =>
+          order.payments.some(
+            (candidate) =>
+              candidate.paymentStatus === PaymentStatus.PENDING &&
+              candidate.razorpayOrderId === payment.razorpayOrderId,
+          ),
+        ),
+    )?.razorpayOrderId;
+    if (reusableGatewayId) {
+      return {
+        keyId: this.keyId() || 'local',
+        id: reusableGatewayId,
+        amount: total.mul(100).toNumber(),
+        currency,
+        orderIds: uniqueIds,
+        localMode: !this.isConfigured(),
+        reused: true,
+      };
+    }
+    const gatewayOrder = this.isConfigured()
+      ? await this.createRazorpayOrder(
+          `batch-${orders[0].orderNumber}`,
+          total.mul(100).toNumber(),
+          currency,
+        )
+      : {
+          id: `local_batch_${Date.now()}`,
+          amount: total.mul(100).toNumber(),
+          currency,
+        };
+    await this.prisma.payment.createMany({
+      data: orders.map((order) => ({
+        orderId: order.id,
+        amount: order.totalAmount,
+        razorpayOrderId: gatewayOrder.id,
+        gatewayResponse: {
+          orderCreated: true,
+          batchOrderIds: uniqueIds,
+          localMode: !this.isConfigured(),
+        },
+      })),
+    });
+    return {
+      keyId: this.keyId() || 'local',
+      ...gatewayOrder,
+      orderIds: uniqueIds,
+      localMode: !this.isConfigured(),
+      reused: false,
+    };
+  }
+
   async verify(userId: string, dto: VerifyPaymentDto) {
     const payment = await this.prisma.payment.findFirst({
       where: { razorpayOrderId: dto.razorpayOrderId, order: { userId } },
       include: { order: true },
     });
     if (!payment) throw new NotFoundException('Payment not found');
-    if (payment.paymentStatus === PaymentStatus.PAID) {
+    const batchPayments = await this.prisma.payment.findMany({
+      where: { razorpayOrderId: dto.razorpayOrderId, order: { userId } },
+    });
+    if (
+      batchPayments.length > 0 &&
+      batchPayments.every((row) => row.paymentStatus === PaymentStatus.PAID)
+    ) {
       return { success: true, orderId: payment.orderId };
     }
 
@@ -124,10 +239,14 @@ export class PaymentsService {
       throw new UnauthorizedException('Invalid payment signature');
     }
 
+    const batchAmount = batchPayments.reduce(
+      (sum, row) => sum.plus(row.amount),
+      new Prisma.Decimal(0),
+    );
     let gatewayPayment: GatewayPayment = {
       id: dto.razorpayPaymentId,
       order_id: dto.razorpayOrderId,
-      amount: payment.amount.mul(100).toNumber(),
+      amount: batchAmount.mul(100).toNumber(),
       status: 'captured',
       method: 'local',
     };
@@ -137,7 +256,7 @@ export class PaymentsService {
       )) as GatewayPayment;
       if (
         gatewayPayment.order_id !== dto.razorpayOrderId ||
-        Number(gatewayPayment.amount) !== payment.amount.mul(100).toNumber() ||
+        Number(gatewayPayment.amount) !== batchAmount.mul(100).toNumber() ||
         gatewayPayment.status !== 'captured'
       ) {
         throw new BadRequestException(
@@ -146,12 +265,14 @@ export class PaymentsService {
       }
     }
 
-    await this.markPaid(
-      payment.id,
-      dto.razorpayPaymentId,
-      dto.razorpaySignature,
-      gatewayPayment,
-    );
+    for (const row of batchPayments) {
+      await this.markPaid(
+        row.id,
+        dto.razorpayPaymentId,
+        dto.razorpaySignature,
+        gatewayPayment,
+      );
+    }
     return { success: true, orderId: payment.orderId };
   }
 
@@ -303,37 +424,43 @@ export class PaymentsService {
     if (eventType === 'payment.captured') {
       const entity = payload.payload?.payment?.entity;
       if (!entity?.id || !entity.order_id) return;
-      const payment = await this.prisma.payment.findFirst({
+      const payments = await this.prisma.payment.findMany({
         where: { razorpayOrderId: entity.order_id },
       });
-      if (payment)
+      for (const payment of payments) {
         await this.markPaid(payment.id, entity.id, undefined, entity);
+      }
       return;
     }
 
     if (eventType === 'payment.failed') {
       const entity = payload.payload?.payment?.entity;
       if (!entity?.order_id) return;
-      const payment = await this.prisma.payment.findFirst({
+      const payments = await this.prisma.payment.findMany({
         where: { razorpayOrderId: entity.order_id },
         include: { order: true },
       });
-      if (!payment || payment.paymentStatus === PaymentStatus.PAID) return;
+      const retryable = payments.filter(
+        (payment) => payment.paymentStatus !== PaymentStatus.PAID,
+      );
+      if (!retryable.length) return;
       await this.prisma.$transaction(async (tx) => {
-        await tx.payment.update({
-          where: { id: payment.id },
-          data: {
-            paymentStatus: PaymentStatus.FAILED,
-            razorpayPaymentId: entity.id,
-            paymentMethod: entity.method,
-            failureReason: entity.error_description || 'Payment failed',
-            gatewayResponse: entity as unknown as Prisma.InputJsonValue,
-          },
-        });
-        await tx.order.update({
-          where: { id: payment.orderId },
-          data: { paymentStatus: PaymentStatus.FAILED },
-        });
+        for (const payment of retryable) {
+          await tx.payment.update({
+            where: { id: payment.id },
+            data: {
+              paymentStatus: PaymentStatus.FAILED,
+              razorpayPaymentId: entity.id,
+              paymentMethod: entity.method,
+              failureReason: entity.error_description || 'Payment failed',
+              gatewayResponse: entity as unknown as Prisma.InputJsonValue,
+            },
+          });
+          await tx.order.update({
+            where: { id: payment.orderId },
+            data: { paymentStatus: PaymentStatus.FAILED },
+          });
+        }
       });
       return;
     }

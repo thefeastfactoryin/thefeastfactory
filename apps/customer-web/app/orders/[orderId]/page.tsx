@@ -14,14 +14,12 @@ import {
   MapPin,
   Package,
   ReceiptText,
-  RefreshCw,
   Sparkles,
   Users,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
-import { RetryPaymentButton } from '../../../components/retry-payment-button';
 import { Button } from '../../../components/ui/button';
 import {
   AuthRequiredPanel,
@@ -213,18 +211,16 @@ export default function OrderPage() {
             {order.paymentStatus === 'PENDING' && (
               <section className="rounded-2xl border border-accent/35 bg-accent/[0.08] p-5">
                 <div className="flex items-center gap-3">
-                  <span className="grid h-10 w-10 place-items-center rounded-full bg-white text-primary">
-                    <RefreshCw className="h-4 w-4" />
-                  </span>
                   <h2 className="font-serif text-xl font-semibold">
                     Payment pending
                   </h2>
                 </div>
                 <p className="my-3 text-sm leading-6 text-muted-foreground">
-                  Your booking is saved. Retrying will reuse this order and will
-                  not create a duplicate.
+                  This attempt remains in your cart until payment is completed.
                 </p>
-                <RetryPaymentButton order={order} />
+                <Button asChild>
+                  <Link href="/cart">Return to cart</Link>
+                </Button>
               </section>
             )}
 

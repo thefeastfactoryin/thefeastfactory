@@ -74,6 +74,27 @@ export class CartService {
         },
         include: this.cartInclude(),
       });
+      await this.prisma.cart.updateMany({
+        where: {
+          userId,
+          status: CartStatus.ACTIVE,
+          id: { not: cart.id },
+        },
+        data: {
+          addressId: dto.addressId,
+          regionId: event.region.id,
+          eventName: dto.eventName,
+          eventDate: event.eventDate,
+          eventTimeStart: event.eventTime,
+          distanceKm: event.distanceKm,
+          // Delivery is shared by the checkout, so charge it once on the cart
+          // where the event details were entered.
+          deliveryFee: new Prisma.Decimal(0),
+          specialNotes: dto.specialNotes,
+          lastQuotedAt: null,
+          expiresAt: this.expiryDate(),
+        },
+      });
       return this.serializeCart(updated);
     }
     if (dto.guestCount !== undefined) {
@@ -132,16 +153,112 @@ export class CartService {
     return awaitingPayment ? this.serializeCart(awaitingPayment) : null;
   }
 
+  async getAllActive(userId: string) {
+    const carts = await this.prisma.cart.findMany({
+      where: { userId, status: CartStatus.ACTIVE },
+      include: this.cartInclude(),
+      orderBy: { updatedAt: 'desc' },
+    });
+    return carts.map((cart) => this.serializeCart(cart));
+  }
+
+  async updateQuantity(userId: string, id: string, guestCount: number) {
+    const cart = await this.assertActiveCart(userId, id);
+    const minimum = cart.packageVersion.minGuestCount;
+    const maximum = cart.packageVersion.maxGuestCount;
+    if (guestCount < minimum || (maximum && guestCount > maximum)) {
+      throw new BadRequestException('Guest count is outside package limits');
+    }
+    const updated = await this.prisma.cart.update({
+      where: { id },
+      data: {
+        guestCount,
+        lastQuotedAt: null,
+        expiresAt: this.expiryDate(),
+      },
+      include: this.cartInclude(),
+    });
+    return this.serializeCart(updated);
+  }
+
+  async removeActive(userId: string, id: string) {
+    const cart = await this.prisma.cart.findFirst({
+      where: { id, userId, status: CartStatus.ACTIVE },
+    });
+    if (!cart) throw new NotFoundException('Active cart not found');
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.cartItem.deleteMany({ where: { cartId: id } });
+      await tx.cart.delete({ where: { id } });
+
+      if (cart.deliveryFee.gt(0)) {
+        const remaining = await tx.cart.findFirst({
+          where: { userId, status: CartStatus.ACTIVE },
+          orderBy: { updatedAt: 'desc' },
+        });
+        if (remaining) {
+          await tx.cart.update({
+            where: { id: remaining.id },
+            data: { deliveryFee: cart.deliveryFee },
+          });
+        }
+      }
+    });
+    return { success: true, id };
+  }
+
+  async quoteAll(userId: string) {
+    const carts = await this.prisma.cart.findMany({
+      where: { userId, status: CartStatus.ACTIVE },
+      orderBy: { updatedAt: 'desc' },
+    });
+    if (!carts.length) throw new NotFoundException('Active cart not found');
+    const quotes = await Promise.all(
+      carts.map((cart) => this.quote(userId, cart.id)),
+    );
+    const subtotalAmount = quotes.reduce(
+      (sum, quote) => sum.plus(quote.subtotalAmount),
+      new Prisma.Decimal(0),
+    );
+    const deliveryFee = quotes.reduce(
+      (sum, quote) => sum.plus(quote.deliveryFee),
+      new Prisma.Decimal(0),
+    );
+    return {
+      valid: true,
+      carts: carts.map((cart, index) => ({ cartId: cart.id, quote: quotes[index] })),
+      subtotalAmount: subtotalAmount.toFixed(2),
+      deliveryFee: deliveryFee.toFixed(2),
+      totalAmount: subtotalAmount.plus(deliveryFee).toFixed(2),
+    };
+  }
+
+  async checkoutAll(userId: string) {
+    const carts = await this.prisma.cart.findMany({
+      where: { userId, status: CartStatus.ACTIVE },
+      include: this.cartInclude(),
+      orderBy: { updatedAt: 'asc' },
+    });
+    if (!carts.length) throw new NotFoundException('Active cart not found');
+    const incomplete = carts.find(
+      (cart) =>
+        !cart.addressId ||
+        !cart.eventDate ||
+        !cart.eventTimeStart ||
+        !cart.guestCount,
+    );
+    if (incomplete) {
+      throw new BadRequestException(
+        'Add event and venue details for every package before checkout',
+      );
+    }
+    const orders = [];
+    for (const cart of carts) orders.push(await this.checkout(userId, cart.id));
+    return orders;
+  }
+
   async createOrFetch(userId: string, dto: CreateCartDto) {
     await this.assertPackageVersion(dto.packageVersionId);
-    await this.prisma.cart.updateMany({
-      where: {
-        userId,
-        status: CartStatus.ACTIVE,
-        packageVersionId: { not: dto.packageVersionId },
-      },
-      data: { status: CartStatus.ABANDONED },
-    });
     const existing = await this.prisma.cart.findFirst({
       where: {
         userId,

@@ -1,6 +1,16 @@
 import { BadGatewayException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
+type Msg91Response = {
+  type?: unknown;
+  status?: unknown;
+  message?: unknown;
+  errors?: unknown;
+  code?: unknown;
+  apiError?: unknown;
+  hasError?: unknown;
+};
+
 @Injectable()
 export class ConsoleOtpProvider {
   private readonly logger = new Logger(ConsoleOtpProvider.name);
@@ -23,12 +33,26 @@ export class ConsoleOtpProvider {
         body: JSON.stringify({ otp }),
       });
       const result = (await response.json().catch(() => undefined)) as
-        | { type?: string; message?: string }
+        | Msg91Response
         | undefined;
+      const succeeded =
+        result?.hasError !== true &&
+        (result?.type === 'success' || result?.status === 'success');
 
-      if (!response.ok || result?.type === 'error') {
+      if (!response.ok || !succeeded) {
+        const providerCode = result?.apiError ?? result?.code;
+        const providerMessage = result?.errors ?? result?.message;
+        const detail = [
+          providerCode === undefined ? undefined : `code=${String(providerCode)}`,
+          providerMessage === undefined
+            ? undefined
+            : `message=${String(providerMessage)}`,
+        ]
+          .filter(Boolean)
+          .join(', ');
+
         this.logger.error(
-          `MSG91 OTP delivery failed: ${result?.message ?? response.statusText}`,
+          `MSG91 OTP delivery failed: ${detail || response.statusText || 'invalid provider response'}`,
         );
         throw new BadGatewayException(
           'OTP delivery is temporarily unavailable',

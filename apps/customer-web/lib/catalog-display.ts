@@ -3,7 +3,9 @@ import type { OrderingOfferingCode } from '@aranyam/shared-types';
 export const offeringDisplay: Record<OrderingOfferingCode, { href: string }> = {
   MEAL_BOX: { href: '/packages/meal-boxes' },
   PACKAGES: { href: '/packages' },
-  CUSTOM_MENU: { href: '/packages/build' },
+  // The builder needs a selected package version, so establish that context
+  // in the catalog before entering the builder.
+  CUSTOM_MENU: { href: '/packages?type=CUSTOM_PACKAGE' },
 };
 
 export const catalogCopy = {

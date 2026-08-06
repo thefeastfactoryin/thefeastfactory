@@ -365,12 +365,14 @@ export function SelectionContextPanel({
   minPax,
   maxPax,
   variant = 'default',
+  hideQuantity = false,
   onSaved,
 }: {
   packageVersionId: string;
   minPax: number;
   maxPax?: number | null;
   variant?: 'default' | 'sidebar';
+  hideQuantity?: boolean;
   onSaved?: (cart: CartSummary) => void;
 }) {
   const sidebar = variant === 'sidebar';
@@ -573,7 +575,9 @@ export function SelectionContextPanel({
           'mt-5 grid gap-4 rounded-2xl border border-border bg-[#fcfaf6] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]',
           sidebar
             ? 'grid-cols-1'
-            : 'md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_224px]',
+            : hideQuantity
+              ? 'md:grid-cols-2'
+              : 'md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_224px]',
         )}
       >
         <Field label="Delivery date" hint="Choose the event day.">
@@ -593,7 +597,7 @@ export function SelectionContextPanel({
             slots={deliveryTimeSlots}
           />
         </Field>
-        <div>
+        {!hideQuantity && <div>
           <span className="mb-2 block text-sm font-semibold">{guestLabel}</span>
           <div className="flex min-h-12 items-center justify-between rounded-xl border bg-white px-2">
             <button
@@ -632,7 +636,7 @@ export function SelectionContextPanel({
           <p className="mt-1.5 text-xs text-muted-foreground">
             {minPax} minimum{maxPax ? ` · ${maxPax} maximum` : ''}
           </p>
-        </div>
+        </div>}
       </div>
 
       <div className="mt-6 flex items-center justify-between gap-4">

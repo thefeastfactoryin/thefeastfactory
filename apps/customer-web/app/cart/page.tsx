@@ -15,10 +15,13 @@ import {
   Leaf,
   LockKeyhole,
   MapPin,
+  Minus,
   Pencil,
+  Plus,
   ReceiptText,
   ShieldCheck,
   ShoppingBag,
+  Trash2,
   Users,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -64,6 +67,23 @@ type ReviewRow = {
   totalAdjustmentAmount?: string;
 };
 
+type MultiCartQuote = {
+  valid: boolean;
+  carts: Array<{ cartId: string; quote: PackageSelectionPrice }>;
+  subtotalAmount: string;
+  deliveryFee: string;
+  totalAmount: string;
+};
+
+function clampPackageQuantity(cart: CartSummary, requestedCount: number) {
+  const minimum = cart.package.minGuestCount;
+  const maximum = cart.package.maxGuestCount ?? Number.MAX_SAFE_INTEGER;
+  return Math.min(
+    Math.max(Math.round(requestedCount) || minimum, minimum),
+    maximum,
+  );
+}
+
 export default function CartPage() {
   const router = useRouter();
   const session = useSessionStore((state) => state.session);
@@ -75,33 +95,47 @@ export default function CartPage() {
   );
 
   const [cart, setCart] = useState<CartSummary>();
+  const [activeCarts, setActiveCarts] = useState<CartSummary[]>([]);
   const [config, setConfig] = useState<PackageConfiguration>();
   const [quote, setQuote] = useState<PackageSelectionPrice>();
+  const [multiCartQuote, setMultiCartQuote] = useState<MultiCartQuote>();
   const [pendingOrder, setPendingOrder] = useState<OrderSummary>();
+  const [pendingBatch, setPendingBatch] = useState<{
+    orderCount: number;
+    orderIds: string[];
+    totalAmount: string;
+  }>();
   const [loading, setLoading] = useState(true);
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [paying, setPaying] = useState(false);
+  const [deletingCartId, setDeletingCartId] = useState('');
+  const [updatingCartId, setUpdatingCartId] = useState('');
+  const [selectingCartId, setSelectingCartId] = useState('');
   const [error, setError] = useState('');
   const [activeCategoryId, setActiveCategoryId] = useState('');
 
-  const loadQuote = useCallback(async () => {
+  const loadQuote = useCallback(async (currentCartId?: string) => {
     if (!session) return;
     setQuoteLoading(true);
     try {
-      const nextQuote = await apiRequest<PackageSelectionPrice>(
-        '/cart/quote',
+      const aggregate = await apiRequest<MultiCartQuote>(
+        '/cart/quote-all',
         { method: 'POST' },
         session.accessToken,
       );
-      setQuote(nextQuote);
+      const detail = aggregate.carts.find(
+        (entry) => entry.cartId === currentCartId,
+      )?.quote;
+      setMultiCartQuote(aggregate);
+      setQuote(detail ?? aggregate.carts[0]?.quote);
       setError(
-        nextQuote.valid
+        aggregate.valid
           ? ''
-          : nextQuote.errors?.join(' ') ||
-              'The latest quote could not be completed. Please review your delivery details.',
+          : 'The latest quote could not be completed. Please review your delivery details.',
       );
     } catch (reason) {
       setQuote(undefined);
+      setMultiCartQuote(undefined);
       setError((reason as Error).message);
     } finally {
       setQuoteLoading(false);
@@ -113,13 +147,13 @@ export default function CartPage() {
     let active = true;
     async function load() {
       try {
-        const value = await apiRequest<CartSummary | null>(
-          '/cart',
-          {},
-          session!.accessToken,
-        );
+        const [value, allCarts] = await Promise.all([
+          apiRequest<CartSummary | null>('/cart', {}, session!.accessToken),
+          apiRequest<CartSummary[]>('/cart/all', {}, session!.accessToken),
+        ]);
         if (!active || !value) return;
         setCart(value);
+        setActiveCarts(allCarts);
         hydrate(value, session!.user.id);
         const configuration = await apiRequest<PackageConfiguration>(
           `/package-versions/${value.packageVersionId}/configuration`,
@@ -132,9 +166,21 @@ export default function CartPage() {
             {},
             session!.accessToken,
           );
-          if (active) setPendingOrder(order);
-        } else if (eventReady(value)) {
-          await loadQuote();
+          const batch = await apiRequest<{
+            orderCount: number;
+            orderIds: string[];
+            totalAmount: string;
+          }>(
+            `/orders/${value.pendingOrderId}/payment-batch`,
+            {},
+            session!.accessToken,
+          );
+          if (active) {
+            setPendingOrder(order);
+            setPendingBatch(batch);
+          }
+        } else {
+          await loadQuote(value.id);
         }
       } catch (reason) {
         if (active) setError((reason as Error).message);
@@ -152,10 +198,126 @@ export default function CartPage() {
     (updated: CartSummary) => {
       setCart(updated);
       hydrate(updated, session!.user.id);
-      if (eventReady(updated)) void loadQuote();
+      void apiRequest<CartSummary[]>('/cart/all', {}, session!.accessToken)
+        .then((carts) => {
+          setActiveCarts(carts);
+          if (carts.length && carts.every((entry) => eventReady(entry))) {
+            return loadQuote(updated.id);
+          }
+        })
+        .catch((reason) => setError((reason as Error).message));
     },
-    [hydrate, loadQuote],
+    [session, hydrate, loadQuote],
   );
+
+  async function updatePackageQuantity(
+    packageCart: CartSummary,
+    requestedCount: number,
+  ) {
+    if (!session || updatingCartId || pendingOrder) return;
+    const guestCount = clampPackageQuantity(packageCart, requestedCount);
+    if (guestCount === packageCart.guestCount) return;
+    setUpdatingCartId(packageCart.id);
+    setError('');
+    try {
+      const updated = await apiRequest<CartSummary>(
+        `/cart/${packageCart.id}/quantity`,
+        {
+          method: 'PUT',
+          body: JSON.stringify({ guestCount }),
+        },
+        session.accessToken,
+      );
+      setActiveCarts((current) =>
+        current.map((entry) => (entry.id === updated.id ? updated : entry)),
+      );
+      if (cart?.id === updated.id) {
+        setCart(updated);
+        hydrate(updated, session.user.id);
+      }
+      await loadQuote(cart?.id ?? updated.id);
+    } catch (reason) {
+      setError((reason as Error).message);
+    } finally {
+      setUpdatingCartId('');
+    }
+  }
+
+  async function removeCart(cartId: string) {
+    if (!session || deletingCartId || pendingOrder) return;
+    setDeletingCartId(cartId);
+    setError('');
+    try {
+      await apiRequest(
+        `/cart/${cartId}`,
+        { method: 'DELETE' },
+        session.accessToken,
+      );
+      const remaining = await apiRequest<CartSummary[]>(
+        '/cart/all',
+        {},
+        session.accessToken,
+      );
+      setActiveCarts(remaining);
+      if (!remaining.length) {
+        reset();
+        setCart(undefined);
+        setConfig(undefined);
+        setQuote(undefined);
+        return;
+      }
+      if (cart?.id === cartId) {
+        const next = remaining[0];
+        setCart(next);
+        hydrate(next, session.user.id);
+        setConfig(
+          await apiRequest<PackageConfiguration>(
+            `/package-versions/${next.packageVersionId}/configuration`,
+          ),
+        );
+      }
+      const detailCartId = cart?.id === cartId ? remaining[0].id : cart?.id;
+      if (remaining.every((entry) => eventReady(entry))) {
+        await loadQuote(detailCartId);
+      }
+    } catch (reason) {
+      setError((reason as Error).message);
+    } finally {
+      setDeletingCartId('');
+    }
+  }
+
+  function editPackageCart(packageCart: CartSummary) {
+    if (!session) return;
+    hydrate(packageCart, session.user.id);
+    const href =
+      packageCart.package.type === 'CUSTOM_PACKAGE'
+        ? `/packages/build?packageVersionId=${packageCart.packageVersionId}`
+        : `/menu/select?packageVersionId=${packageCart.packageVersionId}`;
+    router.push(href);
+  }
+
+  async function selectPackageCart(packageCart: CartSummary) {
+    if (!session || packageCart.id === cart?.id || selectingCartId) return;
+    setSelectingCartId(packageCart.id);
+    setError('');
+    try {
+      const configuration = await apiRequest<PackageConfiguration>(
+        `/package-versions/${packageCart.packageVersionId}/configuration`,
+      );
+      setCart(packageCart);
+      setConfig(configuration);
+      setQuote(
+        multiCartQuote?.carts.find((entry) => entry.cartId === packageCart.id)
+          ?.quote,
+      );
+      hydrate(packageCart, session.user.id);
+    } catch (reason) {
+      setError((reason as Error).message);
+    } finally {
+      setSelectingCartId('');
+    }
+  }
 
   const configItems = useMemo(() => {
     const entries =
@@ -305,23 +467,34 @@ export default function CartPage() {
     setError('');
     setPaying(true);
     try {
-      const order = pendingOrderId
+      const orders = pendingOrderId
         ? await apiRequest<OrderSummary>(
             `/orders/${pendingOrderId}`,
             {},
             session.accessToken,
-          )
-        : await apiRequest<OrderSummary>(
-            '/cart/checkout',
+          ).then((order) => [order])
+        : await apiRequest<OrderSummary[]>(
+            '/cart/checkout-all',
             { method: 'POST' },
             session.accessToken,
           );
+      const order = orders[0];
       setPendingOrderId(order.id);
-      const gateway = await apiRequest<GatewayOrder>(
-        `/orders/${order.id}/payments/razorpay-order`,
-        { method: 'POST' },
-        session.accessToken,
-      );
+      const gateway =
+        orders.length === 1
+          ? await apiRequest<GatewayOrder>(
+              `/orders/${order.id}/payments/razorpay-order`,
+              { method: 'POST' },
+              session.accessToken,
+            )
+          : await apiRequest<GatewayOrder>(
+              '/payments/razorpay/batch-order',
+              {
+                method: 'POST',
+                body: JSON.stringify({ orderIds: orders.map((row) => row.id) }),
+              },
+              session.accessToken,
+            );
 
       if (gateway.localMode) {
         await verifyPayment(order.id, {
@@ -341,7 +514,10 @@ export default function CartPage() {
         amount: gateway.amount,
         currency: gateway.currency,
         name: 'The Feast Factory',
-        description: `${cart.package.name} for ${quote.guestCount} guests`,
+        description:
+          orders.length === 1
+            ? `${cart.package.name} for ${quote.guestCount} guests`
+            : `${orders.length} packages in one checkout`,
         order_id: gateway.id,
         prefill: {
           name: session.user.name ?? '',
@@ -411,12 +587,14 @@ export default function CartPage() {
     );
   }
 
-  const ready = eventReady(cart);
+  const ready =
+    activeCarts.length > 0 && activeCarts.every((entry) => eventReady(entry));
   const editHref =
     cart.package.type === 'CUSTOM_PACKAGE'
       ? `/packages/build?packageVersionId=${cart.packageVersionId}`
-      : '/menu/select';
+      : `/menu/select?packageVersionId=${cart.packageVersionId}`;
   const isMealBox = cart.package.type === 'MEAL_BOX';
+  const isMultiCart = activeCarts.length > 1;
   const activeGroup =
     groupedRows.find((group) => group.id === activeCategoryId) ??
     groupedRows[0];
@@ -474,6 +652,165 @@ export default function CartPage() {
       </section>
 
       <div className="mx-auto w-full max-w-[1440px] px-4 py-6 sm:px-6 lg:px-8">
+        {isMultiCart && !pendingOrder && (
+          <section className="mb-5 rounded-2xl border border-border bg-white p-4 shadow-sm sm:p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="font-serif text-xl font-semibold">
+                  Packages in your cart ({activeCarts.length})
+                </h2>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Each package keeps its own count and menu. Payment is combined.
+                </p>
+              </div>
+              <Link
+                href="/packages"
+                className="inline-flex min-h-10 items-center rounded-full border border-primary/30 px-4 text-sm font-bold text-primary hover:bg-primary/5"
+              >
+                Add another package
+              </Link>
+            </div>
+            <div
+              className="mt-4 flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              role="tablist"
+              aria-label="Packages in your cart"
+            >
+              {activeCarts.map((packageCart) => (
+                <article
+                  key={packageCart.id}
+                  className={cn(
+                    'min-w-[280px] flex-1 rounded-xl border p-4 transition sm:min-w-[320px]',
+                    packageCart.id === cart.id
+                      ? 'border-primary bg-primary/[0.045] shadow-sm'
+                      : 'border-border bg-ivory/60 hover:border-primary/30',
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <button
+                        type="button"
+                        role="tab"
+                        aria-selected={packageCart.id === cart.id}
+                        onClick={() => void selectPackageCart(packageCart)}
+                        className="block max-w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                      >
+                        <span className="block truncate font-bold text-foreground">
+                          {packageCart.package.name}
+                        </span>
+                        <span className="mt-1 block text-xs font-semibold text-primary">
+                          {packageCart.id === cart.id
+                            ? 'Viewing this menu'
+                            : selectingCartId === packageCart.id
+                              ? 'Loading menu…'
+                              : 'View menu & details'}
+                        </span>
+                      </button>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {packageCart.items.length} custom selection
+                        {packageCart.items.length === 1 ? '' : 's'}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      aria-label={`Remove ${packageCart.package.name} from cart`}
+                      disabled={Boolean(deletingCartId)}
+                      onClick={() => void removeCart(packageCart.id)}
+                      className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-red-700 hover:bg-red-50 disabled:opacity-40"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border bg-white p-2">
+                    <span className="text-xs font-semibold text-muted-foreground">
+                      {packageCart.package.type === 'MEAL_BOX'
+                        ? 'Box count'
+                        : 'Guest count'}
+                    </span>
+                    <div className="flex items-center overflow-hidden rounded-lg border">
+                      <button
+                        type="button"
+                        aria-label={`Decrease count for ${packageCart.package.name}`}
+                        disabled={
+                          Boolean(updatingCartId) ||
+                          (packageCart.guestCount ??
+                            packageCart.package.minGuestCount) <=
+                            packageCart.package.minGuestCount
+                        }
+                        onClick={() =>
+                          void updatePackageQuantity(
+                            packageCart,
+                            (packageCart.guestCount ??
+                              packageCart.package.minGuestCount) - 1,
+                          )
+                        }
+                        className="grid h-9 w-9 place-items-center text-primary disabled:opacity-30"
+                      >
+                        <Minus className="h-3.5 w-3.5" />
+                      </button>
+                      <input
+                        aria-label={`Count for ${packageCart.package.name}`}
+                        inputMode="numeric"
+                        defaultValue={
+                          packageCart.guestCount ??
+                          packageCart.package.minGuestCount
+                        }
+                        key={`${packageCart.id}-${packageCart.guestCount}`}
+                        onBlur={(event) => {
+                          const next = clampPackageQuantity(
+                            packageCart,
+                            Number(event.target.value),
+                          );
+                          event.currentTarget.value = String(next);
+                          void updatePackageQuantity(packageCart, next);
+                        }}
+                        className="h-9 w-14 border-x text-center text-sm font-bold outline-none"
+                      />
+                      <button
+                        type="button"
+                        aria-label={`Increase count for ${packageCart.package.name}`}
+                        disabled={
+                          Boolean(updatingCartId) ||
+                          Boolean(
+                            packageCart.package.maxGuestCount &&
+                              (packageCart.guestCount ??
+                                packageCart.package.minGuestCount) >=
+                                packageCart.package.maxGuestCount,
+                          )
+                        }
+                        onClick={() =>
+                          void updatePackageQuantity(
+                            packageCart,
+                            (packageCart.guestCount ??
+                              packageCart.package.minGuestCount) + 1,
+                          )
+                        }
+                        className="grid h-9 w-9 place-items-center text-primary disabled:opacity-30"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between gap-3">
+                    <button
+                      type="button"
+                      onClick={() => void selectPackageCart(packageCart)}
+                      className="text-xs font-bold text-primary hover:underline"
+                    >
+                      {packageCart.id === cart.id ? 'Menu selected' : 'Show menu'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => editPackageCart(packageCart)}
+                      className="text-xs font-bold text-muted-foreground hover:text-primary hover:underline"
+                    >
+                      Edit package
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
         {pendingOrder && (
           <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
             <strong>Payment is pending.</strong> Your order is safely reserved.
@@ -483,16 +820,17 @@ export default function CartPage() {
 
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_392px] lg:items-start">
           <div className="min-w-0 space-y-4">
-            {pendingOrder ? (
+            {!isMultiCart && (pendingOrder ? (
               <EventSummary cart={cart} />
             ) : (
               <SelectionContextPanel
                 packageVersionId={cart.packageVersionId}
                 minPax={cart.package.minGuestCount}
                 maxPax={cart.package.maxGuestCount}
+                hideQuantity
                 onSaved={onEventSaved}
               />
-            )}
+            ))}
 
             <section className="overflow-hidden rounded-2xl border border-border bg-white shadow-[0_14px_36px_-30px_rgba(75,12,23,.55)]">
               <div className="flex flex-wrap items-center justify-between gap-4 p-5 pb-3 sm:p-6 sm:pb-4">
@@ -597,6 +935,19 @@ export default function CartPage() {
                 </div>
               )}
             </section>
+
+            {isMultiCart && (pendingOrder ? (
+              <EventSummary cart={cart} />
+            ) : (
+              <SelectionContextPanel
+                key={cart.id}
+                packageVersionId={cart.packageVersionId}
+                minPax={cart.package.minGuestCount}
+                maxPax={cart.package.maxGuestCount}
+                hideQuantity
+                onSaved={onEventSaved}
+              />
+            ))}
           </div>
 
           <aside className="h-fit lg:sticky lg:top-24">
@@ -606,20 +957,25 @@ export default function CartPage() {
                   {pendingOrder ? 'Payment pending' : 'Order summary'}
                 </p>
                 <h2 className="mt-2 font-serif text-2xl font-semibold">
-                  {cart.package.name}
+                  {activeCarts.length > 1
+                    ? `${activeCarts.length} packages`
+                    : cart.package.name}
                 </h2>
-                {!pendingOrder && <OrderFacts cart={cart} quote={quote} />}
+                {!pendingOrder && <OrderFacts cart={cart} />}
               </div>
               {pendingOrder ? (
                 <div className="p-6">
                   <div className="flex items-end justify-between border-b pb-5">
                     <span className="font-semibold">Total</span>
                     <strong className="font-serif text-3xl">
-                      ₹{pendingOrder.totalAmount}
+                      ₹{pendingBatch?.totalAmount ?? pendingOrder.totalAmount}
                     </strong>
                   </div>
                   <div className="mt-5">
-                    <RetryPaymentButton order={pendingOrder} />
+                    <RetryPaymentButton
+                      order={pendingOrder}
+                      orderIds={pendingBatch?.orderIds}
+                    />
                   </div>
                   <Button asChild variant="outline" className="mt-3 w-full">
                     <Link href={`/orders/${pendingOrder.id}`}>
@@ -629,12 +985,10 @@ export default function CartPage() {
                 </div>
               ) : (
                 <div className="p-6">
-                  {quote ? (
-                    <PriceSummary
-                      quote={quote}
-                      unitLabel={
-                        cart.package.type === 'MEAL_BOX' ? 'box' : 'person'
-                      }
+                  {multiCartQuote ? (
+                    <MultiCartPriceSummary
+                      carts={activeCarts}
+                      aggregate={multiCartQuote}
                     />
                   ) : (
                     <div className="rounded-xl bg-muted/50 p-4 text-sm leading-6 text-muted-foreground">
@@ -655,7 +1009,9 @@ export default function CartPage() {
                   <Button
                     className="mt-4 h-12 w-full"
                     onClick={pay}
-                    disabled={!ready || !quote?.valid || quoteLoading || paying}
+                    disabled={
+                      !ready || !multiCartQuote?.valid || quoteLoading || paying
+                    }
                   >
                     <LockKeyhole className="mr-2 h-4 w-4" />
                     {paying ? 'Opening payment...' : 'Proceed to Payment'}
@@ -811,23 +1167,11 @@ function ReviewDishCard({ row }: { row: ReviewRow }) {
 
 function OrderFacts({
   cart,
-  quote,
 }: {
   cart: CartSummary;
-  quote?: PackageSelectionPrice;
 }) {
   const address = cart.event?.address;
   const facts = [
-    ['Package', cart.package.name],
-    [
-      cart.package.type === 'MEAL_BOX' ? 'Boxes' : 'Guests',
-      String(
-        quote?.guestCount ??
-          cart.event?.guestCount ??
-          cart.guestCount ??
-          'Not set',
-      ),
-    ],
     ['Delivery date', formatCartDate(cart.event?.eventDate)],
     ['Delivery time', cart.event?.eventTimeStart || 'Not set'],
     [
@@ -900,35 +1244,53 @@ function TrustStrip() {
   );
 }
 
-function PriceSummary({
-  quote,
-  unitLabel,
+function MultiCartPriceSummary({
+  carts,
+  aggregate,
 }: {
-  quote: PackageSelectionPrice;
-  unitLabel: 'box' | 'person';
+  carts: CartSummary[];
+  aggregate: MultiCartQuote;
 }) {
-  const menuCalculation = formatMenuCalculation({
-    basePrice: quote.basePerPlatePrice,
-    guestCount: quote.guestCount,
-    unitLabel: unitLabel === 'box' ? 'box' : 'guest',
-    items: quote.items,
-  });
+  const cartById = new Map(carts.map((cart) => [cart.id, cart]));
+  const deliveryQuote = aggregate.carts.find(
+    ({ quote }) => Number(quote.deliveryFee) > 0,
+  )?.quote;
   return (
     <>
       <div className="space-y-3 text-sm">
-        <PriceLine label="Menu calculation" value={menuCalculation} />
+        {aggregate.carts.map(({ cartId, quote }) => {
+          const packageCart = cartById.get(cartId);
+          const unitLabel =
+            packageCart?.package.type === 'MEAL_BOX' ? 'box' : 'guest';
+          return (
+            <div key={cartId} className="rounded-xl border p-3">
+              <PriceLine
+                label={packageCart?.package.name ?? quote.packageName}
+                value={formatCurrency(quote.subtotalAmount)}
+              />
+              <p className="mt-1 text-[11px] leading-5 text-muted-foreground">
+                {formatMenuCalculation({
+                  basePrice: quote.basePerPlatePrice,
+                  guestCount: quote.guestCount,
+                  unitLabel,
+                  items: quote.items,
+                })}
+              </p>
+            </div>
+          );
+        })}
         <PriceLine
-          label="Menu subtotal"
-          value={formatCurrency(quote.subtotalAmount)}
+          label="Packages subtotal"
+          value={formatCurrency(aggregate.subtotalAmount)}
         />
         <div className="rounded-xl bg-muted/50 p-3">
           <PriceLine
             label="Delivery"
-            value={formatCurrency(quote.deliveryFee)}
+            value={formatCurrency(aggregate.deliveryFee)}
           />
-          {quote.region && (
+          {deliveryQuote?.region && (
             <p className="mt-1 text-[11px] leading-5 text-muted-foreground">
-              {quote.region.name} kitchen · {quote.distanceKm} km
+              {deliveryQuote.region.name} kitchen · {deliveryQuote.distanceKm} km
             </p>
           )}
         </div>
@@ -937,7 +1299,7 @@ function PriceSummary({
       <div className="flex items-end justify-between gap-4">
         <span className="font-semibold">Total</span>
         <strong className="font-serif text-4xl">
-          {formatCurrency(quote.totalAmount)}
+          {formatCurrency(aggregate.totalAmount)}
         </strong>
       </div>
     </>

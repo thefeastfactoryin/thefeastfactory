@@ -62,10 +62,6 @@ function formatCurrency(value: number) {
   }).format(value);
 }
 
-function roundSlotValue(value: number, digits = 4) {
-  return Number(value.toFixed(digits));
-}
-
 function getDishImage(dish: Dish) {
   if (dish.cat === 'rice-bread') return '/tray-3.png';
   if (dish.cat === 'dessert') return '/tray-5.png';
@@ -151,94 +147,6 @@ function GuestStepper({
           <Plus className="h-4 w-4" />
         </button>
       </div>
-    </div>
-  );
-}
-
-function BanquetTable({
-  dishMap,
-  order,
-}: {
-  dishMap: Record<string, Dish>;
-  order: DishId[];
-}) {
-  const slots = useMemo(() => {
-    return Array.from({ length: 12 }, (_, index) => {
-      const angle = ((-90 + index * 30) * Math.PI) / 180;
-      const x = roundSlotValue(50 + 40 * Math.cos(angle));
-      const y = roundSlotValue(50 + 31 * Math.sin(angle));
-      const scale = roundSlotValue(
-        0.82 + ((Math.sin(angle) + 1) / 2) * 0.42,
-        6,
-      );
-      const z = 10 + Math.round((Math.sin(angle) + 1) * 9);
-      return { scale, x, y, z };
-    });
-  }, []);
-
-  return (
-    <div className="relative h-[300px] w-full sm:h-[355px] lg:h-[410px]">
-      <div className="absolute left-1/2 top-1/2 z-[5] flex h-[56%] w-[72%] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-[50%] bg-[radial-gradient(ellipse_at_50%_32%,hsl(33_40%_64%),hsl(30_42%_48%)_58%,hsl(27_44%_35%))] shadow-[0_32px_54px_rgba(0,0,0,0.45),inset_0_-12px_34px_rgba(0,0,0,0.28),inset_0_8px_22px_rgba(255,255,255,0.14)] sm:h-[62%]">
-        <div className="select-none text-center">
-          <div className="mb-0.5 font-serif text-[10px] font-bold tracking-[0.28em] text-[hsla(28,50%,22%,0.5)] sm:text-[11px]">
-            THE
-          </div>
-          <div className="font-serif text-xl font-bold tracking-normal text-[hsla(28,52%,24%,0.62)] [text-shadow:0_1px_0_hsla(40,60%,82%,0.45)] sm:text-[26px]">
-            FEAST FACTORY
-          </div>
-          <div className="mt-1 text-[8px] font-bold tracking-[0.24em] text-[hsla(28,50%,22%,0.5)] sm:text-[9px]">
-            GREAT FOOD
-          </div>
-        </div>
-      </div>
-
-      {slots.map((slot, index) => {
-        const id = order[index];
-        const dish = id ? dishMap[id] : null;
-        return (
-          <div
-            key={index}
-            className="absolute h-[66px] w-[84px] sm:h-[78px] sm:w-[100px]"
-            style={{
-              left: `${slot.x}%`,
-              top: `${slot.y}%`,
-              transform: `translate(-50%,-50%) scale(${slot.scale})`,
-              transformOrigin: 'center center',
-              zIndex: slot.z,
-            }}
-          >
-            <span className="absolute -left-1.5 top-1/2 z-0 h-2.5 w-3 -translate-y-1/2 rounded-md bg-[linear-gradient(180deg,#ecc873,#a9791f)]" />
-            <span className="absolute -right-1.5 top-1/2 z-0 h-2.5 w-3 -translate-y-1/2 rounded-md bg-[linear-gradient(180deg,#ecc873,#a9791f)]" />
-            <div className="relative z-[1] h-full w-full rounded-[11px] bg-[linear-gradient(150deg,#efcd7d,#c79433_55%,#9c6f1f)] p-1.5 shadow-[0_9px_16px_rgba(0,0,0,0.4)]">
-              <div className="relative h-full w-full overflow-hidden rounded-md bg-[linear-gradient(160deg,#fbfdfe_0%,#d2d8de_42%,#9aa1a9_100%)] shadow-[inset_0_2px_6px_rgba(255,255,255,0.55),inset_0_-5px_11px_rgba(0,0,0,0.3)]">
-                {dish ? (
-                  <>
-                    <img
-                      src={getDishImage(dish)}
-                      alt=""
-                      className="absolute inset-0 h-full w-full object-cover shadow-[inset_0_2px_8px_rgba(0,0,0,0.5)]"
-                    />
-                    <div className="absolute bottom-1 left-1/2 z-[6] max-w-[90%] -translate-x-1/2 truncate rounded-full bg-white/95 px-2 py-0.5 text-[9px] font-extrabold text-foreground shadow-sm sm:text-[10px]">
-                      {dish.name}
-                    </div>
-                  </>
-                ) : (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5 text-muted-foreground/75">
-                    <span className="grid h-5 w-5 place-items-center rounded-full border border-muted-foreground/50">
-                      <Plus className="h-3 w-3" strokeWidth={2.4} />
-                    </span>
-                    <span className="font-serif text-[10px] italic">
-                      Add Item
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-            <span className="absolute bottom-[-5px] left-[20%] z-0 h-2 w-2 rounded-b-[3px] bg-[#a9791f]" />
-            <span className="absolute bottom-[-5px] right-[20%] z-0 h-2 w-2 rounded-b-[3px] bg-[#a9791f]" />
-          </div>
-        );
-      })}
     </div>
   );
 }

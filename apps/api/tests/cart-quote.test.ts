@@ -70,3 +70,91 @@ test('cart quote combines menu subtotal and delivery fee', async () => {
   assert.equal(quote.distanceKm, '21.10');
   assert.equal(quote.billableDistanceKm, 22);
 });
+
+test('removing an active package cart preserves the shared delivery fee', async () => {
+  const calls: string[] = [];
+  const prisma = {
+    cart: {
+      findFirst: async () => ({
+        id: 'cart-1',
+        userId: 'user-1',
+        deliveryFee: new Prisma.Decimal('220.00'),
+      }),
+    },
+    $transaction: async (callback: (tx: object) => Promise<void>) =>
+      callback({
+        cartItem: {
+          deleteMany: async () => calls.push('items-deleted'),
+        },
+        cart: {
+          delete: async () => calls.push('cart-deleted'),
+          findFirst: async () => ({ id: 'cart-2' }),
+          update: async ({ data }: { data: { deliveryFee: Prisma.Decimal } }) =>
+            calls.push(`fee-${data.deliveryFee.toFixed(2)}`),
+        },
+      }),
+  };
+  const service = new CartService(
+    prisma as never,
+    {} as never,
+    {} as never,
+    {} as never,
+  );
+
+  assert.deepEqual(await service.removeActive('user-1', 'cart-1'), {
+    success: true,
+    id: 'cart-1',
+  });
+  assert.deepEqual(calls, ['items-deleted', 'cart-deleted', 'fee-220.00']);
+});
+
+test('package quantities update independently within package limits', async () => {
+  let savedCount = 0;
+  const cart = {
+    id: 'cart-1',
+    userId: 'user-1',
+    packageVersionId: 'version-1',
+    packageVersion: { minGuestCount: 10, maxGuestCount: 50 },
+    items: [],
+  };
+  const prisma = {
+    cart: {
+      findFirst: async () => cart,
+      update: async ({ data }: { data: { guestCount: number } }) => {
+        savedCount = data.guestCount;
+        return {
+          ...cart,
+          ...data,
+          status: 'ACTIVE',
+          expiresAt: null,
+          lastQuotedAt: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          order: null,
+          address: null,
+          region: null,
+          packageVersion: {
+            ...cart.packageVersion,
+            versionNo: 1,
+            basePricePerPlate: new Prisma.Decimal('499.00'),
+            package: {
+              id: 'package-1',
+              name: 'Veg box',
+              type: 'MEAL_BOX',
+            },
+          },
+        };
+      },
+    },
+  };
+  const service = new CartService(
+    prisma as never,
+    {} as never,
+    {} as never,
+    {} as never,
+  );
+
+  const updated = await service.updateQuantity('user-1', 'cart-1', 15);
+  assert.equal(savedCount, 15);
+  assert.equal(updated.guestCount, 15);
+});

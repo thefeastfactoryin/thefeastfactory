@@ -18,7 +18,7 @@ import {
   Search,
   X,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '../../../components/ui/button';
 import { MediaUploader } from '../../../components/media-uploader';
 import { Field, Select, Textarea } from '../../../components/ui/form';
@@ -138,6 +138,7 @@ function formatMoney(value: string) {
 }
 
 export default function AdminPackages() {
+  const configRequestSequence = useRef(0);
   const session = useAdminSessionStore((s) => s.session);
   const [packages, setPackages] = useState<AdminPackage[]>([]);
   const [categories, setCategories] = useState<MenuCategory[]>([]);
@@ -279,6 +280,7 @@ export default function AdminPackages() {
   }
 
   async function loadConfig(versionId = selectedVersionId) {
+    const requestSequence = ++configRequestSequence.current;
     if (!session || !versionId) {
       setConfig(undefined);
       setConfigVersionId('');
@@ -292,6 +294,7 @@ export default function AdminPackages() {
       {},
       session.accessToken,
     );
+    if (requestSequence !== configRequestSequence.current) return;
     setConfig(nextConfig);
     setConfigVersionId(versionId);
     setRoleEdits(
@@ -442,17 +445,19 @@ export default function AdminPackages() {
       versionNo: number;
       basePricePerPlate: string;
       minGuestCount: number;
-      maxGuestCount?: number;
+      maxGuestCount: number | null;
       isActive: boolean;
       publishedAt: string | null;
     } = {
       versionNo: Number(form.versionNo),
       basePricePerPlate,
       minGuestCount: Number(form.minGuestCount || 10),
+      maxGuestCount: form.maxGuestCount
+        ? Number(form.maxGuestCount)
+        : null,
       isActive: form.isActive,
       publishedAt: form.published ? new Date().toISOString() : null,
     };
-    if (form.maxGuestCount) payload.maxGuestCount = Number(form.maxGuestCount);
     return payload;
   }
 
@@ -616,7 +621,7 @@ export default function AdminPackages() {
           isFeatured: packageForm.isFeatured,
           featuredOrder: packageForm.featuredOrder
             ? Number(packageForm.featuredOrder)
-            : undefined,
+            : null,
         };
         savedPackage =
           dialogMode === 'edit-package' && packageForm.id
