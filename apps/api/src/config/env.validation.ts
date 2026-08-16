@@ -35,13 +35,22 @@ const envSchema = z.object({
   RAZORPAY_KEY_ID: z.string().optional().default(''),
   RAZORPAY_KEY_SECRET: z.string().optional().default(''),
   RAZORPAY_WEBHOOK_SECRET: z.string().optional().default(''),
-  RAZORPAY_CURRENCY: z.string().default('INR'),
+  RAZORPAY_CURRENCY: z.string().regex(/^[A-Z]{3}$/).default('INR'),
   R2_ACCOUNT_ID: z.string().optional().default(''),
   R2_ACCESS_KEY_ID: z.string().optional().default(''),
   R2_SECRET_ACCESS_KEY: z.string().optional().default(''),
   R2_BUCKET_NAME: z.string().optional().default(''),
   R2_PUBLIC_BASE_URL: z.union([z.literal(''), z.string().url()]).default(''),
 }).superRefine((env, context) => {
+  if (Boolean(env.RAZORPAY_KEY_ID) !== Boolean(env.RAZORPAY_KEY_SECRET)) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['RAZORPAY_KEY_ID'],
+      message:
+        'RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET must be configured together',
+    });
+  }
+
   if (
     env.TEST_LOGIN_OTP_ENABLED &&
     (!env.TEST_LOGIN_MOBILE || !env.TEST_LOGIN_OTP)

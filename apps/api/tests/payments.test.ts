@@ -6,7 +6,10 @@ import {
   Prisma,
   RefundStatus,
 } from '@prisma/client';
-import { ServiceUnavailableException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { PaymentsService } from '../src/modules/payments/payments.service';
 
 const baseRefund = {
@@ -48,6 +51,26 @@ test('Razorpay currency prefers the managed database setting', async () => {
     currency(): Promise<string>;
   };
   assert.equal(await managedCurrency.currency(), 'AED');
+});
+
+test('gateway orders reject amounts below one rupee', async () => {
+  const payments = service({
+    order: {
+      findFirst: async () => ({
+        id: 'order-1',
+        orderNumber: 'TFF-1',
+        orderStatus: OrderStatus.PENDING_PAYMENT,
+        totalAmount: new Prisma.Decimal('0.50'),
+        payments: [],
+      }),
+    },
+    platformSetting: { findUnique: async () => null },
+  });
+
+  await assert.rejects(
+    payments.createGatewayOrder('user-1', 'order-1'),
+    BadRequestException,
+  );
 });
 
 test('batch checkout creates one gateway charge with one payment ledger per order', async () => {

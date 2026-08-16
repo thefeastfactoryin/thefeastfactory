@@ -74,26 +74,28 @@ export class PaymentsService {
         (sum, payment) => sum.plus(payment.amount),
         new Prisma.Decimal(0),
       );
+      const amount = this.paymentAmountInSubunits(linkedAmount);
       return {
         paymentId: existing.id,
         keyId: this.keyId() || 'local',
         id: existing.razorpayOrderId,
-        amount: linkedAmount.mul(100).toNumber(),
+        amount,
         currency,
         localMode: !this.isConfigured(),
         reused: true,
       };
     }
 
+    const amount = this.paymentAmountInSubunits(order.totalAmount);
     const gatewayOrder = this.isConfigured()
       ? await this.createRazorpayOrder(
           order.orderNumber,
-          order.totalAmount.mul(100).toNumber(),
+          amount,
           currency,
         )
       : {
           id: `local_order_${order.id}_${Date.now()}`,
-          amount: order.totalAmount.mul(100).toNumber(),
+          amount,
           currency,
         };
 
@@ -182,6 +184,7 @@ export class PaymentsService {
       (sum, order) => sum.plus(order.totalAmount),
       new Prisma.Decimal(0),
     );
+    const amount = this.paymentAmountInSubunits(total);
     const currency = await this.currency();
     const reusableGatewayId = orders[0].payments.find(
       (payment) =>
@@ -199,7 +202,7 @@ export class PaymentsService {
       return {
         keyId: this.keyId() || 'local',
         id: reusableGatewayId,
-        amount: total.mul(100).toNumber(),
+        amount,
         currency,
         orderIds: uniqueIds,
         localMode: !this.isConfigured(),
@@ -209,12 +212,12 @@ export class PaymentsService {
     const gatewayOrder = this.isConfigured()
       ? await this.createRazorpayOrder(
           `batch-${orders[0].orderNumber}`,
-          total.mul(100).toNumber(),
+          amount,
           currency,
         )
       : {
           id: `local_batch_${Date.now()}`,
-          amount: total.mul(100).toNumber(),
+          amount,
           currency,
         };
     await this.prisma.payment.createMany({
@@ -262,7 +265,7 @@ export class PaymentsService {
           .digest('hex')
       : 'local_success';
     if (!this.safeEqual(dto.razorpaySignature, expected)) {
-      throw new UnauthorizedException('Invalid payment signature');
+      throw new BadRequestException('Invalid payment signature');
     }
 
     const batchAmount = batchPayments.reduce(
@@ -280,9 +283,10 @@ export class PaymentsService {
       gatewayPayment = (await this.client().payments.fetch(
         dto.razorpayPaymentId,
       )) as GatewayPayment;
+      const expectedAmount = this.paymentAmountInSubunits(batchAmount);
       if (
         gatewayPayment.order_id !== dto.razorpayOrderId ||
-        Number(gatewayPayment.amount) !== batchAmount.mul(100).toNumber() ||
+        Number(gatewayPayment.amount) !== expectedAmount ||
         gatewayPayment.status !== 'captured'
       ) {
         throw new BadRequestException(
@@ -659,6 +663,11 @@ export class PaymentsService {
     amount: number,
     currency: string,
   ) {
+    if (!Number.isSafeInteger(amount) || amount < 100) {
+      throw new BadRequestException(
+        'Payment amount must be at least 100 currency subunits',
+      );
+    }
     try {
       const created = await this.client().orders.create({
         amount,
@@ -671,7 +680,13 @@ export class PaymentsService {
         amount: Number(created.amount),
         currency: created.currency,
       };
-    } catch {
+    } catch (error) {
+      const statusCode = (error as { statusCode?: number })?.statusCode;
+      if (statusCode === 401) {
+        throw new UnauthorizedException(
+          'Payment provider authentication failed',
+        );
+      }
       throw new BadGatewayException(
         'Payment provider is temporarily unavailable',
       );
@@ -718,6 +733,16 @@ export class PaymentsService {
     const left = Buffer.from(actual);
     const right = Buffer.from(expected);
     return left.length === right.length && crypto.timingSafeEqual(left, right);
+  }
+
+  private paymentAmountInSubunits(amount: Prisma.Decimal) {
+    const subunits = amount.mul(100).toNumber();
+    if (!Number.isSafeInteger(subunits) || subunits < 100) {
+      throw new BadRequestException(
+        'Payment amount must be at least 100 currency subunits',
+      );
+    }
+    return subunits;
   }
 
   private serializeRefund<T extends { amount: Prisma.Decimal }>(refund: T) {

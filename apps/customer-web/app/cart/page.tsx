@@ -75,6 +75,30 @@ type MultiCartQuote = {
   totalAmount: string;
 };
 
+function withoutCartQuote(
+  aggregate: MultiCartQuote | undefined,
+  cartId: string,
+) {
+  if (!aggregate) return undefined;
+  const carts = aggregate.carts.filter((entry) => entry.cartId !== cartId);
+  if (!carts.length) return undefined;
+  const subtotal = carts.reduce(
+    (sum, entry) => sum + Number(entry.quote.subtotalAmount),
+    0,
+  );
+  const delivery = carts.reduce(
+    (sum, entry) => sum + Number(entry.quote.deliveryFee),
+    0,
+  );
+  return {
+    ...aggregate,
+    carts,
+    subtotalAmount: subtotal.toFixed(2),
+    deliveryFee: delivery.toFixed(2),
+    totalAmount: (subtotal + delivery).toFixed(2),
+  };
+}
+
 function clampPackageQuantity(cart: CartSummary, requestedCount: number) {
   const minimum = cart.package.minGuestCount;
   const maximum = cart.package.maxGuestCount ?? Number.MAX_SAFE_INTEGER;
@@ -109,6 +133,8 @@ export default function CartPage() {
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [paying, setPaying] = useState(false);
   const [deletingCartId, setDeletingCartId] = useState('');
+  const [clearCartOpen, setClearCartOpen] = useState(false);
+  const [clearingCart, setClearingCart] = useState(false);
   const [updatingCartId, setUpdatingCartId] = useState('');
   const [selectingCartId, setSelectingCartId] = useState('');
   const [error, setError] = useState('');
@@ -253,23 +279,24 @@ export default function CartPage() {
         { method: 'DELETE' },
         session.accessToken,
       );
-      const remaining = await apiRequest<CartSummary[]>(
-        '/cart/all',
-        {},
-        session.accessToken,
-      );
+      const remaining = activeCarts.filter((entry) => entry.id !== cartId);
       setActiveCarts(remaining);
+      setMultiCartQuote((current) => withoutCartQuote(current, cartId));
       window.dispatchEvent(new Event('cart-updated'));
       if (!remaining.length) {
         reset();
         setCart(undefined);
         setConfig(undefined);
         setQuote(undefined);
+        setMultiCartQuote(undefined);
         return;
       }
       if (cart?.id === cartId) {
         const next = remaining[0];
         setCart(next);
+        setQuote(
+          multiCartQuote?.carts.find((entry) => entry.cartId === next.id)?.quote,
+        );
         hydrate(next, session.user.id);
         setConfig(
           await apiRequest<PackageConfiguration>(
@@ -285,6 +312,27 @@ export default function CartPage() {
       setError((reason as Error).message);
     } finally {
       setDeletingCartId('');
+    }
+  }
+
+  async function clearCart() {
+    if (!session || clearingCart || pendingOrder) return;
+    setClearingCart(true);
+    setError('');
+    try {
+      await apiRequest('/cart', { method: 'DELETE' }, session.accessToken);
+      reset();
+      setActiveCarts([]);
+      setCart(undefined);
+      setConfig(undefined);
+      setQuote(undefined);
+      setMultiCartQuote(undefined);
+      setClearCartOpen(false);
+      window.dispatchEvent(new Event('cart-updated'));
+    } catch (reason) {
+      setError((reason as Error).message);
+    } finally {
+      setClearingCart(false);
     }
   }
 
@@ -1009,11 +1057,68 @@ export default function CartPage() {
                       {error}
                     </p>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => setClearCartOpen(true)}
+                    className="mt-5 inline-flex w-full items-center justify-center gap-2 border-t border-border pt-4 text-sm font-bold text-red-700 transition hover:text-red-800"
+                  >
+                    <Trash2 className="h-4 w-4" /> Clear entire cart
+                  </button>
                 </div>
               )}
             </section>
           </aside>
         </div>
+
+        {clearCartOpen && !pendingOrder && (
+          <div
+            className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/60 p-4 backdrop-blur-sm"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="clear-cart-title"
+          >
+            <button
+              type="button"
+              className="absolute inset-0"
+              aria-label="Keep cart"
+              onClick={() => setClearCartOpen(false)}
+            />
+            <section className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+              <span className="grid h-11 w-11 place-items-center rounded-full bg-red-50 text-red-700">
+                <Trash2 className="h-5 w-5" />
+              </span>
+              <h2
+                id="clear-cart-title"
+                className="mt-4 font-serif text-2xl font-bold"
+              >
+                Clear your entire cart?
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                This removes all {activeCarts.length} package
+                {activeCarts.length === 1 ? '' : 's'}, their menu selections,
+                quantities, and event details.
+              </p>
+              <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setClearCartOpen(false)}
+                  disabled={clearingCart}
+                >
+                  Keep cart
+                </Button>
+                <button
+                  type="button"
+                  onClick={() => void clearCart()}
+                  disabled={clearingCart}
+                  className="rounded-full bg-red-700 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-800 disabled:opacity-60"
+                >
+                  {clearingCart ? 'Clearing…' : 'Clear entire cart'}
+                </button>
+              </div>
+            </section>
+          </div>
+        )}
 
         <TrustStrip />
       </div>
