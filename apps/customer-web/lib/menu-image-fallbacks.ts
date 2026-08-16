@@ -66,6 +66,74 @@ const localMenuImageById: Readonly<Record<string, string>> = {
   'e43764a6-a674-44b7-b164-23ed153196d0': '/menu-images/desserts/kala-jamun/large.jpg',
 };
 
+const localMenuImageByName: Readonly<Record<string, string>> = {
+  'apollo fish': '/menu-images/starters/apollo-fish/large.jpg',
+  'baby corn manchurian': '/menu-images/starters/baby-corn-manchurian/large.jpg',
+  'chicken majestic': '/menu-images/starters/chicken-majestic/large.jpg',
+  'chicken tikka': '/menu-images/starters/chicken-tikka/large.jpg',
+  'chicken-65': '/menu-images/starters/chicken-65/large.jpg',
+  'chiilli prawns': '/menu-images/starters/chiilli-prawns/large.jpg',
+  'chilli chicken': '/menu-images/starters/chilli-chicken/large.jpg',
+  'chilli egg': '/menu-images/starters/chilli-egg/large.jpg',
+  'chilli mushroom': '/menu-images/starters/chilli-mushroom/large.jpg',
+  'chilli paneer': '/menu-images/starters/chilli-paneer/large.jpg',
+  'crispy baby corn': '/menu-images/starters/crispy-baby-corn/large.jpg',
+  'fish tikka': '/menu-images/starters/fish-tikka/large.jpg',
+  'gobi manchurian': '/menu-images/starters/gobi-manchurian/large.jpg',
+  'karivepaku kodi vepudu': '/menu-images/starters/karivepaku-kodi-vepudu/large.jpg',
+  'mamsam jeddipapu fry': '/menu-images/starters/mamsam-jeddipapu-fry/large.jpg',
+  'paneer majestic': '/menu-images/starters/paneer-majestic/large.jpg',
+  'paneer-65': '/menu-images/starters/paneer-65/large.jpg',
+  'pepper chicken': '/menu-images/starters/pepper-chicken/large.jpg',
+  'veg manchurian': '/menu-images/starters/veg-manchurian/large.jpg',
+  'butter naan': '/menu-images/indian-breads/butter-naan/large.jpg',
+  'garlic naan': '/menu-images/indian-breads/garlic-naan/large.jpg',
+  'phulka': '/menu-images/indian-breads/phulka/large.jpg',
+  'plain naan': '/menu-images/indian-breads/plain-naan/large.jpg',
+  'tandoori roti': '/menu-images/indian-breads/tandoori-roti/large.jpg',
+  'aloo dum curry': '/menu-images/curry/aloo-dum-curry/large.jpg',
+  'aloo gobi masala': '/menu-images/curry/aloo-gobi-masala/large.jpg',
+  'butter chicken': '/menu-images/curry/butter-chicken/large.jpg',
+  'chicken kholapuri': '/menu-images/curry/chicken-kholapuri/large.jpg',
+  'chicken tikka masala': '/menu-images/curry/chicken-tikka-masala/large.jpg',
+  'dal fry': '/menu-images/curry/dal-fry/large.jpg',
+  'dal tadka': '/menu-images/curry/dal-tadka/large.jpg',
+  'egg bhurji': '/menu-images/curry/egg-bhurji/large.jpg',
+  'fish pulsu': '/menu-images/curry/fish-pulsu/large.jpg',
+  'fish tikka masala': '/menu-images/curry/fish-tikka-masala/large.jpg',
+  'gongura kodi koora': '/menu-images/curry/gongura-kodi-koora/large.jpg',
+  'guttivankaya koora': '/menu-images/curry/guttivankaya-koora/large.jpg',
+  'kadai chicken': '/menu-images/curry/kadai-chicken/large.jpg',
+  'kadai paneer': '/menu-images/curry/kadai-paneer/large.jpg',
+  'kadai veg': '/menu-images/curry/kadai-veg/large.jpg',
+  'kodi koora': '/menu-images/curry/kodi-koora/large.jpg',
+  'lucknowi mutton korma': '/menu-images/curry/lucknowi-mutton-korma/large.jpg',
+  'mix-veg': '/menu-images/curry/mix-veg/large.jpg',
+  'mushroom masala': '/menu-images/curry/mushroom-masala/large.jpg',
+  'mutton masala': '/menu-images/curry/mutton-masala/large.jpg',
+  'mutton rogan josh': '/menu-images/curry/mutton-rogan-josh/large.jpg',
+  'nizami handi': '/menu-images/curry/nizami-handi/large.jpg',
+  'paneer butter masala': '/menu-images/curry/paneer-butter-masala/large.jpg',
+  'paneer kholapuri': '/menu-images/curry/paneer-kholapuri/large.jpg',
+  'paneer tikka masala': '/menu-images/curry/paneer-tikka-masala/large.jpg',
+  'veg kholapuri': '/menu-images/curry/veg-kholapuri/large.jpg',
+  'chicken biryani': '/menu-images/biryani/chicken-biryani/large.jpg',
+  'egg biryani': '/menu-images/biryani/egg-biryani/large.jpg',
+  'mutton dum biryani': '/menu-images/biryani/mutton-dum-biryani/large.jpg',
+  'veg biryani': '/menu-images/biryani/veg-biryani/large.jpg',
+  'bagara rice': '/menu-images/rice-items/bagara-rice/large.jpg',
+  'chicken fried rice': '/menu-images/rice-items/chicken-fried-rice/large.jpg',
+  'curd rice': '/menu-images/rice-items/curd-rice/large.jpg',
+  'egg fried rice': '/menu-images/rice-items/egg-fried-rice/large.jpg',
+  'jeera rice': '/menu-images/rice-items/jeera-rice/large.jpg',
+  'plain rice': '/menu-images/rice-items/plain-rice/large.jpg',
+  'sambar rice': '/menu-images/rice-items/sambar-rice/large.jpg',
+  'veg fried rice': '/menu-images/rice-items/veg-fried-rice/large.jpg',
+  'double ka meetha': '/menu-images/desserts/double-ka-meetha/large.jpg',
+  'gulab jamun': '/menu-images/desserts/gulab-jamun/large.jpg',
+  'kala jamun': '/menu-images/desserts/kala-jamun/large.jpg',
+};
+
 export function withLocalMenuImages<T>(value: T): T {
   if (Array.isArray(value)) {
     return value.map((entry) => withLocalMenuImages(entry)) as T;
@@ -73,8 +141,13 @@ export function withLocalMenuImages<T>(value: T): T {
   if (!value || typeof value !== 'object') return value;
 
   const record = value as Record<string, unknown>;
-  const localImage =
+  const localImageById =
     typeof record.id === 'string' ? localMenuImageById[record.id] : undefined;
+  const localImageByName =
+    typeof record.name === 'string'
+      ? localMenuImageByName[record.name.trim().toLowerCase()]
+      : undefined;
+  const localImage = localImageById ?? localImageByName;
   const enriched = Object.fromEntries(
     Object.entries(record).map(([key, entry]) => [
       key,
@@ -85,4 +158,3 @@ export function withLocalMenuImages<T>(value: T): T {
   if (localImage && !record.imageUrl) enriched.imageUrl = localImage;
   return enriched as T;
 }
-
