@@ -1,0 +1,807 @@
+{
+  "version": 1,
+  "generatedAt": "2026-08-16",
+  "source": "active menu_items from local database",
+  "assetRoot": "/menu-images",
+  "aspectRatio": "8:5",
+  "sizes": {
+    "large": {
+      "width": 1200,
+      "height": 750,
+      "use": "menu cards and item detail views"
+    },
+    "medium": {
+      "width": 640,
+      "height": 400,
+      "use": "standard cards and responsive fallback"
+    },
+    "thumb": {
+      "width": 192,
+      "height": 120,
+      "use": "selection rows, cart summaries, and thumbnails"
+    }
+  },
+  "items": [
+    {
+      "id": "4149198e-5812-4935-9395-b745f23191f0",
+      "name": "Apollo Fish",
+      "category": "Starters",
+      "isVeg": false,
+      "slug": "apollo-fish",
+      "images": {
+        "large": "/menu-images/starters/apollo-fish/large.jpg",
+        "medium": "/menu-images/starters/apollo-fish/medium.jpg",
+        "thumb": "/menu-images/starters/apollo-fish/thumb.jpg"
+      }
+    },
+    {
+      "id": "2c7518dc-9add-432d-a48d-8c4af6ae9573",
+      "name": "Baby Corn Manchurian",
+      "category": "Starters",
+      "isVeg": true,
+      "slug": "baby-corn-manchurian",
+      "images": {
+        "large": "/menu-images/starters/baby-corn-manchurian/large.jpg",
+        "medium": "/menu-images/starters/baby-corn-manchurian/medium.jpg",
+        "thumb": "/menu-images/starters/baby-corn-manchurian/thumb.jpg"
+      }
+    },
+    {
+      "id": "19195ab1-f4c5-41db-b5c0-6bb8fb4547f4",
+      "name": "Chicken Majestic",
+      "category": "Starters",
+      "isVeg": false,
+      "slug": "chicken-majestic",
+      "images": {
+        "large": "/menu-images/starters/chicken-majestic/large.jpg",
+        "medium": "/menu-images/starters/chicken-majestic/medium.jpg",
+        "thumb": "/menu-images/starters/chicken-majestic/thumb.jpg"
+      }
+    },
+    {
+      "id": "45fce211-d308-46e4-9eb1-3222f374cd97",
+      "name": "Chicken Tikka",
+      "category": "Starters",
+      "isVeg": false,
+      "slug": "chicken-tikka",
+      "images": {
+        "large": "/menu-images/starters/chicken-tikka/large.jpg",
+        "medium": "/menu-images/starters/chicken-tikka/medium.jpg",
+        "thumb": "/menu-images/starters/chicken-tikka/thumb.jpg"
+      }
+    },
+    {
+      "id": "0b86d7cc-3b77-4f7d-bef0-0d49fbf6ae23",
+      "name": "Chicken-65",
+      "category": "Starters",
+      "isVeg": false,
+      "slug": "chicken-65",
+      "images": {
+        "large": "/menu-images/starters/chicken-65/large.jpg",
+        "medium": "/menu-images/starters/chicken-65/medium.jpg",
+        "thumb": "/menu-images/starters/chicken-65/thumb.jpg"
+      }
+    },
+    {
+      "id": "da9c11a1-3788-4df2-b31b-b4ec087ba62f",
+      "name": "Chiilli Prawns",
+      "category": "Starters",
+      "isVeg": false,
+      "slug": "chiilli-prawns",
+      "images": {
+        "large": "/menu-images/starters/chiilli-prawns/large.jpg",
+        "medium": "/menu-images/starters/chiilli-prawns/medium.jpg",
+        "thumb": "/menu-images/starters/chiilli-prawns/thumb.jpg"
+      }
+    },
+    {
+      "id": "356fe1ba-48e6-4cd3-9e3a-907dc04d2df6",
+      "name": "Chilli Chicken",
+      "category": "Starters",
+      "isVeg": false,
+      "slug": "chilli-chicken",
+      "images": {
+        "large": "/menu-images/starters/chilli-chicken/large.jpg",
+        "medium": "/menu-images/starters/chilli-chicken/medium.jpg",
+        "thumb": "/menu-images/starters/chilli-chicken/thumb.jpg"
+      }
+    },
+    {
+      "id": "9d7ebe3d-8a29-4e3b-ae06-1a8e61cbf664",
+      "name": "Chilli Egg",
+      "category": "Starters",
+      "isVeg": false,
+      "slug": "chilli-egg",
+      "images": {
+        "large": "/menu-images/starters/chilli-egg/large.jpg",
+        "medium": "/menu-images/starters/chilli-egg/medium.jpg",
+        "thumb": "/menu-images/starters/chilli-egg/thumb.jpg"
+      }
+    },
+    {
+      "id": "fe899a28-a145-496f-8df5-2e27fe1f4f18",
+      "name": "Chilli Mushroom",
+      "category": "Starters",
+      "isVeg": true,
+      "slug": "chilli-mushroom",
+      "images": {
+        "large": "/menu-images/starters/chilli-mushroom/large.jpg",
+        "medium": "/menu-images/starters/chilli-mushroom/medium.jpg",
+        "thumb": "/menu-images/starters/chilli-mushroom/thumb.jpg"
+      }
+    },
+    {
+      "id": "5aa582c4-8e75-45ea-a6d1-e4942c5325c9",
+      "name": "Chilli Paneer",
+      "category": "Starters",
+      "isVeg": true,
+      "slug": "chilli-paneer",
+      "images": {
+        "large": "/menu-images/starters/chilli-paneer/large.jpg",
+        "medium": "/menu-images/starters/chilli-paneer/medium.jpg",
+        "thumb": "/menu-images/starters/chilli-paneer/thumb.jpg"
+      }
+    },
+    {
+      "id": "0c106db1-15f1-4498-96f5-7492b1bac318",
+      "name": "Crispy Baby Corn",
+      "category": "Starters",
+      "isVeg": true,
+      "slug": "crispy-baby-corn",
+      "images": {
+        "large": "/menu-images/starters/crispy-baby-corn/large.jpg",
+        "medium": "/menu-images/starters/crispy-baby-corn/medium.jpg",
+        "thumb": "/menu-images/starters/crispy-baby-corn/thumb.jpg"
+      }
+    },
+    {
+      "id": "1e30ab25-d62b-46d6-9818-7df2df78a6bc",
+      "name": "Fish Tikka",
+      "category": "Starters",
+      "isVeg": false,
+      "slug": "fish-tikka",
+      "images": {
+        "large": "/menu-images/starters/fish-tikka/large.jpg",
+        "medium": "/menu-images/starters/fish-tikka/medium.jpg",
+        "thumb": "/menu-images/starters/fish-tikka/thumb.jpg"
+      }
+    },
+    {
+      "id": "61e46ef4-228d-4eef-b15b-1e97eb01791d",
+      "name": "Gobi Manchurian",
+      "category": "Starters",
+      "isVeg": true,
+      "slug": "gobi-manchurian",
+      "images": {
+        "large": "/menu-images/starters/gobi-manchurian/large.jpg",
+        "medium": "/menu-images/starters/gobi-manchurian/medium.jpg",
+        "thumb": "/menu-images/starters/gobi-manchurian/thumb.jpg"
+      }
+    },
+    {
+      "id": "661f1c88-8295-40c5-8807-0e5273ac8196",
+      "name": "Karivepaku Kodi Vepudu",
+      "category": "Starters",
+      "isVeg": false,
+      "slug": "karivepaku-kodi-vepudu",
+      "images": {
+        "large": "/menu-images/starters/karivepaku-kodi-vepudu/large.jpg",
+        "medium": "/menu-images/starters/karivepaku-kodi-vepudu/medium.jpg",
+        "thumb": "/menu-images/starters/karivepaku-kodi-vepudu/thumb.jpg"
+      }
+    },
+    {
+      "id": "cdf0a9f0-142e-4591-8401-76244af6bef9",
+      "name": "Mamsam Jeddipapu Fry",
+      "category": "Starters",
+      "isVeg": false,
+      "slug": "mamsam-jeddipapu-fry",
+      "images": {
+        "large": "/menu-images/starters/mamsam-jeddipapu-fry/large.jpg",
+        "medium": "/menu-images/starters/mamsam-jeddipapu-fry/medium.jpg",
+        "thumb": "/menu-images/starters/mamsam-jeddipapu-fry/thumb.jpg"
+      }
+    },
+    {
+      "id": "aa11cb72-91cc-4a77-81fb-e6f361684ae2",
+      "name": "Paneer Majestic",
+      "category": "Starters",
+      "isVeg": true,
+      "slug": "paneer-majestic",
+      "images": {
+        "large": "/menu-images/starters/paneer-majestic/large.jpg",
+        "medium": "/menu-images/starters/paneer-majestic/medium.jpg",
+        "thumb": "/menu-images/starters/paneer-majestic/thumb.jpg"
+      }
+    },
+    {
+      "id": "770d1d27-e6da-480d-991e-126cf84d2e45",
+      "name": "Paneer-65",
+      "category": "Starters",
+      "isVeg": true,
+      "slug": "paneer-65",
+      "images": {
+        "large": "/menu-images/starters/paneer-65/large.jpg",
+        "medium": "/menu-images/starters/paneer-65/medium.jpg",
+        "thumb": "/menu-images/starters/paneer-65/thumb.jpg"
+      }
+    },
+    {
+      "id": "7de32455-1cef-43cc-af29-d54045c249c4",
+      "name": "Pepper Chicken",
+      "category": "Starters",
+      "isVeg": false,
+      "slug": "pepper-chicken",
+      "images": {
+        "large": "/menu-images/starters/pepper-chicken/large.jpg",
+        "medium": "/menu-images/starters/pepper-chicken/medium.jpg",
+        "thumb": "/menu-images/starters/pepper-chicken/thumb.jpg"
+      }
+    },
+    {
+      "id": "01dba703-afa2-4f59-916f-6a5d32adab74",
+      "name": "Veg Manchurian",
+      "category": "Starters",
+      "isVeg": true,
+      "slug": "veg-manchurian",
+      "images": {
+        "large": "/menu-images/starters/veg-manchurian/large.jpg",
+        "medium": "/menu-images/starters/veg-manchurian/medium.jpg",
+        "thumb": "/menu-images/starters/veg-manchurian/thumb.jpg"
+      }
+    },
+    {
+      "id": "0717461e-a6bb-4228-896a-68c3d84e617d",
+      "name": "Butter Naan",
+      "category": "Indian Breads",
+      "isVeg": true,
+      "slug": "butter-naan",
+      "images": {
+        "large": "/menu-images/indian-breads/butter-naan/large.jpg",
+        "medium": "/menu-images/indian-breads/butter-naan/medium.jpg",
+        "thumb": "/menu-images/indian-breads/butter-naan/thumb.jpg"
+      }
+    },
+    {
+      "id": "72899c99-082b-4e35-b36d-9afbbd029be0",
+      "name": "Garlic Naan",
+      "category": "Indian Breads",
+      "isVeg": true,
+      "slug": "garlic-naan",
+      "images": {
+        "large": "/menu-images/indian-breads/garlic-naan/large.jpg",
+        "medium": "/menu-images/indian-breads/garlic-naan/medium.jpg",
+        "thumb": "/menu-images/indian-breads/garlic-naan/thumb.jpg"
+      }
+    },
+    {
+      "id": "efa45e04-431e-41fc-a87e-d8c769617d6c",
+      "name": "Phulka",
+      "category": "Indian Breads",
+      "isVeg": true,
+      "slug": "phulka",
+      "images": {
+        "large": "/menu-images/indian-breads/phulka/large.jpg",
+        "medium": "/menu-images/indian-breads/phulka/medium.jpg",
+        "thumb": "/menu-images/indian-breads/phulka/thumb.jpg"
+      }
+    },
+    {
+      "id": "20891f71-8ff7-47c3-8abb-5c038d45af7e",
+      "name": "Plain Naan",
+      "category": "Indian Breads",
+      "isVeg": true,
+      "slug": "plain-naan",
+      "images": {
+        "large": "/menu-images/indian-breads/plain-naan/large.jpg",
+        "medium": "/menu-images/indian-breads/plain-naan/medium.jpg",
+        "thumb": "/menu-images/indian-breads/plain-naan/thumb.jpg"
+      }
+    },
+    {
+      "id": "6e4acbf6-7735-4af5-b69d-2c2b8842c2b7",
+      "name": "Tandoori Roti",
+      "category": "Indian Breads",
+      "isVeg": true,
+      "slug": "tandoori-roti",
+      "images": {
+        "large": "/menu-images/indian-breads/tandoori-roti/large.jpg",
+        "medium": "/menu-images/indian-breads/tandoori-roti/medium.jpg",
+        "thumb": "/menu-images/indian-breads/tandoori-roti/thumb.jpg"
+      }
+    },
+    {
+      "id": "86658231-b0a0-4d13-8db0-643633b191a0",
+      "name": "Aloo Dum Curry",
+      "category": "Curry",
+      "isVeg": true,
+      "slug": "aloo-dum-curry",
+      "images": {
+        "large": "/menu-images/curry/aloo-dum-curry/large.jpg",
+        "medium": "/menu-images/curry/aloo-dum-curry/medium.jpg",
+        "thumb": "/menu-images/curry/aloo-dum-curry/thumb.jpg"
+      }
+    },
+    {
+      "id": "759b929c-dab6-40af-ba5e-8e039161143e",
+      "name": "Aloo Gobi Masala",
+      "category": "Curry",
+      "isVeg": true,
+      "slug": "aloo-gobi-masala",
+      "images": {
+        "large": "/menu-images/curry/aloo-gobi-masala/large.jpg",
+        "medium": "/menu-images/curry/aloo-gobi-masala/medium.jpg",
+        "thumb": "/menu-images/curry/aloo-gobi-masala/thumb.jpg"
+      }
+    },
+    {
+      "id": "4f886cdd-ec10-4dd4-9c3b-a2f5facdaf73",
+      "name": "Butter Chicken",
+      "category": "Curry",
+      "isVeg": false,
+      "slug": "butter-chicken",
+      "images": {
+        "large": "/menu-images/curry/butter-chicken/large.jpg",
+        "medium": "/menu-images/curry/butter-chicken/medium.jpg",
+        "thumb": "/menu-images/curry/butter-chicken/thumb.jpg"
+      }
+    },
+    {
+      "id": "689b4593-80b3-4143-a815-1f6860e68fb1",
+      "name": "Chicken Kholapuri",
+      "category": "Curry",
+      "isVeg": false,
+      "slug": "chicken-kholapuri",
+      "images": {
+        "large": "/menu-images/curry/chicken-kholapuri/large.jpg",
+        "medium": "/menu-images/curry/chicken-kholapuri/medium.jpg",
+        "thumb": "/menu-images/curry/chicken-kholapuri/thumb.jpg"
+      }
+    },
+    {
+      "id": "61edcbe0-6201-4404-963d-020f60d6ace5",
+      "name": "Chicken Tikka Masala",
+      "category": "Curry",
+      "isVeg": false,
+      "slug": "chicken-tikka-masala",
+      "images": {
+        "large": "/menu-images/curry/chicken-tikka-masala/large.jpg",
+        "medium": "/menu-images/curry/chicken-tikka-masala/medium.jpg",
+        "thumb": "/menu-images/curry/chicken-tikka-masala/thumb.jpg"
+      }
+    },
+    {
+      "id": "485813a7-1d53-4681-b187-c122154f1f1e",
+      "name": "Dal Fry",
+      "category": "Curry",
+      "isVeg": true,
+      "slug": "dal-fry",
+      "images": {
+        "large": "/menu-images/curry/dal-fry/large.jpg",
+        "medium": "/menu-images/curry/dal-fry/medium.jpg",
+        "thumb": "/menu-images/curry/dal-fry/thumb.jpg"
+      }
+    },
+    {
+      "id": "dc069421-98f6-4f37-b0e0-f6fdf1ccb337",
+      "name": "Dal Tadka",
+      "category": "Curry",
+      "isVeg": true,
+      "slug": "dal-tadka",
+      "images": {
+        "large": "/menu-images/curry/dal-tadka/large.jpg",
+        "medium": "/menu-images/curry/dal-tadka/medium.jpg",
+        "thumb": "/menu-images/curry/dal-tadka/thumb.jpg"
+      }
+    },
+    {
+      "id": "739fe68d-dd4f-4789-b50a-69eec86e3f7a",
+      "name": "Egg Bhurji",
+      "category": "Curry",
+      "isVeg": false,
+      "slug": "egg-bhurji",
+      "images": {
+        "large": "/menu-images/curry/egg-bhurji/large.jpg",
+        "medium": "/menu-images/curry/egg-bhurji/medium.jpg",
+        "thumb": "/menu-images/curry/egg-bhurji/thumb.jpg"
+      }
+    },
+    {
+      "id": "bc4b6c81-21e7-4a52-baaa-4eeed3231701",
+      "name": "Fish Pulsu",
+      "category": "Curry",
+      "isVeg": false,
+      "slug": "fish-pulsu",
+      "images": {
+        "large": "/menu-images/curry/fish-pulsu/large.jpg",
+        "medium": "/menu-images/curry/fish-pulsu/medium.jpg",
+        "thumb": "/menu-images/curry/fish-pulsu/thumb.jpg"
+      }
+    },
+    {
+      "id": "ab794867-02cb-4879-b174-e6263726b0f0",
+      "name": "Fish Tikka Masala",
+      "category": "Curry",
+      "isVeg": false,
+      "slug": "fish-tikka-masala",
+      "images": {
+        "large": "/menu-images/curry/fish-tikka-masala/large.jpg",
+        "medium": "/menu-images/curry/fish-tikka-masala/medium.jpg",
+        "thumb": "/menu-images/curry/fish-tikka-masala/thumb.jpg"
+      }
+    },
+    {
+      "id": "105255f3-b439-4685-b001-71e94f733888",
+      "name": "Gongura Kodi Koora",
+      "category": "Curry",
+      "isVeg": false,
+      "slug": "gongura-kodi-koora",
+      "images": {
+        "large": "/menu-images/curry/gongura-kodi-koora/large.jpg",
+        "medium": "/menu-images/curry/gongura-kodi-koora/medium.jpg",
+        "thumb": "/menu-images/curry/gongura-kodi-koora/thumb.jpg"
+      }
+    },
+    {
+      "id": "e12d8cdc-7c6b-4679-86e4-05a77c2d2583",
+      "name": "Guttivankaya Koora",
+      "category": "Curry",
+      "isVeg": true,
+      "slug": "guttivankaya-koora",
+      "images": {
+        "large": "/menu-images/curry/guttivankaya-koora/large.jpg",
+        "medium": "/menu-images/curry/guttivankaya-koora/medium.jpg",
+        "thumb": "/menu-images/curry/guttivankaya-koora/thumb.jpg"
+      }
+    },
+    {
+      "id": "dd43bd56-8b5a-4fcb-8780-0fa4f212c875",
+      "name": "Kadai Chicken",
+      "category": "Curry",
+      "isVeg": false,
+      "slug": "kadai-chicken",
+      "images": {
+        "large": "/menu-images/curry/kadai-chicken/large.jpg",
+        "medium": "/menu-images/curry/kadai-chicken/medium.jpg",
+        "thumb": "/menu-images/curry/kadai-chicken/thumb.jpg"
+      }
+    },
+    {
+      "id": "b07e1f28-be5b-4879-89b0-609d537e41ba",
+      "name": "Kadai Paneer",
+      "category": "Curry",
+      "isVeg": true,
+      "slug": "kadai-paneer",
+      "images": {
+        "large": "/menu-images/curry/kadai-paneer/large.jpg",
+        "medium": "/menu-images/curry/kadai-paneer/medium.jpg",
+        "thumb": "/menu-images/curry/kadai-paneer/thumb.jpg"
+      }
+    },
+    {
+      "id": "cbd92630-4888-44f5-aabe-fdcf754773d4",
+      "name": "Kadai Veg",
+      "category": "Curry",
+      "isVeg": true,
+      "slug": "kadai-veg",
+      "images": {
+        "large": "/menu-images/curry/kadai-veg/large.jpg",
+        "medium": "/menu-images/curry/kadai-veg/medium.jpg",
+        "thumb": "/menu-images/curry/kadai-veg/thumb.jpg"
+      }
+    },
+    {
+      "id": "30e59cba-484c-4f45-8646-46637306c983",
+      "name": "Kodi Koora",
+      "category": "Curry",
+      "isVeg": false,
+      "slug": "kodi-koora",
+      "images": {
+        "large": "/menu-images/curry/kodi-koora/large.jpg",
+        "medium": "/menu-images/curry/kodi-koora/medium.jpg",
+        "thumb": "/menu-images/curry/kodi-koora/thumb.jpg"
+      }
+    },
+    {
+      "id": "1f689b95-09e8-4039-87e7-422cc59a5ae0",
+      "name": "Lucknowi Mutton Korma",
+      "category": "Curry",
+      "isVeg": false,
+      "slug": "lucknowi-mutton-korma",
+      "images": {
+        "large": "/menu-images/curry/lucknowi-mutton-korma/large.jpg",
+        "medium": "/menu-images/curry/lucknowi-mutton-korma/medium.jpg",
+        "thumb": "/menu-images/curry/lucknowi-mutton-korma/thumb.jpg"
+      }
+    },
+    {
+      "id": "c8d932a7-9fdf-4cd3-aeab-5c1cc4ab956c",
+      "name": "Mix-veg",
+      "category": "Curry",
+      "isVeg": true,
+      "slug": "mix-veg",
+      "images": {
+        "large": "/menu-images/curry/mix-veg/large.jpg",
+        "medium": "/menu-images/curry/mix-veg/medium.jpg",
+        "thumb": "/menu-images/curry/mix-veg/thumb.jpg"
+      }
+    },
+    {
+      "id": "2c7f9e3e-0819-4a18-a1ed-740664bece53",
+      "name": "Mushroom Masala",
+      "category": "Curry",
+      "isVeg": true,
+      "slug": "mushroom-masala",
+      "images": {
+        "large": "/menu-images/curry/mushroom-masala/large.jpg",
+        "medium": "/menu-images/curry/mushroom-masala/medium.jpg",
+        "thumb": "/menu-images/curry/mushroom-masala/thumb.jpg"
+      }
+    },
+    {
+      "id": "6e315edb-dc7d-456d-881f-e75239dcf993",
+      "name": "Mutton Masala",
+      "category": "Curry",
+      "isVeg": false,
+      "slug": "mutton-masala",
+      "images": {
+        "large": "/menu-images/curry/mutton-masala/large.jpg",
+        "medium": "/menu-images/curry/mutton-masala/medium.jpg",
+        "thumb": "/menu-images/curry/mutton-masala/thumb.jpg"
+      }
+    },
+    {
+      "id": "d3d465ee-1873-4fda-8f9e-ec0fef50d82b",
+      "name": "Mutton Rogan Josh",
+      "category": "Curry",
+      "isVeg": false,
+      "slug": "mutton-rogan-josh",
+      "images": {
+        "large": "/menu-images/curry/mutton-rogan-josh/large.jpg",
+        "medium": "/menu-images/curry/mutton-rogan-josh/medium.jpg",
+        "thumb": "/menu-images/curry/mutton-rogan-josh/thumb.jpg"
+      }
+    },
+    {
+      "id": "f9c8504b-aea3-41e7-a072-8888a974f0ba",
+      "name": "Nizami Handi",
+      "category": "Curry",
+      "isVeg": true,
+      "slug": "nizami-handi",
+      "images": {
+        "large": "/menu-images/curry/nizami-handi/large.jpg",
+        "medium": "/menu-images/curry/nizami-handi/medium.jpg",
+        "thumb": "/menu-images/curry/nizami-handi/thumb.jpg"
+      }
+    },
+    {
+      "id": "f275d276-55ed-4fb2-b325-8bee81cb0efd",
+      "name": "Paneer Butter Masala",
+      "category": "Curry",
+      "isVeg": true,
+      "slug": "paneer-butter-masala",
+      "images": {
+        "large": "/menu-images/curry/paneer-butter-masala/large.jpg",
+        "medium": "/menu-images/curry/paneer-butter-masala/medium.jpg",
+        "thumb": "/menu-images/curry/paneer-butter-masala/thumb.jpg"
+      }
+    },
+    {
+      "id": "196ee1ef-196b-4af4-a999-f4812eb91d11",
+      "name": "Paneer Kholapuri",
+      "category": "Curry",
+      "isVeg": true,
+      "slug": "paneer-kholapuri",
+      "images": {
+        "large": "/menu-images/curry/paneer-kholapuri/large.jpg",
+        "medium": "/menu-images/curry/paneer-kholapuri/medium.jpg",
+        "thumb": "/menu-images/curry/paneer-kholapuri/thumb.jpg"
+      }
+    },
+    {
+      "id": "2ed0b1f8-c769-4d00-9e97-7d473283e195",
+      "name": "Paneer Tikka Masala",
+      "category": "Curry",
+      "isVeg": true,
+      "slug": "paneer-tikka-masala",
+      "images": {
+        "large": "/menu-images/curry/paneer-tikka-masala/large.jpg",
+        "medium": "/menu-images/curry/paneer-tikka-masala/medium.jpg",
+        "thumb": "/menu-images/curry/paneer-tikka-masala/thumb.jpg"
+      }
+    },
+    {
+      "id": "eb485dbf-c3aa-49ce-bb05-e0803f1df36e",
+      "name": "Veg Kholapuri",
+      "category": "Curry",
+      "isVeg": true,
+      "slug": "veg-kholapuri",
+      "images": {
+        "large": "/menu-images/curry/veg-kholapuri/large.jpg",
+        "medium": "/menu-images/curry/veg-kholapuri/medium.jpg",
+        "thumb": "/menu-images/curry/veg-kholapuri/thumb.jpg"
+      }
+    },
+    {
+      "id": "12de4a99-c51f-44ae-a33f-d4a0c8475387",
+      "name": "Chicken Biryani",
+      "category": "Biryani",
+      "isVeg": false,
+      "slug": "chicken-biryani",
+      "images": {
+        "large": "/menu-images/biryani/chicken-biryani/large.jpg",
+        "medium": "/menu-images/biryani/chicken-biryani/medium.jpg",
+        "thumb": "/menu-images/biryani/chicken-biryani/thumb.jpg"
+      }
+    },
+    {
+      "id": "9bca4a3e-3219-4d47-bf6b-cf3e8052f509",
+      "name": "Egg Biryani",
+      "category": "Biryani",
+      "isVeg": false,
+      "slug": "egg-biryani",
+      "images": {
+        "large": "/menu-images/biryani/egg-biryani/large.jpg",
+        "medium": "/menu-images/biryani/egg-biryani/medium.jpg",
+        "thumb": "/menu-images/biryani/egg-biryani/thumb.jpg"
+      }
+    },
+    {
+      "id": "c4e158a0-da00-412e-b602-2bf5d39bc115",
+      "name": "Mutton Dum Biryani",
+      "category": "Biryani",
+      "isVeg": false,
+      "slug": "mutton-dum-biryani",
+      "images": {
+        "large": "/menu-images/biryani/mutton-dum-biryani/large.jpg",
+        "medium": "/menu-images/biryani/mutton-dum-biryani/medium.jpg",
+        "thumb": "/menu-images/biryani/mutton-dum-biryani/thumb.jpg"
+      }
+    },
+    {
+      "id": "5be40e22-930b-4668-871e-f7a55e4dcd62",
+      "name": "Veg Biryani",
+      "category": "Biryani",
+      "isVeg": true,
+      "slug": "veg-biryani",
+      "images": {
+        "large": "/menu-images/biryani/veg-biryani/large.jpg",
+        "medium": "/menu-images/biryani/veg-biryani/medium.jpg",
+        "thumb": "/menu-images/biryani/veg-biryani/thumb.jpg"
+      }
+    },
+    {
+      "id": "f029ddf1-c926-417e-b8e5-250a54ab1fe9",
+      "name": "Bagara Rice",
+      "category": "Rice Items",
+      "isVeg": true,
+      "slug": "bagara-rice",
+      "images": {
+        "large": "/menu-images/rice-items/bagara-rice/large.jpg",
+        "medium": "/menu-images/rice-items/bagara-rice/medium.jpg",
+        "thumb": "/menu-images/rice-items/bagara-rice/thumb.jpg"
+      }
+    },
+    {
+      "id": "246085fe-d08b-442f-b3eb-9e1ba8c6e0bc",
+      "name": "Chicken Fried Rice",
+      "category": "Rice Items",
+      "isVeg": false,
+      "slug": "chicken-fried-rice",
+      "images": {
+        "large": "/menu-images/rice-items/chicken-fried-rice/large.jpg",
+        "medium": "/menu-images/rice-items/chicken-fried-rice/medium.jpg",
+        "thumb": "/menu-images/rice-items/chicken-fried-rice/thumb.jpg"
+      }
+    },
+    {
+      "id": "30940702-ffe6-45e1-a66c-a8457f78c071",
+      "name": "Curd Rice",
+      "category": "Rice Items",
+      "isVeg": true,
+      "slug": "curd-rice",
+      "images": {
+        "large": "/menu-images/rice-items/curd-rice/large.jpg",
+        "medium": "/menu-images/rice-items/curd-rice/medium.jpg",
+        "thumb": "/menu-images/rice-items/curd-rice/thumb.jpg"
+      }
+    },
+    {
+      "id": "e4dd9d78-a03c-4e39-b15e-a2f5e2263844",
+      "name": "Egg Fried Rice",
+      "category": "Rice Items",
+      "isVeg": false,
+      "slug": "egg-fried-rice",
+      "images": {
+        "large": "/menu-images/rice-items/egg-fried-rice/large.jpg",
+        "medium": "/menu-images/rice-items/egg-fried-rice/medium.jpg",
+        "thumb": "/menu-images/rice-items/egg-fried-rice/thumb.jpg"
+      }
+    },
+    {
+      "id": "da85a3fd-104b-4045-81c5-cda4ec3d455f",
+      "name": "Jeera Rice",
+      "category": "Rice Items",
+      "isVeg": true,
+      "slug": "jeera-rice",
+      "images": {
+        "large": "/menu-images/rice-items/jeera-rice/large.jpg",
+        "medium": "/menu-images/rice-items/jeera-rice/medium.jpg",
+        "thumb": "/menu-images/rice-items/jeera-rice/thumb.jpg"
+      }
+    },
+    {
+      "id": "48f99754-1daa-4096-9da4-f5e47fb67a46",
+      "name": "Plain Rice",
+      "category": "Rice Items",
+      "isVeg": true,
+      "slug": "plain-rice",
+      "images": {
+        "large": "/menu-images/rice-items/plain-rice/large.jpg",
+        "medium": "/menu-images/rice-items/plain-rice/medium.jpg",
+        "thumb": "/menu-images/rice-items/plain-rice/thumb.jpg"
+      }
+    },
+    {
+      "id": "08b85580-b11b-491c-a319-b6155c4f7975",
+      "name": "Sambar Rice",
+      "category": "Rice Items",
+      "isVeg": true,
+      "slug": "sambar-rice",
+      "images": {
+        "large": "/menu-images/rice-items/sambar-rice/large.jpg",
+        "medium": "/menu-images/rice-items/sambar-rice/medium.jpg",
+        "thumb": "/menu-images/rice-items/sambar-rice/thumb.jpg"
+      }
+    },
+    {
+      "id": "2d2e848b-7be2-4f1d-8d0b-09a20c2f942f",
+      "name": "Veg Fried Rice",
+      "category": "Rice Items",
+      "isVeg": true,
+      "slug": "veg-fried-rice",
+      "images": {
+        "large": "/menu-images/rice-items/veg-fried-rice/large.jpg",
+        "medium": "/menu-images/rice-items/veg-fried-rice/medium.jpg",
+        "thumb": "/menu-images/rice-items/veg-fried-rice/thumb.jpg"
+      }
+    },
+    {
+      "id": "753514d8-a912-4cf4-a952-0ab6b45da759",
+      "name": "Double Ka Meetha",
+      "category": "Desserts",
+      "isVeg": true,
+      "slug": "double-ka-meetha",
+      "images": {
+        "large": "/menu-images/desserts/double-ka-meetha/large.jpg",
+        "medium": "/menu-images/desserts/double-ka-meetha/medium.jpg",
+        "thumb": "/menu-images/desserts/double-ka-meetha/thumb.jpg"
+      }
+    },
+    {
+      "id": "712e7cd3-131d-4acc-a68a-3231169b35ab",
+      "name": "Gulab Jamun",
+      "category": "Desserts",
+      "isVeg": true,
+      "slug": "gulab-jamun",
+      "images": {
+        "large": "/menu-images/desserts/gulab-jamun/large.jpg",
+        "medium": "/menu-images/desserts/gulab-jamun/medium.jpg",
+        "thumb": "/menu-images/desserts/gulab-jamun/thumb.jpg"
+      }
+    },
+    {
+      "id": "e43764a6-a674-44b7-b164-23ed153196d0",
+      "name": "Kala Jamun",
+      "category": "Desserts",
+      "isVeg": true,
+      "slug": "kala-jamun",
+      "images": {
+        "large": "/menu-images/desserts/kala-jamun/large.jpg",
+        "medium": "/menu-images/desserts/kala-jamun/medium.jpg",
+        "thumb": "/menu-images/desserts/kala-jamun/thumb.jpg"
+      }
+    }
+  ]
+}
+

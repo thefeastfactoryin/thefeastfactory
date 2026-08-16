@@ -5,7 +5,30 @@ export function DataImage({ src, alt, className }: {
   alt: string;
   className?: string;
 }) {
-  if (src) return <img src={src} alt={alt} className={className} />;
+  if (src) {
+    const isLocalMenuImage =
+      src.startsWith('/menu-images/') && src.endsWith('/large.jpg');
+    const mediumSrc = isLocalMenuImage
+      ? src.replace(/\/large\.jpg$/, '/medium.jpg')
+      : undefined;
+    const thumbSrc = isLocalMenuImage
+      ? src.replace(/\/large\.jpg$/, '/thumb.jpg')
+      : undefined;
+
+    return (
+      <img
+        src={src}
+        srcSet={
+          isLocalMenuImage
+            ? `${thumbSrc} 192w, ${mediumSrc} 640w, ${src} 1200w`
+            : undefined
+        }
+        sizes={isLocalMenuImage ? '(max-width: 640px) 50vw, 400px' : undefined}
+        alt={alt}
+        className={className}
+      />
+    );
+  }
   return (
     <div
       className={cn('grid place-items-center bg-muted/70', className)}

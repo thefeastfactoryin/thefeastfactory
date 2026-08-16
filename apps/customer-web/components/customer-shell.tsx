@@ -13,7 +13,7 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import type { CartSummary } from '@aranyam/shared-types';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useOrderBuilderStore } from '../store/order-builder.store';
 import { useSessionStore } from '../store/session.store';
 import { cn } from '../lib/utils';
@@ -69,6 +69,7 @@ export function CustomerShell({
   const [resolvingConflict, setResolvingConflict] = useState(false);
   const [conflictError, setConflictError] = useState('');
   const [activeCartCount, setActiveCartCount] = useState(0);
+  const cartRefreshVersion = useRef(0);
 
   useEffect(() => {
     setMounted(true);
@@ -84,6 +85,7 @@ export function CustomerShell({
   useEffect(() => {
     if (!storesHydrated || !session) return;
     let active = true;
+    const refreshVersion = cartRefreshVersion.current;
     const local = useOrderBuilderStore.getState();
     if (local.ownerUserId && local.ownerUserId !== session.user.id) {
       local.reset();
@@ -93,9 +95,13 @@ export function CustomerShell({
       apiRequest<CartSummary[]>('/cart/all', {}, session.accessToken),
     ])
       .then(([cart, carts]) => {
-        if (active) setActiveCartCount(carts.length);
-        if (!active || !cart) return;
+        if (!active || refreshVersion !== cartRefreshVersion.current) return;
+        setActiveCartCount(carts.length);
         const current = useOrderBuilderStore.getState();
+        if (!cart) {
+          if (current.draftSource === 'server') current.reset();
+          return;
+        }
         if (current.draftSource === 'guest' && current.package) {
           setServerCartConflict(cart);
           return;
@@ -114,8 +120,17 @@ export function CustomerShell({
       return;
     }
     const refresh = () => {
+      cartRefreshVersion.current += 1;
       void apiRequest<CartSummary[]>('/cart/all', {}, session.accessToken)
-        .then((carts) => setActiveCartCount(carts.length))
+        .then((carts) => {
+          setActiveCartCount(carts.length);
+          if (
+            carts.length === 0 &&
+            useOrderBuilderStore.getState().draftSource === 'server'
+          ) {
+            useOrderBuilderStore.getState().reset();
+          }
+        })
         .catch(() => {});
     };
     window.addEventListener('cart-updated', refresh);

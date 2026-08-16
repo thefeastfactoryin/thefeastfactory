@@ -10,6 +10,7 @@ import {
   ShoppingBag,
   X,
 } from 'lucide-react';
+import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { apiRequest } from '../../../lib/api';
@@ -275,9 +276,12 @@ function DishCatalogue({
                 key={dish.id}
                 className="grid min-h-[88px] grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-border bg-white px-3 py-2.5 transition hover:border-primary/25 hover:bg-[#fffdf8]"
               >
-                <img
+                <Image
                   src={getDishImage(dish)}
                   alt=""
+                  width={56}
+                  height={56}
+                  sizes="56px"
                   className="h-14 w-14 rounded-lg object-cover"
                 />
                 <div className="min-w-0">
@@ -899,9 +903,12 @@ function BuildPackageContent() {
                       key={id}
                       className="flex items-center justify-between gap-4 p-3"
                     >
-                      <img
+                      <Image
                         src={getDishImage(dish)}
                         alt=""
+                        width={56}
+                        height={48}
+                        sizes="56px"
                         className="h-12 w-14 shrink-0 rounded-lg object-cover"
                       />
                       <div className="min-w-0 flex-1">

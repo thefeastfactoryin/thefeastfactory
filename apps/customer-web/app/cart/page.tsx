@@ -25,6 +25,7 @@ import {
   Users,
 } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 import Script from 'next/script';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -645,9 +646,12 @@ export default function CartPage() {
         strategy="afterInteractive"
       />
       <section className="relative isolate overflow-hidden bg-primary text-white">
-        <img
+        <Image
           src={isMealBox ? '/order-mealbox.png' : '/order-occasion.png'}
           alt=""
+          fill
+          priority
+          sizes="100vw"
           className="absolute inset-0 -z-20 h-full w-full object-cover opacity-40"
         />
         <div className="absolute inset-0 -z-10 bg-[linear-gradient(90deg,hsl(var(--primary))_0%,hsl(var(--primary)/0.90)_48%,hsl(var(--primary)/0.62)_100%)]" />

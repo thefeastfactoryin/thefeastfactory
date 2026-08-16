@@ -15,6 +15,7 @@ import {
   UtensilsCrossed,
   Users,
 } from 'lucide-react';
+import Image from 'next/image';
 
 /* ─── Values ─── */
 const VALUES = [
@@ -116,9 +117,12 @@ export default function AboutPage() {
 
             {/* Right: image + experience badge */}
             <div className="relative">
-              <img
+              <Image
                 src="/about-hero.png"
-                alt="The Feast Factory kitchen team"
+                alt="Guests enjoying an Indian catered gathering"
+                width={1672}
+                height={941}
+                sizes="(max-width: 1024px) 100vw, 50vw"
                 className="h-[420px] w-full rounded-2xl object-cover shadow-lg"
               />
               {/* Experience overlay */}
@@ -218,9 +222,12 @@ export default function AboutPage() {
 
           {/* Center image */}
           <div className="overflow-hidden rounded-2xl shadow-lg">
-            <img
+            <Image
               src="/about-gathering.png"
               alt="Variety of Indian dishes"
+              width={1586}
+              height={992}
+              sizes="(max-width: 1024px) 100vw, 33vw"
               className="h-72 w-full object-cover lg:h-80"
             />
           </div>

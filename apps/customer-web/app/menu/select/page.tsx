@@ -16,6 +16,7 @@ import {
   SlidersHorizontal,
   X,
 } from 'lucide-react';
+import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
@@ -586,9 +587,12 @@ function MenuSelectContent() {
 
           <div className="grid gap-3 rounded-[18px] border border-border/80 bg-white p-3 shadow-[0_12px_32px_-28px_rgba(75,12,23,.65)] sm:grid-cols-[200px_minmax(0,1fr)] sm:items-center sm:gap-4 sm:p-4">
             <div className="h-32 overflow-hidden rounded-xl border border-border/80 bg-muted sm:h-32">
-              <img
+              <Image
                 src={isMealBox ? '/order-mealbox.png' : '/pkg-puja.png'}
                 alt=""
+                width={800}
+                height={450}
+                sizes="(max-width: 640px) 100vw, 200px"
                 className="h-full w-full object-cover"
               />
             </div>

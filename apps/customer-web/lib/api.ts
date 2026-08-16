@@ -2,6 +2,7 @@ import { createApiRequester } from '@aranyam/api-client';
 import type { CustomerSession } from '@aranyam/shared-types';
 import { useSessionStore } from '../store/session.store';
 import { clearCustomerState } from './customer-auth';
+import { withLocalMenuImages } from './menu-image-fallbacks';
 
 const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000';
 
@@ -26,5 +27,11 @@ const client = createApiRequester<CustomerSession>({
   },
 });
 
-export const apiRequest = client.request;
+export async function apiRequest<T>(
+  path: string,
+  init: RequestInit = {},
+  token?: string,
+): Promise<T> {
+  return withLocalMenuImages(await client.request<T>(path, init, token));
+}
 export const downloadAuthenticated = client.download;

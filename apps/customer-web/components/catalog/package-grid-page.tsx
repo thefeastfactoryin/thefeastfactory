@@ -12,11 +12,11 @@ import {
   Check,
   Clock3,
   IndianRupee,
-  Package as PackageIcon,
   Plus,
   ShieldCheck,
   Users,
 } from 'lucide-react';
+import Image from 'next/image';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { apiRequest } from '../../lib/api';
@@ -276,9 +276,12 @@ export function PackageGridPage({
               </div>
             </div>
             <div className="relative mx-auto aspect-square w-[210px] overflow-hidden rounded-[30px] border-8 border-white bg-white shadow-[0_18px_45px_rgba(63,35,21,0.18)] sm:w-[260px] lg:w-[300px]">
-              <img
+              <Image
                 src="/order-mealbox.png"
                 alt="An opened, individually portioned meal box"
+                width={1448}
+                height={1086}
+                sizes="(max-width: 640px) 210px, (max-width: 1024px) 260px, 300px"
                 className="h-full w-full object-cover"
               />
             </div>
@@ -455,11 +458,8 @@ export function PackageGridPage({
                           {isVeg ? 'Veg' : 'Non-Veg'}
                         </span>
                       )}
-                      <span className="absolute -bottom-5 left-4 grid h-10 w-10 place-items-center rounded-full border border-accent/35 bg-primary text-accent shadow-[0_8px_18px_rgba(45,31,20,0.15)]">
-                        <PackageIcon className="h-5 w-5" />
-                      </span>
                     </div>
-                    <div className="flex flex-col bg-white px-4 pb-3 pt-6">
+                    <div className="flex flex-col bg-white px-4 pb-3 pt-4">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <h2 className="text-[20px] font-bold leading-[1.12] text-foreground [font-family:var(--font-package-heading),serif]">
