@@ -497,11 +497,11 @@ async function upsertPackageVersion(input: {
     'Farm House Celebration': { imageUrl: '/pkg-farmhouse.png' },
     'Corporate Gathering': { imageUrl: '/pkg-corporate.png' },
     '3 Item Veg Meal Box': { imageUrl: '/tray-3.png' },
-    '3 Item Non-Veg Meal Box': { imageUrl: '/tray-3.png' },
+    '3 Item Non-Veg Meal Box': { imageUrl: '/tray-3-non-veg.png' },
     '5 Item Veg Meal Box': { imageUrl: '/tray-5.png' },
-    '5 Item Non-Veg Meal Box': { imageUrl: '/tray-5.png' },
+    '5 Item Non-Veg Meal Box': { imageUrl: '/tray-5-non-veg.png' },
     '8 Item Veg Meal Box': { imageUrl: '/tray-8.png' },
-    '8 Item Non-Veg Meal Box': { imageUrl: '/tray-8.png' },
+    '8 Item Non-Veg Meal Box': { imageUrl: '/tray-8-non-veg.png' },
     'Custom Menu': { imageUrl: '/order-build.png' },
   };
   const display = presentation[input.name];
