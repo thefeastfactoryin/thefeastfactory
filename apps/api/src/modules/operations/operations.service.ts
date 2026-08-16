@@ -16,6 +16,11 @@ import { OperatingRegionsService } from '../operating-regions/operating-regions.
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateOrderNoteDto } from './dto/create-order-note.dto';
 import { UpdateSettingsDto } from './dto/update-settings.dto';
+import {
+  clockMinutes,
+  nonNegativeIntegerSetting,
+  positiveIntegerSetting,
+} from '../../common/setting-values';
 
 const editableSettings = new Set([
   'min_booking_lead_hours',
@@ -90,8 +95,8 @@ export class OperationsService {
     private readonly regions: OperatingRegionsService,
   ) {}
 
-  async notes(orderId: string) {
-    await this.assertOrder(orderId);
+  async notes(admin: JwtPayload, orderId: string) {
+    await this.assertAdminOrder(admin, orderId);
     return this.prisma.orderNote.findMany({
       where: { orderId },
       include: { author: { select: { id: true, name: true, role: true } } },
@@ -99,10 +104,10 @@ export class OperationsService {
     });
   }
 
-  async addNote(adminId: string, orderId: string, dto: CreateOrderNoteDto) {
-    await this.assertOrder(orderId);
+  async addNote(admin: JwtPayload, orderId: string, dto: CreateOrderNoteDto) {
+    await this.assertAdminOrder(admin, orderId);
     return this.prisma.orderNote.create({
-      data: { orderId, authorId: adminId, body: dto.body.trim() },
+      data: { orderId, authorId: admin.sub, body: dto.body.trim() },
       include: { author: { select: { id: true, name: true, role: true } } },
     });
   }
@@ -120,6 +125,11 @@ export class OperationsService {
     );
     const start = from ? new Date(from) : new Date();
     const end = to ? new Date(to) : new Date(start.getTime() + 30 * 86_400_000);
+    if (start > end) {
+      throw new BadRequestException(
+        'Calendar start date must not be after the end date',
+      );
+    }
     const orders = await this.prisma.order.findMany({
       where: {
         eventDate: { gte: start, lte: end },
@@ -207,21 +217,98 @@ export class OperationsService {
   }
 
   async updateSettings(dto: UpdateSettingsDto) {
+    const keys = dto.settings.map((setting) => setting.key);
+    if (new Set(keys).size !== keys.length) {
+      throw new BadRequestException('Duplicate setting keys are not allowed');
+    }
     const invalid = dto.settings.find(
       (setting) => !editableSettings.has(setting.key),
     );
     if (invalid)
       throw new BadRequestException(`Setting ${invalid.key} cannot be edited`);
+    const submitted = Object.fromEntries(
+      dto.settings.map((setting) => [setting.key, setting.value.trim()]),
+    );
+    this.validateSubmittedSettings(submitted);
+    if (
+      submitted.event_service_start_time !== undefined ||
+      submitted.event_service_end_time !== undefined
+    ) {
+      const current = Object.fromEntries(
+        (await this.settings()).map((setting) => [setting.key, setting.value]),
+      );
+      const start = clockMinutes(
+        submitted.event_service_start_time ??
+          current.event_service_start_time ??
+          '06:00',
+      );
+      const end = clockMinutes(
+        submitted.event_service_end_time ??
+          current.event_service_end_time ??
+          '23:30',
+      );
+      if (start === undefined || end === undefined || start >= end) {
+        throw new BadRequestException(
+          'Event service start time must be earlier than end time',
+        );
+      }
+    }
     await this.prisma.$transaction(
       dto.settings.map((setting) =>
         this.prisma.platformSetting.upsert({
           where: { key: setting.key },
-          create: { key: setting.key, value: setting.value },
-          update: { value: setting.value },
+          create: { key: setting.key, value: setting.value.trim() },
+          update: { value: setting.value.trim() },
         }),
       ),
     );
     return this.settings();
+  }
+
+  private validateSubmittedSettings(settings: Record<string, string>) {
+    for (const key of [
+      'otp_expiry_seconds',
+      'otp_max_attempts',
+      'event_time_interval_minutes',
+    ]) {
+      if (
+        settings[key] !== undefined &&
+        positiveIntegerSetting(settings[key], -1) === -1
+      ) {
+        throw new BadRequestException(`${key} must be a positive integer`);
+      }
+    }
+    if (
+      settings.min_booking_lead_hours !== undefined &&
+      nonNegativeIntegerSetting(settings.min_booking_lead_hours, -1) === -1
+    ) {
+      throw new BadRequestException(
+        'min_booking_lead_hours must be a non-negative integer',
+      );
+    }
+    for (const key of [
+      'event_service_start_time',
+      'event_service_end_time',
+    ]) {
+      if (settings[key] !== undefined && clockMinutes(settings[key]) === undefined) {
+        throw new BadRequestException(`${key} must use HH:mm format`);
+      }
+    }
+    if (
+      settings.razorpay_currency !== undefined &&
+      !/^[A-Z]{3}$/.test(settings.razorpay_currency)
+    ) {
+      throw new BadRequestException(
+        'razorpay_currency must be a three-letter uppercase code',
+      );
+    }
+    for (const key of ['tax_cgst_rate', 'tax_sgst_rate', 'tax_igst_rate']) {
+      if (settings[key] === undefined) continue;
+      const value = Number(settings[key]);
+      if (!Number.isFinite(value) || value < 0 || value > 100) {
+        throw new BadRequestException(`${key} must be between 0 and 100`);
+      }
+    }
   }
 
   readiness() {
@@ -233,7 +320,9 @@ export class OperationsService {
         'RAZORPAY_KEY_SECRET',
         'RAZORPAY_WEBHOOK_SECRET',
       ]),
-      msg91: configured(['MSG91_AUTH_KEY', 'MSG91_TEMPLATE_ID']),
+      msg91:
+        configured(['MSG91_AUTH_KEY', 'MSG91_FLOW_ID', 'MSG91_SENDER_ID']) ||
+        configured(['MSG91_AUTH_KEY', 'MSG91_TEMPLATE_ID', 'MSG91_SENDER_ID']),
       cloudflareR2: configured([
         'R2_ACCOUNT_ID',
         'R2_ACCESS_KEY_ID',
@@ -247,7 +336,7 @@ export class OperationsService {
     };
   }
 
-  async documents(userId: string, orderId: string, admin = false) {
+  async documents(userId: string, orderId: string, admin?: JwtPayload) {
     const order = await this.loadDocumentOrder(orderId, userId, admin);
     await this.ensureDocuments(order);
     return this.prisma.orderDocument.findMany({
@@ -266,7 +355,7 @@ export class OperationsService {
     userId: string,
     orderId: string,
     documentId: string,
-    admin = false,
+    admin?: JwtPayload,
   ) {
     await this.loadDocumentOrder(orderId, userId, admin);
     const document = await this.prisma.orderDocument.findFirst({
@@ -286,10 +375,16 @@ export class OperationsService {
   private async loadDocumentOrder(
     orderId: string,
     userId: string,
-    admin: boolean,
+    admin?: JwtPayload,
   ) {
+    const regionId = admin
+      ? await this.regions.resolveAdminScope(admin)
+      : undefined;
     const order = await this.prisma.order.findFirst({
-      where: { id: orderId, ...(admin ? {} : { userId }) },
+      where: {
+        id: orderId,
+        ...(admin ? (regionId ? { regionId } : {}) : { userId }),
+      },
       include: {
         user: true,
         address: true,
@@ -362,7 +457,7 @@ export class OperationsService {
       select: { userId: true },
     });
     if (!owner) throw new NotFoundException('Order not found');
-    const order = await this.loadDocumentOrder(orderId, owner.userId, false);
+    const order = await this.loadDocumentOrder(orderId, owner.userId);
     await this.ensureDocuments(order);
   }
 
@@ -514,9 +609,10 @@ export class OperationsService {
     });
   }
 
-  private async assertOrder(orderId: string) {
-    const order = await this.prisma.order.findUnique({
-      where: { id: orderId },
+  private async assertAdminOrder(admin: JwtPayload, orderId: string) {
+    const regionId = await this.regions.resolveAdminScope(admin);
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, ...(regionId ? { regionId } : {}) },
       select: { id: true },
     });
     if (!order) throw new NotFoundException('Order not found');

@@ -2,6 +2,7 @@ import { BadGatewayException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 type Msg91Response = {
+  request_id?: unknown;
   type?: unknown;
   status?: unknown;
   message?: unknown;
@@ -19,18 +20,28 @@ export class ConsoleOtpProvider {
 
   async sendOtp(mobileNumber: string, otp: string): Promise<void> {
     const authKey = this.config.get<string>('MSG91_AUTH_KEY');
-    const templateId = this.config.get<string>('MSG91_TEMPLATE_ID');
+    const flowId =
+      this.config.get<string>('MSG91_FLOW_ID') ||
+      this.config.get<string>('MSG91_TEMPLATE_ID');
+    const senderId = this.config.get<string>('MSG91_SENDER_ID');
 
-    if (authKey && templateId) {
-      const url = new URL('https://control.msg91.com/api/v5/otp');
-      url.searchParams.set('template_id', templateId);
-      url.searchParams.set('mobile', `91${mobileNumber}`);
-      url.searchParams.set('authkey', authKey);
-
-      const response = await fetch(url, {
+    if (authKey && flowId && senderId) {
+      const response = await fetch('https://api.msg91.com/api/v5/flow/', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ otp }),
+        headers: {
+          authkey: authKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          flow_id: flowId,
+          sender: senderId,
+          recipients: [
+            {
+              mobiles: `91${mobileNumber}`,
+              number: otp,
+            },
+          ],
+        }),
       });
       const result = (await response.json().catch(() => undefined)) as
         | Msg91Response
@@ -58,6 +69,13 @@ export class ConsoleOtpProvider {
           'OTP delivery is temporarily unavailable',
         );
       }
+      this.logger.log(
+        `MSG91 accepted OTP request${
+          typeof result?.message === 'string'
+            ? `: request_id=${result.message}`
+            : ''
+        }`,
+      );
       return;
     }
 

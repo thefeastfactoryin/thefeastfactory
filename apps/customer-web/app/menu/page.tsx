@@ -187,13 +187,18 @@ function CategoryButton({
 interface FilterBarProps {
   dietary: DietaryFilter;
   onDietaryChange: (v: DietaryFilter) => void;
-  search: string;
-  onSearchChange: (v: string) => void;
+  searchActive: boolean;
   itemCount: number;
   loading: boolean;
 }
 
-function FilterBar({ dietary, onDietaryChange, search, onSearchChange, itemCount, loading }: FilterBarProps) {
+function FilterBar({
+  dietary,
+  onDietaryChange,
+  searchActive,
+  itemCount,
+  loading,
+}: FilterBarProps) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 py-3">
       {/* Dietary */}
@@ -218,24 +223,13 @@ function FilterBar({ dietary, onDietaryChange, search, onSearchChange, itemCount
             {label}
           </button>
         ))}
-        {!loading && itemCount > 0 && !search && (
+        {!loading && itemCount > 0 && !searchActive && (
           <span className="ml-1 text-xs text-muted-foreground">
             {itemCount} {itemCount === 1 ? 'dish' : 'dishes'}
           </span>
         )}
       </div>
 
-      {/* Search */}
-      <div className="relative hidden">
-        <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-        <input
-          type="text"
-          placeholder="Search dishes…"
-          value={search}
-          onChange={(e) => onSearchChange(e.target.value)}
-          className="h-9 w-44 rounded-full border border-border bg-white pl-9 pr-4 text-sm placeholder:text-muted-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10 sm:w-52"
-        />
-      </div>
     </div>
   );
 }
@@ -338,19 +332,6 @@ function MenuSkeleton() {
     </div>
   );
 }
-
-// function CompactCartBanner() {
-//   const [mounted, setMounted] = useState(false);
-//   const session = useSessionStore((state) => state.session);
-//   const pkg = useOrderBuilderStore((state) => state.package);
-//   const items = useOrderBuilderStore((state) => state.selectedItems);
-//   useEffect(() => setMounted(true), []);
-//   const hasCart = mounted && Boolean(session) && Boolean(pkg);
-//   return <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-white px-4 py-3 shadow-sm">
-//     <div className="flex items-center gap-3"><span className="grid h-9 w-9 place-items-center rounded-full bg-primary/10"><ShoppingBag className="h-4 w-4 text-primary" /></span><div><p className="text-sm font-bold">{hasCart ? pkg!.packageName : 'Ready to build an order?'}</p><p className="text-xs text-muted-foreground">{hasCart ? `${items.length} menu change${items.length === 1 ? '' : 's'} selected` : 'Choose a package before adding dishes.'}</p></div></div>
-//     <Link href={hasCart ? '/cart' : '/packages'} className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-xs font-bold text-white">{hasCart ? 'View cart' : 'Browse packages'}<ArrowRight className="h-3.5 w-3.5" /></Link>
-//   </div>;
-// }
 
 /* ═══════════════════════════════════════════════════════
    Page
@@ -480,8 +461,7 @@ export default function PublicMenuPage() {
               <FilterBar
                 dietary={dietary}
                 onDietaryChange={setDietary}
-                search={search}
-                onSearchChange={setSearch}
+                searchActive={Boolean(search)}
                 itemCount={items.length}
                 loading={loading}
               />
@@ -529,8 +509,6 @@ export default function PublicMenuPage() {
                 </div>
               </div>
             )}
-
-            {/* <div className="mb-6"><CompactCartBanner /></div> */}
 
             {error && (
               <StatePanel

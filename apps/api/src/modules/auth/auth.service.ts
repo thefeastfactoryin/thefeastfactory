@@ -5,6 +5,7 @@ import { Prisma, User } from '@prisma/client';
 import bcrypt from 'bcrypt';
 import { randomInt } from 'node:crypto';
 import { JwtPayload } from '../../common/auth/jwt-payload';
+import { positiveIntegerSetting } from '../../common/setting-values';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AdminLoginDto } from './dto/admin-login.dto';
 import { RequestOtpDto } from './dto/request-otp.dto';
@@ -31,7 +32,7 @@ export class AuthService {
       this.config.get<number>('MSG91_OTP_EXPIRY_SECONDS', 300),
     );
 
-    await this.prisma.otpVerification.create({
+    const otpRecord = await this.prisma.otpVerification.create({
       data: {
         mobileNumber: dto.mobileNumber,
         otpHash,
@@ -39,7 +40,16 @@ export class AuthService {
       },
     });
 
-    await this.otpProvider.sendOtp(dto.mobileNumber, otp);
+    try {
+      await this.otpProvider.sendOtp(dto.mobileNumber, otp);
+    } catch (error) {
+      // Do not let an undelivered resend shadow the last OTP the customer
+      // actually received.
+      await this.prisma.otpVerification.delete({
+        where: { id: otpRecord.id },
+      });
+      throw error;
+    }
 
     return {
       success: true,
@@ -109,7 +119,7 @@ export class AuthService {
       }
       return transaction.user.upsert({
         where: { mobileNumber: dto.mobileNumber },
-        update: { isActive: true },
+        update: { isActive: true, deletedAt: null },
         create: { mobileNumber: dto.mobileNumber },
       });
     });
@@ -176,7 +186,7 @@ export class AuthService {
       const user = await this.prisma.user.findUnique({
         where: { id: payload.sub },
       });
-      if (!user?.isActive) {
+      if (!user?.isActive || user.deletedAt) {
         throw new UnauthorizedException('Invalid refresh token');
       }
       return this.createCustomerSession(user);
@@ -256,7 +266,7 @@ export class AuthService {
     const setting = await this.prisma.platformSetting.findUnique({
       where: { key },
     });
-    return setting ? Number.parseInt(setting.value, 10) : fallback;
+    return positiveIntegerSetting(setting?.value, fallback);
   }
 
   private serializeRegion(region: Prisma.OperatingRegionGetPayload<object>) {

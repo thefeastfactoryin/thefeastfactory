@@ -105,7 +105,7 @@ export class PricingService {
     guestCount: number,
   ) {
     if (version.package.type === PackageType.CUSTOM_PACKAGE) {
-      return this.customItems(selectedItems);
+      return this.customItems(version, selectedItems);
     }
     if (version.package.type === PackageType.MEAL_BOX) {
       return this.mealBoxItems(version, selectedItems);
@@ -114,6 +114,7 @@ export class PricingService {
   }
 
   private async customItems(
+    version: VersionForQuote,
     selectedItems: SelectedItemInput[],
   ): Promise<QuoteItem[]> {
     const errors = this.duplicateErrors(selectedItems);
@@ -128,9 +129,16 @@ export class PricingService {
       include: { category: true },
     });
     const byId = new Map(menuItems.map((item) => [item.id, item]));
+    const configuredIds = new Set(
+      version.packageMenuItems.map((row) => row.menuItemId),
+    );
     const items = selectedItems.flatMap((selection) => {
       const item = byId.get(selection.menuItemId);
-      if (!item || item.categoryId !== selection.categoryId) {
+      if (
+        !item ||
+        item.categoryId !== selection.categoryId ||
+        (configuredIds.size > 0 && !configuredIds.has(selection.menuItemId))
+      ) {
         errors.push(`Invalid menu item ${selection.menuItemId}`);
         return [];
       }

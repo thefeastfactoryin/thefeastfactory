@@ -352,6 +352,7 @@ model Order {
   orderNumber String  @unique @map("order_number") @db.VarChar(20)
   userId      String  @map("user_id")
   cartId      String? @unique @map("cart_id")
+  checkoutBatchId String? @map("checkout_batch_id") @db.Uuid
   regionId    String? @map("region_id")
   addressId   String  @map("address_id")
 
@@ -403,6 +404,7 @@ model Order {
   @@index([regionId, orderStatus])
   @@index([regionId, createdAt])
   @@index([userId, createdAt])
+  @@index([checkoutBatchId])
   @@map("orders")
 }
 

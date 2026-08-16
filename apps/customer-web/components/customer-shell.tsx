@@ -60,7 +60,6 @@ export function CustomerShell({
 }: Readonly<{ children: React.ReactNode }>) {
   const pathname = usePathname();
   const session = useSessionStore((s) => s.session);
-  const selectedItems = useOrderBuilderStore((s) => s.selectedItems);
   const cartPackage = useOrderBuilderStore((s) => s.package);
   const hydrateFromCart = useOrderBuilderStore((s) => s.hydrateFromCart);
   const [mounted, setMounted] = useState(false);
@@ -69,6 +68,7 @@ export function CustomerShell({
   const [serverCartConflict, setServerCartConflict] = useState<CartSummary>();
   const [resolvingConflict, setResolvingConflict] = useState(false);
   const [conflictError, setConflictError] = useState('');
+  const [activeCartCount, setActiveCartCount] = useState(0);
 
   useEffect(() => {
     setMounted(true);
@@ -88,8 +88,12 @@ export function CustomerShell({
     if (local.ownerUserId && local.ownerUserId !== session.user.id) {
       local.reset();
     }
-    apiRequest<CartSummary | null>('/cart', {}, session.accessToken)
-      .then((cart) => {
+    Promise.all([
+      apiRequest<CartSummary | null>('/cart', {}, session.accessToken),
+      apiRequest<CartSummary[]>('/cart/all', {}, session.accessToken),
+    ])
+      .then(([cart, carts]) => {
+        if (active) setActiveCartCount(carts.length);
         if (!active || !cart) return;
         const current = useOrderBuilderStore.getState();
         if (current.draftSource === 'guest' && current.package) {
@@ -102,7 +106,21 @@ export function CustomerShell({
     return () => {
       active = false;
     };
-  }, [session, storesHydrated, hydrateFromCart]);
+  }, [session, storesHydrated, hydrateFromCart, pathname]);
+
+  useEffect(() => {
+    if (!session) {
+      setActiveCartCount(0);
+      return;
+    }
+    const refresh = () => {
+      void apiRequest<CartSummary[]>('/cart/all', {}, session.accessToken)
+        .then((carts) => setActiveCartCount(carts.length))
+        .catch(() => {});
+    };
+    window.addEventListener('cart-updated', refresh);
+    return () => window.removeEventListener('cart-updated', refresh);
+  }, [session]);
 
   async function useGuestDraft() {
     if (!session) return;
@@ -111,10 +129,10 @@ export function CustomerShell({
     setResolvingConflict(true);
     setConflictError('');
     try {
-      await apiRequest<CartSummary>(
+      const created = await apiRequest<CartSummary>(
         '/cart',
         {
-          method: 'PUT',
+          method: 'POST',
           body: JSON.stringify({
             packageVersionId: draft.package.packageVersionId,
             guestCount: draft.guestCount || draft.package.minGuestCount,
@@ -123,7 +141,7 @@ export function CustomerShell({
         session.accessToken,
       );
       await apiRequest(
-        '/cart/items',
+        `/cart/${created.id}/items`,
         {
           method: 'PUT',
           body: JSON.stringify({
@@ -145,11 +163,12 @@ export function CustomerShell({
         session.accessToken,
       );
       const saved = await apiRequest<CartSummary>(
-        '/cart',
+        `/cart/${created.id}`,
         {},
         session.accessToken,
       );
       hydrateFromCart(saved, session.user.id);
+      window.dispatchEvent(new Event('cart-updated'));
       setServerCartConflict(undefined);
     } catch (reason) {
       setConflictError((reason as Error).message);
@@ -165,7 +184,7 @@ export function CustomerShell({
     setServerCartConflict(undefined);
   }
 
-  const cartCount = mounted ? selectedItems.length : 0;
+  const cartCount = mounted ? activeCartCount : 0;
   const cartActive = mounted && (Boolean(cartPackage) || pathname === '/cart');
   const desktopLinks = session
     ? navLinks
@@ -187,9 +206,6 @@ export function CustomerShell({
               <span className="block font-serif text-[18px] font-semibold leading-none tracking-[-0.01em] text-primary">
                 The Feast Factory
               </span>
-              {/* <span className="mt-1 block text-[9.5px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                Curated food experiences
-              </span> */}
             </span>
           </Link>
 
@@ -233,7 +249,7 @@ export function CustomerShell({
             {session && (
               <Link
                 href="/cart"
-                aria-label={`Cart — ${cartCount} items selected`}
+                aria-label={`Cart — ${cartCount} packages`}
                 className={cn(
                   'relative flex h-11 items-center gap-2 rounded-full px-3 text-[13px] font-bold transition-all duration-250 ease-premium sm:px-4',
                   cartActive

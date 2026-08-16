@@ -3,7 +3,11 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { CancellationActor, OrderStatus } from '@prisma/client';
+import {
+  CancellationActor,
+  OrderStatus,
+  PaymentStatus,
+} from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtPayload } from '../../common/auth/jwt-payload';
 import { OperatingRegionsService } from '../operating-regions/operating-regions.service';
@@ -116,31 +120,37 @@ export class AdminOrdersService {
         `Cannot transition from ${order.orderStatus} to ${dto.status}`,
       );
     }
-    const row = await this.prisma.$transaction(async (tx) => {
-      const updated = await tx.order.update({
-        where: { id },
+    if (
+      dto.status === OrderStatus.CONFIRMED &&
+      order.paymentStatus !== PaymentStatus.PAID
+    ) {
+      throw new BadRequestException(
+        'An order cannot be confirmed before payment is verified',
+      );
+    }
+    await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.order.updateMany({
+        where: { id, orderStatus: order.orderStatus },
         data: {
           orderStatus: dto.status,
-          statusHistory: {
-            create: {
-              fromStatus: order.orderStatus,
-              toStatus: dto.status,
-              changedById: admin.sub,
-              notes: dto.notes,
-            },
-          },
-        },
-        include: {
-          user: true,
-          address: true,
-          selectedItems: true,
-          payments: true,
-          statusHistory: true,
         },
       });
-      return updated;
+      if (updated.count === 0) {
+        throw new BadRequestException(
+          'Order status changed; reload before trying again',
+        );
+      }
+      await tx.orderStatusHistory.create({
+        data: {
+          orderId: id,
+          fromStatus: order.orderStatus,
+          toStatus: dto.status,
+          changedById: admin.sub,
+          notes: dto.notes,
+        },
+      });
     });
-    return this.orders.serializeOrder(row);
+    return this.get(admin, id);
   }
 
   async cancel(admin: JwtPayload, id: string, dto: AdminCancelOrderDto) {
@@ -155,24 +165,32 @@ export class AdminOrdersService {
     ) {
       throw new BadRequestException('Order cannot be cancelled');
     }
-    await this.prisma.order.update({
-        where: { id },
+    await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.order.updateMany({
+        where: { id, orderStatus: order.orderStatus },
         data: {
           orderStatus: OrderStatus.CANCELLED,
           cancelledAt: new Date(),
           cancelledBy: CancellationActor.ADMIN,
           cancelledByAdminId: admin.sub,
           cancellationReason: dto.reason,
-          statusHistory: {
-            create: {
-              fromStatus: order.orderStatus,
-              toStatus: OrderStatus.CANCELLED,
-              changedById: admin.sub,
-              notes: dto.reason,
-            },
-          },
         },
       });
+      if (updated.count === 0) {
+        throw new BadRequestException(
+          'Order status changed; reload before trying again',
+        );
+      }
+      await tx.orderStatusHistory.create({
+        data: {
+          orderId: id,
+          fromStatus: order.orderStatus,
+          toStatus: OrderStatus.CANCELLED,
+          changedById: admin.sub,
+          notes: dto.reason,
+        },
+      });
+    });
     return this.get(admin, id);
   }
 

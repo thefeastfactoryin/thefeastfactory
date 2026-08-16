@@ -49,6 +49,7 @@ export function PackageGridPage({
   const setPackage = useOrderBuilderStore((s) => s.setPackage);
   const setDbCartId = useOrderBuilderStore((s) => s.setDbCartId);
   const setGuestCount = useOrderBuilderStore((s) => s.setGuestCount);
+  const reset = useOrderBuilderStore((s) => s.reset);
   const [packages, setPackages] = useState<PackageSummary[]>([]);
   const [categories, setCategories] = useState<MenuCategory[]>([]);
   const [configs, setConfigs] = useState<Record<string, PackageConfiguration>>(
@@ -157,7 +158,6 @@ export function PackageGridPage({
     if (!pkg.activeVersion || selecting) return;
     if (
       currentPackage &&
-      currentPackage.packageVersionId !== pkg.activeVersion.id &&
       !confirmed
     ) {
       setPendingPackage(pkg);
@@ -182,7 +182,7 @@ export function PackageGridPage({
         ? await apiRequest<{ id: string }>(
             '/cart',
             {
-              method: 'PUT',
+              method: 'POST',
               body: JSON.stringify({
                 packageVersionId: pkg.activeVersion.id,
                 guestCount: pkg.activeVersion.minGuestCount,
@@ -199,12 +199,24 @@ export function PackageGridPage({
       const next = new URLSearchParams({
         packageVersionId: pkg.activeVersion.id,
       });
+      if (cart?.id) next.set('cartId', cart.id);
       if (intent === 'extras') next.set('focus', 'extras');
       router.push(`${builder}?${next.toString()}`);
     } catch (reason) {
       setError((reason as Error).message);
       setSelecting('');
     }
+  }
+
+  async function clearCartAndChoose(
+    pkg: PackageSummary,
+    intent: SelectionIntent,
+  ) {
+    if (session) {
+      await apiRequest('/cart', { method: 'DELETE' }, session.accessToken);
+    }
+    reset();
+    await choose(pkg, intent, true);
   }
 
   const titleParts = title.split(' ');
@@ -692,6 +704,9 @@ export function PackageGridPage({
           nextName={pendingPackage.name}
           selecting={selecting === pendingPackage.id}
           onCancel={() => setPendingPackage(null)}
+          onClear={() =>
+            void clearCartAndChoose(pendingPackage, pendingIntent)
+          }
           onConfirm={() => choose(pendingPackage, pendingIntent, true)}
         />
       )}

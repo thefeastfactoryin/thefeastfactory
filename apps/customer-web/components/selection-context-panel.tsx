@@ -361,6 +361,7 @@ function ThemedTimePicker({
 }
 
 export function SelectionContextPanel({
+  cartId,
   packageVersionId,
   minPax,
   maxPax,
@@ -368,6 +369,7 @@ export function SelectionContextPanel({
   hideQuantity = false,
   onSaved,
 }: {
+  cartId: string;
   packageVersionId: string;
   minPax: number;
   maxPax?: number | null;
@@ -422,7 +424,7 @@ export function SelectionContextPanel({
     if (!session) return;
     Promise.all([
       apiRequest<UserAddress[]>('/me/addresses', {}, session.accessToken),
-      apiRequest<CartSummary | null>('/cart', {}, session.accessToken),
+      apiRequest<CartSummary | null>(`/cart/${cartId}`, {}, session.accessToken),
     ])
       .then(([rows, cart]) => {
         setAddresses(rows);
@@ -443,6 +445,7 @@ export function SelectionContextPanel({
       .catch((reason) => setMessage(reason.message));
   }, [
     session,
+    cartId,
     packageVersionId,
     selectedAddress,
     pkg?.packageName,
@@ -480,7 +483,7 @@ export function SelectionContextPanel({
       setSaving(true);
       try {
         const cart = await apiRequest<CartSummary>(
-          '/cart',
+          `/cart/${cartId}`,
           {
             method: 'PUT',
             body: JSON.stringify({
@@ -515,6 +518,7 @@ export function SelectionContextPanel({
   }, [
     session,
     packageVersionId,
+    cartId,
     addressId,
     eventDate,
     eventTimeStart,

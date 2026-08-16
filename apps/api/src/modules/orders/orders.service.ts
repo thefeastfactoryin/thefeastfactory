@@ -22,6 +22,7 @@ import type {
   UserAddress,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { storedEventInstant } from '../../common/event-time';
 import { OperatingRegionsService } from '../operating-regions/operating-regions.service';
 import { PricingService } from '../pricing/pricing.service';
 import { CancelOrderDto } from './dto/cancel-order.dto';
@@ -44,7 +45,12 @@ export class OrdersService {
     private readonly regions: OperatingRegionsService,
   ) {}
 
-  async create(userId: string, dto: OrderSelectionDto, cartId: string) {
+  async create(
+    userId: string,
+    dto: OrderSelectionDto,
+    cartId: string,
+    checkoutBatchId?: string,
+  ) {
     const cart = await this.prisma.cart.findFirst({
       where: { id: cartId, userId, status: CartStatus.ACTIVE },
       include: { address: true, region: true, order: true },
@@ -85,22 +91,18 @@ export class OrdersService {
     const totalAmount = menuQuote.totalAmount.plus(assignment.deliveryFee);
     const eventDate = cart.eventDate;
     const addressId = cart.addressId!;
-    const eventInstant = new Date(eventDate);
-    eventInstant.setUTCHours(
-      cart.eventTimeStart.getUTCHours(),
-      cart.eventTimeStart.getUTCMinutes(),
-      0,
-      0,
-    );
+    const eventInstant = storedEventInstant(eventDate, cart.eventTimeStart);
     const leadHours = Math.floor(
       (eventInstant.getTime() - Date.now()) / 3_600_000,
     );
-    return this.prisma.$transaction(async (tx) => {
-      const order = await tx.order.create({
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const order = await tx.order.create({
         data: {
           orderNumber: this.orderNumber(),
           userId,
           cartId,
+          checkoutBatchId,
           regionId: assignment.region.id,
           addressId,
           eventName: cart.eventName,
@@ -148,8 +150,20 @@ export class OrdersService {
           address: true,
         },
       });
-      return this.serializeOrder(order);
-    });
+        return this.serializeOrder(order);
+      });
+    } catch (error) {
+      if ((error as { code?: string }).code === 'P2002') {
+        const concurrentOrder = await this.prisma.order.findUnique({
+          where: { cartId },
+          select: { id: true, userId: true },
+        });
+        if (concurrentOrder?.userId === userId) {
+          return this.get(userId, concurrentOrder.id);
+        }
+      }
+      throw error;
+    }
   }
 
   async list(userId: string) {
@@ -246,24 +260,31 @@ export class OrdersService {
     ) {
       throw new BadRequestException('Order cannot be cancelled');
     }
-    const updated = await this.prisma.order.update({
-      where: { id },
-      data: {
-        orderStatus: OrderStatus.CANCELLED,
-        cancelledAt: new Date(),
-        cancelledBy: CancellationActor.CUSTOMER,
-        cancellationReason: dto.reason,
-        statusHistory: {
-          create: {
-            fromStatus: order.orderStatus,
-            toStatus: OrderStatus.CANCELLED,
-            notes: dto.reason,
-          },
+    await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.order.updateMany({
+        where: { id, userId, orderStatus: order.orderStatus },
+        data: {
+          orderStatus: OrderStatus.CANCELLED,
+          cancelledAt: new Date(),
+          cancelledBy: CancellationActor.CUSTOMER,
+          cancellationReason: dto.reason,
         },
-      },
-      include: { selectedItems: true, payments: true, statusHistory: true },
+      });
+      if (updated.count === 0) {
+        throw new BadRequestException(
+          'Order status changed; reload before trying again',
+        );
+      }
+      await tx.orderStatusHistory.create({
+        data: {
+          orderId: id,
+          fromStatus: order.orderStatus,
+          toStatus: OrderStatus.CANCELLED,
+          notes: dto.reason,
+        },
+      });
     });
-    return this.serializeOrder(updated);
+    return this.get(userId, id);
   }
 
   private orderNumber() {

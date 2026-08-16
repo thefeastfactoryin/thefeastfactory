@@ -4,7 +4,14 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { CartStatus, OrderStatus, Prisma } from '@prisma/client';
+import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { eventLocalInstant } from '../../common/event-time';
+import {
+  clockMinutes,
+  nonNegativeIntegerSetting,
+  positiveIntegerSetting,
+} from '../../common/setting-values';
 import { OrdersService } from '../orders/orders.service';
 import { PricingService } from '../pricing/pricing.service';
 import { OperatingRegionsService } from '../operating-regions/operating-regions.service';
@@ -74,27 +81,6 @@ export class CartService {
         },
         include: this.cartInclude(),
       });
-      await this.prisma.cart.updateMany({
-        where: {
-          userId,
-          status: CartStatus.ACTIVE,
-          id: { not: cart.id },
-        },
-        data: {
-          addressId: dto.addressId,
-          regionId: event.region.id,
-          eventName: dto.eventName,
-          eventDate: event.eventDate,
-          eventTimeStart: event.eventTime,
-          distanceKm: event.distanceKm,
-          // Delivery is shared by the checkout, so charge it once on the cart
-          // where the event details were entered.
-          deliveryFee: new Prisma.Decimal(0),
-          specialNotes: dto.specialNotes,
-          lastQuotedAt: null,
-          expiresAt: this.expiryDate(),
-        },
-      });
       return this.serializeCart(updated);
     }
     if (dto.guestCount !== undefined) {
@@ -119,6 +105,92 @@ export class CartService {
     return cart;
   }
 
+  async create(userId: string, dto: CreateCartDto) {
+    const version = await this.assertPackageVersion(dto.packageVersionId);
+    const guestCount = dto.guestCount ?? version.minGuestCount;
+    if (
+      guestCount < version.minGuestCount ||
+      (version.maxGuestCount && guestCount > version.maxGuestCount)
+    ) {
+      throw new BadRequestException('Guest count is outside package limits');
+    }
+    const cart = await this.prisma.cart.create({
+      data: {
+        userId,
+        packageVersionId: dto.packageVersionId,
+        guestCount,
+        expiresAt: this.expiryDate(),
+      },
+      include: this.cartInclude(),
+    });
+    return this.serializeCart(cart);
+  }
+
+  async update(userId: string, id: string, dto: UpdateCartDto) {
+    const cart = await this.assertActiveCart(userId, id);
+    if (cart.packageVersionId !== dto.packageVersionId) {
+      throw new BadRequestException('Package does not match this cart');
+    }
+    const eventFields = [dto.addressId, dto.eventDate, dto.eventTimeStart];
+    if (eventFields.some((value) => value !== undefined)) {
+      if (
+        !dto.addressId ||
+        !dto.eventDate ||
+        !dto.eventTimeStart ||
+        !dto.guestCount
+      ) {
+        throw new BadRequestException(
+          'Address, event date, time, and pax are required together',
+        );
+      }
+      const event = await this.validateEventDetails(userId, dto);
+      const updated = await this.prisma.cart.update({
+        where: { id },
+        data: {
+          addressId: dto.addressId,
+          regionId: event.region.id,
+          eventName: dto.eventName,
+          eventDate: event.eventDate,
+          eventTimeStart: event.eventTime,
+          guestCount: dto.guestCount,
+          distanceKm: event.distanceKm,
+          deliveryFee: event.deliveryFee,
+          specialNotes: dto.specialNotes,
+          lastQuotedAt: null,
+          expiresAt: this.expiryDate(),
+        },
+        include: this.cartInclude(),
+      });
+      return this.serializeCart(updated);
+    }
+    if (dto.guestCount !== undefined) {
+      return this.updateQuantity(userId, id, dto.guestCount);
+    }
+    return this.serializeCart(cart);
+  }
+
+  async getById(userId: string, id: string) {
+    return this.serializeCart(await this.assertActiveCart(userId, id));
+  }
+
+  async clearActive(userId: string) {
+    const carts = await this.prisma.cart.findMany({
+      where: {
+        userId,
+        status: CartStatus.ACTIVE,
+        ...this.unexpiredCartScope(),
+      },
+      select: { id: true },
+    });
+    const ids = carts.map((cart) => cart.id);
+    if (!ids.length) return { success: true, count: 0 };
+    await this.prisma.$transaction([
+      this.prisma.cartItem.deleteMany({ where: { cartId: { in: ids } } }),
+      this.prisma.cart.deleteMany({ where: { id: { in: ids } } }),
+    ]);
+    return { success: true, count: ids.length };
+  }
+
   async replaceActiveItems(userId: string, dto: ReplaceCartItemsDto) {
     const cart = await this.requireActive(userId);
     return this.replaceItems(userId, cart.id, dto);
@@ -136,7 +208,11 @@ export class CartService {
 
   async getActive(userId: string) {
     const active = await this.prisma.cart.findFirst({
-      where: { userId, status: CartStatus.ACTIVE },
+      where: {
+        userId,
+        status: CartStatus.ACTIVE,
+        ...this.unexpiredCartScope(),
+      },
       include: this.cartInclude(),
       orderBy: { updatedAt: 'desc' },
     });
@@ -155,7 +231,11 @@ export class CartService {
 
   async getAllActive(userId: string) {
     const carts = await this.prisma.cart.findMany({
-      where: { userId, status: CartStatus.ACTIVE },
+      where: {
+        userId,
+        status: CartStatus.ACTIVE,
+        ...this.unexpiredCartScope(),
+      },
       include: this.cartInclude(),
       orderBy: { updatedAt: 'desc' },
     });
@@ -183,33 +263,29 @@ export class CartService {
 
   async removeActive(userId: string, id: string) {
     const cart = await this.prisma.cart.findFirst({
-      where: { id, userId, status: CartStatus.ACTIVE },
+      where: {
+        id,
+        userId,
+        status: CartStatus.ACTIVE,
+        ...this.unexpiredCartScope(),
+      },
     });
     if (!cart) throw new NotFoundException('Active cart not found');
 
     await this.prisma.$transaction(async (tx) => {
       await tx.cartItem.deleteMany({ where: { cartId: id } });
       await tx.cart.delete({ where: { id } });
-
-      if (cart.deliveryFee.gt(0)) {
-        const remaining = await tx.cart.findFirst({
-          where: { userId, status: CartStatus.ACTIVE },
-          orderBy: { updatedAt: 'desc' },
-        });
-        if (remaining) {
-          await tx.cart.update({
-            where: { id: remaining.id },
-            data: { deliveryFee: cart.deliveryFee },
-          });
-        }
-      }
     });
     return { success: true, id };
   }
 
   async quoteAll(userId: string) {
     const carts = await this.prisma.cart.findMany({
-      where: { userId, status: CartStatus.ACTIVE },
+      where: {
+        userId,
+        status: CartStatus.ACTIVE,
+        ...this.unexpiredCartScope(),
+      },
       orderBy: { updatedAt: 'desc' },
     });
     if (!carts.length) throw new NotFoundException('Active cart not found');
@@ -235,7 +311,11 @@ export class CartService {
 
   async checkoutAll(userId: string) {
     const carts = await this.prisma.cart.findMany({
-      where: { userId, status: CartStatus.ACTIVE },
+      where: {
+        userId,
+        status: CartStatus.ACTIVE,
+        ...this.unexpiredCartScope(),
+      },
       include: this.cartInclude(),
       orderBy: { updatedAt: 'asc' },
     });
@@ -252,8 +332,15 @@ export class CartService {
         'Add event and venue details for every package before checkout',
       );
     }
+    // Validate the full batch before creating the first order. Without this
+    // preflight, a stale or invalid later cart could leave an earlier cart in
+    // PENDING_PAYMENT with no complete payment batch to resume.
+    await Promise.all(carts.map((cart) => this.quote(userId, cart.id)));
+    const checkoutBatchId = randomUUID();
     const orders = [];
-    for (const cart of carts) orders.push(await this.checkout(userId, cart.id));
+    for (const cart of carts) {
+      orders.push(await this.checkout(userId, cart.id, checkoutBatchId));
+    }
     return orders;
   }
 
@@ -264,6 +351,7 @@ export class CartService {
         userId,
         packageVersionId: dto.packageVersionId,
         status: CartStatus.ACTIVE,
+        ...this.unexpiredCartScope(),
       },
       include: this.cartInclude(),
       orderBy: { updatedAt: 'desc' },
@@ -346,7 +434,7 @@ export class CartService {
     };
   }
 
-  async checkout(userId: string, id: string) {
+  async checkout(userId: string, id: string, checkoutBatchId?: string) {
     const cart = await this.assertActiveCart(userId, id);
     if (
       !cart.addressId ||
@@ -370,6 +458,7 @@ export class CartService {
         })),
       },
       cart.id,
+      checkoutBatchId,
     );
     await this.prisma.cart.update({
       where: { id },
@@ -393,7 +482,12 @@ export class CartService {
 
   private async assertActiveCart(userId: string, id: string) {
     const cart = await this.prisma.cart.findFirst({
-      where: { id, userId, status: CartStatus.ACTIVE },
+      where: {
+        id,
+        userId,
+        status: CartStatus.ACTIVE,
+        ...this.unexpiredCartScope(),
+      },
       include: this.cartInclude(),
     });
     if (!cart) throw new NotFoundException('Active cart not found');
@@ -402,7 +496,11 @@ export class CartService {
 
   private async requireActive(userId: string) {
     const cart = await this.prisma.cart.findFirst({
-      where: { userId, status: CartStatus.ACTIVE },
+      where: {
+        userId,
+        status: CartStatus.ACTIVE,
+        ...this.unexpiredCartScope(),
+      },
       orderBy: { updatedAt: 'desc' },
     });
     if (!cart) throw new NotFoundException('Active cart not found');
@@ -490,6 +588,12 @@ export class CartService {
     return expiresAt;
   }
 
+  private unexpiredCartScope() {
+    return {
+      OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+    };
+  }
+
   private async validateEventDetails(userId: string, dto: UpdateCartDto) {
     const [address, version, settingRows] = await Promise.all([
       this.prisma.userAddress.findFirst({
@@ -527,15 +631,16 @@ export class CartService {
       throw new BadRequestException('Guest count is outside package limits');
     }
     const eventDate = new Date(`${dto.eventDate}T00:00:00.000Z`);
-    const eventInstant = new Date(
-      `${dto.eventDate}T${dto.eventTimeStart}:00.000Z`,
+    const eventInstant = eventLocalInstant(
+      dto.eventDate!,
+      dto.eventTimeStart!,
     );
     const settings = Object.fromEntries(
       settingRows.map((setting) => [setting.key, setting.value]),
     );
-    const leadHours = Number.parseInt(
-      settings.min_booking_lead_hours ?? '48',
-      10,
+    const leadHours = nonNegativeIntegerSetting(
+      settings.min_booking_lead_hours,
+      48,
     );
     if (eventInstant.getTime() - Date.now() < leadHours * 3_600_000) {
       throw new BadRequestException(
@@ -544,18 +649,17 @@ export class CartService {
     }
     const startTime = settings.event_service_start_time ?? '06:00';
     const endTime = settings.event_service_end_time ?? '23:30';
-    const interval = Number.parseInt(
-      settings.event_time_interval_minutes ?? '30',
-      10,
+    const interval = positiveIntegerSetting(
+      settings.event_time_interval_minutes,
+      30,
     );
-    const toMinutes = (value: string) => {
-      const [hours, minutes] = value.split(':').map(Number);
-      return hours * 60 + minutes;
-    };
-    const selectedMinutes = toMinutes(dto.eventTimeStart!);
-    const startMinutes = toMinutes(startTime);
-    const endMinutes = toMinutes(endTime);
+    const selectedMinutes = clockMinutes(dto.eventTimeStart!)!;
+    const startMinutes = clockMinutes(startTime);
+    const endMinutes = clockMinutes(endTime);
     if (
+      startMinutes === undefined ||
+      endMinutes === undefined ||
+      startMinutes >= endMinutes ||
       selectedMinutes < startMinutes ||
       selectedMinutes > endMinutes ||
       interval < 1 ||

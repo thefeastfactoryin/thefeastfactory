@@ -23,3 +23,5 @@ ds-bundle/
 apps/customer-web/.ds-ui.css
 .vercel
 .env*
+.DS_Store
+*.tsbuildinfo

@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateAddressDto } from './dto/create-address.dto';
@@ -107,22 +111,31 @@ export class UsersService {
 
   async deleteAddress(userId: string, addressId: string) {
     const address = await this.assertAddressOwner(userId, addressId);
+    const [cartReferences, orderReferences] = await Promise.all([
+      this.prisma.cart.count({ where: { addressId } }),
+      this.prisma.order.count({ where: { addressId } }),
+    ]);
+    if (cartReferences > 0 || orderReferences > 0) {
+      throw new ConflictException(
+        'This address is used by a cart or order and cannot be deleted',
+      );
+    }
 
-    await this.prisma.userAddress.delete({ where: { id: address.id } });
+    await this.prisma.$transaction(async (tx) => {
+      await tx.userAddress.delete({ where: { id: address.id } });
 
-    if (address.isDefault) {
-      const nextAddress = await this.prisma.userAddress.findFirst({
+      if (!address.isDefault) return;
+      const nextAddress = await tx.userAddress.findFirst({
         where: { userId },
         orderBy: { createdAt: 'desc' },
       });
-
       if (nextAddress) {
-        await this.prisma.userAddress.update({
+        await tx.userAddress.update({
           where: { id: nextAddress.id },
           data: { isDefault: true },
         });
       }
-    }
+    });
 
     return { success: true };
   }
@@ -203,7 +216,9 @@ export class UsersService {
             longitude: dto.longitude ? new Prisma.Decimal(dto.longitude) : null,
           }
         : {}),
-      ...(dto.isDefault !== undefined ? { isDefault: dto.isDefault } : {}),
+      // A default can be replaced by setting another address as default, but
+      // never unset directly and leave the customer with no default address.
+      ...(dto.isDefault === true ? { isDefault: true } : {}),
     };
   }
 }

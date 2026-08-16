@@ -469,6 +469,7 @@ function BuildPackageContent() {
     (state) => state.setGuestCount,
   );
   const requestedVersionId = searchParams.get('packageVersionId');
+  const cartId = searchParams.get('cartId');
   const packageId = searchParams.get('packageId');
   const [packageVersionId, setPackageVersionId] = useState(requestedVersionId);
   const [cat, setCat] = useState<CategoryFilter>('all');
@@ -546,7 +547,11 @@ function BuildPackageContent() {
     }
 
     let active = true;
-    apiRequest<CartSummary | null>('/cart', {}, session.accessToken)
+    apiRequest<CartSummary | null>(
+      cartId ? `/cart/${cartId}` : '/cart',
+      {},
+      session.accessToken,
+    )
       .then((cart) => {
         if (!active) return;
         hydratedCartVersion.current = packageVersionId;
@@ -573,7 +578,7 @@ function BuildPackageContent() {
     return () => {
       active = false;
     };
-  }, [dishes, packageVersionId, session, setDbCartId]);
+  }, [cartId, dishes, packageVersionId, session, setDbCartId]);
 
   const visible = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -674,16 +679,19 @@ function BuildPackageContent() {
     setMessage('');
     try {
       const cart = await apiRequest<CartSummary>(
-        '/cart',
+        cartId ? `/cart/${cartId}/quantity` : '/cart',
         {
-          method: 'PUT',
-          body: JSON.stringify({ packageVersionId, guestCount }),
+          method: cartId ? 'PUT' : 'POST',
+          body: JSON.stringify({
+            ...(cartId ? {} : { packageVersionId }),
+            guestCount,
+          }),
         },
         session.accessToken,
       );
       setDbCartId(cart.id, session.user.id);
       await apiRequest(
-        '/cart/items',
+        `/cart/${cart.id}/items`,
         {
           method: 'PUT',
           body: JSON.stringify({

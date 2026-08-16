@@ -2,6 +2,10 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { OrderingOfferingCode } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UpdateOrderingOfferingDto } from './dto/update-ordering-offering.dto';
+import {
+  nonNegativeIntegerSetting,
+  positiveIntegerSetting,
+} from '../../common/setting-values';
 
 @Injectable()
 export class CatalogService {
@@ -32,12 +36,15 @@ export class CatalogService {
     });
     const settings = Object.fromEntries(rows.map((row) => [row.key, row.value]));
     return {
-      minBookingLeadHours: Number.parseInt(settings.min_booking_lead_hours ?? '48', 10),
+      minBookingLeadHours: nonNegativeIntegerSetting(
+        settings.min_booking_lead_hours,
+        48,
+      ),
       eventServiceStartTime: settings.event_service_start_time ?? '06:00',
       eventServiceEndTime: settings.event_service_end_time ?? '23:30',
-      eventTimeIntervalMinutes: Number.parseInt(
-        settings.event_time_interval_minutes ?? '30',
-        10,
+      eventTimeIntervalMinutes: positiveIntegerSetting(
+        settings.event_time_interval_minutes,
+        30,
       ),
       business: {
         legalName: settings.business_legal_name ?? null,

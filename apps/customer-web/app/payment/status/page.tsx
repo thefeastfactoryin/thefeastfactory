@@ -14,6 +14,7 @@ export default function PaymentStatusPage() {
   const [orderId, setOrderId] = useState('');
   const [order, setOrder] = useState<OrderSummary>();
   const [loadError, setLoadError] = useState('');
+  const [confirmationDelayed, setConfirmationDelayed] = useState(false);
   useEffect(() => {
     const nextOrderId =
       new URLSearchParams(window.location.search).get('orderId') ?? '';
@@ -24,7 +25,9 @@ export default function PaymentStatusPage() {
     if (!session || !orderId) return;
     let active = true;
     let attempts = 0;
+    let timer: number | undefined;
     const check = async () => {
+      if (!active) return;
       try {
         const next = await apiRequest<OrderSummary>(
           `/orders/${orderId}`,
@@ -35,8 +38,11 @@ export default function PaymentStatusPage() {
         setOrder(next);
         setLoadError('');
         attempts += 1;
-        if (next.paymentStatus === 'PENDING' && attempts < 10)
-          window.setTimeout(check, 2000);
+        if (next.paymentStatus === 'PENDING' && attempts < 10) {
+          timer = window.setTimeout(check, 2000);
+        } else if (next.paymentStatus === 'PENDING') {
+          setConfirmationDelayed(true);
+        }
       } catch (error) {
         if (active) setLoadError((error as Error).message);
       }
@@ -44,6 +50,7 @@ export default function PaymentStatusPage() {
     check();
     return () => {
       active = false;
+      if (timer !== undefined) window.clearTimeout(timer);
     };
   }, [session, orderId]);
   const paid = order?.paymentStatus === 'PAID';
@@ -79,6 +86,8 @@ export default function PaymentStatusPage() {
           ? 'Payment confirmed'
           : failed
             ? 'Payment failed'
+            : confirmationDelayed
+              ? 'Confirmation is taking longer'
             : 'Confirming payment'}
       </h1>
       <p className="mt-2 text-muted-foreground">
@@ -86,6 +95,8 @@ export default function PaymentStatusPage() {
           ? 'Your order is confirmed.'
           : failed
             ? loadError || 'Your order is saved and payment can be retried.'
+            : confirmationDelayed
+              ? 'Your order is safe. You can retry the same payment or check the order again shortly.'
             : 'We are waiting for secure confirmation from Razorpay. This can take a few moments.'}
       </p>
       <div className="mt-8 flex gap-3">
@@ -94,7 +105,7 @@ export default function PaymentStatusPage() {
             <Link href={`/orders/${orderId}`}>View order</Link>
           </Button>
         )}
-        {failed && (
+        {(failed || confirmationDelayed) && (
           <Button asChild variant="outline">
             <Link href="/cart">Retry payment</Link>
           </Button>

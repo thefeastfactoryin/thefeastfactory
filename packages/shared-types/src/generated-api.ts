@@ -650,6 +650,70 @@ export interface paths {
         };
         readonly get: operations["CartController_current"];
         readonly put: operations["CartController_upsert"];
+        readonly post: operations["CartController_create"];
+        readonly delete: operations["CartController_clear"];
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/cart/{id}": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get: operations["CartController_one"];
+        readonly put: operations["CartController_update"];
+        readonly post?: never;
+        readonly delete: operations["CartController_remove"];
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/cart/{id}/items": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put: operations["CartController_replaceItems"];
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/cart/{id}/quantity": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put: operations["CartController_updateQuantity"];
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/cart/all": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get: operations["CartController_all"];
+        readonly put?: never;
         readonly post?: never;
         readonly delete?: never;
         readonly options?: never;
@@ -667,6 +731,22 @@ export interface paths {
         readonly get?: never;
         readonly put?: never;
         readonly post: operations["CartController_checkoutCurrent"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/cart/checkout-all": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        readonly post: operations["CartController_checkoutAll"];
         readonly delete?: never;
         readonly options?: never;
         readonly head?: never;
@@ -699,6 +779,22 @@ export interface paths {
         readonly get?: never;
         readonly put?: never;
         readonly post: operations["CartController_quoteCurrent"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/cart/quote-all": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        readonly post: operations["CartController_quoteAll"];
         readonly delete?: never;
         readonly options?: never;
         readonly head?: never;
@@ -897,6 +993,22 @@ export interface paths {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/orders/{id}/payment-batch": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get: operations["PaymentsController_batchSummary"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/orders/{id}/payments/razorpay-order": {
         readonly parameters: {
             readonly query?: never;
@@ -1003,6 +1115,22 @@ export interface paths {
         readonly get: operations["PackagesController_getActiveVersion"];
         readonly put?: never;
         readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/payments/razorpay/batch-order": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        readonly post: operations["PaymentsController_createBatch"];
         readonly delete?: never;
         readonly options?: never;
         readonly head?: never;
@@ -1130,6 +1258,14 @@ export interface components {
             readonly pincode: string;
             /** @example Telangana */
             readonly state: string;
+        };
+        readonly CreateBatchPaymentDto: {
+            readonly orderIds: readonly string[];
+        };
+        readonly CreateCartDto: {
+            readonly guestCount?: number;
+            /** Format: uuid */
+            readonly packageVersionId: string;
         };
         readonly CreateMenuCategoryDto: {
             readonly description?: string;
@@ -1290,6 +1426,9 @@ export interface components {
             readonly packageVersionId: string;
             readonly specialNotes?: string;
         };
+        readonly UpdateCartQuantityDto: {
+            readonly guestCount: number;
+        };
         readonly UpdateMenuCategoryDto: {
             readonly description?: string;
             /** @default 0 */
@@ -1334,7 +1473,7 @@ export interface components {
             readonly description?: string;
             /** @default 0 */
             readonly displayOrder: number;
-            readonly featuredOrder?: number;
+            readonly featuredOrder?: number | null;
             readonly imageUrl?: string;
             /** @default true */
             readonly isActive: boolean;
@@ -1353,7 +1492,7 @@ export interface components {
             readonly basePricePerPlate?: string;
             /** @default true */
             readonly isActive: boolean;
-            readonly maxGuestCount?: number;
+            readonly maxGuestCount?: number | null;
             /** @default 10 */
             readonly minGuestCount: number;
             readonly publishedAt?: string | null;
@@ -2412,7 +2551,186 @@ export interface operations {
             };
         };
     };
+    readonly CartController_create: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["CreateCartDto"];
+            };
+        };
+        readonly responses: {
+            readonly 201: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    readonly CartController_clear: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    readonly CartController_one: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly id: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    readonly CartController_update: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly id: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["UpdateCartDto"];
+            };
+        };
+        readonly responses: {
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    readonly CartController_remove: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly id: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    readonly CartController_replaceItems: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly id: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["ReplaceCartItemsDto"];
+            };
+        };
+        readonly responses: {
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    readonly CartController_updateQuantity: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly id: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["UpdateCartQuantityDto"];
+            };
+        };
+        readonly responses: {
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    readonly CartController_all: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     readonly CartController_checkoutCurrent: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            readonly 201: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    readonly CartController_checkoutAll: {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
@@ -2451,6 +2769,23 @@ export interface operations {
         };
     };
     readonly CartController_quoteCurrent: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            readonly 201: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    readonly CartController_quoteAll: {
         readonly parameters: {
             readonly query?: never;
             readonly header?: never;
@@ -2758,6 +3093,25 @@ export interface operations {
             };
         };
     };
+    readonly PaymentsController_batchSummary: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly id: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     readonly PaymentsController_create: {
         readonly parameters: {
             readonly query?: never;
@@ -2887,6 +3241,27 @@ export interface operations {
         readonly requestBody?: never;
         readonly responses: {
             readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    readonly PaymentsController_createBatch: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["CreateBatchPaymentDto"];
+            };
+        };
+        readonly responses: {
+            readonly 201: {
                 headers: {
                     readonly [name: string]: unknown;
                 };

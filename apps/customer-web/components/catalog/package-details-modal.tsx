@@ -277,12 +277,14 @@ export function PackageChangeDialog({
   nextName,
   selecting,
   onCancel,
+  onClear,
   onConfirm,
 }: {
   currentName: string;
   nextName: string;
   selecting?: boolean;
   onCancel: () => void;
+  onClear: () => void;
   onConfirm: () => void;
 }) {
   return (
@@ -325,10 +327,11 @@ export function PackageChangeDialog({
         <div className="mt-6 grid gap-3 sm:grid-cols-2">
           <button
             type="button"
-            onClick={onCancel}
-            className="rounded-xl border px-4 py-3 text-sm font-bold hover:bg-muted"
+            onClick={onClear}
+            disabled={selecting}
+            className="rounded-xl border border-red-200 px-4 py-3 text-sm font-bold text-red-700 hover:bg-red-50 disabled:opacity-60"
           >
-            Cancel
+            Clear cart & continue
           </button>
           <button
             type="button"
@@ -336,7 +339,7 @@ export function PackageChangeDialog({
             disabled={selecting}
             className="rounded-xl bg-primary px-4 py-3 text-sm font-bold text-white hover:bg-primary/90 disabled:opacity-60"
           >
-            {selecting ? 'Adding…' : 'Add package'}
+            {selecting ? 'Adding…' : 'Add alongside'}
           </button>
         </div>
       </section>

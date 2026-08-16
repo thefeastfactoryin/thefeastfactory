@@ -13,6 +13,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AdminRole } from '@prisma/client';
 import type { Response } from 'express';
 import { JwtPayload } from '../../common/auth/jwt-payload';
+import { AdminRegionQueryDto } from '../../common/dto/admin-region-query.dto';
 import { CurrentAdmin } from '../../common/decorators/current-admin.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -20,6 +21,7 @@ import { AdminAuthGuard } from '../../common/guards/admin-auth.guard';
 import { CustomerAuthGuard } from '../../common/guards/customer-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { CreateOrderNoteDto } from './dto/create-order-note.dto';
+import { OperationsCalendarQueryDto } from './dto/operations-calendar-query.dto';
 import { UpdateSettingsDto } from './dto/update-settings.dto';
 import { OperationsService } from './operations.service';
 
@@ -63,8 +65,11 @@ export class OperationsController {
   @Get('admin/orders/:orderId/notes')
   @ApiBearerAuth()
   @UseGuards(AdminAuthGuard)
-  notes(@Param('orderId') orderId: string) {
-    return this.operations.notes(orderId);
+  notes(
+    @CurrentAdmin() admin: JwtPayload,
+    @Param('orderId') orderId: string,
+  ) {
+    return this.operations.notes(admin, orderId);
   }
 
   @Post('admin/orders/:orderId/notes')
@@ -75,7 +80,7 @@ export class OperationsController {
     @Param('orderId') orderId: string,
     @Body() dto: CreateOrderNoteDto,
   ) {
-    return this.operations.addNote(admin.sub, orderId, dto);
+    return this.operations.addNote(admin, orderId, dto);
   }
 
   @Get('admin/operations/calendar')
@@ -83,12 +88,15 @@ export class OperationsController {
   @UseGuards(AdminAuthGuard)
   calendar(
     @CurrentAdmin() admin: JwtPayload,
-    @Query('from') from?: string,
-    @Query('to') to?: string,
-    @Query('regionId') regionId?: string,
-    @Query('city') city?: string,
+    @Query() query: OperationsCalendarQueryDto,
   ) {
-    return this.operations.calendar(admin, from, to, regionId, city);
+    return this.operations.calendar(
+      admin,
+      query.from,
+      query.to,
+      query.regionId,
+      query.city,
+    );
   }
 
   @Get('admin/operations/queue')
@@ -96,9 +104,9 @@ export class OperationsController {
   @UseGuards(AdminAuthGuard)
   queue(
     @CurrentAdmin() admin: JwtPayload,
-    @Query('regionId') regionId?: string,
+    @Query() query: AdminRegionQueryDto,
   ) {
-    return this.operations.queue(admin, regionId);
+    return this.operations.queue(admin, query.regionId);
   }
 
   @Get('admin/settings')
@@ -130,7 +138,7 @@ export class OperationsController {
     @CurrentAdmin() admin: JwtPayload,
     @Param('orderId') orderId: string,
   ) {
-    return this.operations.documents(admin.sub, orderId, true);
+    return this.operations.documents(admin.sub, orderId, admin);
   }
 
   @Get('admin/orders/:orderId/documents/:documentId/download')
@@ -146,7 +154,7 @@ export class OperationsController {
       admin.sub,
       orderId,
       documentId,
-      true,
+      admin,
     );
     response.setHeader('Content-Type', 'application/pdf');
     response.setHeader(

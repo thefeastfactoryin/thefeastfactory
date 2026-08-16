@@ -1,6 +1,6 @@
 'use client';
 
-import type { PackageConfiguration } from '@aranyam/shared-types';
+import type { CartSummary, PackageConfiguration } from '@aranyam/shared-types';
 import {
   ArrowRight,
   ArrowRightLeft,
@@ -62,6 +62,10 @@ function MenuSelectContent() {
   const selectedItems = useOrderBuilderStore((state) => state.selectedItems);
   const setPackage = useOrderBuilderStore((state) => state.setPackage);
   const setDbCartId = useOrderBuilderStore((state) => state.setDbCartId);
+  const dbCartId = useOrderBuilderStore((state) => state.dbCartId);
+  const hydrateFromCart = useOrderBuilderStore(
+    (state) => state.hydrateFromCart,
+  );
   const toggleItem = useOrderBuilderStore((state) => state.toggleItem);
   const setSwap = useOrderBuilderStore((state) => state.setSwap);
   const updateItemQuantity = useOrderBuilderStore(
@@ -85,6 +89,18 @@ function MenuSelectContent() {
   const [detailItem, setDetailItem] = useState<DetailItem>();
   const [saving, setSaving] = useState(false);
   const [boxCountInput, setBoxCountInput] = useState(String(guestCount));
+  const requestedCartId = searchParams.get('cartId');
+
+  useEffect(() => {
+    if (!session || !requestedCartId) return;
+    apiRequest<CartSummary>(
+      `/cart/${requestedCartId}`,
+      {},
+      session.accessToken,
+    )
+      .then((savedCart) => hydrateFromCart(savedCart, session.user.id))
+      .catch((reason) => setError((reason as Error).message));
+  }, [hydrateFromCart, requestedCartId, session]);
 
   useEffect(() => setBoxCountInput(String(guestCount)), [guestCount]);
 
@@ -364,12 +380,15 @@ function MenuSelectContent() {
     setSaving(true);
     setMessage('');
     try {
+      const requestedCartId = searchParams.get('cartId') || dbCartId;
       const cart = await apiRequest<{ id: string }>(
-        '/cart',
+        requestedCartId ? `/cart/${requestedCartId}/quantity` : '/cart',
         {
-          method: 'PUT',
+          method: requestedCartId ? 'PUT' : 'POST',
           body: JSON.stringify({
-            packageVersionId: cartPackage.packageVersionId,
+            ...(requestedCartId
+              ? {}
+              : { packageVersionId: cartPackage.packageVersionId }),
             guestCount,
           }),
         },
@@ -377,7 +396,7 @@ function MenuSelectContent() {
       );
       setDbCartId(cart.id, session.user.id);
       await apiRequest(
-        '/cart/items',
+        `/cart/${cart.id}/items`,
         {
           method: 'PUT',
           body: JSON.stringify({
@@ -400,6 +419,19 @@ function MenuSelectContent() {
     }
   }
 
+  if (error) {
+    return (
+      <main className="page-shell">
+        <StatePanel
+          tone="danger"
+          title="Menu could not load"
+          description={error}
+          actionHref="/packages"
+          actionLabel="Choose another package"
+        />
+      </main>
+    );
+  }
   if (!cartPackage) {
     if (searchParams.get('packageVersionId')) {
       return (
@@ -419,19 +451,6 @@ function MenuSelectContent() {
           actionLabel="Browse packages"
           secondaryHref="/menu"
           secondaryLabel="Preview dishes"
-        />
-      </main>
-    );
-  }
-  if (error) {
-    return (
-      <main className="page-shell">
-        <StatePanel
-          tone="danger"
-          title="Menu could not load"
-          description={error}
-          actionHref="/packages"
-          actionLabel="Choose another package"
         />
       </main>
     );

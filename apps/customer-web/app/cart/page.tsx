@@ -259,6 +259,7 @@ export default function CartPage() {
         session.accessToken,
       );
       setActiveCarts(remaining);
+      window.dispatchEvent(new Event('cart-updated'));
       if (!remaining.length) {
         reset();
         setCart(undefined);
@@ -285,16 +286,6 @@ export default function CartPage() {
     } finally {
       setDeletingCartId('');
     }
-  }
-
-  function editPackageCart(packageCart: CartSummary) {
-    if (!session) return;
-    hydrate(packageCart, session.user.id);
-    const href =
-      packageCart.package.type === 'CUSTOM_PACKAGE'
-        ? `/packages/build?packageVersionId=${packageCart.packageVersionId}`
-        : `/menu/select?packageVersionId=${packageCart.packageVersionId}`;
-    router.push(href);
   }
 
   async function selectPackageCart(packageCart: CartSummary) {
@@ -591,8 +582,8 @@ export default function CartPage() {
     activeCarts.length > 0 && activeCarts.every((entry) => eventReady(entry));
   const editHref =
     cart.package.type === 'CUSTOM_PACKAGE'
-      ? `/packages/build?packageVersionId=${cart.packageVersionId}`
-      : `/menu/select?packageVersionId=${cart.packageVersionId}`;
+      ? `/packages/build?packageVersionId=${cart.packageVersionId}&cartId=${cart.id}`
+      : `/menu/select?packageVersionId=${cart.packageVersionId}&cartId=${cart.id}`;
   const isMealBox = cart.package.type === 'MEAL_BOX';
   const isMultiCart = activeCarts.length > 1;
   const activeGroup =
@@ -636,17 +627,6 @@ export default function CartPage() {
                 securely.
               </p>
             </div>
-            {!pendingOrder && (
-              <Button
-                asChild
-                variant="outline"
-                className="border-white/40 bg-white/10 text-white hover:bg-white hover:text-primary"
-              >
-                <Link href={editHref}>
-                  <Pencil className="mr-2 h-4 w-4" /> Edit menu
-                </Link>
-              </Button>
-            )}
           </div>
         </div>
       </section>
@@ -675,39 +655,60 @@ export default function CartPage() {
               role="tablist"
               aria-label="Packages in your cart"
             >
-              {activeCarts.map((packageCart) => (
+              {activeCarts.map((packageCart, packageIndex) => (
                 <article
                   key={packageCart.id}
                   className={cn(
-                    'min-w-[280px] flex-1 rounded-xl border p-4 transition sm:min-w-[320px]',
+                    'group relative min-w-[280px] flex-1 rounded-xl border p-4 transition-all sm:min-w-[320px]',
                     packageCart.id === cart.id
-                      ? 'border-primary bg-primary/[0.045] shadow-sm'
-                      : 'border-border bg-ivory/60 hover:border-primary/30',
+                      ? 'border-primary bg-primary/[0.055] shadow-sm ring-1 ring-primary/15'
+                      : 'border-border bg-ivory/60 hover:-translate-y-0.5 hover:border-primary/40 hover:bg-white hover:shadow-md',
                   )}
                 >
-                  <div className="flex items-start justify-between gap-3">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={packageCart.id === cart.id}
+                    aria-label={`View ${packageCart.package.name} menu and details`}
+                    disabled={
+                      packageCart.id === cart.id || Boolean(selectingCartId)
+                    }
+                    onClick={() => void selectPackageCart(packageCart)}
+                    className="absolute inset-0 z-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-default"
+                  />
+                  <div className="pointer-events-none flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <button
-                        type="button"
-                        role="tab"
-                        aria-selected={packageCart.id === cart.id}
-                        onClick={() => void selectPackageCart(packageCart)}
-                        className="block max-w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
-                      >
+                      <div className="flex items-center gap-2">
                         <span className="block truncate font-bold text-foreground">
                           {packageCart.package.name}
                         </span>
-                        <span className="mt-1 block text-xs font-semibold text-primary">
-                          {packageCart.id === cart.id
-                            ? 'Viewing this menu'
-                            : selectingCartId === packageCart.id
-                              ? 'Loading menu…'
-                              : 'View menu & details'}
-                        </span>
-                      </button>
+                        {packageCart.id === cart.id && (
+                          <CheckCircle2
+                            className="h-4 w-4 shrink-0 text-primary"
+                            aria-label="Selected package"
+                          />
+                        )}
+                      </div>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        {packageCart.items.length} custom selection
-                        {packageCart.items.length === 1 ? '' : 's'}
+                        {selectingCartId === packageCart.id
+                          ? 'Updating menu…'
+                          : `${
+                              activeCarts.filter(
+                                (entry) =>
+                                  entry.packageVersionId ===
+                                  packageCart.packageVersionId,
+                              ).length > 1
+                                ? `Order ${
+                                    activeCarts
+                                      .slice(0, packageIndex + 1)
+                                      .filter(
+                                        (entry) =>
+                                          entry.packageVersionId ===
+                                          packageCart.packageVersionId,
+                                      ).length
+                                  } · `
+                                : ''
+                            }${packageCart.items.length} custom selection${packageCart.items.length === 1 ? '' : 's'}`}
                       </p>
                     </div>
                     <button
@@ -715,12 +716,12 @@ export default function CartPage() {
                       aria-label={`Remove ${packageCart.package.name} from cart`}
                       disabled={Boolean(deletingCartId)}
                       onClick={() => void removeCart(packageCart.id)}
-                      className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-red-700 hover:bg-red-50 disabled:opacity-40"
+                      className="pointer-events-auto relative z-10 grid h-9 w-9 shrink-0 place-items-center rounded-full text-red-700 hover:bg-red-50 disabled:opacity-40"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
-                  <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border bg-white p-2">
+                  <div className="relative z-10 mt-3 flex items-center justify-between gap-3 rounded-lg border bg-white p-2">
                     <span className="text-xs font-semibold text-muted-foreground">
                       {packageCart.package.type === 'MEAL_BOX'
                         ? 'Box count'
@@ -790,22 +791,6 @@ export default function CartPage() {
                       </button>
                     </div>
                   </div>
-                  <div className="mt-3 flex items-center justify-between gap-3">
-                    <button
-                      type="button"
-                      onClick={() => void selectPackageCart(packageCart)}
-                      className="text-xs font-bold text-primary hover:underline"
-                    >
-                      {packageCart.id === cart.id ? 'Menu selected' : 'Show menu'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => editPackageCart(packageCart)}
-                      className="text-xs font-bold text-muted-foreground hover:text-primary hover:underline"
-                    >
-                      Edit package
-                    </button>
-                  </div>
                 </article>
               ))}
             </div>
@@ -824,6 +809,7 @@ export default function CartPage() {
               <EventSummary cart={cart} />
             ) : (
               <SelectionContextPanel
+                cartId={cart.id}
                 packageVersionId={cart.packageVersionId}
                 minPax={cart.package.minGuestCount}
                 maxPax={cart.package.maxGuestCount}
@@ -850,9 +836,9 @@ export default function CartPage() {
                 {!pendingOrder && (
                   <Link
                     href={editHref}
-                    className="inline-flex min-h-10 items-center rounded-full px-3 text-sm font-bold text-primary transition hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                    className="inline-flex min-h-10 items-center gap-2 rounded-full border border-primary/25 bg-primary/[0.04] px-4 text-sm font-bold text-primary transition hover:border-primary/40 hover:bg-primary/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
                   >
-                    Change menu
+                    <Pencil className="h-4 w-4" /> Edit menu
                   </Link>
                 )}
               </div>
@@ -924,14 +910,6 @@ export default function CartPage() {
                   {config
                     ? 'No menu items have been selected yet.'
                     : 'Loading your complete menu...'}
-                  {!pendingOrder && (
-                    <Link
-                      href={editHref}
-                      className="mx-auto mt-4 inline-flex min-h-10 items-center rounded-full border border-primary/30 px-4 font-bold text-primary"
-                    >
-                      Change menu
-                    </Link>
-                  )}
                 </div>
               )}
             </section>
@@ -941,6 +919,7 @@ export default function CartPage() {
             ) : (
               <SelectionContextPanel
                 key={cart.id}
+                cartId={cart.id}
                 packageVersionId={cart.packageVersionId}
                 minPax={cart.package.minGuestCount}
                 maxPax={cart.package.maxGuestCount}

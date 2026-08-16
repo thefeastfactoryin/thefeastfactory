@@ -17,6 +17,7 @@ const envSchema = z.object({
   BCRYPT_SALT_ROUNDS: z.coerce.number().default(12),
   MSG91_AUTH_KEY: z.string().optional().default(''),
   MSG91_TEMPLATE_ID: z.string().optional().default(''),
+  MSG91_FLOW_ID: z.string().optional().default(''),
   MSG91_SENDER_ID: z.string().optional().default(''),
   MSG91_OTP_EXPIRY_SECONDS: z.coerce.number().default(300),
   TEST_LOGIN_OTP_ENABLED: z

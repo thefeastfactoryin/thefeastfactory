@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtPayload } from '../../common/auth/jwt-payload';
+import { AdminRegionQueryDto } from '../../common/dto/admin-region-query.dto';
 import { CurrentAdmin } from '../../common/decorators/current-admin.decorator';
 import { AdminAuthGuard } from '../../common/guards/admin-auth.guard';
 import { AdminCancelOrderDto } from './dto/admin-cancel-order.dto';
@@ -52,9 +53,9 @@ export class AdminOrdersController {
   }
   @Get('payments') payments(
     @CurrentAdmin() admin: JwtPayload,
-    @Query('regionId') regionId?: string,
+    @Query() query: AdminRegionQueryDto,
   ) {
-    return this.service.listPayments(admin, regionId);
+    return this.service.listPayments(admin, query.regionId);
   }
   @Post('payments/:id/full-refund') refund(
     @CurrentAdmin() admin: JwtPayload,

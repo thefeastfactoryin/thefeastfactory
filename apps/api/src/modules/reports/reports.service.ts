@@ -19,7 +19,14 @@ export class ReportsService {
     const paymentWhere = regionId ? { order: { regionId } } : {};
     const [paid, refunded] = await Promise.all([
       this.prisma.payment.aggregate({
-        where: { paymentStatus: PaymentStatus.PAID, ...paymentWhere },
+        // Gross revenue is the amount successfully captured before refunds.
+        // Fully refunded ledgers remain part of gross and are offset below.
+        where: {
+          paymentStatus: {
+            in: [PaymentStatus.PAID, PaymentStatus.REFUNDED],
+          },
+          ...paymentWhere,
+        },
         _sum: { amount: true },
         _count: true,
       }),

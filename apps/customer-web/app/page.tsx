@@ -14,7 +14,6 @@ import {
   CreditCard,
   MessageCircle,
   Package as PackageIcon,
-  ShieldCheck,
   Users,
   type LucideIcon,
 } from 'lucide-react';
@@ -23,7 +22,6 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { catalogCopy, offeringDisplay } from '../lib/catalog-display';
 import { apiRequest } from '../lib/api';
-import { generateWhatsAppLink } from '../lib/generate-whatsapp-link';
 import { DataImage } from '../components/data-image';
 import {
   PackageChangeDialog,
@@ -34,7 +32,12 @@ import { useSessionStore } from '../store/session.store';
 import { usePublicSettings } from '../components/public-settings-provider';
 
 const trustIcons = [Users, Clock, CreditCard, MessageCircle];
-const fssaiLicenseNumber = '12321011000123';
+const heroTags = [
+  '🚫 No Palm Oil',
+  '🌿 No Artificial Colors',
+  '🛡️ FSSAI Certified',
+  '🔥 Delivered Piping Hot',
+];
 const heroImages = [
   {
     src: '/office-hero.png',
@@ -68,6 +71,7 @@ export default function HomePage() {
   const setPackage = useOrderBuilderStore((state) => state.setPackage);
   const setDbCartId = useOrderBuilderStore((state) => state.setDbCartId);
   const setGuestCount = useOrderBuilderStore((state) => state.setGuestCount);
+  const reset = useOrderBuilderStore((state) => state.reset);
   const [offerings, setOfferings] = useState<OrderingOffering[]>([]);
   const [packages, setPackages] = useState<PackageSummary[]>([]);
   const [configs, setConfigs] = useState<Record<string, PackageConfiguration>>(
@@ -118,7 +122,6 @@ export default function HomePage() {
     if (!pkg.activeVersion || selecting) return;
     if (
       currentPackage &&
-      currentPackage.packageVersionId !== pkg.activeVersion.id &&
       !confirmed
     ) {
       setPendingPackage(pkg);
@@ -142,7 +145,7 @@ export default function HomePage() {
         ? await apiRequest<{ id: string }>(
             '/cart',
             {
-              method: 'PUT',
+              method: 'POST',
               body: JSON.stringify({
                 packageVersionId: pkg.activeVersion.id,
                 guestCount: pkg.activeVersion.minGuestCount,
@@ -159,11 +162,20 @@ export default function HomePage() {
       const next = new URLSearchParams({
         packageVersionId: pkg.activeVersion.id,
       });
+      if (cart?.id) next.set('cartId', cart.id);
       router.push(`${builder}?${next.toString()}`);
     } catch (reason) {
       setSelectionError((reason as Error).message);
       setSelecting('');
     }
+  }
+
+  async function clearCartAndSelect(pkg: PackageSummary) {
+    if (session) {
+      await apiRequest('/cart', { method: 'DELETE' }, session.accessToken);
+    }
+    reset();
+    await selectPackage(pkg, true);
   }
 
   return (
@@ -181,7 +193,7 @@ export default function HomePage() {
               <p className="eyebrow">Premium bulk catering</p>
               <h1 className="mt-4 font-serif text-4xl font-bold leading-[0.98] tracking-tight sm:text-[42px] lg:text-[3.75rem]">
                 Premium food for every{' '}
-                <span className="italic text-accent">occasion</span>.
+                <span className="italic text-accent">occasion</span>
               </h1>
               {/* Change: Lead with the family occasions the service is built around, while keeping corporate catering secondary. */}
               <p className="mt-4 max-w-[480px] text-[15px] leading-7 text-white/75">
@@ -192,52 +204,23 @@ export default function HomePage() {
 
               <Link
                 href="#ordering-styles"
-                className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-full bg-white px-6 text-sm font-bold text-primary shadow-[0_9px_22px_rgba(0,0,0,0.16)] transition-all duration-250 ease-premium hover:-translate-y-0.5 hover:bg-white/90 hover:shadow-[0_13px_28px_rgba(0,0,0,0.18)]"
+                className="mt-6 inline-flex h-12 items-center justify-center gap-2 rounded-full bg-accent px-8 text-base font-extrabold text-accent-foreground shadow-[0_10px_28px_rgba(211,163,58,0.30)] transition-all duration-250 ease-premium hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_14px_34px_rgba(211,163,58,0.38)]"
               >
-                Choose ordering style <ArrowRight className="h-4 w-4" />
+                Order Now <ArrowRight className="h-5 w-5" />
               </Link>
-              <a
-                href={generateWhatsAppLink()}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-3 inline-flex h-10 items-center justify-center rounded-full border border-white/40 px-5 text-sm font-bold text-white transition-colors hover:bg-white/10"
-              >
-                Plan your event with us
-              </a>
 
               <div
-                className="mt-4 grid grid-cols-1 gap-2 sm:w-max lg:grid-cols-[repeat(3,max-content)]"
+                className="mt-5 flex max-w-xl flex-wrap gap-2"
                 aria-label="Service trust signals"
               >
-                {/* Keep this guard so removing the temporary hardcoded number also hides the credential chip. */}
-                {fssaiLicenseNumber && (
+                {heroTags.map((tag) => (
                   <div
+                    key={tag}
                     className="inline-flex h-8 w-full items-center gap-2 rounded-full bg-white/[0.08] px-3 text-[11px] font-medium text-white/85 ring-1 ring-inset ring-white/15 sm:w-auto"
-                    title={`FSSAI License No. ${fssaiLicenseNumber}`}
-                    aria-label={`FSSAI Licensed, license number ${fssaiLicenseNumber}`}
                   >
-                    <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white/10 text-accent">
-                      <ShieldCheck className="h-3 w-3" aria-hidden="true" />
-                    </span>
-                    <span className="whitespace-nowrap">FSSAI Licensed</span>
+                    <span className="whitespace-nowrap">{tag}</span>
                   </div>
-                )}
-                <div className="inline-flex h-8 w-full items-center gap-2 rounded-full bg-white/[0.08] px-3 text-[11px] font-medium text-white/85 ring-1 ring-inset ring-white/15 sm:w-auto">
-                  <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white/10 text-accent">
-                    <ChefHat className="h-3 w-3" aria-hidden="true" />
-                  </span>
-                  <span className="whitespace-nowrap">
-                    Hygienically Prepared Kitchens
-                  </span>
-                </div>
-                <div className="inline-flex h-8 w-full items-center gap-2 rounded-full bg-white/[0.08] px-3 text-[11px] font-medium text-white/85 ring-1 ring-inset ring-white/15 sm:w-auto">
-                  <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white/10 text-accent">
-                    <Clock className="h-3 w-3" aria-hidden="true" />
-                  </span>
-                  <span className="whitespace-nowrap">
-                    On-Time Delivery, Every Time
-                  </span>
-                </div>
+                ))}
               </div>
             </div>
 
@@ -460,6 +443,7 @@ export default function HomePage() {
           nextName={pendingPackage.name}
           selecting={selecting === pendingPackage.id}
           onCancel={() => setPendingPackage(undefined)}
+          onClear={() => void clearCartAndSelect(pendingPackage)}
           onConfirm={() => selectPackage(pendingPackage, true)}
         />
       )}

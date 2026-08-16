@@ -13,6 +13,7 @@ import { JwtPayload } from '../../common/auth/jwt-payload';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CustomerAuthGuard } from '../../common/guards/customer-auth.guard';
 import { ReplaceCartItemsDto } from './dto/replace-cart-items.dto';
+import { CreateCartDto } from './dto/create-cart.dto';
 import { UpdateCartDto } from './dto/update-cart.dto';
 import { UpdateCartQuantityDto } from './dto/update-cart-quantity.dto';
 import { CartService } from './cart.service';
@@ -34,6 +35,21 @@ export class CartController {
     return this.carts.getAllActive(user.sub);
   }
 
+  @Get(':id')
+  one(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.carts.getById(user.sub, id);
+  }
+
+  @Post()
+  create(@CurrentUser() user: JwtPayload, @Body() dto: CreateCartDto) {
+    return this.carts.create(user.sub, dto);
+  }
+
+  @Delete()
+  clear(@CurrentUser() user: JwtPayload) {
+    return this.carts.clearActive(user.sub);
+  }
+
   @Delete(':id')
   remove(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.carts.removeActive(user.sub, id);
@@ -42,6 +58,15 @@ export class CartController {
   @Put()
   upsert(@CurrentUser() user: JwtPayload, @Body() dto: UpdateCartDto) {
     return this.carts.upsert(user.sub, dto);
+  }
+
+  @Put(':id')
+  update(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: UpdateCartDto,
+  ) {
+    return this.carts.update(user.sub, id, dto);
   }
 
   @Put(':id/quantity')
@@ -53,6 +78,16 @@ export class CartController {
     return this.carts.updateQuantity(user.sub, id, dto.guestCount);
   }
 
+  @Put(':id/items')
+  replaceItems(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: ReplaceCartItemsDto,
+  ) {
+    return this.carts.replaceItems(user.sub, id, dto);
+  }
+
+  /** @deprecated Use PUT /cart/:id/items so concurrent carts cannot be mixed. */
   @Put('items')
   replaceCurrentItems(
     @CurrentUser() user: JwtPayload,

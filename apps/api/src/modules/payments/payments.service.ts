@@ -3,6 +3,7 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -45,6 +46,7 @@ export class PaymentsService {
   ) {}
 
   async createGatewayOrder(userId: string, orderId: string) {
+    this.assertPaymentModeAvailable();
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, userId },
       include: { payments: { orderBy: { createdAt: 'desc' } } },
@@ -120,7 +122,29 @@ export class PaymentsService {
       where: { orderId, order: { userId } },
       orderBy: { createdAt: 'desc' },
     });
-    if (!payment) throw new NotFoundException('Payment not found');
+    if (!payment) {
+      const order = await this.prisma.order.findFirst({
+        where: { id: orderId, userId },
+        select: { id: true, totalAmount: true, checkoutBatchId: true },
+      });
+      if (!order) throw new NotFoundException('Order not found');
+      const batchOrders = order.checkoutBatchId
+        ? await this.prisma.order.findMany({
+            where: { checkoutBatchId: order.checkoutBatchId, userId },
+            select: { id: true, totalAmount: true },
+            orderBy: { createdAt: 'asc' },
+          })
+        : [order];
+      const totalAmount = batchOrders.reduce(
+        (sum, row) => sum.plus(row.totalAmount),
+        new Prisma.Decimal(0),
+      );
+      return {
+        orderCount: batchOrders.length,
+        orderIds: batchOrders.map((row) => row.id),
+        totalAmount: totalAmount.toFixed(2),
+      };
+    }
     const payments = payment.razorpayOrderId
       ? await this.prisma.payment.findMany({
           where: {
@@ -142,6 +166,7 @@ export class PaymentsService {
   }
 
   async createBatchGatewayOrder(userId: string, orderIds: string[]) {
+    this.assertPaymentModeAvailable();
     const uniqueIds = [...new Set(orderIds)];
     const orders = await this.prisma.order.findMany({
       where: { id: { in: uniqueIds }, userId },
@@ -214,6 +239,7 @@ export class PaymentsService {
   }
 
   async verify(userId: string, dto: VerifyPaymentDto) {
+    this.assertPaymentModeAvailable();
     const payment = await this.prisma.payment.findFirst({
       where: { razorpayOrderId: dto.razorpayOrderId, order: { userId } },
       include: { order: true },
@@ -299,6 +325,7 @@ export class PaymentsService {
     const eventId =
       providerEventId ||
       crypto.createHash('sha256').update(rawBody).digest('hex');
+    let retryingUnprocessed = false;
     try {
       await this.prisma.paymentWebhookEvent.create({
         data: {
@@ -309,18 +336,28 @@ export class PaymentsService {
       });
     } catch (error) {
       if ((error as { code?: string }).code === 'P2002') {
-        return { received: true, duplicate: true };
+        const existing = await this.prisma.paymentWebhookEvent.findUnique({
+          where: { providerEventId: eventId },
+        });
+        if (existing?.processedAt) {
+          return { received: true, duplicate: true };
+        }
+        retryingUnprocessed = true;
+      } else {
+        throw error;
       }
-      throw error;
     }
 
     try {
       await this.processWebhook(eventType, payload);
       await this.prisma.paymentWebhookEvent.update({
         where: { providerEventId: eventId },
-        data: { processedAt: new Date() },
+        data: { processedAt: new Date(), processingError: null },
       });
-      return { received: true };
+      return {
+        received: true,
+        ...(retryingUnprocessed ? { retried: true } : {}),
+      };
     } catch (error) {
       await this.prisma.paymentWebhookEvent.update({
         where: { providerEventId: eventId },
@@ -336,6 +373,7 @@ export class PaymentsService {
   }
 
   async createRefund(adminId: string, paymentId: string, reason?: string) {
+    this.assertPaymentModeAvailable();
     const payment = await this.prisma.payment.findUnique({
       where: { id: paymentId },
       include: { refunds: true, order: true },
@@ -427,6 +465,20 @@ export class PaymentsService {
       const payments = await this.prisma.payment.findMany({
         where: { razorpayOrderId: entity.order_id },
       });
+      if (!payments.length) return;
+      const expectedAmount = payments.reduce(
+        (sum, payment) => sum.plus(payment.amount),
+        new Prisma.Decimal(0),
+      );
+      if (
+        entity.status !== 'captured' ||
+        !Number.isSafeInteger(Number(entity.amount)) ||
+        Number(entity.amount) !== expectedAmount.mul(100).toNumber()
+      ) {
+        throw new BadRequestException(
+          'Captured payment details could not be reconciled',
+        );
+      }
       for (const payment of payments) {
         await this.markPaid(payment.id, entity.id, undefined, entity);
       }
@@ -446,8 +498,11 @@ export class PaymentsService {
       if (!retryable.length) return;
       await this.prisma.$transaction(async (tx) => {
         for (const payment of retryable) {
-          await tx.payment.update({
-            where: { id: payment.id },
+          const failed = await tx.payment.updateMany({
+            where: {
+              id: payment.id,
+              paymentStatus: { not: PaymentStatus.PAID },
+            },
             data: {
               paymentStatus: PaymentStatus.FAILED,
               razorpayPaymentId: entity.id,
@@ -456,8 +511,20 @@ export class PaymentsService {
               gatewayResponse: entity as unknown as Prisma.InputJsonValue,
             },
           });
-          await tx.order.update({
-            where: { id: payment.orderId },
+          if (failed.count === 0) continue;
+          const otherPaidPayments = await tx.payment.count({
+            where: {
+              orderId: payment.orderId,
+              id: { not: payment.id },
+              paymentStatus: PaymentStatus.PAID,
+            },
+          });
+          if (otherPaidPayments > 0) continue;
+          await tx.order.updateMany({
+            where: {
+              id: payment.orderId,
+              paymentStatus: { not: PaymentStatus.PAID },
+            },
             data: { paymentStatus: PaymentStatus.FAILED },
           });
         }
@@ -505,9 +572,12 @@ export class PaymentsService {
       include: { order: true },
     });
     if (!payment || payment.paymentStatus === PaymentStatus.PAID) return;
-    await this.prisma.$transaction(async (tx) => {
-      await tx.payment.update({
-        where: { id: payment.id },
+    const marked = await this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.payment.updateMany({
+        where: {
+          id: payment.id,
+          paymentStatus: { not: PaymentStatus.PAID },
+        },
         data: {
           paymentStatus: PaymentStatus.PAID,
           razorpayPaymentId,
@@ -518,22 +588,35 @@ export class PaymentsService {
           gatewayResponse: gatewayPayment as unknown as Prisma.InputJsonValue,
         },
       });
+      if (claimed.count === 0) return false;
+      const confirmOrder =
+        payment.order.orderStatus === OrderStatus.PENDING_PAYMENT;
       await tx.order.update({
         where: { id: payment.orderId },
-        data: {
-          paymentStatus: PaymentStatus.PAID,
-          orderStatus: OrderStatus.CONFIRMED,
-          statusHistory: {
-            create: {
-              fromStatus: payment.order.orderStatus,
-              toStatus: OrderStatus.CONFIRMED,
-              notes: 'Payment verified',
+        data: confirmOrder
+          ? {
+              paymentStatus: PaymentStatus.PAID,
+              orderStatus: OrderStatus.CONFIRMED,
+              statusHistory: {
+                create: {
+                  fromStatus: payment.order.orderStatus,
+                  toStatus: OrderStatus.CONFIRMED,
+                  notes: 'Payment verified',
+                },
+              },
+            }
+          : {
+              // A late gateway callback must never resurrect a cancelled or
+              // otherwise progressed order. Record the funds for reconciliation
+              // while preserving the operational order state.
+              paymentStatus: PaymentStatus.PAID,
             },
-          },
-        },
       });
+      return true;
     });
-    await this.operations.generateOrderDocuments(payment.orderId);
+    if (marked) {
+      await this.operations.generateOrderDocuments(payment.orderId);
+    }
   }
 
   private async reconcileRefund(paymentId: string) {
@@ -553,9 +636,19 @@ export class PaymentsService {
         where: { id: paymentId },
         data: { paymentStatus },
       });
+      const otherPaidPayments = await tx.payment.count({
+        where: {
+          orderId: payment.orderId,
+          id: { not: paymentId },
+          paymentStatus: PaymentStatus.PAID,
+        },
+      });
       await tx.order.update({
         where: { id: payment.orderId },
-        data: { paymentStatus },
+        data: {
+          paymentStatus:
+            otherPaidPayments > 0 ? PaymentStatus.PAID : paymentStatus,
+        },
       });
     });
     await this.operations.generateOrderDocuments(payment.orderId);
@@ -591,6 +684,17 @@ export class PaymentsService {
 
   private isConfigured() {
     return Boolean(this.keyId() && this.keySecret());
+  }
+
+  private assertPaymentModeAvailable() {
+    if (
+      !this.isConfigured() &&
+      this.config.get<string>('NODE_ENV') === 'production'
+    ) {
+      throw new ServiceUnavailableException(
+        'Payment provider is not configured',
+      );
+    }
   }
 
   private keyId() {

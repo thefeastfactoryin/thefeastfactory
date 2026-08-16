@@ -656,16 +656,23 @@ export class PackagesService {
     if (!dto.selectedItems.length) {
       errors.push('Choose at least one menu item');
     }
+    const hasConfiguredAllowlist = version.packageMenuItems.some(
+      (row) => row.role === PackageMenuItemRole.CUSTOM_SELECTABLE,
+    );
     const menuItems = await this.prisma.menuItem.findMany({
       where: {
         id: { in: dto.selectedItems.map((item) => item.menuItemId) },
-        packageMenuItems: {
-          some: {
-            packageVersionId: version.id,
-            role: PackageMenuItemRole.CUSTOM_SELECTABLE,
-            isAvailable: true,
-          },
-        },
+        ...(hasConfiguredAllowlist
+          ? {
+              packageMenuItems: {
+                some: {
+                  packageVersionId: version.id,
+                  role: PackageMenuItemRole.CUSTOM_SELECTABLE,
+                  isAvailable: true,
+                },
+              },
+            }
+          : {}),
         isActive: true,
         deletedAt: null,
       },
