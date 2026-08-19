@@ -17,6 +17,9 @@ import { useAdminSessionStore } from '../../../store/session.store';
 
 const pageSize = 20;
 type AdminOrder = OrderSummary & { user?: { name?: string | null; mobileNumber: string } };
+const visibleOrderStatusOptions = orderStatusOptions.filter(
+  (value) => value !== 'PENDING_PAYMENT',
+);
 
 export default function AdminOrders() {
   const session = useAdminSessionStore((state) => state.session);
@@ -137,7 +140,7 @@ export default function AdminOrders() {
           onChange={(event) => setStatus(event.target.value)}
         >
           <option value="">All order statuses</option>
-          {orderStatusOptions.map((value) => (
+          {visibleOrderStatusOptions.map((value) => (
             <option key={value}>{value}</option>
           ))}
         </Select>

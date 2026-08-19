@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { apiRequest } from '../lib/api';
+import { resolveMediaUrl } from '../lib/media-url';
 import { cn } from '../lib/utils';
 import { Button } from './ui/button';
 
@@ -37,7 +38,8 @@ export function MediaUploader({
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const previewable = /^(https?:|blob:|data:)/.test(value);
+  const previewUrl = resolveMediaUrl(value);
+  const previewable = Boolean(previewUrl);
 
   async function upload(file?: File) {
     if (!file) return;
@@ -81,7 +83,7 @@ export function MediaUploader({
             <ImagePlus className="h-5 w-5 text-muted-foreground" />
             {previewable && (
               <img
-                src={value}
+                src={previewUrl}
                 alt=""
                 className="absolute inset-0 h-full w-full object-cover"
                 onError={(event) => {
@@ -156,7 +158,7 @@ export function MediaUploader({
           <div className="relative grid h-full place-items-center">
             <ImagePlus className="h-9 w-9 text-muted-foreground" />
             <img
-              src={value}
+              src={previewUrl}
               alt=""
               className="absolute inset-0 h-full w-full object-cover"
               onError={(event) => {

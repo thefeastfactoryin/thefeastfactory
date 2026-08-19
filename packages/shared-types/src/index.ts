@@ -107,6 +107,11 @@ export type OperatingRegion = {
   id: string;
   code: string;
   name: string;
+  kitchenAddress?: string | null;
+  fssaiLicenseNo?: string | null;
+  kitchenImageUrl?: string | null;
+  mapUrl?: string | null;
+  publicDisplayOrder: number;
   centerLatitude: string;
   centerLongitude: string;
   serviceRadiusKm: string;
@@ -230,6 +235,11 @@ export type CartSummary = {
   id: string;
   packageVersionId: string;
   guestCount?: number | null;
+  status?: string;
+  expiresAt?: string | null;
+  lastQuotedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
   pendingOrderId?: string | null;
   package: {
     id: string;
@@ -240,12 +250,16 @@ export type CartSummary = {
     minGuestCount: number;
     maxGuestCount?: number | null;
   };
+  region?: OperatingRegion | null;
   event?: {
     eventName?: string | null;
     eventDate: string;
     eventTimeStart?: string | null;
     guestCount: number;
     address?: UserAddress;
+    region?: OperatingRegion | null;
+    distanceKm?: string | null;
+    deliveryFee?: string | null;
   } | null;
   items: Array<{
     id: string;

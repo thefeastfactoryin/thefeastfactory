@@ -1,258 +1,300 @@
 'use client';
 
+import type { OperatingRegion } from '@aranyam/shared-types';
 import {
   Award,
+  Building2,
   Calendar,
+  CheckCircle2,
   ChefHat,
-  Heart,
-  Leaf,
-  Package,
-  PartyPopper,
+  HeartHandshake,
+  MapPin,
+  PackageCheck,
   ShieldCheck,
-  Star,
-  Target,
+  Sparkles,
   Truck,
-  UtensilsCrossed,
   Users,
 } from 'lucide-react';
 import Image from 'next/image';
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { KitchenLocationsSection } from '../../components/home/kitchen-locations';
+import { apiRequest } from '../../lib/api';
 
-/* ─── Values ─── */
-const VALUES = [
-  { Icon: Leaf,       label: 'Fresh Ingredients', sub: 'Sourced daily' },
-  { Icon: ChefHat,    label: 'Hygienic Kitchens', sub: 'Clean. Safe. Certified.' },
-  { Icon: Truck,      label: 'On-time Delivery',  sub: 'Always on schedule' },
-  { Icon: Heart,      label: 'Made with Care',    sub: 'By passionate chefs' },
+const stats = [
+  { Icon: Calendar, value: '2015', label: 'F&B journey began' },
+  { Icon: Award, value: '10+', label: 'Years of experience' },
+  { Icon: MapPin, value: '4', label: 'Major cities' },
+  { Icon: ChefHat, value: 'Multiple', label: 'Restaurant and banquet experience' },
+  { Icon: Users, value: '500+', label: 'Guest event capability' },
 ];
 
-/* ─── What We Offer ─── */
-const OFFERINGS = [
-  { Icon: Users,       label: 'Bulk Food Orders',                      sub: 'for Groups of Any Size' },
-  { Icon: PartyPopper, label: 'Birthday & House Party',                 sub: 'Food Solutions' },
-  { Icon: Package,     label: 'Party Packs &\nFamily Combos',           sub: '' },
-  { Icon: UtensilsCrossed, label: 'Customizable Menus',                sub: '' },
-  { Icon: ChefHat,     label: 'Corporate Lunch &\nDinner Orders',       sub: '' },
-  { Icon: Calendar,    label: 'Scheduled Deliveries',                   sub: '' },
-  { Icon: Star,        label: 'Festival & Celebration\nFood Orders',    sub: '' },
-  { Icon: ShieldCheck, label: 'Hygienically Prepared &\nProfessionally Packed Meals', sub: '' },
-];
-
-/* ─── Why Choose Us ─── */
-const WHY_US = [
+const promises = [
   {
-    Icon: Award,
-    title: 'Experienced\nFood Team',
-    desc: 'Our team brings practical experience in food preparation, menu planning, and dependable event service.',
+    Icon: Building2,
+    title: 'Own kitchens',
+    text: 'Prepared in our kitchens by experienced teams.',
   },
   {
-    Icon: Users,
-    title: 'Built for\nBulk Orders',
-    desc: 'Whether you\'re feeding 20 people or 500, our platform is designed specifically to handle large food orders efficiently.',
+    Icon: ShieldCheck,
+    title: 'Quality control',
+    text: 'From preparation to delivery, we maintain strict checks.',
   },
   {
-    Icon: ChefHat,
-    title: 'Consistent\nQuality',
-    desc: 'Every dish is prepared using standardized processes to ensure great taste and consistency every time.',
+    Icon: PackageCheck,
+    title: 'Valid food licences',
+    text: 'Our kitchens are backed by valid food business licences.',
   },
   {
-    Icon: Star,
-    title: 'Transparent\nPricing',
-    desc: 'Know exactly what you\'re paying for with clear pricing and flexible menu options.',
+    Icon: Sparkles,
+    title: 'Hygiene focus',
+    text: 'Clean kitchens, safe handling, and quality standards.',
+  },
+  {
+    Icon: HeartHandshake,
+    title: 'Not outsourced',
+    text: 'We do not hand over orders to third-party food vendors.',
   },
   {
     Icon: Truck,
-    title: 'Reliable\nDelivery',
-    desc: 'From preparation to packaging and delivery, we ensure your order reaches you fresh and on time.',
+    title: 'On-time delivery',
+    text: 'Timely, reliable delivery is part of our service promise.',
   },
 ];
 
-/* ═══════════════════════════════════════════════════════
-   Page
-══════════════════════════════════════════════════════════ */
+const journey = [
+  { title: 'Experience', text: 'Hands-on F&B experience since 2015' },
+  { title: 'Learn', text: 'Understanding customer needs across events' },
+  { title: 'Evolve', text: 'Building strong kitchen processes' },
+  { title: 'Deliver', text: 'Putting experience into bulk food service' },
+];
+
+const credentials = [
+  'FSSAI licensed kitchens',
+  'GST registered and compliant',
+  'Legal business operating in Telangana',
+  '10+ years of food and hospitality experience',
+];
+
 export default function AboutPage() {
+  const [kitchens, setKitchens] = useState<OperatingRegion[]>([]);
+
+  useEffect(() => {
+    apiRequest<OperatingRegion[]>('/operating-regions')
+      .then(setKitchens)
+      .catch(() => setKitchens([]));
+  }, []);
+
   return (
     <main className="min-h-screen bg-background">
-
-      {/* ① Hero — About Us */}
       <section className="border-b border-border bg-white">
-        <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-          <div className="grid gap-10 lg:grid-cols-2 lg:items-center">
-
-            {/* Left: text */}
-            <div>
-              <p className="mb-3 text-xs font-bold uppercase tracking-widest text-primary">
-                About Us
+        <div className="container-pad grid gap-10 py-10 lg:grid-cols-[0.86fr_1fr] lg:items-center lg:py-12">
+          <div>
+            <p className="eyebrow text-primary">About us</p>
+            <h1 className="mt-3 max-w-[560px] font-serif text-[38px] font-bold leading-[1.04] text-foreground sm:text-5xl">
+              A Decade of Food Experience.{' '}
+              <span className="text-primary">Now Delivered in Bulk.</span>
+            </h1>
+            <div className="mt-5 max-w-[620px] space-y-4 text-sm leading-7 text-muted-foreground">
+              <p>
+                We are a food and hospitality company with a journey dating
+                back to 2015. Over the years, we have built strong experience in
+                restaurant operations, banquets, and large-scale food service
+                across Telangana.
               </p>
-              <h1 className="font-serif text-4xl font-bold leading-tight text-foreground sm:text-5xl">
-                Making Bulk Food<br />Ordering Simple
-              </h1>
-              <div className="mt-5 space-y-4 text-sm leading-7 text-muted-foreground">
-                <p>
-                  At The Feast Factory, we believe ordering food for a group should be as easy as
-                  ordering a single meal. Whether you're planning a family gathering, office lunch,
-                  birthday celebration, housewarming, festive occasion, or any event that brings
-                  people together, we help you order delicious food in bulk without the usual hassle.
-                </p>
-                <p>
-                  Backed by hands-on experience in food preparation and hospitality, The Feast
-                  Factory combines culinary expertise with technology to deliver a seamless bulk food
-                  ordering experience. Our focus is on quality, consistency, hygiene, and customer
-                  satisfaction in every order we serve.
-                </p>
-              </div>
-
-              {/* Values */}
-              <div className="mt-8 grid grid-cols-2 gap-5 sm:grid-cols-4">
-                {VALUES.map(({ Icon, label, sub }) => (
-                  <div key={label} className="text-center">
-                    <div className="mx-auto mb-2 grid h-10 w-10 place-items-center rounded-full bg-primary/10">
-                      <Icon className="h-5 w-5 text-primary" />
-                    </div>
-                    <p className="text-xs font-bold text-foreground">{label}</p>
-                    <p className="mt-0.5 text-[10px] text-muted-foreground">{sub}</p>
-                  </div>
-                ))}
-              </div>
+              <p>
+                The Feast Factory brings that experience to you through a
+                simple, reliable, and transparent bulk food ordering platform.
+              </p>
             </div>
 
-            {/* Right: image + experience badge */}
-            <div className="relative">
-              <Image
-                src="/about-hero.png"
-                alt="Guests enjoying an Indian catered gathering"
-                width={1672}
-                height={941}
-                sizes="(max-width: 1024px) 100vw, 50vw"
-                className="h-[420px] w-full rounded-2xl object-cover shadow-lg"
-              />
-              {/* Experience overlay */}
-              <div className="absolute bottom-5 right-5 flex items-center gap-4 overflow-hidden rounded-2xl bg-white shadow-xl">
-                <div className="bg-primary px-5 py-4 text-center text-white">
-                  <p className="text-lg font-extrabold leading-none">Event-ready</p>
-                  <p className="mt-1 text-[10px] font-bold uppercase tracking-widest">Food service</p>
-                </div>
-                <div className="py-4 pr-5">
-                  <p className="max-w-[130px] text-sm font-semibold leading-5 text-foreground">
-                    Planned for dependable group ordering and coordinated delivery.
+            <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-5">
+              {stats.map(({ Icon, value, label }) => (
+                <div key={label} className="text-center">
+                  <div className="mx-auto grid h-10 w-10 place-items-center rounded-full bg-primary/10 text-primary">
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <p className="mt-3 font-serif text-xl font-bold text-foreground">
+                    {value}
                   </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ③ Mission + What We Offer */}
-      <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
-
-          {/* Mission card */}
-          <div className="flex flex-col items-center rounded-2xl bg-primary px-8 py-10 text-center text-white">
-            <p className="font-serif text-2xl font-bold text-accent">Our Mission</p>
-            <div className="my-5 grid h-16 w-16 place-items-center rounded-full border-2 border-white/20">
-              <Target className="h-8 w-8 text-white/80" />
-            </div>
-            <p className="text-sm leading-7 text-white/85">
-              To make bulk food ordering convenient, affordable, and dependable for every
-              celebration, gathering, and business need.
-            </p>
-          </div>
-
-          {/* What We Offer */}
-          <div className="rounded-2xl border border-border bg-white p-8">
-            <h2 className="mb-1 font-serif text-2xl font-bold text-foreground">What We Offer</h2>
-            <div className="mt-1 mb-6 h-0.5 w-10 rounded-full bg-primary" />
-            <div className="grid gap-5 sm:grid-cols-2">
-              {OFFERINGS.map(({ Icon, label, sub }) => (
-                <div key={label} className="flex items-start gap-3">
-                  <div className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary/10">
-                    <Icon className="h-4.5 w-4.5 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-foreground whitespace-pre-line">{label}</p>
-                    {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
-                  </div>
+                  <p className="mt-1 text-[11px] font-medium leading-4 text-muted-foreground">
+                    {label}
+                  </p>
                 </div>
               ))}
             </div>
           </div>
+
+          <div className="relative">
+            <Image
+              src="/about-hero.png"
+              alt="Guests enjoying a catered Indian gathering"
+              width={1672}
+              height={941}
+              priority
+              sizes="(max-width: 1024px) 100vw, 54vw"
+              className="h-[360px] w-full rounded-2xl object-cover shadow-lg sm:h-[440px]"
+            />
+            <div className="absolute bottom-5 right-5 w-[min(78%,300px)] rounded-2xl bg-white p-5 shadow-xl">
+              <h2 className="font-serif text-2xl font-bold leading-tight text-foreground">
+                Built on Experience. Driven by Trust.
+              </h2>
+              <div className="mt-4 space-y-2.5 text-sm font-semibold text-muted-foreground">
+                {['Own Kitchens', 'Valid Food Licences', 'Not Outsourced', 'Quality Assured'].map(
+                  (item) => (
+                    <p key={item} className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-primary" />
+                      {item}
+                    </p>
+                  ),
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* ④ Why Choose Us */}
-      <section className="border-t border-border bg-white">
-        <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-          <h2 className="mb-10 text-center font-serif text-3xl font-bold text-foreground">
-            Why Choose The Feast Factory?
+      <section className="container-pad grid gap-6 py-10 lg:grid-cols-[0.8fr_1.2fr]">
+        <div className="rounded-2xl border border-border bg-white p-6 shadow-sm">
+          <p className="eyebrow text-primary">Our journey</p>
+          <h2 className="mt-3 font-serif text-3xl font-bold leading-tight">
+            From Restaurants and Banquets to Bulk Food
           </h2>
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-5">
-            {WHY_US.map(({ Icon, title, desc }) => (
-              <div key={title} className="flex flex-col items-center text-center">
-                <div className="mb-4 grid h-12 w-12 place-items-center rounded-full bg-primary/10">
-                  <Icon className="h-6 w-6 text-primary" />
+          <p className="mt-4 text-sm leading-7 text-muted-foreground">
+            Since 2015, we have been creating memorable food experiences through
+            restaurants and banquet services. This journey has given us a deep
+            understanding of quality, quantity, hygiene, timely delivery, and
+            customer satisfaction.
+          </p>
+          <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+            {journey.map((item) => (
+              <div key={item.title} className="text-center">
+                <div className="mx-auto mb-2 grid h-9 w-9 place-items-center rounded-full bg-primary/10">
+                  <Sparkles className="h-4 w-4 text-primary" />
                 </div>
-                <p className="mb-2 text-sm font-bold text-foreground whitespace-pre-line">{title}</p>
-                <p className="text-xs leading-5 text-muted-foreground">{desc}</p>
+                <p className="text-sm font-bold text-foreground">{item.title}</p>
+                <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
+                  {item.text}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-border bg-white p-6 shadow-sm">
+          <p className="eyebrow text-primary">Why customers trust us</p>
+          <h2 className="mt-3 font-serif text-3xl font-bold leading-tight">
+            Our Promise to You
+          </h2>
+          <div className="mt-6 grid gap-5 sm:grid-cols-2">
+            {promises.map(({ Icon, title, text }) => (
+              <div key={title} className="flex gap-3">
+                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-primary/10">
+                  <Icon className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-foreground">{title}</p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    {text}
+                  </p>
+                </div>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ⑤ Vision + Food Image + Gathering */}
-      <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        <div className="grid gap-6 lg:grid-cols-3 lg:items-center">
+      <KitchenLocationsSection
+        locations={kitchens}
+        className="border-y border-border bg-white py-10 lg:py-12"
+      />
 
-          {/* Vision */}
-          <div className="rounded-2xl border border-border bg-white p-8">
-            <p className="font-serif text-2xl font-bold text-primary">Our Vision</p>
-            <div className="mt-1 mb-5 h-0.5 w-10 rounded-full bg-accent" />
-            <p className="text-sm leading-7 text-muted-foreground">
-              To become India's most trusted bulk food ordering platform, enabling people and
-              organizations to enjoy great food without the complexities of planning and
-              coordination.
-            </p>
-            {/* City skyline placeholder */}
-            <div className="mt-8 flex items-end gap-1 opacity-20">
-              {[24, 32, 20, 40, 28, 36, 22, 30, 18, 26, 34].map((h, i) => (
-                <div key={i} className="flex-1 rounded-sm bg-primary" style={{ height: h }} />
+      <section className="container-pad grid gap-6 py-10 lg:grid-cols-[0.85fr_1.15fr]">
+        <div className="rounded-2xl border border-border bg-white p-6 shadow-sm">
+          <p className="eyebrow text-primary">Our corporate office</p>
+          <h2 className="mt-3 font-serif text-3xl font-bold leading-tight">
+            A Business You Can Reach
+          </h2>
+          <p className="mt-4 text-sm leading-7 text-muted-foreground">
+            Our corporate operations are managed from our Hyderabad office,
+            supporting our kitchens and customer service across Telangana.
+          </p>
+          <p className="mt-5 flex gap-2 text-sm font-semibold leading-6 text-foreground">
+            <MapPin className="mt-1 h-4 w-4 shrink-0 text-primary" />
+            2nd Floor, Jains Balaji Big Town Complex, 203, Malkajgiri,
+            Telangana 500047, India.
+          </p>
+          <Link
+            href="https://www.google.com/maps?q=Jains+Balaji+Big+Town+Complex+Malkajgiri"
+            target="_blank"
+            className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-full bg-primary px-5 text-sm font-bold text-white"
+          >
+            View on Map <MapPin className="h-4 w-4" />
+          </Link>
+        </div>
+
+        <div className="grid gap-6 sm:grid-cols-2">
+          <Image
+            src="/office-hero.png"
+            alt="The Feast Factory food service setup"
+            width={1200}
+            height={800}
+            sizes="(max-width: 1024px) 100vw, 34vw"
+            className="h-full min-h-[260px] rounded-2xl object-cover shadow-sm"
+          />
+          <div className="rounded-2xl border border-border bg-white p-6 shadow-sm">
+            <p className="eyebrow text-primary">Our credentials</p>
+            <div className="mt-5 space-y-4">
+              {credentials.map((credential) => (
+                <p
+                  key={credential}
+                  className="flex items-center gap-3 text-sm font-bold text-foreground"
+                >
+                  <ShieldCheck className="h-5 w-5 text-primary" />
+                  {credential}
+                </p>
               ))}
             </div>
-          </div>
-
-          {/* Center image */}
-          <div className="overflow-hidden rounded-2xl shadow-lg">
-            <Image
-              src="/about-gathering.png"
-              alt="Variety of Indian dishes"
-              width={1586}
-              height={992}
-              sizes="(max-width: 1024px) 100vw, 33vw"
-              className="h-72 w-full object-cover lg:h-80"
-            />
-          </div>
-
-          {/* Food for Every Gathering */}
-          <div className="rounded-2xl border border-border bg-white p-8">
-            <p className="font-serif text-2xl font-bold text-primary">
-              Food for Every Gathering
-            </p>
-            <div className="mt-1 mb-5 h-0.5 w-10 rounded-full bg-accent" />
-            <p className="text-sm leading-7 text-muted-foreground">
-              From office meetings and team lunches to birthdays, family functions, festive
-              celebrations, and community events, The Feast Factory makes bulk food ordering
-              simple, reliable, and stress-free.
-            </p>
-            <div className="mt-6 flex items-center gap-3 rounded-xl bg-primary/5 px-4 py-3">
-              <ShieldCheck className="h-5 w-5 shrink-0 text-primary" />
-              <p className="text-xs font-semibold text-foreground">
-                Powered by practical food preparation and event-service experience.
+            <div className="mt-7 rounded-2xl bg-primary p-5 text-white">
+              <p className="font-serif text-2xl font-bold">
+                From 10 guests to 2500+ guests
+              </p>
+              <p className="mt-2 text-sm leading-6 text-white/80">
+                No matter the gathering size, we are here with delicious food
+                and timely delivery to make your event a grand success.
               </p>
             </div>
           </div>
         </div>
       </section>
 
+      <section className="container-pad pb-12">
+        <div className="flex flex-col gap-4 rounded-2xl border border-primary/15 bg-primary/[0.04] p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="font-serif text-2xl font-bold text-foreground">
+              Need help with your bulk order?
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Our team can assist with planning your event and choosing the
+              right package.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Link
+              href="tel:+919000000000"
+              className="inline-flex min-h-11 items-center rounded-full border border-primary/30 px-5 text-sm font-bold text-primary"
+            >
+              Call Us
+            </Link>
+            <Link
+              href="/packages"
+              className="inline-flex min-h-11 items-center rounded-full bg-primary px-5 text-sm font-bold text-white"
+            >
+              Order Now
+            </Link>
+          </div>
+        </div>
+      </section>
     </main>
   );
 }

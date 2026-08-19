@@ -1,8 +1,18 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsDateString, IsInt, IsOptional, IsString, IsUUID, Matches, MaxLength, Min } from 'class-validator';
+import {
+  IsDateString,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Matches,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 export class UpdateCartDto {
   @ApiProperty() @IsUUID() packageVersionId!: string;
+  @ApiPropertyOptional() @IsOptional() @IsUUID() regionId?: string;
   @ApiPropertyOptional() @IsOptional() @IsUUID() addressId?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(200) eventName?: string;
   @ApiPropertyOptional()

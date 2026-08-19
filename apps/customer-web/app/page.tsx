@@ -1,7 +1,9 @@
 'use client';
 
 import type {
+  CartSummary,
   OrderingOffering,
+  OperatingRegion,
   PackageConfiguration,
   PackageSummary,
 } from '@aranyam/shared-types';
@@ -30,6 +32,7 @@ import {
 import { useOrderBuilderStore } from '../store/order-builder.store';
 import { useSessionStore } from '../store/session.store';
 import { usePublicSettings } from '../components/public-settings-provider';
+import { KitchenLocationsSection } from '../components/home/kitchen-locations';
 
 const trustIcons = [Users, Clock, CreditCard, MessageCircle];
 const heroTags = [
@@ -73,6 +76,9 @@ export default function HomePage() {
   const setGuestCount = useOrderBuilderStore((state) => state.setGuestCount);
   const reset = useOrderBuilderStore((state) => state.reset);
   const [offerings, setOfferings] = useState<OrderingOffering[]>([]);
+  const [kitchenLocations, setKitchenLocations] = useState<OperatingRegion[]>(
+    [],
+  );
   const [packages, setPackages] = useState<PackageSummary[]>([]);
   const [configs, setConfigs] = useState<Record<string, PackageConfiguration>>(
     {},
@@ -81,6 +87,7 @@ export default function HomePage() {
   const [pendingPackage, setPendingPackage] = useState<PackageSummary>();
   const [selecting, setSelecting] = useState('');
   const [selectionError, setSelectionError] = useState('');
+  const [activeCartCount, setActiveCartCount] = useState(0);
   const [activeHeroImage, setActiveHeroImage] = useState(0);
   // Change: Cross-fade the gallery at a calm pace to add warmth without distracting from the ordering CTAs.
   useEffect(() => {
@@ -93,10 +100,12 @@ export default function HomePage() {
   useEffect(() => {
     Promise.all([
       apiRequest<OrderingOffering[]>('/catalog/ordering-offerings'),
+      apiRequest<OperatingRegion[]>('/operating-regions'),
       apiRequest<PackageSummary[]>('/packages'),
     ])
-      .then(async ([nextOfferings, rows]) => {
+      .then(async ([nextOfferings, nextKitchenLocations, rows]) => {
         setOfferings(nextOfferings);
+        setKitchenLocations(nextKitchenLocations);
         const featured = rows
           .filter((row) => row.isFeatured && row.activeVersion)
           .sort((a, b) => (a.featuredOrder ?? 999) - (b.featuredOrder ?? 999))
@@ -118,12 +127,20 @@ export default function HomePage() {
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    if (!session) {
+      setActiveCartCount(0);
+      return;
+    }
+    apiRequest<CartSummary[]>('/cart/all', {}, session.accessToken)
+      .then((rows) => setActiveCartCount(rows.length))
+      .catch(() => setActiveCartCount(0));
+  }, [session]);
+
   async function selectPackage(pkg: PackageSummary, confirmed = false) {
     if (!pkg.activeVersion || selecting) return;
-    if (
-      currentPackage &&
-      !confirmed
-    ) {
+    const hasExistingCart = session ? activeCartCount > 0 : Boolean(currentPackage);
+    if (hasExistingCart && !confirmed) {
       setPendingPackage(pkg);
       return;
     }
@@ -157,13 +174,15 @@ export default function HomePage() {
       setPackage(selected);
       setDbCartId(cart?.id, session?.user.id);
       setGuestCount(pkg.activeVersion.minGuestCount);
-      const builder =
-        pkg.type === 'CUSTOM_PACKAGE' ? '/packages/build' : '/menu/select';
+      setActiveCartCount((count) => count + 1);
+      const builder = pkg.type === 'CUSTOM_PACKAGE' ? '/packages/build' : '/cart';
       const next = new URLSearchParams({
         packageVersionId: pkg.activeVersion.id,
       });
       if (cart?.id) next.set('cartId', cart.id);
-      router.push(`${builder}?${next.toString()}`);
+      router.push(
+        pkg.type === 'CUSTOM_PACKAGE' ? `${builder}?${next.toString()}` : builder,
+      );
     } catch (reason) {
       setSelectionError((reason as Error).message);
       setSelecting('');
@@ -175,6 +194,7 @@ export default function HomePage() {
       await apiRequest('/cart', { method: 'DELETE' }, session.accessToken);
     }
     reset();
+    setActiveCartCount(0);
     await selectPackage(pkg, true);
   }
 
@@ -203,7 +223,7 @@ export default function HomePage() {
               </p>
 
               <Link
-                href="#ordering-styles"
+                href="/packages"
                 className="mt-6 inline-flex h-12 items-center justify-center gap-2 rounded-full bg-accent px-8 text-base font-extrabold text-accent-foreground shadow-[0_10px_28px_rgba(211,163,58,0.30)] transition-all duration-250 ease-premium hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_14px_34px_rgba(211,163,58,0.38)]"
               >
                 Order Now <ArrowRight className="h-5 w-5" />
@@ -274,6 +294,11 @@ export default function HomePage() {
           })}
         </div>
       </section>
+
+      <KitchenLocationsSection
+        locations={kitchenLocations}
+        className="bg-ivory py-10 lg:py-12"
+      />
 
       <section id="ordering-styles" className="container-pad py-10 lg:py-12">
         <div className="mx-auto mb-8 max-w-2xl text-center">

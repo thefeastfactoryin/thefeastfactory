@@ -150,27 +150,75 @@ async function seedSettings() {
 
 async function seedRegions() {
   const regions = [
-    ['HYDERABAD', 'Hyderabad', '17.38500000', '78.48670000'],
-    ['KARIMNAGAR', 'Karimnagar', '18.43860000', '79.12880000'],
-    ['WARANGAL', 'Warangal', '17.96890000', '79.59410000'],
+    {
+      code: 'WARANGAL',
+      name: 'Warangal',
+      latitude: '17.96890000',
+      longitude: '79.59410000',
+      kitchenAddress:
+        'H.No. 8-10-2/1, Beside Enakshi Farm House, Dubbali (V), Warangal Highway, Hanamkonda - 506 001, Telangana',
+      fssaiLicenseNo: '13623005000334',
+      publicDisplayOrder: 1,
+    },
+    {
+      code: 'HYDERABAD',
+      name: 'Hyderabad',
+      latitude: '17.38500000',
+      longitude: '78.48670000',
+      kitchenAddress:
+        'Sy. No. 60/1, Near BSP Showroom, IDA Kukatpally, Sanath Nagar (V), Hyderabad - 500 018, Telangana',
+      fssaiLicenseNo: '13623014000035',
+      publicDisplayOrder: 2,
+    },
+    {
+      code: 'KARIMNAGAR',
+      name: 'Karimnagar',
+      latitude: '18.43860000',
+      longitude: '79.12880000',
+      kitchenAddress:
+        'Plot No. 13, H.No. 1-6-648/1, Beside Indian Oil Petrol Pump, Court Circle, Karimnagar - 505 001, Telangana',
+      fssaiLicenseNo: '13625002000168',
+      publicDisplayOrder: 3,
+    },
+    {
+      code: 'KHAMMAM',
+      name: 'Khammam',
+      latitude: '17.24730000',
+      longitude: '80.15140000',
+      kitchenAddress:
+        'H.No. 11-65/2, Autonagar, Near R&B Guest House, Wyra Road, Khammam, Telangana - 507 002',
+      fssaiLicenseNo: null,
+      publicDisplayOrder: 4,
+    },
   ] as const;
 
-  for (const [code, name, latitude, longitude] of regions) {
+  for (const region of regions) {
+    const mapUrl = `https://www.google.com/maps?q=${region.latitude},${region.longitude}`;
     await prisma.operatingRegion.upsert({
-      where: { code },
+      where: { code: region.code },
       update: {
-        name,
-        centerLatitude: new Prisma.Decimal(latitude),
-        centerLongitude: new Prisma.Decimal(longitude),
+        name: region.name,
+        kitchenAddress: region.kitchenAddress,
+        fssaiLicenseNo: region.fssaiLicenseNo,
+        kitchenImageUrl: '/office-hero.png',
+        mapUrl,
+        publicDisplayOrder: region.publicDisplayOrder,
+        centerLatitude: new Prisma.Decimal(region.latitude),
+        centerLongitude: new Prisma.Decimal(region.longitude),
         serviceRadiusKm: new Prisma.Decimal('50.00'),
         deliveryFeePerKm: new Prisma.Decimal('10.00'),
         isActive: true,
       },
       create: {
-        code,
-        name,
-        centerLatitude: new Prisma.Decimal(latitude),
-        centerLongitude: new Prisma.Decimal(longitude),
+        code: region.code,
+        name: region.name,
+        kitchenAddress: region.kitchenAddress,
+        fssaiLicenseNo: region.fssaiLicenseNo,
+        kitchenImageUrl: '/office-hero.png',
+        mapUrl,
+        publicDisplayOrder: region.publicDisplayOrder,
+        centerLatitude: new Prisma.Decimal(region.latitude),
+        centerLongitude: new Prisma.Decimal(region.longitude),
         serviceRadiusKm: new Prisma.Decimal('50.00'),
         deliveryFeePerKm: new Prisma.Decimal('10.00'),
       },

@@ -223,18 +223,53 @@ export default function CartPage() {
 
   const onEventSaved = useCallback(
     (updated: CartSummary) => {
+      if (!session) return;
       setCart(updated);
-      hydrate(updated, session!.user.id);
-      void apiRequest<CartSummary[]>('/cart/all', {}, session!.accessToken)
+      hydrate(updated, session.user.id);
+      const event = updated.event;
+      if (
+        !event?.address?.id ||
+        !event.region?.id ||
+        !event.eventDate ||
+        !event.eventTimeStart
+      )
+        return;
+      void Promise.all(
+        activeCarts.map((packageCart) => {
+          if (packageCart.id === updated.id) return Promise.resolve(updated);
+          return apiRequest<CartSummary>(
+            `/cart/${packageCart.id}`,
+            {
+              method: 'PUT',
+              body: JSON.stringify({
+                packageVersionId: packageCart.packageVersionId,
+                addressId: event.address!.id,
+                eventName: packageCart.package.name,
+                eventDate: event.eventDate,
+                eventTimeStart: event.eventTimeStart,
+                guestCount:
+                  packageCart.guestCount ?? packageCart.package.minGuestCount,
+              }),
+            },
+            session.accessToken,
+          );
+        }),
+      )
         .then((carts) => {
-          setActiveCarts(carts);
-          if (carts.length && carts.every((entry) => eventReady(entry))) {
+          const sorted = carts.sort(
+            (a, b) =>
+              new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+          );
+          setActiveCarts(sorted);
+          setCart(sorted.find((entry) => entry.id === updated.id) ?? updated);
+          if (sorted.every((entry) => eventReady(entry))) {
             return loadQuote(updated.id);
           }
+          return undefined;
         })
         .catch((reason) => setError((reason as Error).message));
     },
-    [session, hydrate, loadQuote],
+    [session, hydrate, loadQuote, activeCarts],
   );
 
   async function updatePackageQuantity(
@@ -503,10 +538,13 @@ export default function CartPage() {
   }
 
   async function pay() {
-    if (!session || !cart || !quote || !eventReady(cart)) return;
+    if (!session || !cart || !ready || !multiCartQuote?.valid) return;
     setError('');
     setPaying(true);
     try {
+      const selectedQuote =
+        multiCartQuote.carts.find((entry) => entry.cartId === cart.id)?.quote ??
+        quote;
       const orders = pendingOrderId
         ? await apiRequest<OrderSummary>(
             `/orders/${pendingOrderId}`,
@@ -556,7 +594,7 @@ export default function CartPage() {
         name: 'The Feast Factory',
         description:
           orders.length === 1
-            ? `${cart.package.name} for ${quote.guestCount} guests`
+            ? `${cart.package.name} for ${selectedQuote?.guestCount ?? cart.guestCount ?? cart.package.minGuestCount} guests`
             : `${orders.length} packages in one checkout`,
         order_id: gateway.id,
         prefill: {
@@ -601,7 +639,7 @@ export default function CartPage() {
     return (
       <AuthRequiredPanel
         title="Sign in to resume your order"
-        description="Your menu is saved on this device. Sign in to add event details and continue to payment."
+        description="Your menu is saved on this device. Enter your mobile number to receive order updates, add event details, and continue to payment."
         returnHref="/cart"
       />
     );
@@ -1133,6 +1171,7 @@ export default function CartPage() {
 function eventReady(cart: CartSummary) {
   return Boolean(
     cart.event?.address &&
+    cart.event.region &&
     cart.event.eventDate &&
     cart.event.eventTimeStart &&
     cart.event.guestCount,

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { PaymentStatus } from '@prisma/client';
+import { OrderStatus, PaymentStatus } from '@prisma/client';
 import { JwtPayload } from '../../common/auth/jwt-payload';
 import { OperatingRegionsService } from '../operating-regions/operating-regions.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -16,7 +16,12 @@ export class ReportsService {
       admin,
       requestedRegionId,
     );
-    const paymentWhere = regionId ? { order: { regionId } } : {};
+    const paymentWhere = {
+      order: {
+        ...(regionId ? { regionId } : {}),
+        orderStatus: { not: OrderStatus.PENDING_PAYMENT },
+      },
+    };
     const [paid, refunded] = await Promise.all([
       this.prisma.payment.aggregate({
         // Gross revenue is the amount successfully captured before refunds.
@@ -33,7 +38,7 @@ export class ReportsService {
       this.prisma.refund.aggregate({
         where: {
           refundStatus: 'SUCCESS',
-          ...(regionId ? { payment: { order: { regionId } } } : {}),
+          payment: { order: paymentWhere.order },
         },
         _sum: { amount: true },
         _count: true,
@@ -54,7 +59,10 @@ export class ReportsService {
       admin,
       requestedRegionId,
     );
-    const orderWhere = regionId ? { regionId } : {};
+    const orderWhere = {
+      ...(regionId ? { regionId } : {}),
+      orderStatus: { not: OrderStatus.PENDING_PAYMENT },
+    };
     const [byStatus, popularItems, total] = await Promise.all([
       this.prisma.order.groupBy({
         by: ['orderStatus'],
@@ -63,7 +71,7 @@ export class ReportsService {
       }),
       this.prisma.orderSelectedItem.groupBy({
         by: ['menuItemName'],
-        where: regionId ? { order: { regionId } } : {},
+        where: { order: orderWhere },
         _count: true,
         orderBy: { _count: { menuItemName: 'desc' } },
         take: 10,
@@ -78,7 +86,12 @@ export class ReportsService {
       admin,
       requestedRegionId,
     );
-    const paymentWhere = regionId ? { order: { regionId } } : {};
+    const paymentWhere = {
+      order: {
+        ...(regionId ? { regionId } : {}),
+        orderStatus: { not: OrderStatus.PENDING_PAYMENT },
+      },
+    };
     const [byStatus, total] = await Promise.all([
       this.prisma.payment.groupBy({
         by: ['paymentStatus'],

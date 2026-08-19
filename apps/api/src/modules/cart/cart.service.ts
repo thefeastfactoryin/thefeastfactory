@@ -50,6 +50,7 @@ export class CartService {
   async upsert(userId: string, dto: UpdateCartDto) {
     const cart = await this.createOrFetch(userId, {
       packageVersionId: dto.packageVersionId,
+      regionId: dto.regionId,
     });
     const eventFields = [dto.addressId, dto.eventDate, dto.eventTimeStart];
     if (eventFields.some((value) => value !== undefined)) {
@@ -102,6 +103,10 @@ export class CartService {
       });
       return this.serializeCart(updated);
     }
+    if (dto.regionId !== undefined) {
+      const updated = await this.updateRegion(userId, cart.id, dto.regionId);
+      return updated;
+    }
     return cart;
   }
 
@@ -118,6 +123,7 @@ export class CartService {
       data: {
         userId,
         packageVersionId: dto.packageVersionId,
+        regionId: await this.validRegionId(dto.regionId),
         guestCount,
         expiresAt: this.expiryDate(),
       },
@@ -165,6 +171,9 @@ export class CartService {
     }
     if (dto.guestCount !== undefined) {
       return this.updateQuantity(userId, id, dto.guestCount);
+    }
+    if (dto.regionId !== undefined) {
+      return this.updateRegion(userId, id, dto.regionId);
     }
     return this.serializeCart(cart);
   }
@@ -323,6 +332,7 @@ export class CartService {
     const incomplete = carts.find(
       (cart) =>
         !cart.addressId ||
+        !cart.regionId ||
         !cart.eventDate ||
         !cart.eventTimeStart ||
         !cart.guestCount,
@@ -364,6 +374,7 @@ export class CartService {
       data: {
         userId,
         packageVersionId: dto.packageVersionId,
+        regionId: await this.validRegionId(dto.regionId),
         expiresAt: this.expiryDate(),
       },
       include: this.cartInclude(),
@@ -554,6 +565,7 @@ export class CartService {
             maxGuestCount: cart.packageVersion.maxGuestCount,
           }
         : null,
+      region: cart.region ? this.regions.serialize(cart.region) : null,
       event: cart.eventDate
         ? {
             eventName: cart.eventName,
@@ -670,10 +682,41 @@ export class CartService {
       );
     }
     const eventTime = new Date(`1970-01-01T${dto.eventTimeStart}:00.000Z`);
-    const assignment = await this.regions.assign(
-      address.latitude,
-      address.longitude,
-    );
+    const assignment = dto.regionId
+      ? await this.regions.assignToRegion(
+          dto.regionId,
+          address.latitude,
+          address.longitude,
+        )
+      : await this.regions.assign(address.latitude, address.longitude);
     return { eventDate, eventTime, ...assignment };
+  }
+
+  private async validRegionId(regionId?: string) {
+    if (!regionId) return undefined;
+    const region = await this.prisma.operatingRegion.findFirst({
+      where: { id: regionId, isActive: true },
+      select: { id: true },
+    });
+    if (!region) {
+      throw new BadRequestException(
+        'Choose an available kitchen location before placing an order.',
+      );
+    }
+    return region.id;
+  }
+
+  private async updateRegion(userId: string, id: string, regionId: string) {
+    await this.assertActiveCart(userId, id);
+    const updated = await this.prisma.cart.update({
+      where: { id },
+      data: {
+        regionId: await this.validRegionId(regionId),
+        lastQuotedAt: null,
+        expiresAt: this.expiryDate(),
+      },
+      include: this.cartInclude(),
+    });
+    return this.serializeCart(updated);
   }
 }

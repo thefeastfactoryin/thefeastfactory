@@ -1,6 +1,10 @@
 'use client';
 
-import type { CartSummary, UserAddress } from '@aranyam/shared-types';
+import type {
+  CartSummary,
+  OperatingRegion,
+  UserAddress,
+} from '@aranyam/shared-types';
 import {
   Building2,
   CalendarClock,
@@ -388,6 +392,8 @@ export function SelectionContextPanel({
   const pathname = usePathname();
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
   const [addresses, setAddresses] = useState<UserAddress[]>([]);
+  const [assignedRegion, setAssignedRegion] =
+    useState<OperatingRegion | null>(null);
   const [addressId, setAddressId] = useState('');
   const [eventDate, setEventDate] = useState('');
   const [eventTimeStart, setEventTimeStart] = useState('');
@@ -398,6 +404,12 @@ export function SelectionContextPanel({
   const [expanded, setExpanded] = useState(!sidebar);
   const [guestInput, setGuestInput] = useState(String(guestCount));
   const hydrated = useRef(false);
+  const onSavedRef = useRef(onSaved);
+  const lastSavedKey = useRef('');
+
+  useEffect(() => {
+    onSavedRef.current = onSaved;
+  }, [onSaved]);
 
   useEffect(() => setGuestInput(String(guestCount)), [guestCount]);
 
@@ -439,6 +451,24 @@ export function SelectionContextPanel({
           setEventDate(cart.event.eventDate);
           setEventTimeStart(cart.event.eventTimeStart || '');
           setGuestCount(cart.event.guestCount);
+          setAssignedRegion(cart.event.region ?? cart.region ?? null);
+          if (
+            cart.event.address?.id &&
+            cart.event.eventDate &&
+            cart.event.eventTimeStart &&
+            cart.event.guestCount
+          ) {
+            lastSavedKey.current = [
+              cartId,
+              packageVersionId,
+              cart.event.address.id,
+              cart.event.eventDate,
+              cart.event.eventTimeStart,
+              cart.event.guestCount,
+            ].join(':');
+          }
+        } else {
+          setAssignedRegion(cart?.region ?? null);
         }
         hydrated.current = true;
       })
@@ -478,6 +508,15 @@ export function SelectionContextPanel({
       setMessage('Venue, date, time, and a valid guest count are required.');
       return;
     }
+    const saveKey = [
+      cartId,
+      packageVersionId,
+      addressId,
+      eventDate,
+      eventTimeStart,
+      guestCount,
+    ].join(':');
+    if (saveKey === lastSavedKey.current) return;
     setMessage('Changes pending…');
     const timer = window.setTimeout(async () => {
       setSaving(true);
@@ -506,7 +545,9 @@ export function SelectionContextPanel({
           eventTimeStart,
           addressLabel: address.label || address.addressLine1,
         });
-        onSaved?.(cart);
+        setAssignedRegion(cart.event?.region ?? cart.region ?? null);
+        lastSavedKey.current = saveKey;
+        onSavedRef.current?.(cart);
         setMessage('Saved to your cart.');
       } catch (reason) {
         setMessage((reason as Error).message);
@@ -529,7 +570,6 @@ export function SelectionContextPanel({
     pkg?.packageName,
     setDbCartId,
     setEvent,
-    onSaved,
   ]);
 
   if (!session) {
@@ -565,6 +605,12 @@ export function SelectionContextPanel({
     [publicSettings],
   );
   const selectedVenue = addresses.find((address) => address.id === addressId);
+  const kitchenName = assignedRegion
+    ? `${assignedRegion.name} Kitchen`
+    : 'Kitchen will be assigned from delivery venue';
+  const kitchenAddress =
+    assignedRegion?.kitchenAddress ??
+    'The preparation kitchen address will appear after the venue is saved.';
   const guestLabel = pkg?.packageType === 'MEAL_BOX' ? 'Boxes' : 'Guests';
   const addressIcon = (address: UserAddress) => {
     if (address.addressType === 'HOME') return Home;
@@ -641,6 +687,16 @@ export function SelectionContextPanel({
             {minPax} minimum{maxPax ? ` · ${maxPax} maximum` : ''}
           </p>
         </div>}
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-border bg-muted/50 p-4 text-muted-foreground">
+        <p className="text-xs font-bold uppercase tracking-[0.14em]">
+          Kitchen location
+        </p>
+        <p className="mt-2 text-sm font-bold text-foreground/60">
+          {kitchenName}
+        </p>
+        <p className="mt-1 text-xs leading-5">{kitchenAddress}</p>
       </div>
 
       <div className="mt-6 flex items-center justify-between gap-4">

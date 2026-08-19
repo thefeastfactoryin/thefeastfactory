@@ -42,9 +42,20 @@ export class AdminOrdersService {
       admin,
       query.regionId,
     );
+    if (query.orderStatus === OrderStatus.PENDING_PAYMENT) {
+      return {
+        items: [],
+        page: query.page,
+        pageSize: query.pageSize,
+        total: 0,
+        totalPages: 1,
+      };
+    }
     const where = {
         ...(regionId ? { regionId } : {}),
-        ...(query.orderStatus ? { orderStatus: query.orderStatus } : {}),
+        ...(query.orderStatus
+          ? { orderStatus: query.orderStatus }
+          : { orderStatus: { not: OrderStatus.PENDING_PAYMENT } }),
         ...(query.paymentStatus ? { paymentStatus: query.paymentStatus } : {}),
         ...(query.mobileNumber
           ? { user: { mobileNumber: { contains: query.mobileNumber } } }
@@ -105,6 +116,8 @@ export class AdminOrdersService {
     });
     if (!row) throw new NotFoundException('Order not found');
     if (regionId && row.regionId !== regionId)
+      throw new NotFoundException('Order not found');
+    if (row.orderStatus === OrderStatus.PENDING_PAYMENT)
       throw new NotFoundException('Order not found');
     return this.orders.serializeOrder(row);
   }
@@ -200,7 +213,12 @@ export class AdminOrdersService {
       requestedRegionId,
     );
     const rows = await this.prisma.payment.findMany({
-      where: regionId ? { order: { regionId } } : {},
+      where: {
+        order: {
+          ...(regionId ? { regionId } : {}),
+          orderStatus: { not: OrderStatus.PENDING_PAYMENT },
+        },
+      },
       include: {
         order: { include: { user: true, region: true } },
         refunds: true,

@@ -209,16 +209,16 @@ export function CustomerShell({
     <div className="min-h-screen pb-16 md:pb-0">
       {/* ─── Desktop header ─── */}
       <header className="sticky top-0 z-40 border-b border-border bg-white/95 backdrop-blur-xl">
-        <div className="mx-auto flex h-[62px] max-w-7xl items-center justify-between gap-3 px-4 sm:h-[66px] sm:px-6 lg:px-8">
+        <div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between gap-3 px-4 sm:h-[78px] sm:px-6 lg:px-8">
           {/* Logo */}
           <Link href="/" className="flex min-w-0 shrink-0 items-center gap-3">
             <img
               src="/logo.png"
               alt=""
-              className="h-10 w-10 rounded-md object-cover shadow-[0_4px_12px_rgba(122,31,43,0.14)] sm:h-[46px] sm:w-[46px]"
+              className="h-12 w-12 rounded-md object-cover shadow-[0_4px_12px_rgba(122,31,43,0.14)] sm:h-14 sm:w-14"
             />
             <span className="hidden sm:flex sm:flex-col">
-              <span className="block font-serif text-[18px] font-semibold leading-none tracking-[-0.01em] text-primary">
+              <span className="block font-serif text-[20px] font-semibold leading-none tracking-normal text-primary sm:text-[22px]">
                 The Feast Factory
               </span>
             </span>

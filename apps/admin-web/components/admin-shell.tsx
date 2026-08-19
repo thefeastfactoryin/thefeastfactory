@@ -14,6 +14,7 @@ import {
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 import brandLogo from '../../customer-web/public/logo.png';
 import { useAdminSessionStore } from '../store/session.store';
 import { cn } from '../lib/utils';
@@ -32,10 +33,31 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const session = useAdminSessionStore((state) => state.session);
+  const hasHydrated = useAdminSessionStore((state) => state.hasHydrated);
   const clear = useAdminSessionStore((state) => state.clear);
   const isLogin = pathname === '/admin/login' || pathname === '/';
 
+  useEffect(() => {
+    if (!isLogin && hasHydrated && !session) {
+      router.replace('/admin/login');
+    }
+  }, [hasHydrated, isLogin, router, session]);
+
   if (isLogin) return <>{children}</>;
+  if (!hasHydrated || !session) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-background px-5 text-center">
+        <div>
+          <p className="font-serif text-2xl font-semibold text-primary">
+            The Feast Factory
+          </p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Checking admin session...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   function logout() {
     clear();

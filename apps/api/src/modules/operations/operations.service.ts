@@ -6,6 +6,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import {
   DocumentType,
+  OrderStatus,
   PaymentStatus,
   Prisma,
   RefundStatus,
@@ -133,6 +134,7 @@ export class OperationsService {
     const orders = await this.prisma.order.findMany({
       where: {
         eventDate: { gte: start, lte: end },
+        orderStatus: { not: OrderStatus.PENDING_PAYMENT },
         ...(regionId ? { regionId } : {}),
         ...(city
           ? { address: { city: { contains: city, mode: 'insensitive' } } }
@@ -167,7 +169,9 @@ export class OperationsService {
       this.prisma.order.findMany({
         where: {
           eventDate: { gte: now, lte: upcoming },
-          orderStatus: { not: 'CANCELLED' },
+          orderStatus: {
+            notIn: [OrderStatus.CANCELLED, OrderStatus.PENDING_PAYMENT],
+          },
           ...(regionId ? { regionId } : {}),
         },
         include: { address: true, region: true, user: true },

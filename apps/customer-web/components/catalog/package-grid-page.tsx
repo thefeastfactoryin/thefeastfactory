@@ -1,6 +1,7 @@
 'use client';
 
 import type {
+  CartSummary,
   MenuCategory,
   PackageConfiguration,
   PackageSummary,
@@ -63,6 +64,8 @@ export function PackageGridPage({
     null,
   );
   const [pendingIntent, setPendingIntent] = useState<SelectionIntent>('select');
+  const [activeCartCount, setActiveCartCount] = useState(0);
+
   useEffect(() => {
     Promise.all([
       apiRequest<PackageSummary[]>('/packages'),
@@ -98,6 +101,16 @@ export function PackageGridPage({
       .catch((reason) => setError((reason as Error).message))
       .finally(() => setLoading(false));
   }, [type, searchParams]);
+
+  useEffect(() => {
+    if (!session) {
+      setActiveCartCount(0);
+      return;
+    }
+    apiRequest<CartSummary[]>('/cart/all', {}, session.accessToken)
+      .then((rows) => setActiveCartCount(rows.length))
+      .catch(() => setActiveCartCount(0));
+  }, [session]);
 
   const shown = useMemo(
     () => {
@@ -156,10 +169,8 @@ export function PackageGridPage({
     confirmed = false,
   ) {
     if (!pkg.activeVersion || selecting) return;
-    if (
-      currentPackage &&
-      !confirmed
-    ) {
+    const hasExistingCart = session ? activeCartCount > 0 : Boolean(currentPackage);
+    if (hasExistingCart && !confirmed) {
       setPendingPackage(pkg);
       setPendingIntent(intent);
       return;
@@ -194,14 +205,19 @@ export function PackageGridPage({
       setPackage(selected);
       setDbCartId(cart?.id, session?.user.id);
       setGuestCount(pkg.activeVersion.minGuestCount);
+      setActiveCartCount((count) => count + 1);
       const builder =
-        pkg.type === 'CUSTOM_PACKAGE' ? '/packages/build' : '/menu/select';
+        pkg.type === 'CUSTOM_PACKAGE'
+          ? '/packages/build'
+          : intent === 'extras'
+            ? '/menu/select'
+            : '/cart';
       const next = new URLSearchParams({
         packageVersionId: pkg.activeVersion.id,
       });
       if (cart?.id) next.set('cartId', cart.id);
       if (intent === 'extras') next.set('focus', 'extras');
-      router.push(`${builder}?${next.toString()}`);
+      router.push(builder === '/cart' ? builder : `${builder}?${next.toString()}`);
     } catch (reason) {
       setError((reason as Error).message);
       setSelecting('');
@@ -216,6 +232,7 @@ export function PackageGridPage({
       await apiRequest('/cart', { method: 'DELETE' }, session.accessToken);
     }
     reset();
+    setActiveCartCount(0);
     await choose(pkg, intent, true);
   }
 

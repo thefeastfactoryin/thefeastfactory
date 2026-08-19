@@ -5,6 +5,12 @@ export class CreateCartDto {
   @ApiProperty()
   @IsUUID()
   packageVersionId!: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsUUID()
+  regionId?: string;
+
   @ApiProperty({ required: false })
   @IsOptional()
   @IsInt()
