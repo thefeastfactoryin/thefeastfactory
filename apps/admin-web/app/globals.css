@@ -79,11 +79,11 @@ textarea {
 
 @layer components {
   .admin-page {
-    @apply mx-auto max-w-[1720px] p-5 md:p-8;
+    @apply mx-auto max-w-[1600px] p-4 md:p-6 xl:p-8;
   }
 
   .admin-card {
-    @apply rounded-2xl border bg-card p-5 shadow-card;
+    @apply rounded-lg border bg-card p-5 shadow-card;
   }
 
   .admin-title {
@@ -109,11 +109,11 @@ textarea {
   }
 
   .admin-tabs {
-    @apply inline-flex rounded-full border bg-white/80 p-1 shadow-sm;
+    @apply inline-flex rounded-lg border bg-white/80 p-1 shadow-sm;
   }
 
   .admin-tab {
-    @apply rounded-full px-4 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground;
+    @apply rounded-md px-4 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground;
   }
 
   .admin-tab-active {

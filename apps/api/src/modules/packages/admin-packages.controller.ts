@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
@@ -18,6 +19,7 @@ import { CreatePackageVersionDto } from './dto/create-package-version.dto';
 import { UpdatePackageDto } from './dto/update-package.dto';
 import { UpdatePackageVersionDto } from './dto/update-package-version.dto';
 import { UpsertPackageMenuItemDto } from './dto/upsert-package-menu-item.dto';
+import { ReplacePackageCompositionDto } from './dto/replace-package-composition.dto';
 import { PackagesService } from './packages.service';
 
 @ApiTags('admin-packages')
@@ -64,6 +66,14 @@ export class AdminPackagesController {
     @Body() dto: UpsertPackageMenuItemDto,
   ) {
     return this.packages.upsertMenuItem(id, dto);
+  }
+
+  @Put('package-versions/:id/composition')
+  replaceComposition(
+    @Param('id') id: string,
+    @Body() dto: ReplacePackageCompositionDto,
+  ) {
+    return this.packages.replaceComposition(id, dto);
   }
 
   @Delete('package-versions/:id/menu-items/:menuItemId/:role')

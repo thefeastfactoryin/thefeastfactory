@@ -259,6 +259,7 @@ test('batch checkout validates every cart before creating any order', async () =
     id,
     userId: 'user-1',
     addressId: 'address-1',
+    regionId: 'region-1',
     eventDate: new Date('2026-08-10T00:00:00.000Z'),
     eventTimeStart: new Date('1970-01-01T18:00:00.000Z'),
     guestCount: 20,

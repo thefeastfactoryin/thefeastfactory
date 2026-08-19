@@ -1,7 +1,6 @@
 'use client';
 
 import type { OperatingRegion } from '@aranyam/shared-types';
-import Link from 'next/link';
 import {
   AlertTriangle,
   CalendarDays,
@@ -9,14 +8,22 @@ import {
   ChevronRight,
   CreditCard,
   IndianRupee,
+  List,
+  MapPin,
   ShoppingBag,
+  Users,
 } from 'lucide-react';
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
+import { AdminPageHeader } from '../../../components/admin-page-header';
+import { AdminSectionTabs } from '../../../components/admin-section-tabs';
 import { StatusBadge } from '../../../components/status-badge';
 import { Button } from '../../../components/ui/button';
 import { Select } from '../../../components/ui/form';
 import { apiRequest } from '../../../lib/api';
 import { useAdminSessionStore } from '../../../store/session.store';
+
+type DashboardView = 'agenda' | 'calendar';
 
 type CalendarEvent = {
   id: string;
@@ -43,6 +50,7 @@ type OrdersReport = { total: number; byStatus: OrderStatusRow[] };
 type PaymentsReport = { total: number };
 type OperationsQueue = {
   upcomingEvents: CalendarEvent[];
+  failedPayments: unknown[];
   pendingRefunds: unknown[];
 };
 type DashboardData = {
@@ -52,7 +60,10 @@ type DashboardData = {
   queue: OperationsQueue;
 };
 
-const dayFormatter = new Intl.DateTimeFormat('en-IN', { weekday: 'short' });
+const dayFormatter = new Intl.DateTimeFormat('en-IN', { weekday: 'long' });
+const shortDayFormatter = new Intl.DateTimeFormat('en-IN', {
+  weekday: 'short',
+});
 const dateFormatter = new Intl.DateTimeFormat('en-IN', {
   day: 'numeric',
   month: 'short',
@@ -70,6 +81,7 @@ export default function Dashboard() {
   const [regions, setRegions] = useState<OperatingRegion[]>([]);
   const [regionId, setRegionId] = useState('');
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
+  const [view, setView] = useState<DashboardView>('agenda');
   const [error, setError] = useState('');
 
   const weekDays = useMemo(
@@ -89,7 +101,9 @@ export default function Dashboard() {
       '/admin/operating-regions?activeOnly=true',
       {},
       session.accessToken,
-    ).then(setRegions);
+    )
+      .then(setRegions)
+      .catch((reason) => setError((reason as Error).message));
   }, [session]);
 
   useEffect(() => {
@@ -154,218 +168,260 @@ export default function Dashboard() {
   if (!data)
     return <main className="admin-page">Loading operations overview...</main>;
 
+  const attentionCount =
+    data.queue.failedPayments.length + data.queue.pendingRefunds.length;
+
   return (
     <main className="admin-page">
-      <div>
-        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-primary">
-          Today&apos;s command center
-        </p>
-        <h1 className="admin-title mt-2">Operations dashboard</h1>
-        <p className="mt-2 text-muted-foreground">
-          Revenue, upcoming events, payment health, and weekly order tracking in
-          one view.
-        </p>
-      </div>
-      <div className="admin-card mt-7 max-w-sm">
-        {session.admin.role === 'ADMIN' ? (
-          <Select
-            value={regionId}
-            onChange={(event) => setRegionId(event.target.value)}
-          >
-            <option value="">All regions</option>
-            {regions.map((region) => (
-              <option value={region.id} key={region.id}>
-                {region.name}
-              </option>
-            ))}
-          </Select>
-        ) : (
-          <div className="text-sm font-semibold">
-            {session.admin.region?.name ?? 'Region not assigned'}
-          </div>
-        )}
-      </div>
-      <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <AdminPageHeader
+        eyebrow="Operations"
+        title="Dashboard"
+        description="Review the week, identify orders that need attention, and open fulfilment details."
+        filters={
+          <>
+            <label className="min-w-[220px] flex-1 sm:max-w-xs">
+              <span className="mb-1.5 block text-xs font-semibold text-muted-foreground">
+                Kitchen region
+              </span>
+              {session.admin.role === 'ADMIN' ? (
+                <Select
+                  value={regionId}
+                  onChange={(event) => setRegionId(event.target.value)}
+                >
+                  <option value="">All regions</option>
+                  {regions.map((region) => (
+                    <option value={region.id} key={region.id}>
+                      {region.name}
+                    </option>
+                  ))}
+                </Select>
+              ) : (
+                <div className="flex min-h-11 items-center rounded-lg border bg-muted px-3.5 text-sm font-semibold text-muted-foreground">
+                  {session.admin.region?.name ?? 'Region not assigned'}
+                </div>
+              )}
+            </label>
+            <div className="min-w-[220px] flex-1 sm:max-w-xs">
+              <span className="mb-1.5 block text-xs font-semibold text-muted-foreground">
+                Week
+              </span>
+              <div className="flex min-h-11 items-center justify-between rounded-lg border bg-white px-3">
+                <button
+                  type="button"
+                  onClick={() => setWeekStart(addDays(weekStart, -7))}
+                  className="grid h-9 w-9 place-items-center rounded-md hover:bg-muted"
+                  aria-label="Previous week"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWeekStart(startOfWeek(new Date()))}
+                  className="px-2 text-sm font-semibold text-primary"
+                >
+                  {rangeFormatter.format(weekStart)}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWeekStart(addDays(weekStart, 7))}
+                  className="grid h-9 w-9 place-items-center rounded-md hover:bg-muted"
+                  aria-label="Next week"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          </>
+        }
+      />
+
+      <section
+        className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+        aria-label="Operational summary"
+      >
         <Metric
           icon={IndianRupee}
-          label="Net revenue"
+          label="Lifetime net revenue"
           value={`₹${data.revenue.netRevenue ?? '0.00'}`}
         />
         <Metric
           icon={ShoppingBag}
-          label="Total orders"
+          label="All confirmed orders"
           value={data.orders.total ?? 0}
         />
         <Metric
-          icon={CreditCard}
-          label="Payments"
-          value={data.payments.total ?? 0}
+          icon={CalendarDays}
+          label="Events in next 7 days"
+          value={data.queue.upcomingEvents.length}
         />
         <Metric
           icon={AlertTriangle}
-          label="Pending refunds"
-          value={data.queue.pendingRefunds.length}
+          label="Needs attention"
+          value={attentionCount}
+          tone={attentionCount ? 'warning' : 'default'}
         />
-      </div>
+      </section>
 
-      <section className="admin-card mt-6">
-        <div className="flex flex-wrap items-center justify-between gap-4">
+      <section className="admin-card mt-5 p-0">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 pt-4">
           <div>
-            <div className="flex items-center gap-2">
-              <CalendarDays className="h-5 w-5 text-primary" />
-              <h2 className="text-xl font-semibold">Weekly order calendar</h2>
-            </div>
+            <h2 className="text-xl font-semibold">Order schedule</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               {rangeFormatter.format(weekStart)} -{' '}
               {rangeFormatter.format(weekEnd)}
             </p>
           </div>
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setWeekStart(addDays(weekStart, -7))}
-              aria-label="Previous week"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => setWeekStart(startOfWeek(new Date()))}
-            >
-              This week
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setWeekStart(addDays(weekStart, 7))}
-              aria-label="Next week"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
+          <p className="text-sm font-semibold text-muted-foreground">
+            {calendarEvents.length} order
+            {calendarEvents.length === 1 ? '' : 's'}
+          </p>
         </div>
+        <AdminSectionTabs
+          value={view}
+          onChange={setView}
+          label="Dashboard view"
+          className="mt-3 px-2"
+          tabs={[
+            { value: 'agenda', label: 'Agenda', icon: List },
+            { value: 'calendar', label: 'Week calendar', icon: CalendarDays },
+          ]}
+        />
 
-        <div className="mt-5 grid gap-3 xl:grid-cols-7">
-          {weekDays.map((day) => {
-            const key = dateKey(day);
-            const dayEvents = eventsByDay.get(key) ?? [];
-            return (
-              <div
-                key={key}
-                className="min-h-[260px] rounded-xl border bg-white p-3"
-              >
-                <div className="flex items-center justify-between border-b pb-2">
+        {view === 'agenda' ? (
+          <div
+            id="dashboard-view-agenda-panel"
+            role="tabpanel"
+            aria-labelledby="dashboard-view-agenda-tab"
+            className="divide-y"
+          >
+            {weekDays.map((day) => {
+              const events = eventsByDay.get(dateKey(day)) ?? [];
+              return (
+                <section
+                  key={dateKey(day)}
+                  className="grid gap-3 p-4 lg:grid-cols-[150px_1fr]"
+                >
                   <div>
-                    <p className="text-sm font-semibold">
+                    <h3 className="font-semibold">
                       {dayFormatter.format(day)}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {dateFormatter.format(day)}
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      {dateFormatter.format(day)} · {events.length} order
+                      {events.length === 1 ? '' : 's'}
                     </p>
                   </div>
-                  <span className="rounded-full bg-muted px-2 py-1 text-xs font-semibold">
-                    {dayEvents.length}
-                  </span>
-                </div>
-                <div className="mt-3 space-y-3">
-                  {dayEvents.map((event) => {
-                    const order = event.orders[0];
-                    return (
-                      <article
-                        key={event.id}
-                        className="rounded-xl border-l-4 border-primary bg-muted/45 p-3"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
+                  <div className="space-y-2">
+                    {events.map((event) => (
+                      <AgendaRow event={event} key={event.id} />
+                    ))}
+                    {!events.length && (
+                      <p className="rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground">
+                        No orders scheduled.
+                      </p>
+                    )}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        ) : (
+          <div
+            id="dashboard-view-calendar-panel"
+            role="tabpanel"
+            aria-labelledby="dashboard-view-calendar-tab"
+            className="overflow-x-auto p-4"
+          >
+            <div className="grid min-w-[1080px] grid-cols-7 gap-2">
+              {weekDays.map((day) => {
+                const events = eventsByDay.get(dateKey(day)) ?? [];
+                return (
+                  <section
+                    key={dateKey(day)}
+                    className="min-h-[300px] rounded-lg border bg-white"
+                  >
+                    <header className="border-b bg-muted/40 p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <h3 className="text-sm font-semibold">
+                            {shortDayFormatter.format(day)}
+                          </h3>
+                          <p className="text-xs text-muted-foreground">
+                            {dateFormatter.format(day)}
+                          </p>
+                        </div>
+                        <span className="rounded-full bg-white px-2 py-1 text-xs font-semibold">
+                          {events.length}
+                        </span>
+                      </div>
+                    </header>
+                    <div className="space-y-2 p-2">
+                      {events.map((event) => {
+                        const order = event.orders[0];
+                        return (
+                          <Link
+                            key={event.id}
+                            href={
+                              order
+                                ? `/admin/orders/${order.id}`
+                                : '/admin/orders'
+                            }
+                            className="block rounded-md border-l-4 border-primary bg-muted/40 p-2.5 hover:bg-muted"
+                          >
                             <p className="text-xs font-semibold text-primary">
                               {timeLabel(event.eventTimeStart)}
                             </p>
-                            <h3 className="mt-1 text-sm font-semibold">
+                            <p className="mt-1 line-clamp-2 text-sm font-semibold">
                               {event.eventName || 'Catering event'}
-                            </h3>
-                          </div>
-                          {order && <StatusBadge value={order.orderStatus} />}
-                        </div>
-                        <p className="mt-2 text-xs text-muted-foreground">
-                          {event.address.city} · {event.guestCount} guests
-                        </p>
-                        {event.region && (
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            {event.region.name} · {event.distanceKm} km
-                          </p>
-                        )}
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {event.user.name || event.user.mobileNumber}
-                        </p>
-                        {order ? (
-                          <Link
-                            href={`/admin/orders/${order.id}`}
-                            className="mt-3 inline-flex text-xs font-semibold text-primary"
-                          >
-                            {order.orderNumber}
+                            </p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {event.guestCount} guests · {event.address.city}
+                            </p>
                           </Link>
-                        ) : (
-                          <p className="mt-3 text-xs font-semibold text-muted-foreground">
-                            No order placed
-                          </p>
-                        )}
-                      </article>
-                    );
-                  })}
-                  {!dayEvents.length && (
-                    <p className="pt-8 text-center text-sm text-muted-foreground">
-                      No orders
-                    </p>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+                        );
+                      })}
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </section>
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-[1.3fr_.7fr]">
+      <div className="mt-5 grid gap-5 xl:grid-cols-[1.2fr_.8fr]">
         <section className="admin-card">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold">Upcoming events</h2>
-            <CalendarDays className="h-5 w-5 text-primary" />
-          </div>
-          <div className="mt-4 space-y-3">
-            {data.queue.upcomingEvents.slice(0, 7).map((event) => (
-              <div
-                key={event.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-muted/55 p-4"
-              >
-                <div>
-                  <p className="font-semibold">
-                    {event.eventName || 'Catering event'}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {new Date(event.eventDate).toLocaleDateString('en-IN')} ·{' '}
-                    {event.address.city} · {event.guestCount} guests
-                  </p>
-                </div>
-                {event.orders[0] && (
-                  <StatusBadge value={event.orders[0].orderStatus} />
-                )}
-              </div>
-            ))}
-            {!data.queue.upcomingEvents.length && (
-              <p className="py-8 text-center text-muted-foreground">
-                No events in the next seven days.
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-semibold">Needs attention</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Resolve payment and refund exceptions.
               </p>
-            )}
+            </div>
+            <AlertTriangle className="h-5 w-5 text-primary" />
+          </div>
+          <div className="mt-4 divide-y rounded-lg border">
+            <AttentionRow
+              icon={CreditCard}
+              label="Failed payments"
+              count={data.queue.failedPayments.length}
+              href="/admin/payments"
+            />
+            <AttentionRow
+              icon={IndianRupee}
+              label="Refunds processing"
+              count={data.queue.pendingRefunds.length}
+              href="/admin/payments"
+            />
           </div>
         </section>
+
         <section className="admin-card">
           <h2 className="text-xl font-semibold">Order status</h2>
-          <div className="mt-4 space-y-3">
+          <div className="mt-4 space-y-2">
             {data.orders.byStatus.map((row) => (
               <div
                 key={row.orderStatus}
-                className="flex items-center justify-between rounded-xl border p-3"
+                className="flex items-center justify-between rounded-lg border px-3 py-2.5"
               >
                 <StatusBadge value={row.orderStatus} />
                 <strong>{row._count}</strong>
@@ -378,32 +434,123 @@ export default function Dashboard() {
   );
 }
 
+function AgendaRow({ event }: { event: CalendarEvent }) {
+  const order = event.orders[0];
+  return (
+    <article className="grid gap-3 rounded-lg border bg-white p-3 md:grid-cols-[88px_minmax(180px,1fr)_minmax(160px,.8fr)_auto] md:items-center">
+      <div>
+        <p className="font-semibold text-primary">
+          {timeLabel(event.eventTimeStart)}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {order?.orderNumber ?? 'No order'}
+        </p>
+      </div>
+      <div className="min-w-0">
+        <p className="truncate font-semibold">
+          {event.eventName || 'Catering event'}
+        </p>
+        <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+          <span className="inline-flex items-center gap-1">
+            <MapPin className="h-3.5 w-3.5" />
+            {event.address.city}
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <Users className="h-3.5 w-3.5" />
+            {event.guestCount} guests
+          </span>
+        </p>
+      </div>
+      <div className="text-sm">
+        <p className="font-medium">
+          {event.region?.name ?? 'Kitchen unassigned'}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {event.user.name || event.user.mobileNumber}
+        </p>
+      </div>
+      <div className="flex items-center justify-between gap-3 md:justify-end">
+        {order && <StatusBadge value={order.orderStatus} />}
+        {order && (
+          <Button
+            asChild
+            variant="outline"
+            className="h-10 w-10 px-0"
+            aria-label={`Open ${order.orderNumber}`}
+          >
+            <Link href={`/admin/orders/${order.id}`}>
+              <ChevronRight className="h-4 w-4" />
+            </Link>
+          </Button>
+        )}
+      </div>
+    </article>
+  );
+}
+
+function AttentionRow({
+  icon: Icon,
+  label,
+  count,
+  href,
+}: {
+  icon: typeof CreditCard;
+  label: string;
+  count: number;
+  href: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="flex items-center justify-between gap-3 p-4 hover:bg-muted/50"
+    >
+      <span className="flex items-center gap-3">
+        <span className="grid h-9 w-9 place-items-center rounded-lg bg-primary/10 text-primary">
+          <Icon className="h-4 w-4" />
+        </span>
+        <span className="font-semibold">{label}</span>
+      </span>
+      <span className="flex items-center gap-2">
+        <strong>{count}</strong>
+        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+      </span>
+    </Link>
+  );
+}
+
 function Metric({
   icon: Icon,
   label,
   value,
+  tone = 'default',
 }: {
   icon: typeof IndianRupee;
   label: string;
   value: string | number;
+  tone?: 'default' | 'warning';
 }) {
   return (
-    <div className="admin-card">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">{label}</p>
-        <Icon className="h-5 w-5 text-primary" />
+    <article className="admin-card flex min-h-[116px] items-center gap-4">
+      <div
+        className={`grid h-11 w-11 shrink-0 place-items-center rounded-lg ${tone === 'warning' ? 'bg-amber-50 text-amber-700' : 'bg-primary/10 text-primary'}`}
+      >
+        <Icon className="h-5 w-5" />
       </div>
-      <p className="mt-4 text-3xl font-semibold">{value}</p>
-    </div>
+      <div className="min-w-0">
+        <p className="text-sm text-muted-foreground">{label}</p>
+        <p className="mt-1 truncate text-2xl font-semibold">{value}</p>
+      </div>
+    </article>
   );
 }
 
 function startOfWeek(date: Date) {
-  const next = new Date(date);
-  const day = next.getDay() || 7;
-  next.setHours(0, 0, 0, 0);
-  next.setDate(next.getDate() - day + 1);
-  return next;
+  const current = new Date(date);
+  const day = current.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  current.setDate(current.getDate() + diff);
+  current.setHours(0, 0, 0, 0);
+  return current;
 }
 
 function addDays(date: Date, days: number) {
@@ -421,12 +568,11 @@ function dateKey(date: Date) {
 
 function timeLabel(value?: string | null) {
   if (!value) return 'Time TBC';
-  const date = new Date(value);
-  if (!Number.isNaN(date.getTime())) {
-    return date.toLocaleTimeString('en-IN', {
-      hour: 'numeric',
-      minute: '2-digit',
-    });
-  }
-  return value.slice(0, 5);
+  const [hours, minutes] = value.split(':').map(Number);
+  const date = new Date();
+  date.setHours(hours, minutes, 0, 0);
+  return date.toLocaleTimeString('en-IN', {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 }

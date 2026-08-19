@@ -20,6 +20,7 @@ import {
 import { UpdatePackageDto } from './dto/update-package.dto';
 import { UpdatePackageVersionDto } from './dto/update-package-version.dto';
 import { UpsertPackageMenuItemDto } from './dto/upsert-package-menu-item.dto';
+import { ReplacePackageCompositionDto } from './dto/replace-package-composition.dto';
 import { PreviewPackageQuoteDto } from './dto/preview-package-quote.dto';
 
 type VersionConfiguration = Awaited<
@@ -290,6 +291,69 @@ export class PackagesService {
         displayOrder: dto.displayOrder ?? 0,
       },
     });
+  }
+
+  async replaceComposition(
+    versionId: string,
+    dto: ReplacePackageCompositionDto,
+  ) {
+    const version = await this.prisma.packageVersion.findUnique({
+      where: { id: versionId },
+      include: { package: { select: { type: true } } },
+    });
+    if (!version) throw new NotFoundException('Package version not found');
+    const allowedRoles: PackageMenuItemRole[] =
+      version.package.type === PackageType.MEAL_BOX
+        ? [PackageMenuItemRole.INCLUDED]
+        : version.package.type === PackageType.FIXED_PACKAGE
+          ? [PackageMenuItemRole.INCLUDED, PackageMenuItemRole.EXTRA]
+          : [PackageMenuItemRole.CUSTOM_SELECTABLE];
+    const invalidRole = dto.items.find(
+      (item) => !allowedRoles.includes(item.role),
+    );
+    if (invalidRole) {
+      throw new BadRequestException(
+        'One or more menu item roles are not valid for this package type',
+      );
+    }
+    const menuItems = await this.prisma.menuItem.findMany({
+      where: {
+        id: { in: dto.items.map((item) => item.menuItemId) },
+        deletedAt: null,
+      },
+      select: { id: true, categoryId: true },
+    });
+    const menuItemsById = new Map(
+      menuItems.map((item) => [item.id, item] as const),
+    );
+    const invalidItem = dto.items.find(
+      (item) =>
+        menuItemsById.get(item.menuItemId)?.categoryId !== item.categoryId,
+    );
+    if (invalidItem) {
+      throw new BadRequestException(
+        'One or more menu items do not belong to the selected category',
+      );
+    }
+
+    await this.prisma.$transaction(async (transaction) => {
+      await transaction.packageMenuItem.deleteMany({
+        where: { packageVersionId: versionId },
+      });
+      if (!dto.items.length) return;
+      await transaction.packageMenuItem.createMany({
+        data: dto.items.map((item) => ({
+          packageVersionId: versionId,
+          categoryId: item.categoryId,
+          menuItemId: item.menuItemId,
+          role: item.role,
+          isAvailable: item.isAvailable ?? true,
+          isSwappable: item.isSwappable ?? false,
+          displayOrder: item.displayOrder ?? 0,
+        })),
+      });
+    });
+    return { success: true, configuredItems: dto.items.length };
   }
 
   async removeMenuItem(versionId: string, menuItemId: string, role: string) {
