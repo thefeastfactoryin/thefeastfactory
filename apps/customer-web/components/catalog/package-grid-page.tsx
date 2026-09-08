@@ -209,15 +209,13 @@ export function PackageGridPage({
       const builder =
         pkg.type === 'CUSTOM_PACKAGE'
           ? '/packages/build'
-          : intent === 'extras'
-            ? '/menu/select'
-            : '/cart';
+          : '/menu/select';
       const next = new URLSearchParams({
         packageVersionId: pkg.activeVersion.id,
       });
       if (cart?.id) next.set('cartId', cart.id);
       if (intent === 'extras') next.set('focus', 'extras');
-      router.push(builder === '/cart' ? builder : `${builder}?${next.toString()}`);
+      router.push(`${builder}?${next.toString()}`);
     } catch (reason) {
       setError((reason as Error).message);
       setSelecting('');

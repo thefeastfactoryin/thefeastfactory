@@ -175,14 +175,13 @@ export default function HomePage() {
       setDbCartId(cart?.id, session?.user.id);
       setGuestCount(pkg.activeVersion.minGuestCount);
       setActiveCartCount((count) => count + 1);
-      const builder = pkg.type === 'CUSTOM_PACKAGE' ? '/packages/build' : '/cart';
+      const builder =
+        pkg.type === 'CUSTOM_PACKAGE' ? '/packages/build' : '/menu/select';
       const next = new URLSearchParams({
         packageVersionId: pkg.activeVersion.id,
       });
       if (cart?.id) next.set('cartId', cart.id);
-      router.push(
-        pkg.type === 'CUSTOM_PACKAGE' ? `${builder}?${next.toString()}` : builder,
-      );
+      router.push(`${builder}?${next.toString()}`);
     } catch (reason) {
       setSelectionError((reason as Error).message);
       setSelecting('');
