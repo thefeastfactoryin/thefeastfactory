@@ -28,6 +28,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiRequest } from '../lib/api';
 import { cn } from '../lib/utils';
 import { useDeliveryLocationStore } from '../store/delivery-location.store';
+import { useAddressBookStore } from '../store/address-book.store';
 import { useOrderBuilderStore } from '../store/order-builder.store';
 import { useSessionStore } from '../store/session.store';
 import { Field } from './ui/form';
@@ -386,6 +387,7 @@ export function SelectionContextPanel({
   const publicSettings = usePublicSettings();
   const session = useSessionStore((state) => state.session);
   const deliveryLocation = useDeliveryLocationStore((state) => state.location);
+  const addressBookRevision = useAddressBookStore((state) => state.revision);
   const pkg = useOrderBuilderStore((state) => state.package);
   const setEvent = useOrderBuilderStore((state) => state.setEvent);
   const setDbCartId = useOrderBuilderStore((state) => state.setDbCartId);
@@ -437,6 +439,7 @@ export function SelectionContextPanel({
 
   useEffect(() => {
     if (!session) return;
+    let current = true;
     Promise.all([
       apiRequest<UserAddress[]>('/me/addresses', {}, session.accessToken),
       apiRequest<CartSummary | null>(
@@ -446,51 +449,58 @@ export function SelectionContextPanel({
       ),
     ])
       .then(([rows, cart]) => {
+        if (!current) return;
         setAddresses(rows);
-        setAddressId(
+        const savedAddressId =
+          cart?.event?.address?.id ?? cart?.address?.id ?? '';
+        const nextAddressId =
           selectedAddress ||
-            cart?.event?.address?.id ||
-            deliveryLocation?.savedAddressId ||
-            (!deliveryLocation
-              ? rows.find((row) => row.isDefault)?.id || rows[0]?.id
-              : '') ||
-            '',
-        );
+          savedAddressId ||
+          deliveryLocation?.savedAddressId ||
+          (!deliveryLocation
+            ? rows.find((row) => row.isDefault)?.id || rows[0]?.id
+            : '') ||
+          '';
+        setAddressId(nextAddressId);
         if (cart?.packageVersionId === packageVersionId && cart.event) {
           setEventDate(cart.event.eventDate);
           setEventTimeStart(cart.event.eventTimeStart || '');
           setGuestCount(cart.event.guestCount);
           setAssignedRegion(cart.event.region ?? cart.region ?? null);
-          if (
-            cart.event.address?.id &&
-            cart.event.eventDate &&
-            cart.event.eventTimeStart &&
-            cart.event.guestCount
-          ) {
-            lastSavedKey.current = [
-              cartId,
-              packageVersionId,
-              cart.event.address.id,
-              cart.event.eventDate,
-              cart.event.eventTimeStart,
-              cart.event.guestCount,
-            ].join(':');
-          }
         } else {
+          setEventDate('');
+          setEventTimeStart('');
           setAssignedRegion(
             cart?.region ?? deliveryLocation?.resolution.region ?? null,
           );
         }
+        if (savedAddressId && nextAddressId === savedAddressId) {
+          lastSavedKey.current = [
+            cartId,
+            packageVersionId,
+            savedAddressId,
+            cart?.event?.eventDate ?? '',
+            cart?.event?.eventTimeStart ?? '',
+            cart?.event?.guestCount ?? cart?.guestCount ?? minPax,
+          ].join(':');
+        }
         hydrated.current = true;
       })
-      .catch((reason) => setMessage(reason.message));
+      .catch((reason) => {
+        if (current) setMessage(reason.message);
+      });
+    return () => {
+      current = false;
+    };
   }, [
     session,
     cartId,
     packageVersionId,
     selectedAddress,
     deliveryLocation,
+    addressBookRevision,
     pkg?.packageName,
+    minPax,
     setGuestCount,
   ]);
 
@@ -516,10 +526,13 @@ export function SelectionContextPanel({
     if (!session || !hydrated.current) return;
     const validGuests =
       guestCount >= minPax && (!maxPax || guestCount <= maxPax);
-    if (!addressId || !eventDate || !eventTimeStart || !validGuests) {
-      setMessage('Venue, date, time, and a valid guest count are required.');
+    if (!addressId) {
+      setMessage('Choose a delivery venue.');
       return;
     }
+    const completeEvent = Boolean(
+      eventDate && eventTimeStart && validGuests,
+    );
     const saveKey = [
       cartId,
       packageVersionId,
@@ -540,10 +553,14 @@ export function SelectionContextPanel({
             body: JSON.stringify({
               packageVersionId,
               addressId,
-              eventName: pkg?.packageName,
-              eventDate,
-              eventTimeStart,
-              guestCount,
+              ...(completeEvent
+                ? {
+                    eventName: pkg?.packageName,
+                    eventDate,
+                    eventTimeStart,
+                    guestCount,
+                  }
+                : {}),
             }),
           },
           session.accessToken,
@@ -560,13 +577,17 @@ export function SelectionContextPanel({
         setAssignedRegion(cart.event?.region ?? cart.region ?? null);
         lastSavedKey.current = saveKey;
         onSavedRef.current?.(cart);
-        setMessage('Saved to your cart.');
+        setMessage(
+          completeEvent
+            ? 'Saved to your cart.'
+            : 'Address saved. Add the delivery date and time to continue.',
+        );
       } catch (reason) {
         setMessage((reason as Error).message);
       } finally {
         setSaving(false);
       }
-    }, 650);
+    }, 150);
     return () => window.clearTimeout(timer);
   }, [
     session,

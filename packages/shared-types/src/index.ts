@@ -250,6 +250,7 @@ export type CartSummary = {
   updatedAt: string;
   pendingOrderId?: string | null;
   specialNotes?: string | null;
+  address?: UserAddress | null;
   package: {
     id: string;
     name: string;

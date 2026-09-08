@@ -19,6 +19,7 @@ import { apiRequest } from '../../lib/api';
 import { useSessionStore } from '../../store/session.store';
 import { safeReturnPath } from '../../lib/safe-return-path';
 import { useDeliveryLocationStore } from '../../store/delivery-location.store';
+import { useAddressBookStore } from '../../store/address-book.store';
 
 const initialForm = {
   addressType: 'HOME' as AddressType,
@@ -42,6 +43,9 @@ export default function AddressesPage() {
   const deliveryLocation = useDeliveryLocationStore((state) => state.location);
   const setDeliveryLocation = useDeliveryLocationStore(
     (state) => state.setLocation,
+  );
+  const markAddressesChanged = useAddressBookStore(
+    (state) => state.markChanged,
   );
   const [addresses, setAddresses] = useState<UserAddress[]>([]);
   const [form, setForm] = useState(initialForm);
@@ -128,6 +132,7 @@ export default function AddressesPage() {
         { method: 'POST', body: JSON.stringify(result.data) },
         session!.accessToken,
       );
+      markAddressesChanged();
       if (created.latitude && created.longitude) {
         try {
           const resolution = await apiRequest<LocationResolution>(

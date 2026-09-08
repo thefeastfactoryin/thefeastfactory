@@ -52,7 +52,7 @@ export class CartService {
       packageVersionId: dto.packageVersionId,
       regionId: dto.regionId,
     });
-    const eventFields = [dto.addressId, dto.eventDate, dto.eventTimeStart];
+    const eventFields = [dto.eventDate, dto.eventTimeStart];
     if (eventFields.some((value) => value !== undefined)) {
       if (
         !dto.addressId ||
@@ -83,6 +83,9 @@ export class CartService {
         include: this.cartInclude(),
       });
       return this.serializeCart(updated);
+    }
+    if (dto.addressId !== undefined) {
+      return this.updateAddress(userId, cart.id, dto.addressId, dto.regionId);
     }
     if (dto.guestCount !== undefined) {
       const version = await this.assertPackageVersion(dto.packageVersionId);
@@ -137,7 +140,7 @@ export class CartService {
     if (cart.packageVersionId !== dto.packageVersionId) {
       throw new BadRequestException('Package does not match this cart');
     }
-    const eventFields = [dto.addressId, dto.eventDate, dto.eventTimeStart];
+    const eventFields = [dto.eventDate, dto.eventTimeStart];
     if (eventFields.some((value) => value !== undefined)) {
       if (
         !dto.addressId ||
@@ -168,6 +171,9 @@ export class CartService {
         include: this.cartInclude(),
       });
       return this.serializeCart(updated);
+    }
+    if (dto.addressId !== undefined) {
+      return this.updateAddress(userId, id, dto.addressId, dto.regionId);
     }
     if (dto.guestCount !== undefined) {
       return this.updateQuantity(userId, id, dto.guestCount);
@@ -312,7 +318,10 @@ export class CartService {
     );
     return {
       valid: true,
-      carts: carts.map((cart, index) => ({ cartId: cart.id, quote: quotes[index] })),
+      carts: carts.map((cart, index) => ({
+        cartId: cart.id,
+        quote: quotes[index],
+      })),
       subtotalAmount: subtotalAmount.toFixed(2),
       deliveryFee: deliveryFee.toFixed(2),
       totalAmount: subtotalAmount.plus(deliveryFee).toFixed(2),
@@ -435,10 +444,7 @@ export class CartService {
   async quote(userId: string, id: string) {
     const cart = await this.assertActiveCart(userId, id);
     const assignment = cart.address
-      ? await this.regions.assign(
-          cart.address.latitude,
-          cart.address.longitude,
-        )
+      ? await this.regions.assign(cart.address.latitude, cart.address.longitude)
       : null;
     const guestCount = cart.guestCount ?? cart.packageVersion.minGuestCount;
     const quote = await this.pricing.quote(
@@ -592,6 +598,7 @@ export class CartService {
           ? cart.order.id
           : null,
       specialNotes: cart.specialNotes,
+      address: cart.address,
       package: cart.packageVersion
         ? {
             id: cart.packageVersion.package.id,
@@ -684,10 +691,7 @@ export class CartService {
       throw new BadRequestException('Guest count is outside package limits');
     }
     const eventDate = new Date(`${dto.eventDate}T00:00:00.000Z`);
-    const eventInstant = eventLocalInstant(
-      dto.eventDate!,
-      dto.eventTimeStart!,
-    );
+    const eventInstant = eventLocalInstant(dto.eventDate!, dto.eventTimeStart!);
     const settings = Object.fromEntries(
       settingRows.map((setting) => [setting.key, setting.value]),
     );
@@ -745,6 +749,40 @@ export class CartService {
       );
     }
     return region.id;
+  }
+
+  private async updateAddress(
+    userId: string,
+    cartId: string,
+    addressId: string,
+    regionId?: string,
+  ) {
+    const address = await this.prisma.userAddress.findFirst({
+      where: { id: addressId, userId },
+    });
+    if (!address) {
+      throw new BadRequestException('Address does not belong to customer');
+    }
+    const assignment = regionId
+      ? await this.regions.assignToRegion(
+          regionId,
+          address.latitude,
+          address.longitude,
+        )
+      : await this.regions.assign(address.latitude, address.longitude);
+    const updated = await this.prisma.cart.update({
+      where: { id: cartId },
+      data: {
+        addressId,
+        regionId: assignment.region.id,
+        distanceKm: assignment.distanceKm,
+        deliveryFee: assignment.deliveryFee,
+        lastQuotedAt: null,
+        expiresAt: this.expiryDate(),
+      },
+      include: this.cartInclude(),
+    });
+    return this.serializeCart(updated);
   }
 
   private async updateRegion(userId: string, id: string, regionId: string) {

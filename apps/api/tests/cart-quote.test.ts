@@ -57,6 +57,128 @@ test('adding the same package twice creates independent cart records', async () 
   assert.equal(second.guestCount, 30);
 });
 
+test('selecting an address updates an incomplete cart immediately', async () => {
+  const address = {
+    id: 'address-1',
+    userId: 'user-1',
+    label: 'Event venue',
+    addressType: 'EVENT_VENUE',
+    addressLine1: '12 Celebration Road',
+    addressLine2: null,
+    city: 'Hyderabad',
+    state: 'Telangana',
+    pincode: '500001',
+    landmark: null,
+    latitude: new Prisma.Decimal('17.3850'),
+    longitude: new Prisma.Decimal('78.4867'),
+    isDefault: false,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+  const region = {
+    id: 'region-1',
+    code: 'HYDERABAD',
+    name: 'Hyderabad',
+    kitchenAddress: null,
+    fssaiLicenseNo: null,
+    kitchenImageUrl: null,
+    mapUrl: null,
+    publicDisplayOrder: 0,
+    centerLatitude: new Prisma.Decimal('17.3850'),
+    centerLongitude: new Prisma.Decimal('78.4867'),
+    serviceRadiusKm: new Prisma.Decimal('50'),
+    deliveryFeePerKm: new Prisma.Decimal('10'),
+    isActive: true,
+    isAcceptingOrders: true,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+  const packageVersion = {
+    id: 'version-1',
+    minGuestCount: 10,
+    maxGuestCount: 100,
+    versionNo: 1,
+    basePricePerPlate: new Prisma.Decimal('499.00'),
+    package: {
+      id: 'package-1',
+      name: 'Celebration Package',
+      type: 'FIXED_PACKAGE',
+    },
+  };
+  const cart = {
+    id: 'cart-1',
+    userId: 'user-1',
+    packageVersionId: 'version-1',
+    guestCount: 10,
+    status: 'ACTIVE',
+    expiresAt: new Date(),
+    lastQuotedAt: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    pendingOrderId: null,
+    specialNotes: null,
+    eventName: null,
+    eventDate: null,
+    eventTimeStart: null,
+    distanceKm: null,
+    deliveryFee: new Prisma.Decimal(0),
+    packageVersion,
+    address: null,
+    region: null,
+    items: [],
+    order: null,
+  };
+  let savedAddressId: string | undefined;
+  const prisma = {
+    cart: {
+      findFirst: async () => cart,
+      update: async ({ data }: { data: { addressId?: string } }) => {
+        savedAddressId = data.addressId;
+        return {
+          ...cart,
+          ...data,
+          address,
+          region,
+          distanceKm: new Prisma.Decimal('1.00'),
+          deliveryFee: new Prisma.Decimal('10.00'),
+        };
+      },
+    },
+    userAddress: { findFirst: async () => address },
+  };
+  const regions = {
+    assign: async () => ({
+      region,
+      distanceKm: new Prisma.Decimal('1.00'),
+      billableDistanceKm: 1,
+      deliveryFee: new Prisma.Decimal('10.00'),
+    }),
+    serialize: (value: typeof region) => ({
+      ...value,
+      centerLatitude: value.centerLatitude.toFixed(8),
+      centerLongitude: value.centerLongitude.toFixed(8),
+      serviceRadiusKm: value.serviceRadiusKm.toFixed(2),
+      deliveryFeePerKm: value.deliveryFeePerKm.toFixed(2),
+    }),
+  };
+  const service = new CartService(
+    prisma as never,
+    {} as never,
+    {} as never,
+    regions as never,
+  );
+
+  const updated = await service.update('user-1', 'cart-1', {
+    packageVersionId: 'version-1',
+    addressId: 'address-1',
+  });
+
+  assert.equal(savedAddressId, 'address-1');
+  assert.equal(updated.address?.id, 'address-1');
+  assert.equal(updated.region?.id, 'region-1');
+  assert.equal(updated.event, null);
+});
+
 test('cart quote combines menu subtotal and delivery fee', async () => {
   const region = {
     id: 'region-1',
@@ -314,10 +436,12 @@ test('batch checkout applies one trimmed kitchen instruction to every cart', asy
     guestCount: 20,
     items: [],
   }));
-  let savedUpdate: {
-    where: Record<string, unknown>;
-    data: { specialNotes: string | null };
-  } | undefined;
+  let savedUpdate:
+    | {
+        where: Record<string, unknown>;
+        data: { specialNotes: string | null };
+      }
+    | undefined;
   const checkedOutCartIds: string[] = [];
   const prisma = {
     cart: {
@@ -340,10 +464,7 @@ test('batch checkout applies one trimmed kitchen instruction to every cart', asy
     return { id: `order-${cartId}` } as never;
   };
 
-  await service.checkoutAll(
-    'user-1',
-    '  Keep the food mildly spiced.  ',
-  );
+  await service.checkoutAll('user-1', '  Keep the food mildly spiced.  ');
 
   assert.deepEqual(savedUpdate, {
     where: {

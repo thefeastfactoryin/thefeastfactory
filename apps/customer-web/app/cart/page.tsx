@@ -228,6 +228,9 @@ export default function CartPage() {
     (updated: CartSummary) => {
       if (!session) return;
       setCart(updated);
+      setActiveCarts((current) =>
+        current.map((entry) => (entry.id === updated.id ? updated : entry)),
+      );
       hydrate(updated);
       const event = updated.event;
       if (
@@ -1218,6 +1221,7 @@ function formatCartDate(value?: string) {
 }
 
 function EventSummary({ cart }: { cart: CartSummary }) {
+  const address = cart.event?.address ?? cart.address;
   return (
     <section className="rounded-2xl border bg-white p-5 sm:p-6">
       <p className="eyebrow">Delivery details</p>
@@ -1240,8 +1244,8 @@ function EventSummary({ cart }: { cart: CartSummary }) {
           icon={MapPin}
           label="Venue"
           value={
-            cart.event?.address
-              ? `${cart.event.address.label || cart.event.address.addressLine1}, ${cart.event.address.city}`
+            address
+              ? `${address.label || address.addressLine1}, ${address.city}`
               : 'Not set'
           }
         />
@@ -1325,7 +1329,7 @@ function OrderFacts({
 }: {
   cart: CartSummary;
 }) {
-  const address = cart.event?.address;
+  const address = cart.event?.address ?? cart.address;
   const facts = [
     ['Delivery date', formatCartDate(cart.event?.eventDate)],
     ['Delivery time', cart.event?.eventTimeStart || 'Not set'],

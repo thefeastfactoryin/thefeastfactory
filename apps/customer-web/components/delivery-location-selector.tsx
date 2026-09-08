@@ -19,6 +19,7 @@ import {
   type DeliveryLocation,
 } from '../store/delivery-location.store';
 import { useSessionStore } from '../store/session.store';
+import { useAddressBookStore } from '../store/address-book.store';
 import {
   AddressMapPicker,
   reverseGeocodeLocation,
@@ -47,6 +48,7 @@ export function DeliveryLocationSelector({ active }: { active: boolean }) {
   const [addressesLoaded, setAddressesLoaded] = useState(false);
   const [candidate, setCandidate] = useState<LocationCandidate>();
   const [candidateLoading, setCandidateLoading] = useState(false);
+  const addressBookRevision = useAddressBookStore((state) => state.revision);
   const requestedAutomatically = useRef(false);
   const lastSavedMatchAttempt = useRef('');
 
@@ -71,7 +73,7 @@ export function DeliveryLocationSelector({ active }: { active: boolean }) {
     return () => {
       current = false;
     };
-  }, [session]);
+  }, [session, addressBookRevision]);
 
   useEffect(() => {
     if (
