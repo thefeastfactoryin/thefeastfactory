@@ -13,8 +13,7 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import type { CartSummary } from '@aranyam/shared-types';
 import { usePathname } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
-import { useOrderBuilderStore } from '../store/order-builder.store';
+import { useEffect, useState } from 'react';
 import { useSessionStore } from '../store/session.store';
 import { cn } from '../lib/utils';
 import { Footer } from './home/footer';
@@ -51,7 +50,8 @@ const mobileLinks = [
 ];
 
 const WhatsAppConcierge = dynamic(
-  () => import('./WhatsAppConcierge').then((module) => module.WhatsAppConcierge),
+  () =>
+    import('./WhatsAppConcierge').then((module) => module.WhatsAppConcierge),
   { ssr: false },
 );
 
@@ -60,147 +60,42 @@ export function CustomerShell({
 }: Readonly<{ children: React.ReactNode }>) {
   const pathname = usePathname();
   const session = useSessionStore((s) => s.session);
-  const cartPackage = useOrderBuilderStore((s) => s.package);
-  const hydrateFromCart = useOrderBuilderStore((s) => s.hydrateFromCart);
   const [mounted, setMounted] = useState(false);
   const [conciergeReady, setConciergeReady] = useState(false);
-  const [storesHydrated, setStoresHydrated] = useState(false);
-  const [serverCartConflict, setServerCartConflict] = useState<CartSummary>();
-  const [resolvingConflict, setResolvingConflict] = useState(false);
-  const [conflictError, setConflictError] = useState('');
   const [activeCartCount, setActiveCartCount] = useState(0);
-  const cartRefreshVersion = useRef(0);
 
   useEffect(() => {
     setMounted(true);
-    Promise.all([
-      useSessionStore.persist.rehydrate(),
-      useOrderBuilderStore.persist.rehydrate(),
-    ]).finally(() => setStoresHydrated(true));
+    window.localStorage.removeItem('aranyam-order-cart');
+    void useSessionStore.persist.rehydrate();
   }, []);
   useEffect(() => {
     const timer = window.setTimeout(() => setConciergeReady(true), 0);
     return () => window.clearTimeout(timer);
   }, []);
   useEffect(() => {
-    if (!storesHydrated || !session) return;
-    let active = true;
-    const refreshVersion = cartRefreshVersion.current;
-    const local = useOrderBuilderStore.getState();
-    if (local.ownerUserId && local.ownerUserId !== session.user.id) {
-      local.reset();
-    }
-    Promise.all([
-      apiRequest<CartSummary | null>('/cart', {}, session.accessToken),
-      apiRequest<CartSummary[]>('/cart/all', {}, session.accessToken),
-    ])
-      .then(([cart, carts]) => {
-        if (!active || refreshVersion !== cartRefreshVersion.current) return;
-        setActiveCartCount(carts.length);
-        const current = useOrderBuilderStore.getState();
-        if (!cart) {
-          if (current.draftSource === 'server') current.reset();
-          return;
-        }
-        if (current.draftSource === 'guest' && current.package) {
-          setServerCartConflict(cart);
-          return;
-        }
-        hydrateFromCart(cart, session.user.id);
-      })
-      .catch(() => {});
-    return () => {
-      active = false;
-    };
-  }, [session, storesHydrated, hydrateFromCart, pathname]);
-
-  useEffect(() => {
     if (!session) {
       setActiveCartCount(0);
       return;
     }
+    let active = true;
     const refresh = () => {
-      cartRefreshVersion.current += 1;
       void apiRequest<CartSummary[]>('/cart/all', {}, session.accessToken)
         .then((carts) => {
-          setActiveCartCount(carts.length);
-          if (
-            carts.length === 0 &&
-            useOrderBuilderStore.getState().draftSource === 'server'
-          ) {
-            useOrderBuilderStore.getState().reset();
-          }
+          if (active) setActiveCartCount(carts.length);
         })
         .catch(() => {});
     };
+    refresh();
     window.addEventListener('cart-updated', refresh);
-    return () => window.removeEventListener('cart-updated', refresh);
-  }, [session]);
-
-  async function useGuestDraft() {
-    if (!session) return;
-    const draft = useOrderBuilderStore.getState();
-    if (!draft.package) return;
-    setResolvingConflict(true);
-    setConflictError('');
-    try {
-      const created = await apiRequest<CartSummary>(
-        '/cart',
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            packageVersionId: draft.package.packageVersionId,
-            guestCount: draft.guestCount || draft.package.minGuestCount,
-          }),
-        },
-        session.accessToken,
-      );
-      await apiRequest(
-        `/cart/${created.id}/items`,
-        {
-          method: 'PUT',
-          body: JSON.stringify({
-            items: draft.selectedItems.map((item) => ({
-              categoryId: item.categoryId,
-              menuItemId: item.menuItemId,
-              replacedMenuItemId: item.replacedMenuItemId,
-              role:
-                item.role ??
-                (item.replacedMenuItemId
-                  ? 'SWAP'
-                  : draft.package?.packageType === 'FIXED_PACKAGE'
-                    ? 'EXTRA'
-                    : 'CUSTOM'),
-              quantity: item.quantity ?? 1,
-            })),
-          }),
-        },
-        session.accessToken,
-      );
-      const saved = await apiRequest<CartSummary>(
-        `/cart/${created.id}`,
-        {},
-        session.accessToken,
-      );
-      hydrateFromCart(saved, session.user.id);
-      window.dispatchEvent(new Event('cart-updated'));
-      setServerCartConflict(undefined);
-    } catch (reason) {
-      setConflictError((reason as Error).message);
-    } finally {
-      setResolvingConflict(false);
-    }
-  }
-
-  function resumeServerCart() {
-    if (!session || !serverCartConflict) return;
-    hydrateFromCart(serverCartConflict, session.user.id);
-    setConflictError('');
-    setServerCartConflict(undefined);
-  }
+    return () => {
+      active = false;
+      window.removeEventListener('cart-updated', refresh);
+    };
+  }, [pathname, session]);
 
   const cartCount = mounted ? activeCartCount : 0;
-  const cartActive = mounted && (Boolean(cartPackage) || pathname === '/cart');
+  const cartActive = mounted && (cartCount > 0 || pathname === '/cart');
   const desktopLinks = session
     ? navLinks
     : navLinks.filter((link) => link.href !== '/orders');
@@ -340,56 +235,6 @@ export function CustomerShell({
           );
         })}
       </nav>
-
-      {serverCartConflict && cartPackage && (
-        <div
-          className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/60 p-4 backdrop-blur-sm"
-          role="alertdialog"
-          aria-modal="true"
-          aria-labelledby="cart-conflict-title"
-        >
-          <section className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
-            <span className="grid h-11 w-11 place-items-center rounded-full bg-primary/10 text-primary">
-              <ShoppingBag className="h-5 w-5" />
-            </span>
-            <h2
-              id="cart-conflict-title"
-              className="mt-4 font-serif text-2xl font-bold"
-            >
-              Which cart should we use?
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              This device has <strong>{cartPackage.packageName}</strong>, while
-              your account has{' '}
-              <strong>{serverCartConflict.package.name}</strong>. Nothing will
-              be replaced without your choice.
-            </p>
-            {conflictError && (
-              <p className="mt-4 rounded-xl border border-red-100 bg-red-50 p-3 text-sm text-red-800">
-                {conflictError}
-              </p>
-            )}
-            <div className="mt-6 grid gap-3 sm:grid-cols-2">
-              <button
-                type="button"
-                onClick={resumeServerCart}
-                disabled={resolvingConflict}
-                className="rounded-xl border px-4 py-3 text-sm font-bold hover:bg-muted disabled:opacity-60"
-              >
-                Resume saved cart
-              </button>
-              <button
-                type="button"
-                onClick={useGuestDraft}
-                disabled={resolvingConflict}
-                className="rounded-xl bg-primary px-4 py-3 text-sm font-bold text-white hover:bg-primary/90 disabled:opacity-60"
-              >
-                {resolvingConflict ? 'Saving…' : 'Use this draft'}
-              </button>
-            </div>
-          </section>
-        </div>
-      )}
     </div>
   );
 }

@@ -145,6 +145,22 @@ export interface paths {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/admin/operating-regions/{id}": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch: operations["OperatingRegionsController_update"];
+        readonly trace?: never;
+    };
     readonly "/admin/operations/calendar": {
         readonly parameters: {
             readonly query?: never;
@@ -303,6 +319,22 @@ export interface paths {
         readonly options?: never;
         readonly head?: never;
         readonly patch: operations["AdminPackagesController_updateVersion"];
+        readonly trace?: never;
+    };
+    readonly "/admin/package-versions/{id}/composition": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put: operations["AdminPackagesController_replaceComposition"];
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
         readonly trace?: never;
     };
     readonly "/admin/package-versions/{id}/configuration": {
@@ -945,6 +977,22 @@ export interface paths {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/operating-regions": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get: operations["OperatingRegionsController_publicList"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/orders": {
         readonly parameters: {
             readonly query?: never;
@@ -1232,6 +1280,10 @@ export interface components {
             /** @enum {string} */
             readonly role: "INCLUDED" | "SWAP" | "EXTRA" | "CUSTOM";
         };
+        readonly CheckoutCartDto: {
+            /** @example Please keep the food mildly spiced and pack chutney separately. */
+            readonly specialNotes?: string;
+        };
         readonly CreateAddressDto: {
             /** @example Flat 101, Green Residency */
             readonly addressLine1: string;
@@ -1266,6 +1318,8 @@ export interface components {
             readonly guestCount?: number;
             /** Format: uuid */
             readonly packageVersionId: string;
+            /** Format: uuid */
+            readonly regionId?: string;
         };
         readonly CreateMenuCategoryDto: {
             readonly description?: string;
@@ -1355,6 +1409,20 @@ export interface components {
             readonly rows: readonly components["schemas"]["ImportMenuItemRowDto"][];
         };
         readonly Object: Record<string, never>;
+        readonly PackageCompositionItemDto: {
+            /** Format: uuid */
+            readonly categoryId: string;
+            /** @default 0 */
+            readonly displayOrder: number;
+            /** @default true */
+            readonly isAvailable: boolean;
+            /** @default false */
+            readonly isSwappable: boolean;
+            /** Format: uuid */
+            readonly menuItemId: string;
+            /** @enum {string} */
+            readonly role: "INCLUDED" | "EXTRA" | "CUSTOM_SELECTABLE";
+        };
         readonly PreviewPackageQuoteDto: {
             readonly guestCount: number;
             readonly selectedItems: readonly components["schemas"]["SelectedPackageItemDto"][];
@@ -1364,6 +1432,9 @@ export interface components {
         };
         readonly ReplaceCartItemsDto: {
             readonly items: readonly components["schemas"]["CartSelectionItemDto"][];
+        };
+        readonly ReplacePackageCompositionDto: {
+            readonly items: readonly components["schemas"]["PackageCompositionItemDto"][];
         };
         readonly RequestOtpDto: {
             /**
@@ -1424,6 +1495,8 @@ export interface components {
             readonly guestCount?: number;
             /** Format: uuid */
             readonly packageVersionId: string;
+            /** Format: uuid */
+            readonly regionId?: string;
             readonly specialNotes?: string;
         };
         readonly UpdateCartQuantityDto: {
@@ -1454,6 +1527,19 @@ export interface components {
             readonly isVeg: boolean;
             /** @example Paneer Tikka */
             readonly name?: string;
+        };
+        readonly UpdateOperatingRegionDto: {
+            readonly centerLatitude?: string;
+            readonly centerLongitude?: string;
+            readonly deliveryFeePerKm?: string;
+            readonly fssaiLicenseNo?: string;
+            readonly isActive?: boolean;
+            readonly kitchenAddress?: string;
+            readonly kitchenImageUrl?: string;
+            readonly mapUrl?: string;
+            readonly name?: string;
+            readonly publicDisplayOrder?: number;
+            readonly serviceRadiusKm?: string;
         };
         readonly UpdateOrderingOfferingDto: {
             readonly ctaLabel?: string;
@@ -1803,6 +1889,29 @@ export interface operations {
             };
         };
     };
+    readonly OperatingRegionsController_update: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly id: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["UpdateOperatingRegionDto"];
+            };
+        };
+        readonly responses: {
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     readonly OperationsController_calendar: {
         readonly parameters: {
             readonly query?: {
@@ -2033,6 +2142,29 @@ export interface operations {
         readonly requestBody: {
             readonly content: {
                 readonly "application/json": components["schemas"]["UpdatePackageVersionDto"];
+            };
+        };
+        readonly responses: {
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    readonly AdminPackagesController_replaceComposition: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly id: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["ReplacePackageCompositionDto"];
             };
         };
         readonly responses: {
@@ -2720,7 +2852,11 @@ export interface operations {
             readonly path?: never;
             readonly cookie?: never;
         };
-        readonly requestBody?: never;
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["CheckoutCartDto"];
+            };
+        };
         readonly responses: {
             readonly 201: {
                 headers: {
@@ -2737,7 +2873,11 @@ export interface operations {
             readonly path?: never;
             readonly cookie?: never;
         };
-        readonly requestBody?: never;
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["CheckoutCartDto"];
+            };
+        };
         readonly responses: {
             readonly 201: {
                 headers: {
@@ -3031,6 +3171,23 @@ export interface operations {
                 content: {
                     readonly "application/json": readonly Record<string, never>[];
                 };
+            };
+        };
+    };
+    readonly OperatingRegionsController_publicList: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

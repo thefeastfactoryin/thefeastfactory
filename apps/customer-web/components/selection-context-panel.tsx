@@ -537,7 +537,7 @@ export function SelectionContextPanel({
           session.accessToken,
         );
         const address = addresses.find((row) => row.id === addressId)!;
-        setDbCartId(cart.id, session.user.id);
+        setDbCartId(cart.id);
         setEvent({
           addressId,
           eventName: pkg?.packageName,

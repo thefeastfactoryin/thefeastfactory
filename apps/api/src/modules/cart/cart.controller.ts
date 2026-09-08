@@ -13,6 +13,7 @@ import { JwtPayload } from '../../common/auth/jwt-payload';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CustomerAuthGuard } from '../../common/guards/customer-auth.guard';
 import { ReplaceCartItemsDto } from './dto/replace-cart-items.dto';
+import { CheckoutCartDto } from './dto/checkout-cart.dto';
 import { CreateCartDto } from './dto/create-cart.dto';
 import { UpdateCartDto } from './dto/update-cart.dto';
 import { UpdateCartQuantityDto } from './dto/update-cart-quantity.dto';
@@ -107,13 +108,19 @@ export class CartController {
   }
 
   @Post('checkout')
-  checkoutCurrent(@CurrentUser() user: JwtPayload) {
-    return this.carts.checkoutActive(user.sub);
+  checkoutCurrent(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: CheckoutCartDto,
+  ) {
+    return this.carts.checkoutActive(user.sub, dto.specialNotes);
   }
 
   @Post('checkout-all')
-  checkoutAll(@CurrentUser() user: JwtPayload) {
-    return this.carts.checkoutAll(user.sub);
+  checkoutAll(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: CheckoutCartDto,
+  ) {
+    return this.carts.checkoutAll(user.sub, dto.specialNotes);
   }
 
 }

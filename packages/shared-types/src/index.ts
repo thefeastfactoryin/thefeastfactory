@@ -241,6 +241,7 @@ export type CartSummary = {
   createdAt: string;
   updatedAt: string;
   pendingOrderId?: string | null;
+  specialNotes?: string | null;
   package: {
     id: string;
     name: string;
@@ -323,6 +324,7 @@ export type OrderSummary = {
   deliveryFee?: string;
   totalAmount: string;
   createdAt: string;
+  specialNotes?: string | null;
   event?: {
     eventName?: string | null;
     eventDate: string;

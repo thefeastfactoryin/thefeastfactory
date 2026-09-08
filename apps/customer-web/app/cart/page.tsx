@@ -15,6 +15,7 @@ import {
   Leaf,
   LockKeyhole,
   MapPin,
+  MessageSquareText,
   Minus,
   Pencil,
   Plus,
@@ -140,6 +141,7 @@ export default function CartPage() {
   const [selectingCartId, setSelectingCartId] = useState('');
   const [error, setError] = useState('');
   const [activeCategoryId, setActiveCategoryId] = useState('');
+  const [specialNotes, setSpecialNotes] = useState('');
 
   const loadQuote = useCallback(async (currentCartId?: string) => {
     if (!session) return;
@@ -181,7 +183,8 @@ export default function CartPage() {
         if (!active || !value) return;
         setCart(value);
         setActiveCarts(allCarts);
-        hydrate(value, session!.user.id);
+        setSpecialNotes(value.specialNotes ?? '');
+        hydrate(value);
         const configuration = await apiRequest<PackageConfiguration>(
           `/package-versions/${value.packageVersionId}/configuration`,
         );
@@ -225,7 +228,7 @@ export default function CartPage() {
     (updated: CartSummary) => {
       if (!session) return;
       setCart(updated);
-      hydrate(updated, session.user.id);
+      hydrate(updated);
       const event = updated.event;
       if (
         !event?.address?.id ||
@@ -295,7 +298,7 @@ export default function CartPage() {
       );
       if (cart?.id === updated.id) {
         setCart(updated);
-        hydrate(updated, session.user.id);
+        hydrate(updated);
       }
       await loadQuote(cart?.id ?? updated.id);
     } catch (reason) {
@@ -333,7 +336,7 @@ export default function CartPage() {
         setQuote(
           multiCartQuote?.carts.find((entry) => entry.cartId === next.id)?.quote,
         );
-        hydrate(next, session.user.id);
+        hydrate(next);
         setConfig(
           await apiRequest<PackageConfiguration>(
             `/package-versions/${next.packageVersionId}/configuration`,
@@ -386,7 +389,7 @@ export default function CartPage() {
         multiCartQuote?.carts.find((entry) => entry.cartId === packageCart.id)
           ?.quote,
       );
-      hydrate(packageCart, session.user.id);
+      hydrate(packageCart);
     } catch (reason) {
       setError((reason as Error).message);
     } finally {
@@ -553,7 +556,10 @@ export default function CartPage() {
           ).then((order) => [order])
         : await apiRequest<OrderSummary[]>(
             '/cart/checkout-all',
-            { method: 'POST' },
+            {
+              method: 'POST',
+              body: JSON.stringify({ specialNotes }),
+            },
             session.accessToken,
           );
       const order = orders[0];
@@ -1066,6 +1072,28 @@ export default function CartPage() {
                         : 'Confirm the delivery time and venue to calculate the final total.'}
                     </div>
                   )}
+                  <div className="mt-5">
+                    <label
+                      htmlFor="special-kitchen-request"
+                      className="flex items-center gap-2 text-sm font-bold text-foreground"
+                    >
+                      <MessageSquareText className="h-4 w-4 text-primary" />
+                      Special request for the kitchen
+                    </label>
+                    <textarea
+                      id="special-kitchen-request"
+                      value={specialNotes}
+                      onChange={(event) => setSpecialNotes(event.target.value)}
+                      placeholder="e.g. Keep the food mildly spiced and pack chutney separately."
+                      maxLength={1000}
+                      rows={4}
+                      className="mt-2 w-full resize-y rounded-xl border border-border bg-white p-3 text-sm leading-6 outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15"
+                    />
+                    <div className="mt-1.5 flex items-start justify-between gap-3 text-xs text-muted-foreground">
+                      <span>One note applies to every package in this order.</span>
+                      <span className="shrink-0">{specialNotes.length}/1000</span>
+                    </div>
+                  </div>
                   <div className="mt-5 rounded-xl border border-accent/30 bg-accent/[0.08] p-3">
                     <p className="flex items-center gap-2 text-sm font-bold text-foreground">
                       <LockKeyhole className="h-4 w-4 text-primary" />

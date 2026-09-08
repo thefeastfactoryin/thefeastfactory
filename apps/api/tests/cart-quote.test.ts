@@ -303,6 +303,59 @@ test('batch checkout validates every cart before creating any order', async () =
   assert.equal(createdOrders, 0);
 });
 
+test('batch checkout applies one trimmed kitchen instruction to every cart', async () => {
+  const carts = ['cart-1', 'cart-2'].map((id) => ({
+    id,
+    userId: 'user-1',
+    addressId: 'address-1',
+    regionId: 'region-1',
+    eventDate: new Date('2026-08-10T00:00:00.000Z'),
+    eventTimeStart: new Date('1970-01-01T18:00:00.000Z'),
+    guestCount: 20,
+    items: [],
+  }));
+  let savedUpdate: {
+    where: Record<string, unknown>;
+    data: { specialNotes: string | null };
+  } | undefined;
+  const checkedOutCartIds: string[] = [];
+  const prisma = {
+    cart: {
+      findMany: async () => carts,
+      updateMany: async (update: typeof savedUpdate) => {
+        savedUpdate = update;
+        return { count: carts.length };
+      },
+    },
+  };
+  const service = new CartService(
+    prisma as never,
+    {} as never,
+    {} as never,
+    {} as never,
+  );
+  service.quote = async () => ({ valid: true }) as never;
+  service.checkout = async (_userId, cartId) => {
+    checkedOutCartIds.push(cartId);
+    return { id: `order-${cartId}` } as never;
+  };
+
+  await service.checkoutAll(
+    'user-1',
+    '  Keep the food mildly spiced.  ',
+  );
+
+  assert.deepEqual(savedUpdate, {
+    where: {
+      id: { in: ['cart-1', 'cart-2'] },
+      userId: 'user-1',
+      status: 'ACTIVE',
+    },
+    data: { specialNotes: 'Keep the food mildly spiced.' },
+  });
+  assert.deepEqual(checkedOutCartIds, ['cart-1', 'cart-2']);
+});
+
 test('active cart queries exclude expired carts while allowing legacy null expiry', async () => {
   let lookupWhere: Record<string, unknown> | undefined;
   const prisma = {

@@ -203,7 +203,7 @@ export function PackageGridPage({
           )
         : undefined;
       setPackage(selected);
-      setDbCartId(cart?.id, session?.user.id);
+      setDbCartId(cart?.id);
       setGuestCount(pkg.activeVersion.minGuestCount);
       setActiveCartCount((count) => count + 1);
       const builder =

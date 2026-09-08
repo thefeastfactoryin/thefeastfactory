@@ -573,7 +573,7 @@ function BuildPackageContent() {
 
         const savedGuestCount = cart.event?.guestCount ?? cart.guestCount;
         if (savedGuestCount) setClampedGuestCount(savedGuestCount);
-        setDbCartId(cart.id, session.user.id);
+        setDbCartId(cart.id);
       })
       .catch((reason) => {
         if (active) setMessage((reason as Error).message);
@@ -693,7 +693,7 @@ function BuildPackageContent() {
         },
         session.accessToken,
       );
-      setDbCartId(cart.id, session.user.id);
+      setDbCartId(cart.id);
       await apiRequest(
         `/cart/${cart.id}/items`,
         {

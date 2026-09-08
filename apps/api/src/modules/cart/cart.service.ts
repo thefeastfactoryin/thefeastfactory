@@ -210,8 +210,9 @@ export class CartService {
     return this.quote(userId, cart.id);
   }
 
-  async checkoutActive(userId: string) {
+  async checkoutActive(userId: string, specialNotes?: string) {
     const cart = await this.requireActive(userId);
+    await this.saveCheckoutInstructions(userId, [cart.id], specialNotes);
     return this.checkout(userId, cart.id);
   }
 
@@ -318,7 +319,7 @@ export class CartService {
     };
   }
 
-  async checkoutAll(userId: string) {
+  async checkoutAll(userId: string, specialNotes?: string) {
     const carts = await this.prisma.cart.findMany({
       where: {
         userId,
@@ -346,12 +347,33 @@ export class CartService {
     // preflight, a stale or invalid later cart could leave an earlier cart in
     // PENDING_PAYMENT with no complete payment batch to resume.
     await Promise.all(carts.map((cart) => this.quote(userId, cart.id)));
+    await this.saveCheckoutInstructions(
+      userId,
+      carts.map((cart) => cart.id),
+      specialNotes,
+    );
     const checkoutBatchId = randomUUID();
     const orders = [];
     for (const cart of carts) {
       orders.push(await this.checkout(userId, cart.id, checkoutBatchId));
     }
     return orders;
+  }
+
+  private async saveCheckoutInstructions(
+    userId: string,
+    cartIds: string[],
+    specialNotes?: string,
+  ) {
+    if (specialNotes === undefined) return;
+    await this.prisma.cart.updateMany({
+      where: {
+        id: { in: cartIds },
+        userId,
+        status: CartStatus.ACTIVE,
+      },
+      data: { specialNotes: specialNotes.trim() || null },
+    });
   }
 
   async createOrFetch(userId: string, dto: CreateCartDto) {
@@ -551,6 +573,7 @@ export class CartService {
         cart.order?.orderStatus === OrderStatus.PENDING_PAYMENT
           ? cart.order.id
           : null,
+      specialNotes: cart.specialNotes,
       package: cart.packageVersion
         ? {
             id: cart.packageVersion.package.id,

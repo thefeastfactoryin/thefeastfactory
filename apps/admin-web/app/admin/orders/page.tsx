@@ -188,6 +188,11 @@ export default function AdminOrders() {
                         )
                       : ''}
                   </span>
+                  {order.specialNotes && (
+                    <span className="mt-1 block max-w-xs truncate text-xs font-semibold text-amber-800">
+                      Kitchen note: {order.specialNotes}
+                    </span>
+                  )}
                 </td>
                 <td>
                   {order.user?.name || order.user?.mobileNumber}

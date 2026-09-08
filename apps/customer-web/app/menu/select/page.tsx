@@ -99,7 +99,7 @@ function MenuSelectContent() {
       {},
       session.accessToken,
     )
-      .then((savedCart) => hydrateFromCart(savedCart, session.user.id))
+      .then((savedCart) => hydrateFromCart(savedCart))
       .catch((reason) => setError((reason as Error).message));
   }, [hydrateFromCart, requestedCartId, session]);
 
@@ -395,7 +395,7 @@ function MenuSelectContent() {
         },
         session.accessToken,
       );
-      setDbCartId(cart.id, session.user.id);
+      setDbCartId(cart.id);
       await apiRequest(
         `/cart/${cart.id}/items`,
         {

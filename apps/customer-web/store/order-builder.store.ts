@@ -4,7 +4,6 @@ import type {
   SelectedItemRole,
 } from '@aranyam/shared-types';
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 
 export type CartPackage = {
   packageId: string;
@@ -43,15 +42,13 @@ export type SelectedItem = {
 type OrderBuilderState = {
   package?: CartPackage;
   event?: CartEvent;
-  draftSource?: 'guest' | 'server';
-  ownerUserId?: string;
   dbCartId?: string;
   pendingOrderId?: string;
   guestCount: number;
   selectedItems: SelectedItem[];
   setPackage: (pkg: CartPackage) => void;
   setEvent: (event: CartEvent) => void;
-  setDbCartId: (cartId?: string, ownerUserId?: string) => void;
+  setDbCartId: (cartId?: string) => void;
   setPendingOrderId: (orderId?: string) => void;
   setGuestCount: (guestCount: number) => void;
   toggleItem: (item: SelectedItem, maxSelections: number) => boolean;
@@ -62,56 +59,10 @@ type OrderBuilderState = {
   removeSwap: (replacedMenuItemId: string) => void;
   clearSelections: () => void;
   reset: () => void;
-  hydrateFromCart: (cart: CartSummary, ownerUserId?: string) => void;
-};
-
-type PersistedOrderBuilderState = Pick<
-  OrderBuilderState,
-  | 'package'
-  | 'event'
-  | 'draftSource'
-  | 'ownerUserId'
-  | 'dbCartId'
-  | 'pendingOrderId'
-  | 'guestCount'
-  | 'selectedItems'
->;
-
-const emptyPersistedOrderBuilderState = (): PersistedOrderBuilderState => ({
-  package: undefined,
-  event: undefined,
-  draftSource: undefined,
-  ownerUserId: undefined,
-  dbCartId: undefined,
-  pendingOrderId: undefined,
-  guestCount: 0,
-  selectedItems: [],
-});
-
-const migrateOrderBuilderState = (
-  persistedState: unknown,
-): PersistedOrderBuilderState => {
-  if (!persistedState || typeof persistedState !== 'object')
-    return emptyPersistedOrderBuilderState();
-
-  const state = persistedState as Partial<PersistedOrderBuilderState>;
-
-  return {
-    package: state.package,
-    event: state.event,
-    draftSource: state.draftSource,
-    ownerUserId: state.ownerUserId,
-    dbCartId: state.dbCartId,
-    pendingOrderId: state.pendingOrderId,
-    guestCount: typeof state.guestCount === 'number' ? state.guestCount : 0,
-    selectedItems: Array.isArray(state.selectedItems)
-      ? state.selectedItems
-      : [],
-  };
+  hydrateFromCart: (cart: CartSummary) => void;
 };
 
 export const useOrderBuilderStore = create<OrderBuilderState>()(
-  persist(
     (set, get) => ({
       guestCount: 0,
       selectedItems: [],
@@ -121,8 +72,6 @@ export const useOrderBuilderStore = create<OrderBuilderState>()(
             return { package: pkg };
           return {
             package: pkg,
-            draftSource: 'guest',
-            ownerUserId: undefined,
             event: undefined,
             dbCartId: undefined,
             guestCount: pkg.minGuestCount,
@@ -130,11 +79,7 @@ export const useOrderBuilderStore = create<OrderBuilderState>()(
           };
         }),
       setEvent: (event) => set({ event }),
-      setDbCartId: (cartId, ownerUserId) =>
-        set({
-          dbCartId: cartId,
-          ...(cartId ? { draftSource: 'server' as const, ownerUserId } : {}),
-        }),
+      setDbCartId: (cartId) => set({ dbCartId: cartId }),
       setPendingOrderId: (orderId) => set({ pendingOrderId: orderId }),
       setGuestCount: (guestCount) => set({ guestCount }),
       toggleItem: (item, maxSelections) => {
@@ -219,11 +164,9 @@ export const useOrderBuilderStore = create<OrderBuilderState>()(
           ),
         })),
       clearSelections: () => set({ selectedItems: [] }),
-      hydrateFromCart: (cart, ownerUserId) =>
+      hydrateFromCart: (cart) =>
         set({
           dbCartId: cart.id,
-          draftSource: 'server',
-          ownerUserId,
           pendingOrderId: cart.pendingOrderId ?? undefined,
           package: {
             packageId: cart.package.id,
@@ -270,36 +213,9 @@ export const useOrderBuilderStore = create<OrderBuilderState>()(
           package: undefined,
           event: undefined,
           dbCartId: undefined,
-          draftSource: undefined,
-          ownerUserId: undefined,
           pendingOrderId: undefined,
           guestCount: 0,
           selectedItems: [],
         }),
     }),
-    {
-      name: 'aranyam-order-cart',
-      version: 2,
-      migrate: migrateOrderBuilderState,
-      partialize: ({
-        package: pkg,
-        event,
-        draftSource,
-        ownerUserId,
-        dbCartId,
-        pendingOrderId,
-        guestCount,
-        selectedItems,
-      }): PersistedOrderBuilderState => ({
-        package: pkg,
-        event,
-        draftSource,
-        ownerUserId,
-        dbCartId,
-        pendingOrderId,
-        guestCount,
-        selectedItems,
-      }),
-    },
-  ),
 );

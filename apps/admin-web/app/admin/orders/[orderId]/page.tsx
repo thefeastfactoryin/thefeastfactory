@@ -5,7 +5,7 @@ import {
   type OrderDetails,
   type OrderNote,
 } from '@aranyam/shared-types';
-import { MapPin } from 'lucide-react';
+import { MapPin, MessageSquareText } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { StatusBadge } from '../../../../components/status-badge';
@@ -117,6 +117,22 @@ export default function AdminOrderDetail() {
               </select>
               <Button onClick={update}>Update status</Button>
             </div>
+          </section>
+          <section className="admin-card border-amber-300 bg-amber-50/70">
+            <div className="flex items-start gap-3">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-amber-100 text-amber-900">
+                <MessageSquareText className="h-5 w-5" />
+              </span>
+              <div>
+                <h2 className="text-xl font-semibold">Kitchen instructions</h2>
+                <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-amber-800">
+                  Customer request · applies to the entire order
+                </p>
+              </div>
+            </div>
+            <p className="mt-4 whitespace-pre-wrap rounded-xl border border-amber-200 bg-white p-4 text-sm leading-6 text-foreground">
+              {order.specialNotes?.trim() || 'No special request provided.'}
+            </p>
           </section>
           <section className="admin-card">
             <h2 className="text-xl font-semibold">Selected menu</h2>
