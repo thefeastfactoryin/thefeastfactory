@@ -18,6 +18,7 @@ import { useSessionStore } from '../store/session.store';
 import { cn } from '../lib/utils';
 import { Footer } from './home/footer';
 import { apiRequest } from '../lib/api';
+import { DeliveryLocationSelector } from './delivery-location-selector';
 
 const navLinks = [
   { href: '/', label: 'Home', activeKey: '/', icon: Home },
@@ -192,6 +193,8 @@ export function CustomerShell({
           </div>
         </div>
       </header>
+
+      <DeliveryLocationSelector active={pathname === '/'} />
 
       {children}
 

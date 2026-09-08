@@ -21,6 +21,7 @@ import Image from 'next/image';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { apiRequest } from '../../lib/api';
+import { useDeliveryLocationStore } from '../../store/delivery-location.store';
 import { useOrderBuilderStore } from '../../store/order-builder.store';
 import { useSessionStore } from '../../store/session.store';
 import { StatePanel } from '../ui/state-panel';
@@ -46,6 +47,7 @@ export function PackageGridPage({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const session = useSessionStore((s) => s.session);
+  const deliveryLocation = useDeliveryLocationStore((s) => s.location);
   const currentPackage = useOrderBuilderStore((s) => s.package);
   const setPackage = useOrderBuilderStore((s) => s.setPackage);
   const setDbCartId = useOrderBuilderStore((s) => s.setDbCartId);
@@ -197,6 +199,10 @@ export function PackageGridPage({
               body: JSON.stringify({
                 packageVersionId: pkg.activeVersion.id,
                 guestCount: pkg.activeVersion.minGuestCount,
+                ...(deliveryLocation?.resolution.serviceable &&
+                deliveryLocation.resolution.region
+                  ? { regionId: deliveryLocation.resolution.region.id }
+                  : {}),
               }),
             },
             session.accessToken,

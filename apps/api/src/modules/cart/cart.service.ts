@@ -434,6 +434,12 @@ export class CartService {
 
   async quote(userId: string, id: string) {
     const cart = await this.assertActiveCart(userId, id);
+    const assignment = cart.address
+      ? await this.regions.assign(
+          cart.address.latitude,
+          cart.address.longitude,
+        )
+      : null;
     const guestCount = cart.guestCount ?? cart.packageVersion.minGuestCount;
     const quote = await this.pricing.quote(
       cart.packageVersionId,
@@ -448,22 +454,34 @@ export class CartService {
     );
     await this.prisma.cart.update({
       where: { id },
-      data: { lastQuotedAt: new Date() },
+      data: {
+        lastQuotedAt: new Date(),
+        ...(assignment
+          ? {
+              regionId: assignment.region.id,
+              distanceKm: assignment.distanceKm,
+              deliveryFee: assignment.deliveryFee,
+            }
+          : {}),
+      },
     });
     const serialized = this.pricing.serialize(quote);
-    const deliveryFee = cart.deliveryFee.toFixed(2);
+    const region = assignment?.region ?? cart.region;
+    const distanceKm = assignment?.distanceKm ?? cart.distanceKm;
+    const deliveryFeeValue = assignment?.deliveryFee ?? cart.deliveryFee;
+    const deliveryFee = deliveryFeeValue.toFixed(2);
     return {
       valid: true,
       errors: [],
       ...serialized,
-      region: cart.region ? this.regions.serialize(cart.region) : null,
-      distanceKm: cart.distanceKm?.toFixed(2) ?? null,
+      region: region ? this.regions.serialize(region) : null,
+      distanceKm: distanceKm?.toFixed(2) ?? null,
       billableDistanceKm:
-        cart.distanceKm === null ? null : Math.ceil(Number(cart.distanceKm)),
-      deliveryFeePerKm: cart.region?.deliveryFeePerKm.toFixed(2) ?? null,
+        distanceKm === null ? null : Math.ceil(Number(distanceKm)),
+      deliveryFeePerKm: region?.deliveryFeePerKm.toFixed(2) ?? null,
       deliveryFee,
       subtotalAmount: serialized.totalAmount,
-      totalAmount: quote.totalAmount.plus(cart.deliveryFee).toFixed(2),
+      totalAmount: quote.totalAmount.plus(deliveryFeeValue).toFixed(2),
     };
   }
 
@@ -718,7 +736,7 @@ export class CartService {
   private async validRegionId(regionId?: string) {
     if (!regionId) return undefined;
     const region = await this.prisma.operatingRegion.findFirst({
-      where: { id: regionId, isActive: true },
+      where: { id: regionId, isActive: true, isAcceptingOrders: true },
       select: { id: true },
     });
     if (!region) {

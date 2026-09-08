@@ -47,6 +47,17 @@ export function KitchenLocationsSection({
                     <ImagePlus className="h-8 w-8" aria-hidden="true" />
                   </div>
                 )}
+                <span
+                  className={`absolute right-3 top-3 rounded-full px-3 py-1 text-[11px] font-extrabold shadow-sm ${
+                    location.isAcceptingOrders
+                      ? 'bg-emerald-50 text-emerald-800'
+                      : 'bg-red-50 text-red-800'
+                  }`}
+                >
+                  {location.isAcceptingOrders
+                    ? 'Accepting orders'
+                    : 'Temporarily closed'}
+                </span>
               </div>
 
               <div className="flex flex-1 flex-col px-5 pb-5 pt-4 text-center">

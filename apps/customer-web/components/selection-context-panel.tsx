@@ -27,6 +27,7 @@ import type { RefObject } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiRequest } from '../lib/api';
 import { cn } from '../lib/utils';
+import { useDeliveryLocationStore } from '../store/delivery-location.store';
 import { useOrderBuilderStore } from '../store/order-builder.store';
 import { useSessionStore } from '../store/session.store';
 import { Field } from './ui/form';
@@ -384,6 +385,7 @@ export function SelectionContextPanel({
   const sidebar = variant === 'sidebar';
   const publicSettings = usePublicSettings();
   const session = useSessionStore((state) => state.session);
+  const deliveryLocation = useDeliveryLocationStore((state) => state.location);
   const pkg = useOrderBuilderStore((state) => state.package);
   const setEvent = useOrderBuilderStore((state) => state.setEvent);
   const setDbCartId = useOrderBuilderStore((state) => state.setDbCartId);
@@ -392,8 +394,9 @@ export function SelectionContextPanel({
   const pathname = usePathname();
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
   const [addresses, setAddresses] = useState<UserAddress[]>([]);
-  const [assignedRegion, setAssignedRegion] =
-    useState<OperatingRegion | null>(null);
+  const [assignedRegion, setAssignedRegion] = useState<OperatingRegion | null>(
+    null,
+  );
   const [addressId, setAddressId] = useState('');
   const [eventDate, setEventDate] = useState('');
   const [eventTimeStart, setEventTimeStart] = useState('');
@@ -436,15 +439,21 @@ export function SelectionContextPanel({
     if (!session) return;
     Promise.all([
       apiRequest<UserAddress[]>('/me/addresses', {}, session.accessToken),
-      apiRequest<CartSummary | null>(`/cart/${cartId}`, {}, session.accessToken),
+      apiRequest<CartSummary | null>(
+        `/cart/${cartId}`,
+        {},
+        session.accessToken,
+      ),
     ])
       .then(([rows, cart]) => {
         setAddresses(rows);
         setAddressId(
           selectedAddress ||
             cart?.event?.address?.id ||
-            rows.find((row) => row.isDefault)?.id ||
-            rows[0]?.id ||
+            deliveryLocation?.savedAddressId ||
+            (!deliveryLocation
+              ? rows.find((row) => row.isDefault)?.id || rows[0]?.id
+              : '') ||
             '',
         );
         if (cart?.packageVersionId === packageVersionId && cart.event) {
@@ -468,7 +477,9 @@ export function SelectionContextPanel({
             ].join(':');
           }
         } else {
-          setAssignedRegion(cart?.region ?? null);
+          setAssignedRegion(
+            cart?.region ?? deliveryLocation?.resolution.region ?? null,
+          );
         }
         hydrated.current = true;
       })
@@ -478,6 +489,7 @@ export function SelectionContextPanel({
     cartId,
     packageVersionId,
     selectedAddress,
+    deliveryLocation,
     pkg?.packageName,
     setGuestCount,
   ]);
@@ -647,46 +659,50 @@ export function SelectionContextPanel({
             slots={deliveryTimeSlots}
           />
         </Field>
-        {!hideQuantity && <div>
-          <span className="mb-2 block text-sm font-semibold">{guestLabel}</span>
-          <div className="flex min-h-12 items-center justify-between rounded-xl border bg-white px-2">
-            <button
-              type="button"
-              aria-label={`Decrease ${guestLabel.toLowerCase()}`}
-              onClick={() => commitGuestCount(String(guestCount - 1))}
-              disabled={guestCount <= minPax}
-              className="grid h-9 w-9 place-items-center rounded-lg text-primary transition hover:bg-primary/5 disabled:opacity-35"
-            >
-              <Minus className="h-4 w-4" />
-            </button>
-            <label className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-primary" />
-              <span className="sr-only">{guestLabel}</span>
-              <input
-                inputMode="numeric"
-                value={guestInput}
-                onChange={(event) =>
-                  setGuestInput(event.target.value.replace(/\D/g, ''))
-                }
-                onBlur={() => commitGuestCount(guestInput)}
-                className="w-16 bg-transparent text-center font-serif text-xl font-semibold outline-none"
-                required
-              />
-            </label>
-            <button
-              type="button"
-              aria-label={`Increase ${guestLabel.toLowerCase()}`}
-              onClick={() => commitGuestCount(String(guestCount + 1))}
-              disabled={Boolean(maxPax && guestCount >= maxPax)}
-              className="grid h-9 w-9 place-items-center rounded-lg text-primary transition hover:bg-primary/5 disabled:opacity-35"
-            >
-              <Plus className="h-4 w-4" />
-            </button>
+        {!hideQuantity && (
+          <div>
+            <span className="mb-2 block text-sm font-semibold">
+              {guestLabel}
+            </span>
+            <div className="flex min-h-12 items-center justify-between rounded-xl border bg-white px-2">
+              <button
+                type="button"
+                aria-label={`Decrease ${guestLabel.toLowerCase()}`}
+                onClick={() => commitGuestCount(String(guestCount - 1))}
+                disabled={guestCount <= minPax}
+                className="grid h-9 w-9 place-items-center rounded-lg text-primary transition hover:bg-primary/5 disabled:opacity-35"
+              >
+                <Minus className="h-4 w-4" />
+              </button>
+              <label className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-primary" />
+                <span className="sr-only">{guestLabel}</span>
+                <input
+                  inputMode="numeric"
+                  value={guestInput}
+                  onChange={(event) =>
+                    setGuestInput(event.target.value.replace(/\D/g, ''))
+                  }
+                  onBlur={() => commitGuestCount(guestInput)}
+                  className="w-16 bg-transparent text-center font-serif text-xl font-semibold outline-none"
+                  required
+                />
+              </label>
+              <button
+                type="button"
+                aria-label={`Increase ${guestLabel.toLowerCase()}`}
+                onClick={() => commitGuestCount(String(guestCount + 1))}
+                disabled={Boolean(maxPax && guestCount >= maxPax)}
+                className="grid h-9 w-9 place-items-center rounded-lg text-primary transition hover:bg-primary/5 disabled:opacity-35"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+            </div>
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              {minPax} minimum{maxPax ? ` · ${maxPax} maximum` : ''}
+            </p>
           </div>
-          <p className="mt-1.5 text-xs text-muted-foreground">
-            {minPax} minimum{maxPax ? ` · ${maxPax} maximum` : ''}
-          </p>
-        </div>}
+        )}
       </div>
 
       <div className="mt-4 rounded-2xl border border-border bg-muted/50 p-4 text-muted-foreground">
@@ -707,16 +723,31 @@ export function SelectionContextPanel({
               ? selectedVenue.isDefault
                 ? 'Your default saved address is selected automatically'
                 : 'Saved address selected'
-              : 'Choose one of your saved addresses'}
+              : deliveryLocation
+                ? 'Complete the address details for the location selected on the home page'
+                : 'Choose one of your saved addresses'}
           </p>
         </div>
         <Link
           className="inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-full px-3 text-sm font-bold text-primary transition hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
           href={`/addresses?tab=map&returnTo=${encodeURIComponent(returnTo)}`}
         >
-          <Plus className="h-4 w-4" /> Add new address
+          <Plus className="h-4 w-4" />
+          {deliveryLocation && !deliveryLocation.savedAddressId
+            ? 'Complete address'
+            : 'Add new address'}
         </Link>
       </div>
+
+      {deliveryLocation && !deliveryLocation.savedAddressId && (
+        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <p className="font-bold">{deliveryLocation.label}</p>
+          <p className="mt-1 text-xs leading-5">
+            Your map location is ready. Add the house, building or venue details
+            before checkout so the kitchen receives an exact delivery address.
+          </p>
+        </div>
+      )}
 
       {addresses.length > 0 ? (
         <div

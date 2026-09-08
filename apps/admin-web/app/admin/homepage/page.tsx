@@ -17,15 +17,18 @@ export default function AdminHomepage() {
   const [regions, setRegions] = useState<OperatingRegion[]>([]);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const isAdmin = session?.admin.role === 'ADMIN';
 
   useEffect(() => {
     if (!session) return;
     Promise.all([
-      apiRequest<OrderingOffering[]>(
-        '/admin/catalog/ordering-offerings',
-        {},
-        session.accessToken,
-      ),
+      session.admin.role === 'ADMIN'
+        ? apiRequest<OrderingOffering[]>(
+            '/admin/catalog/ordering-offerings',
+            {},
+            session.accessToken,
+          )
+        : Promise.resolve([]),
       apiRequest<OperatingRegion[]>(
         '/admin/operating-regions',
         {},
@@ -97,11 +100,13 @@ export default function AdminHomepage() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="admin-eyebrow">Home page</p>
-          <h1 className="admin-title mt-2">Home page manager</h1>
+          <h1 className="admin-title mt-2">
+            {isAdmin ? 'Home page manager' : 'Kitchen availability'}
+          </h1>
           <p className="mt-2 max-w-3xl text-muted-foreground">
-            Control the ordering cards shown on the customer home page. These
-            cards decide how customers enter meal boxes, packages, or the custom
-            menu builder.
+            {isAdmin
+              ? 'Control the ordering cards and kitchens shown on the customer home page.'
+              : 'Open or close your assigned kitchen for new customer orders.'}
           </p>
         </div>
         <div className="rounded-2xl border bg-white/80 px-4 py-3 text-sm text-muted-foreground">
@@ -125,93 +130,97 @@ export default function AdminHomepage() {
         </div>
       )}
 
-      <section className="mt-7 grid gap-4 xl:grid-cols-3">
-        {offerings.map((offering) => (
-          <article key={offering.code} className="admin-card">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-                  {offering.code.replaceAll('_', ' ')}
-                </p>
-                <h2 className="mt-2 text-xl font-semibold">{offering.title}</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {offering.description}
-                </p>
-              </div>
-              <Switch
-                checked={offering.isActive}
-                onChange={(event) =>
-                  updateOffering(offering, { isActive: event.target.checked })
-                }
-              />
-            </div>
-
-            <div className="mt-5 overflow-hidden rounded-2xl border bg-muted/30">
-              <div className="grid aspect-[16/10] place-items-center bg-muted">
-                {offering.imageUrl ? (
-                  <img
-                    src={resolveMediaUrl(offering.imageUrl)}
-                    alt={offering.title}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <ImagePlus className="h-8 w-8 text-muted-foreground" />
-                )}
-              </div>
-              <div className="p-3">
-                <MediaUploader
-                  compact
-                  value={offering.imageUrl ?? ''}
-                  onChange={(imageUrl) =>
-                    updateOffering(offering, { imageUrl })
+      {isAdmin && (
+        <section className="mt-7 grid gap-4 xl:grid-cols-3">
+          {offerings.map((offering) => (
+            <article key={offering.code} className="admin-card">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+                    {offering.code.replaceAll('_', ' ')}
+                  </p>
+                  <h2 className="mt-2 text-xl font-semibold">
+                    {offering.title}
+                  </h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {offering.description}
+                  </p>
+                </div>
+                <Switch
+                  checked={offering.isActive}
+                  onChange={(event) =>
+                    updateOffering(offering, { isActive: event.target.checked })
                   }
-                  accessToken={session.accessToken}
-                  label={`${offering.title} card image`}
                 />
               </div>
-            </div>
 
-            <div className="mt-5 grid gap-4">
-              <Field label="Display order">
-                <Input
-                  type="number"
-                  min={0}
-                  defaultValue={offering.displayOrder}
-                  onBlur={(event) => {
-                    const value = Number(event.target.value);
-                    if (value !== offering.displayOrder)
-                      updateOffering(offering, { displayOrder: value });
-                  }}
-                />
-              </Field>
-              <Field label="Card image URL">
-                <Input
-                  defaultValue={offering.imageUrl ?? ''}
-                  placeholder="/order-mealbox.png"
-                  onBlur={(event) => {
-                    const value = event.target.value.trim();
-                    if (value !== (offering.imageUrl ?? ''))
-                      updateOffering(offering, { imageUrl: value });
-                  }}
-                />
-              </Field>
-              <Field label="CTA label">
-                <Input
-                  defaultValue={offering.ctaLabel ?? ''}
-                  placeholder="Explore"
-                  onBlur={(event) => {
-                    const value = event.target.value.trim();
-                    if (value !== (offering.ctaLabel ?? ''))
-                      updateOffering(offering, { ctaLabel: value });
-                  }}
-                />
-              </Field>
-            </div>
-          </article>
-        ))}
-      </section>
+              <div className="mt-5 overflow-hidden rounded-2xl border bg-muted/30">
+                <div className="grid aspect-[16/10] place-items-center bg-muted">
+                  {offering.imageUrl ? (
+                    <img
+                      src={resolveMediaUrl(offering.imageUrl)}
+                      alt={offering.title}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <ImagePlus className="h-8 w-8 text-muted-foreground" />
+                  )}
+                </div>
+                <div className="p-3">
+                  <MediaUploader
+                    compact
+                    value={offering.imageUrl ?? ''}
+                    onChange={(imageUrl) =>
+                      updateOffering(offering, { imageUrl })
+                    }
+                    accessToken={session.accessToken}
+                    label={`${offering.title} card image`}
+                  />
+                </div>
+              </div>
 
-      {!offerings.length && !error && (
+              <div className="mt-5 grid gap-4">
+                <Field label="Display order">
+                  <Input
+                    type="number"
+                    min={0}
+                    defaultValue={offering.displayOrder}
+                    onBlur={(event) => {
+                      const value = Number(event.target.value);
+                      if (value !== offering.displayOrder)
+                        updateOffering(offering, { displayOrder: value });
+                    }}
+                  />
+                </Field>
+                <Field label="Card image URL">
+                  <Input
+                    defaultValue={offering.imageUrl ?? ''}
+                    placeholder="/order-mealbox.png"
+                    onBlur={(event) => {
+                      const value = event.target.value.trim();
+                      if (value !== (offering.imageUrl ?? ''))
+                        updateOffering(offering, { imageUrl: value });
+                    }}
+                  />
+                </Field>
+                <Field label="CTA label">
+                  <Input
+                    defaultValue={offering.ctaLabel ?? ''}
+                    placeholder="Explore"
+                    onBlur={(event) => {
+                      const value = event.target.value.trim();
+                      if (value !== (offering.ctaLabel ?? ''))
+                        updateOffering(offering, { ctaLabel: value });
+                    }}
+                  />
+                </Field>
+              </div>
+            </article>
+          ))}
+        </section>
+      )}
+
+      {isAdmin && !offerings.length && !error && (
         <div className="admin-card mt-7 text-center text-muted-foreground">
           Loading home page cards…
         </div>
@@ -221,11 +230,13 @@ export default function AdminHomepage() {
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="admin-eyebrow">Kitchen locations</p>
-            <h2 className="admin-title mt-2">Public kitchen cards</h2>
+            <h2 className="admin-title mt-2">
+              {isAdmin ? 'Public kitchen cards' : 'Your kitchen'}
+            </h2>
             <p className="mt-2 max-w-3xl text-muted-foreground">
-              These details power the kitchen cards on the customer home and
-              about pages, including FSSAI numbers, photos, addresses and map
-              links.
+              {isAdmin
+                ? 'Manage public kitchen details and whether each location can accept new orders.'
+                : 'This status is shown to customers and enforced again at checkout.'}
             </p>
           </div>
           <div className="rounded-2xl border bg-white/80 px-4 py-3 text-sm text-muted-foreground">
@@ -246,107 +257,140 @@ export default function AdminHomepage() {
                     {region.name} Kitchen
                   </h3>
                 </div>
-                <Switch
-                  checked={region.isActive}
-                  onChange={(event) =>
-                    updateRegion(region, { isActive: event.target.checked })
-                  }
-                />
+                <span
+                  className={`rounded-full px-3 py-1 text-xs font-bold ${
+                    region.isAcceptingOrders
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : 'bg-red-100 text-red-800'
+                  }`}
+                >
+                  {region.isAcceptingOrders ? 'Open' : 'Closed'}
+                </span>
               </div>
 
-              <div className="mt-5 overflow-hidden rounded-2xl border bg-muted/30">
-                <div className="grid aspect-[16/9] place-items-center bg-muted">
-                  {region.kitchenImageUrl ? (
-                    <img
-                      src={resolveMediaUrl(region.kitchenImageUrl)}
-                      alt={`${region.name} kitchen`}
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <ImagePlus className="h-8 w-8 text-muted-foreground" />
-                  )}
-                </div>
-                <div className="p-3">
-                  <MediaUploader
-                    compact
-                    value={region.kitchenImageUrl ?? ''}
-                    onChange={(kitchenImageUrl) =>
-                      updateRegion(region, { kitchenImageUrl })
+              <div className="mt-4 grid gap-2 rounded-xl border bg-muted/30 p-3">
+                <label className="flex items-center justify-between gap-3 text-sm font-semibold">
+                  Accepting new orders
+                  <Switch
+                    checked={region.isAcceptingOrders}
+                    onChange={(event) =>
+                      updateRegion(region, {
+                        isAcceptingOrders: event.target.checked,
+                      })
                     }
-                    accessToken={session.accessToken}
-                    label={`${region.name} kitchen photo`}
                   />
-                </div>
+                </label>
+                {isAdmin && (
+                  <label className="flex items-center justify-between gap-3 border-t pt-2 text-xs text-muted-foreground">
+                    Show location publicly
+                    <Switch
+                      size="small"
+                      checked={region.isActive}
+                      onChange={(event) =>
+                        updateRegion(region, { isActive: event.target.checked })
+                      }
+                    />
+                  </label>
+                )}
               </div>
 
-              <div className="mt-5 grid gap-4">
-                <Field label="Display order">
-                  <Input
-                    type="number"
-                    min={0}
-                    defaultValue={region.publicDisplayOrder}
-                    onBlur={(event) => {
-                      const value = Number(event.target.value);
-                      if (value !== region.publicDisplayOrder)
-                        updateRegion(region, { publicDisplayOrder: value });
-                    }}
-                  />
-                </Field>
-                <Field label="Kitchen name">
-                  <Input
-                    defaultValue={region.name}
-                    onBlur={(event) => {
-                      const value = event.target.value.trim();
-                      if (value && value !== region.name)
-                        updateRegion(region, { name: value });
-                    }}
-                  />
-                </Field>
-                <Field label="Kitchen address">
-                  <Textarea
-                    rows={4}
-                    defaultValue={region.kitchenAddress ?? ''}
-                    onBlur={(event) => {
-                      const value = event.target.value.trim();
-                      if (value !== (region.kitchenAddress ?? ''))
-                        updateRegion(region, { kitchenAddress: value });
-                    }}
-                  />
-                </Field>
-                <Field label="FSSAI license" optional>
-                  <Input
-                    defaultValue={region.fssaiLicenseNo ?? ''}
-                    placeholder="Leave blank for In Process"
-                    onBlur={(event) => {
-                      const value = event.target.value.trim();
-                      if (value !== (region.fssaiLicenseNo ?? ''))
-                        updateRegion(region, { fssaiLicenseNo: value });
-                    }}
-                  />
-                </Field>
-                <Field label="Map URL" optional>
-                  <Input
-                    defaultValue={region.mapUrl ?? ''}
-                    placeholder={`https://www.google.com/maps?q=${region.centerLatitude},${region.centerLongitude}`}
-                    onBlur={(event) => {
-                      const value = event.target.value.trim();
-                      if (value !== (region.mapUrl ?? ''))
-                        updateRegion(region, { mapUrl: value });
-                    }}
-                  />
-                </Field>
-                <Field label="Photo URL" optional>
-                  <Input
-                    defaultValue={region.kitchenImageUrl ?? ''}
-                    placeholder="/office-hero.png"
-                    onBlur={(event) => {
-                      const value = event.target.value.trim();
-                      if (value !== (region.kitchenImageUrl ?? ''))
-                        updateRegion(region, { kitchenImageUrl: value });
-                    }}
-                  />
-                </Field>
-              </div>
+              {isAdmin && (
+                <>
+                  <div className="mt-5 overflow-hidden rounded-2xl border bg-muted/30">
+                    <div className="grid aspect-[16/9] place-items-center bg-muted">
+                      {region.kitchenImageUrl ? (
+                        <img
+                          src={resolveMediaUrl(region.kitchenImageUrl)}
+                          alt={`${region.name} kitchen`}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <ImagePlus className="h-8 w-8 text-muted-foreground" />
+                      )}
+                    </div>
+                    <div className="p-3">
+                      <MediaUploader
+                        compact
+                        value={region.kitchenImageUrl ?? ''}
+                        onChange={(kitchenImageUrl) =>
+                          updateRegion(region, { kitchenImageUrl })
+                        }
+                        accessToken={session.accessToken}
+                        label={`${region.name} kitchen photo`}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-5 grid gap-4">
+                    <Field label="Display order">
+                      <Input
+                        type="number"
+                        min={0}
+                        defaultValue={region.publicDisplayOrder}
+                        onBlur={(event) => {
+                          const value = Number(event.target.value);
+                          if (value !== region.publicDisplayOrder)
+                            updateRegion(region, { publicDisplayOrder: value });
+                        }}
+                      />
+                    </Field>
+                    <Field label="Kitchen name">
+                      <Input
+                        defaultValue={region.name}
+                        onBlur={(event) => {
+                          const value = event.target.value.trim();
+                          if (value && value !== region.name)
+                            updateRegion(region, { name: value });
+                        }}
+                      />
+                    </Field>
+                    <Field label="Kitchen address">
+                      <Textarea
+                        rows={4}
+                        defaultValue={region.kitchenAddress ?? ''}
+                        onBlur={(event) => {
+                          const value = event.target.value.trim();
+                          if (value !== (region.kitchenAddress ?? ''))
+                            updateRegion(region, { kitchenAddress: value });
+                        }}
+                      />
+                    </Field>
+                    <Field label="FSSAI license" optional>
+                      <Input
+                        defaultValue={region.fssaiLicenseNo ?? ''}
+                        placeholder="Leave blank for In Process"
+                        onBlur={(event) => {
+                          const value = event.target.value.trim();
+                          if (value !== (region.fssaiLicenseNo ?? ''))
+                            updateRegion(region, { fssaiLicenseNo: value });
+                        }}
+                      />
+                    </Field>
+                    <Field label="Map URL" optional>
+                      <Input
+                        defaultValue={region.mapUrl ?? ''}
+                        placeholder={`https://www.google.com/maps?q=${region.centerLatitude},${region.centerLongitude}`}
+                        onBlur={(event) => {
+                          const value = event.target.value.trim();
+                          if (value !== (region.mapUrl ?? ''))
+                            updateRegion(region, { mapUrl: value });
+                        }}
+                      />
+                    </Field>
+                    <Field label="Photo URL" optional>
+                      <Input
+                        defaultValue={region.kitchenImageUrl ?? ''}
+                        placeholder="/office-hero.png"
+                        onBlur={(event) => {
+                          const value = event.target.value.trim();
+                          if (value !== (region.kitchenImageUrl ?? ''))
+                            updateRegion(region, { kitchenImageUrl: value });
+                        }}
+                      />
+                    </Field>
+                  </div>
+                </>
+              )}
             </article>
           ))}
         </div>

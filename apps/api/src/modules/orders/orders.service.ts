@@ -77,17 +77,10 @@ export class OrdersService {
       cart.guestCount,
       dto.selectedItems,
     );
-    const assignment =
-      cart.region && cart.distanceKm !== null
-        ? {
-            region: cart.region,
-            distanceKm: cart.distanceKm,
-            deliveryFee: cart.deliveryFee,
-          }
-        : await this.regions.assign(
-            cart.address.latitude,
-            cart.address.longitude,
-          );
+    const assignment = await this.regions.assign(
+      cart.address.latitude,
+      cart.address.longitude,
+    );
     const totalAmount = menuQuote.totalAmount.plus(assignment.deliveryFee);
     const eventDate = cart.eventDate;
     const addressId = cart.addressId!;

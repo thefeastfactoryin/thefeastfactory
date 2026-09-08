@@ -55,7 +55,14 @@ test('a concurrent checkout uniqueness race returns the winning order', async ()
   const service = new OrdersService(
     prisma as never,
     pricing as never,
-    { serialize: () => null } as never,
+    {
+      assign: async () => ({
+        region: cart.region,
+        distanceKm: cart.distanceKm,
+        deliveryFee: cart.deliveryFee,
+      }),
+      serialize: () => null,
+    } as never,
   );
   const getCalls: string[] = [];
   service.get = async (_userId: string, id: string) => {

@@ -3,6 +3,7 @@
 import {
   indianStateOptions,
   type AddressType,
+  type LocationResolution,
   type UserAddress,
 } from '@aranyam/shared-types';
 import { createAddressSchema } from '@aranyam/validation';
@@ -17,6 +18,7 @@ import { AddressMapPicker } from '../../components/address-map-picker';
 import { apiRequest } from '../../lib/api';
 import { useSessionStore } from '../../store/session.store';
 import { safeReturnPath } from '../../lib/safe-return-path';
+import { useDeliveryLocationStore } from '../../store/delivery-location.store';
 
 const initialForm = {
   addressType: 'HOME' as AddressType,
@@ -37,6 +39,10 @@ export default function AddressesPage() {
   const [activeTab, setActiveTab] = useState<'saved' | 'map'>('saved');
   const [returnTo, setReturnTo] = useState<string | null>(null);
   const session = useSessionStore((state) => state.session);
+  const deliveryLocation = useDeliveryLocationStore((state) => state.location);
+  const setDeliveryLocation = useDeliveryLocationStore(
+    (state) => state.setLocation,
+  );
   const [addresses, setAddresses] = useState<UserAddress[]>([]);
   const [form, setForm] = useState(initialForm);
   const [error, setError] = useState('');
@@ -47,6 +53,14 @@ export default function AddressesPage() {
     const destination = safeReturnPath(params.get('returnTo'), '') || null;
     setReturnTo(destination);
     setActiveTab(params.get('tab') === 'map' ? 'map' : 'saved');
+    if (deliveryLocation) {
+      setForm((current) => ({
+        ...current,
+        ...deliveryLocation.address,
+        latitude: deliveryLocation.latitude,
+        longitude: deliveryLocation.longitude,
+      }));
+    }
   }, []);
 
   function switchTab(tab: 'saved' | 'map') {
@@ -114,6 +128,42 @@ export default function AddressesPage() {
         { method: 'POST', body: JSON.stringify(result.data) },
         session!.accessToken,
       );
+      if (created.latitude && created.longitude) {
+        try {
+          const resolution = await apiRequest<LocationResolution>(
+            '/operating-regions/resolve',
+            {
+              method: 'POST',
+              body: JSON.stringify({
+                latitude: created.latitude,
+                longitude: created.longitude,
+              }),
+            },
+          );
+          setDeliveryLocation({
+            latitude: created.latitude,
+            longitude: created.longitude,
+            label:
+              created.label ||
+              created.addressLine2 ||
+              created.addressLine1 ||
+              created.city,
+            source: 'saved',
+            savedAddressId: created.id,
+            address: {
+              addressLine1: created.addressLine1,
+              addressLine2: created.addressLine2 ?? undefined,
+              city: created.city,
+              state: created.state,
+              pincode: created.pincode,
+              landmark: created.landmark ?? undefined,
+            },
+            resolution,
+          });
+        } catch {
+          // The address is safely stored even if the availability check is temporarily unavailable.
+        }
+      }
       setForm({ ...initialForm, isDefault: false });
       if (returnTo) {
         router.replace(returnTo.replace('ADDRESS_ID', created.id));
@@ -193,6 +243,14 @@ export default function AddressesPage() {
               </p>
             </div>
             <AddressMapPicker
+              initialPosition={
+                deliveryLocation
+                  ? {
+                      latitude: deliveryLocation.latitude,
+                      longitude: deliveryLocation.longitude,
+                    }
+                  : undefined
+              }
               onAddress={(address) => {
                 setError('');
                 setForm((current) => ({ ...current, ...address }));

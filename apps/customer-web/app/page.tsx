@@ -30,6 +30,7 @@ import {
   PackageDetailsModal,
 } from '../components/catalog/package-details-modal';
 import { useOrderBuilderStore } from '../store/order-builder.store';
+import { useDeliveryLocationStore } from '../store/delivery-location.store';
 import { useSessionStore } from '../store/session.store';
 import { usePublicSettings } from '../components/public-settings-provider';
 import { KitchenLocationsSection } from '../components/home/kitchen-locations';
@@ -70,6 +71,7 @@ export default function HomePage() {
   const publicSettings = usePublicSettings();
   const router = useRouter();
   const session = useSessionStore((state) => state.session);
+  const deliveryLocation = useDeliveryLocationStore((state) => state.location);
   const currentPackage = useOrderBuilderStore((state) => state.package);
   const setPackage = useOrderBuilderStore((state) => state.setPackage);
   const setDbCartId = useOrderBuilderStore((state) => state.setDbCartId);
@@ -166,6 +168,10 @@ export default function HomePage() {
               body: JSON.stringify({
                 packageVersionId: pkg.activeVersion.id,
                 guestCount: pkg.activeVersion.minGuestCount,
+                ...(deliveryLocation?.resolution.serviceable &&
+                deliveryLocation.resolution.region
+                  ? { regionId: deliveryLocation.resolution.region.id }
+                  : {}),
               }),
             },
             session.accessToken,

@@ -31,6 +31,7 @@ import {
   type SelectedItem,
   useOrderBuilderStore,
 } from '../../../store/order-builder.store';
+import { useDeliveryLocationStore } from '../../../store/delivery-location.store';
 import { useSessionStore } from '../../../store/session.store';
 
 type CategoryRule = PackageConfiguration['categoryRules'][number];
@@ -74,6 +75,7 @@ function MenuSelectContent() {
   );
   const removeSwap = useOrderBuilderStore((state) => state.removeSwap);
   const session = useSessionStore((state) => state.session);
+  const deliveryLocation = useDeliveryLocationStore((state) => state.location);
 
   const [config, setConfig] = useState<PackageConfiguration>();
   const [error, setError] = useState('');
@@ -389,7 +391,13 @@ function MenuSelectContent() {
           body: JSON.stringify({
             ...(requestedCartId
               ? {}
-              : { packageVersionId: cartPackage.packageVersionId }),
+              : {
+                  packageVersionId: cartPackage.packageVersionId,
+                  ...(deliveryLocation?.resolution.serviceable &&
+                  deliveryLocation.resolution.region
+                    ? { regionId: deliveryLocation.resolution.region.id }
+                    : {}),
+                }),
             guestCount,
           }),
         },

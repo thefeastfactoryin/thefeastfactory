@@ -15,6 +15,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { apiRequest } from '../../../lib/api';
 import { cn } from '../../../lib/utils';
+import { useDeliveryLocationStore } from '../../../store/delivery-location.store';
 import { useOrderBuilderStore } from '../../../store/order-builder.store';
 import { useSessionStore } from '../../../store/session.store';
 
@@ -468,6 +469,7 @@ function BuildPackageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const session = useSessionStore((state) => state.session);
+  const deliveryLocation = useDeliveryLocationStore((state) => state.location);
   const setDbCartId = useOrderBuilderStore((state) => state.setDbCartId);
   const setStoredGuestCount = useOrderBuilderStore(
     (state) => state.setGuestCount,
@@ -687,7 +689,15 @@ function BuildPackageContent() {
         {
           method: cartId ? 'PUT' : 'POST',
           body: JSON.stringify({
-            ...(cartId ? {} : { packageVersionId }),
+            ...(cartId
+              ? {}
+              : {
+                  packageVersionId,
+                  ...(deliveryLocation?.resolution.serviceable &&
+                  deliveryLocation.resolution.region
+                    ? { regionId: deliveryLocation.resolution.region.id }
+                    : {}),
+                }),
             guestCount,
           }),
         },

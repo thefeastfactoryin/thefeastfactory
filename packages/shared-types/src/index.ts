@@ -117,6 +117,14 @@ export type OperatingRegion = {
   serviceRadiusKm: string;
   deliveryFeePerKm: string;
   isActive: boolean;
+  isAcceptingOrders: boolean;
+};
+
+export type LocationResolution = {
+  serviceable: boolean;
+  reason: 'KITCHEN_CLOSED' | 'OUTSIDE_SERVICE_AREA' | null;
+  region: OperatingRegion | null;
+  distanceKm: string | null;
 };
 
 export type PackageSummary = {

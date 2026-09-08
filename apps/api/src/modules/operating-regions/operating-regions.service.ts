@@ -31,6 +31,42 @@ export class OperatingRegionsService {
       .then((rows) => rows.map((row) => this.serialize(row)));
   }
 
+  async listForAdmin(admin: JwtPayload, activeOnly = false) {
+    const regionId = await this.resolveAdminScope(admin);
+    const rows = await this.prisma.operatingRegion.findMany({
+      where: {
+        ...(activeOnly ? { isActive: true } : {}),
+        ...(regionId ? { id: regionId } : {}),
+      },
+      orderBy: [{ publicDisplayOrder: 'asc' }, { name: 'asc' }],
+    });
+    return rows.map((row) => this.serialize(row));
+  }
+
+  async updateForAdmin(
+    admin: JwtPayload,
+    id: string,
+    dto: UpdateOperatingRegionDto,
+  ) {
+    const regionId = await this.resolveAdminScope(admin, id);
+    if (regionId && regionId !== id) {
+      throw new ForbiddenException(
+        'You can only update your assigned kitchen.',
+      );
+    }
+    if (admin.role === AdminRole.OPERATIONS) {
+      const disallowedFields = Object.keys(dto).filter(
+        (field) => field !== 'isAcceptingOrders',
+      );
+      if (disallowedFields.length) {
+        throw new ForbiddenException(
+          'Kitchen operators can only change order availability.',
+        );
+      }
+    }
+    return this.update(id, dto);
+  }
+
   async update(id: string, dto: UpdateOperatingRegionDto) {
     const current = await this.prisma.operatingRegion.findUnique({
       where: { id },
@@ -69,6 +105,9 @@ export class OperatingRegionsService {
           ? { deliveryFeePerKm: new Prisma.Decimal(dto.deliveryFeePerKm) }
           : {}),
         ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
+        ...(dto.isAcceptingOrders !== undefined
+          ? { isAcceptingOrders: dto.isAcceptingOrders }
+          : {}),
       },
     });
     return this.serialize(row);
@@ -108,13 +147,30 @@ export class OperatingRegionsService {
         );
         return { region, distance };
       })
-      .filter((entry) => entry.distance <= Number(entry.region.serviceRadiusKm))
+      .filter(
+        (entry) =>
+          entry.region.isAcceptingOrders &&
+          entry.distance <= Number(entry.region.serviceRadiusKm),
+      )
       .sort((a, b) => a.distance - b.distance);
 
     const nearest = matches[0];
     if (!nearest) {
+      const closedKitchen = regions.some((region) => {
+        if (region.isAcceptingOrders) return false;
+        return (
+          haversineKm(
+            lat,
+            lng,
+            Number(region.centerLatitude),
+            Number(region.centerLongitude),
+          ) <= Number(region.serviceRadiusKm)
+        );
+      });
       throw new BadRequestException(
-        'This event location is outside our current kitchen service areas.',
+        closedKitchen
+          ? 'The kitchen serving this location is currently closed for new orders.'
+          : 'This event location is outside our current kitchen service areas.',
       );
     }
 
@@ -136,7 +192,7 @@ export class OperatingRegionsService {
     longitude?: Prisma.Decimal | string | null,
   ): Promise<RegionAssignment> {
     const region = await this.prisma.operatingRegion.findFirst({
-      where: { id: regionId, isActive: true },
+      where: { id: regionId, isActive: true, isAcceptingOrders: true },
     });
     if (!region) {
       throw new BadRequestException(
@@ -181,6 +237,65 @@ export class OperatingRegionsService {
       deliveryFee: new Prisma.Decimal(billableDistanceKm).mul(
         region.deliveryFeePerKm,
       ),
+    };
+  }
+
+  async resolveLocation(latitude: string, longitude: string) {
+    const lat = Number(latitude);
+    const lng = Number(longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      throw new BadRequestException('Location coordinates are invalid.');
+    }
+
+    const regions = await this.prisma.operatingRegion.findMany({
+      where: { isActive: true },
+      orderBy: [{ publicDisplayOrder: 'asc' }, { name: 'asc' }],
+    });
+    if (!regions.length) {
+      return {
+        serviceable: false,
+        reason: 'OUTSIDE_SERVICE_AREA' as const,
+        region: null,
+        distanceKm: null,
+      };
+    }
+
+    const distances = regions
+      .map((region) => ({
+        region,
+        distance: haversineKm(
+          lat,
+          lng,
+          Number(region.centerLatitude),
+          Number(region.centerLongitude),
+        ),
+      }))
+      .sort((first, second) => first.distance - second.distance);
+    const assigned = distances.find(
+      ({ region, distance }) =>
+        region.isAcceptingOrders && distance <= Number(region.serviceRadiusKm),
+    );
+    if (assigned) {
+      return {
+        serviceable: true,
+        reason: null,
+        region: this.serialize(assigned.region),
+        distanceKm: assigned.distance.toFixed(2),
+      };
+    }
+
+    const closed = distances.find(
+      ({ region, distance }) =>
+        !region.isAcceptingOrders && distance <= Number(region.serviceRadiusKm),
+    );
+    const nearest = closed ?? distances[0];
+    return {
+      serviceable: false,
+      reason: closed
+        ? ('KITCHEN_CLOSED' as const)
+        : ('OUTSIDE_SERVICE_AREA' as const),
+      region: this.serialize(nearest.region),
+      distanceKm: nearest.distance.toFixed(2),
     };
   }
 

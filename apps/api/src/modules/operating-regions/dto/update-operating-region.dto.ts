@@ -70,4 +70,9 @@ export class UpdateOperatingRegionDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isAcceptingOrders?: boolean;
 }

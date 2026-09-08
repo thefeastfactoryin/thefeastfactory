@@ -993,6 +993,22 @@ export interface paths {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/operating-regions/resolve": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        readonly post: operations["OperatingRegionsController_resolve"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/orders": {
         readonly parameters: {
             readonly query?: never;
@@ -1443,6 +1459,12 @@ export interface components {
              */
             readonly mobileNumber: string;
         };
+        readonly ResolveLocationDto: {
+            /** @example 17.44858350 */
+            readonly latitude: string;
+            /** @example 78.39080340 */
+            readonly longitude: string;
+        };
         readonly SelectedPackageItemDto: {
             /** Format: uuid */
             readonly categoryId: string;
@@ -1533,6 +1555,7 @@ export interface components {
             readonly centerLongitude?: string;
             readonly deliveryFeePerKm?: string;
             readonly fssaiLicenseNo?: string;
+            readonly isAcceptingOrders?: boolean;
             readonly isActive?: boolean;
             readonly kitchenAddress?: string;
             readonly kitchenImageUrl?: string;
@@ -3188,6 +3211,29 @@ export interface operations {
                     readonly [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    readonly OperatingRegionsController_resolve: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["ResolveLocationDto"];
+            };
+        };
+        readonly responses: {
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": Record<string, never>;
+                };
             };
         };
     };

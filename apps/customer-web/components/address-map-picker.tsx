@@ -1,9 +1,10 @@
 'use client';
 
-import { importLibrary, setOptions } from '@googlemaps/js-api-loader';
+import { importLibrary } from '@googlemaps/js-api-loader';
 import { Crosshair, LoaderCircle, MapPin, Search } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { publicEnv } from '../lib/public-env';
+import { configureGoogleMaps } from '../lib/google-maps';
 import { Button } from './ui/button';
 
 export type MapAddress = {
@@ -126,6 +127,25 @@ function parseAddress(
   };
 }
 
+export async function reverseGeocodeLocation(
+  latitude: string,
+  longitude: string,
+) {
+  const apiKey = publicEnv.googleMapsApiKey;
+  if (!apiKey) return undefined;
+  const position = { lat: Number(latitude), lng: Number(longitude) };
+  if (!Number.isFinite(position.lat) || !Number.isFinite(position.lng))
+    return undefined;
+  configureGoogleMaps(apiKey);
+  await importLibrary('geocoding');
+  const response = await new google.maps.Geocoder().geocode({
+    location: position,
+  });
+  return response.results[0]
+    ? parseAddress(response.results[0], position)
+    : undefined;
+}
+
 function placeComponentValue(
   components: google.maps.places.AddressComponent[],
   ...types: string[]
@@ -183,14 +203,17 @@ function parsePlaceAddress(
 
 export function AddressMapPicker({
   onAddress,
+  initialPosition,
 }: {
   onAddress: (address: MapAddress) => void;
+  initialPosition?: { latitude: string; longitude: string };
 }) {
   const mapElement = useRef<HTMLDivElement>(null);
   const searchElement = useRef<HTMLDivElement>(null);
   const map = useRef<google.maps.Map | null>(null);
   const marker = useRef<google.maps.Marker | null>(null);
   const geocoder = useRef<google.maps.Geocoder | null>(null);
+  const initialPositionRef = useRef(initialPosition);
   const [status, setStatus] = useState<PickerStatus>('idle');
   const [message, setMessage] = useState('');
   const apiKey = publicEnv.googleMapsApiKey;
@@ -243,7 +266,7 @@ export function AddressMapPicker({
     setStatus('loading-map');
     setMessage('Loading Google Maps…');
 
-    setOptions({ key: apiKey, v: 'weekly', language: 'en', region: 'IN' });
+    configureGoogleMaps(apiKey);
     Promise.all([
       importLibrary('maps'),
       importLibrary('marker'),
@@ -347,6 +370,14 @@ export function AddressMapPicker({
         setMessage(
           'Search, click the map, drag the pin, or use your current location.',
         );
+        const initial = initialPositionRef.current;
+        if (initial) {
+          const latitude = Number(initial.latitude);
+          const longitude = Number(initial.longitude);
+          if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+            void selectPosition({ lat: latitude, lng: longitude }, 17);
+          }
+        }
       })
       .catch(() => {
         if (!active) return;
