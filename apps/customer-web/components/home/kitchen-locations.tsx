@@ -12,12 +12,6 @@ const landmarkIcons: Record<string, string> = {
     '/kitchen-icons/ChatGPT%20Image%20Sep%2010,%202026%20at%2009_24_17%20PM.png',
 };
 
-const aboutKitchenImages: Record<string, string> = {
-  warangal: '/Warangal Kitchen.JPG',
-  hyderabad: '/Hyderabad Kitchen.jpeg',
-  karimnagar: '/Karimnagar Kitchen.png',
-};
-
 function mapHref(region: OperatingRegion) {
   return (
     region.mapUrl ||
@@ -27,6 +21,38 @@ function mapHref(region: OperatingRegion) {
 
 function landmarkIconFor(location: OperatingRegion) {
   return landmarkIcons[location.name.trim().toLowerCase()];
+}
+
+function FloralAccent({ side }: { side: 'left' | 'right' }) {
+  const isLeft = side === 'left';
+
+  return (
+    <svg
+      viewBox="0 0 80 180"
+      aria-hidden="true"
+      className={[
+        'pointer-events-none absolute top-1/2 hidden h-[120px] w-[80px] -translate-y-1/2 opacity-80 sm:block',
+        isLeft ? 'left-0' : 'right-0',
+      ].join(' ')}
+    >
+      <g
+        fill="none"
+        stroke="#d4b27d"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+      >
+        <path d={isLeft ? 'M32 10C48 28 50 46 36 74C26 96 16 122 20 158' : 'M48 10C32 28 30 46 44 74C54 96 64 122 60 158'} />
+        <path d={isLeft ? 'M16 32C26 28 36 34 38 44C35 54 24 57 16 54' : 'M64 32C54 28 44 34 42 44C45 54 56 57 64 54'} />
+        <path d={isLeft ? 'M20 80C33 72 43 78 46 92C40 102 28 108 20 106' : 'M60 80C47 72 37 78 34 92C40 102 52 108 60 106'} />
+        <path d={isLeft ? 'M20 130C28 120 36 122 42 135C34 146 24 150 18 148' : 'M60 130C52 120 44 122 38 135C46 146 56 150 62 148'} />
+        <circle cx={isLeft ? 30 : 50} cy={isLeft ? 24 : 24} r="5" fill="#d4b27d" stroke="none" />
+        <circle cx={isLeft ? 20 : 60} cy={isLeft ? 60 : 60} r="4" fill="#d4b27d" stroke="none" />
+        <circle cx={isLeft ? 26 : 54} cy={isLeft ? 100 : 100} r="4.2" fill="#d4b27d" stroke="none" />
+        <circle cx={isLeft ? 24 : 56} cy={isLeft ? 140 : 140} r="4" fill="#d4b27d" stroke="none" />
+      </g>
+    </svg>
+  );
 }
 
 export function KitchenLocationsSection({
@@ -43,7 +69,19 @@ export function KitchenLocationsSection({
   return (
     <section className={className}>
       <div className="container-pad">
-        <div className={variant === 'about' ? 'about-kitchen-panel' : 'flex flex-col gap-6 rounded-xl border border-border bg-ivory px-5 py-6 shadow-[0_4px_18px_rgba(74,43,35,0.04)] sm:px-7 lg:flex-row lg:items-center lg:gap-0 lg:px-8 lg:py-6'}>
+        <div className={variant === 'about' ? 'about-kitchen-panel relative' : 'relative flex flex-col gap-6 overflow-hidden rounded-xl border border-border bg-ivory px-5 py-6 shadow-[0_4px_18px_rgba(74,43,35,0.04)] sm:px-7 lg:flex-row lg:items-center lg:gap-0 lg:px-8 lg:py-6'}>
+          {variant === 'about' && (
+            <div className="pointer-events-none absolute left-8 top-1/2 hidden h-[120px] -translate-y-1/2 sm:block">
+              <FloralAccent side="left" />
+            </div>
+          )}
+          {variant === 'about' && (
+            <div className="pointer-events-none absolute right-8 top-1/2 hidden h-[120px] -translate-y-1/2 sm:block">
+              <FloralAccent side="right" />
+            </div>
+          )}
+          {variant !== 'about' && <FloralAccent side="left" />}
+          {variant !== 'about' && <FloralAccent side="right" />}
           {variant === 'about' && <div className="about-kitchen-heading"><p className="eyebrow">Our kitchens across Telangana</p><p className="mt-1 text-xs text-muted-foreground">Food Prepared in Our Own Kitchens, Across {locations.length} Major Cities.</p></div>}
           {variant !== 'about' && (
           <div className="shrink-0 lg:w-[35%] lg:border-r lg:border-border lg:pr-8">
@@ -59,54 +97,15 @@ export function KitchenLocationsSection({
           <div className={variant === 'about' ? 'about-kitchen-grid' : 'grid flex-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:px-6'}>
             {locations.map((location) => {
               const iconSrc = landmarkIconFor(location);
-              if (variant === 'about') {
-                const aboutImage =
-                  aboutKitchenImages[location.name.trim().toLowerCase()] ||
-                  location.kitchenImageUrl ||
-                  '/about-gathering.png';
-                return (
-                  <article key={location.id} className="about-kitchen-card">
-                    <div
-                      className="about-kitchen-photo"
-                      style={{
-                        backgroundImage: `url("${aboutImage}")`,
-                      }}
-                    />
-                    <h3 className="mt-3 font-serif text-lg font-bold text-foreground">
-                      {location.name} Kitchen
-                    </h3>
-                    <p className="about-kitchen-address">
-                      {location.kitchenAddress || 'Kitchen address available on request.'}
-                    </p>
-                    <div className="about-kitchen-license">
-                      {location.fssaiLicenseNo ? (
-                        <>
-                          <span className="about-fssai-mark">fssai</span>
-                          <span><small>FSSAI License No.</small><strong>{location.fssaiLicenseNo}</strong></span>
-                        </>
-                      ) : (
-                        <span className="about-license-pending"><Hourglass className="h-4 w-4" /> FSSAI License<br />In Process</span>
-                      )}
-                    </div>
-                    <a
-                      href={mapHref(location)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="about-kitchen-map"
-                    >
-                      View on Map <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
-                    </a>
-                  </article>
-                );
-              }
               return (
                 <a
                   key={location.id}
                   href={mapHref(location)}
                   target="_blank"
                   rel="noreferrer"
-                  className="group flex min-w-0 flex-col items-center justify-center border-border text-center sm:px-2 lg:border-r lg:last:border-r-0 lg:px-2"
+                  className={variant === 'about' ? 'about-kitchen-card group' : 'group flex min-w-0 flex-col items-center justify-center border-border text-center sm:px-2 lg:border-r lg:last:border-r-0 lg:px-2'}
                 >
+                  {variant === 'about' && <span className="about-kitchen-photo" aria-hidden="true" />}
                   <span className="flex h-11 items-center justify-center transition-transform duration-200 group-hover:-translate-y-0.5">
                     {iconSrc ? (
                       <img

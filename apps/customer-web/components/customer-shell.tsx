@@ -113,8 +113,8 @@ export function CustomerShell({
               alt=""
               className="h-12 w-12 rounded-md object-cover shadow-[0_4px_12px_rgba(122,31,43,0.14)] sm:h-14 sm:w-14"
             />
-            <span className="hidden sm:flex sm:flex-col">
-              <span className="block font-serif text-[20px] font-semibold leading-none tracking-normal text-primary sm:text-[22px]">
+            <span className="flex min-w-0 flex-col">
+              <span className="block truncate font-serif text-[16px] font-semibold leading-none tracking-normal text-primary sm:text-[22px]">
                 The Feast Factory
               </span>
             </span>

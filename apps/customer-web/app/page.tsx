@@ -213,7 +213,7 @@ export default function HomePage() {
         }}
       >
         <div className="container-pad">
-          <div className="grid items-center gap-6 py-8 sm:gap-8 sm:py-10 lg:min-h-[448px] lg:grid-cols-[0.88fr_1.12fr] lg:gap-12 lg:py-12">
+          <div className="grid items-center gap-5 py-6 sm:gap-8 sm:py-10 lg:min-h-[448px] lg:grid-cols-[0.88fr_1.12fr] lg:gap-12 lg:py-12">
             <div className="max-w-xl">
               <p className="eyebrow">Premium bulk catering</p>
               <h1 className="mt-4 font-serif text-4xl font-bold leading-[0.98] tracking-tight sm:text-[42px] lg:text-[3.75rem]">
@@ -235,13 +235,13 @@ export default function HomePage() {
               </Link>
 
               <div
-                className="mt-5 flex max-w-xl flex-wrap gap-2"
+                className="mt-4 grid max-w-xl grid-cols-2 gap-2 sm:mt-5 sm:flex sm:flex-wrap"
                 aria-label="Service trust signals"
               >
                 {heroTags.map((tag) => (
                   <div
                     key={tag}
-                    className="inline-flex h-8 w-full items-center gap-2 rounded-full bg-white/[0.08] px-3 text-[11px] font-medium text-white/85 ring-1 ring-inset ring-white/15 sm:w-auto"
+                    className="inline-flex h-8 min-w-0 items-center gap-1.5 rounded-full bg-white/[0.08] px-2.5 text-[10px] font-medium text-white/85 ring-1 ring-inset ring-white/15 sm:w-auto sm:gap-2 sm:px-3 sm:text-[11px]"
                   >
                     <span className="whitespace-nowrap">{tag}</span>
                   </div>
@@ -271,7 +271,7 @@ export default function HomePage() {
 
       {/* Change: Consolidate all service assurances into one squared-off trust band directly beneath the hero. */}
       <section className="border-b border-border bg-ivory">
-        <div className="container-pad grid sm:grid-cols-2 lg:grid-cols-4">
+        <div className="container-pad grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4">
           {catalogCopy.trust.map(([title, configuredDescription], index) => {
             const Icon = trustIcons[index]!;
             const description =
@@ -283,14 +283,14 @@ export default function HomePage() {
             return (
               <div
                 key={title}
-                className="flex items-start gap-3 border-border px-4 py-5 sm:border-r sm:last:border-r-0 lg:px-5"
+                className="flex items-start gap-2 border-border px-2.5 py-4 sm:gap-3 sm:px-4 sm:py-5 lg:px-5"
               >
                 <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] bg-primary/10 text-primary">
                   <Icon className="h-4 w-4" aria-hidden="true" />
                 </span>
                 <div>
-                  <h2 className="text-sm font-extrabold">{title}</h2>
-                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  <h2 className="text-xs font-extrabold sm:text-sm">{title}</h2>
+                  <p className="mt-1 text-[10px] leading-4 text-muted-foreground sm:text-xs sm:leading-5">
                     {description}
                   </p>
                 </div>
@@ -302,17 +302,17 @@ export default function HomePage() {
 
       <KitchenLocationsSection
         locations={kitchenLocations}
-        className="bg-ivory py-10 lg:py-12"
+        className="bg-ivory py-7 lg:py-12"
       />
 
-      <section id="ordering-styles" className="container-pad py-10 lg:py-12">
-        <div className="mx-auto mb-8 max-w-2xl text-center">
+      <section id="ordering-styles" className="container-pad py-8 lg:py-12">
+        <div className="mx-auto mb-5 max-w-2xl text-center sm:mb-8">
           <p className="eyebrow font-semibold">How you order</p>
           <h2 className="mt-2 font-[family-name:var(--font-home-display)] text-3xl font-semibold leading-10 tracking-tight sm:text-4xl">
             Choose the ordering style that fits your event
           </h2>
         </div>
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-6 sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-3">
           {offerings.map((offering) => {
             const display = offeringDisplay[offering.code];
             const Icon = offeringIcons[offering.code] ?? PackageIcon;
@@ -322,7 +322,7 @@ export default function HomePage() {
               <Link
                 key={offering.id}
                 href={display.href}
-                className="group flex h-[340px] flex-col overflow-hidden rounded-xl border border-border bg-card shadow-card transition-all duration-300 ease-premium hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-card-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                className="group flex h-[320px] w-[82vw] max-w-[320px] shrink-0 snap-start flex-col overflow-hidden rounded-xl border border-border bg-card shadow-card transition-all duration-300 ease-premium hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-card-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 sm:h-[340px] sm:w-auto sm:max-w-none sm:shrink"
               >
                 <div className="relative h-40 shrink-0 overflow-hidden bg-muted">
                   <img
@@ -367,14 +367,14 @@ export default function HomePage() {
             View all packages <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
-        <div className="mt-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-5 -mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-2 sm:mt-7 sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-4 sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-4">
           {packages.map((pkg) => {
             const version = pkg.activeVersion!;
             const includes = configs[pkg.id]?.categoryRules.slice(0, 3) ?? [];
             return (
               <article
                 key={pkg.id}
-                className="group overflow-hidden rounded-2xl border border-border/80 bg-card shadow-[0_2px_14px_rgba(0,0,0,0.045)] transition-all duration-250 ease-premium hover:-translate-y-1 hover:border-primary/25 hover:shadow-card-hover"
+                className="group w-[82vw] max-w-[340px] shrink-0 snap-start overflow-hidden rounded-2xl border border-border/80 bg-card shadow-[0_2px_14px_rgba(0,0,0,0.045)] transition-all duration-250 ease-premium hover:-translate-y-1 hover:border-primary/25 hover:shadow-card-hover sm:w-auto sm:max-w-none sm:shrink"
               >
                 <button
                   type="button"

@@ -228,7 +228,7 @@ export default function AboutPage() {
       <KitchenLocationsSection
         locations={kitchens}
         variant="about"
-        className="border-y border-border bg-white py-7 lg:py-8"
+        className="scroll-mt-24 border-y border-border bg-white py-7 lg:py-8"
       />
 
       <section className="container-pad grid items-stretch gap-5 py-7 lg:grid-cols-[0.9fr_0.82fr_1.55fr]">
