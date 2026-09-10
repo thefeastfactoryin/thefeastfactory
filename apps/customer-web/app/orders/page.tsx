@@ -26,7 +26,7 @@ export default function OrdersPage() {
     return (
       <AuthRequiredPanel
         title="Sign in to view your orders"
-        description="Order history, receipts, and live tracking are available after mobile verification."
+        description="View order history, receipts, and live status."
         returnHref="/orders"
       />
     );
@@ -34,18 +34,18 @@ export default function OrdersPage() {
     <main className="min-h-screen bg-background pb-28">
       <section className="relative overflow-hidden bg-hero-end text-white">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_25%,hsl(var(--accent)/0.18),transparent_30%),linear-gradient(105deg,hsl(var(--hero-end)),hsl(var(--primary)))]" />
-        <div className="container-pad relative py-9 sm:py-12">
+        <div className="container-pad relative py-5 sm:py-12">
           <p className="eyebrow">Your catering history</p>
-          <h1 className="mt-2 font-serif text-4xl font-semibold sm:text-5xl">
+          <h1 className="mt-1 font-serif text-3xl font-semibold sm:mt-2 sm:text-5xl">
             Your orders
           </h1>
-          <p className="mt-3 max-w-xl text-sm leading-6 text-white/75 sm:text-base">
+          <p className="mt-3 hidden max-w-xl text-sm leading-6 text-white/75 sm:block sm:text-base">
             Review complete menus, event details, payment status, receipts, and
             delivery progress.
           </p>
         </div>
       </section>
-      <div className="container-pad py-7 sm:py-9">
+      <div className="container-pad py-4 sm:py-9">
         {loading ? (
           <StatePanel
             tone="loading"
@@ -78,7 +78,7 @@ export default function OrdersPage() {
                 <Link
                   key={order.id}
                   href={`/orders/${order.id}`}
-                  className="group block p-5 transition hover:bg-ivory/70 md:grid md:grid-cols-[1.15fr_1.35fr_.85fr_.55fr_.85fr_.8fr_.75fr_24px] md:items-center md:gap-4"
+                  className="group block p-4 transition hover:bg-ivory/70 sm:p-5 md:grid md:grid-cols-[1.15fr_1.35fr_.85fr_.55fr_.85fr_.8fr_.75fr_24px] md:items-center md:gap-4"
                 >
                   <div className="flex min-w-0 items-center gap-3">
                     <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-primary text-white">

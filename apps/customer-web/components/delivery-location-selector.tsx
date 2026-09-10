@@ -12,6 +12,7 @@ import {
   X,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { apiRequest } from '../lib/api';
 import {
   distanceBetweenKm,
@@ -34,7 +35,13 @@ type LocationCandidate = {
   resolution: LocationResolution;
 };
 
-export function DeliveryLocationSelector({ active }: { active: boolean }) {
+export function DeliveryLocationSelector({
+  active,
+  variant = 'bar',
+}: {
+  active: boolean;
+  variant?: 'bar' | 'responsive' | 'header';
+}) {
   const session = useSessionStore((state) => state.session);
   const location = useDeliveryLocationStore((state) => state.location);
   const status = useDeliveryLocationStore((state) => state.status);
@@ -277,203 +284,254 @@ export function DeliveryLocationSelector({ active }: { active: boolean }) {
 
   return (
     <>
-      <section className="border-b border-border bg-white">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            className="flex min-w-0 items-center gap-3 rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
-          >
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
-              {status === 'locating' || status === 'resolving' ? (
-                <LoaderCircle className="h-5 w-5 animate-spin" />
-              ) : (
-                <MapPin className="h-5 w-5" />
-              )}
-            </span>
-            <span className="min-w-0">
-              <span className="flex items-center gap-1 text-sm font-extrabold text-foreground">
-                <span className="truncate">
-                  {location?.label || 'Set delivery location'}
-                </span>
-                <ChevronDown className="h-4 w-4 shrink-0 text-primary" />
-              </span>
-              <span
-                className={`mt-0.5 block truncate text-xs ${
-                  location?.resolution.serviceable
-                    ? 'text-emerald-700'
-                    : location
-                      ? 'text-amber-700'
-                      : 'text-muted-foreground'
-                }`}
-              >
-                {serviceMessage}
-              </span>
-            </span>
-          </button>
-          {location?.accuracyMeters && (
-            <span className="text-xs text-muted-foreground">
-              Approx. accuracy {Math.round(location.accuracyMeters)} m
-            </span>
-          )}
-        </div>
-      </section>
-
-      {open && (
-        <div
-          className="fixed inset-0 z-[100] bg-slate-950/60 p-3 backdrop-blur-sm sm:grid sm:place-items-center"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="delivery-location-title"
+      {variant === 'header' && (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border bg-card text-primary transition-colors hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 xl:h-11 xl:w-auto xl:max-w-[190px] xl:justify-start xl:gap-2.5 xl:rounded-xl xl:px-3 xl:text-left"
+          aria-label={
+            location ? `Deliver to ${location.label}` : 'Set delivery location'
+          }
+          title={
+            location ? `Deliver to ${location.label}` : 'Set delivery location'
+          }
         >
-          <button
-            type="button"
-            className="absolute inset-0"
-            aria-label="Close location selector"
-            onClick={() => setOpen(false)}
-          />
-          <section className="relative ml-auto flex max-h-[calc(100dvh-1.5rem)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl sm:ml-0">
-            <header className="flex items-start justify-between gap-4 border-b px-5 py-4 sm:px-6">
-              <div>
-                <h2
-                  id="delivery-location-title"
-                  className="font-serif text-2xl font-bold"
-                >
-                  Choose delivery location
-                </h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Check serviceability here even if you are ordering for another
-                  city.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-full border text-muted-foreground hover:text-foreground"
-                aria-label="Close"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </header>
-
-            <div className="overflow-y-auto p-5 sm:p-6">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={locateCustomer}
-                disabled={status === 'locating' || status === 'resolving'}
-                className="h-12 w-full justify-start rounded-xl"
-              >
-                <Crosshair className="mr-3 h-4 w-4 text-primary" />
-                Use my current location
-              </Button>
-
-              {error && (
-                <p className="mt-3 flex gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                  {error}
-                </p>
-              )}
-
-              {addresses.length > 0 && (
-                <div className="mt-6">
-                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
-                    Saved addresses
-                  </p>
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    {addresses.map((address) => {
-                      const usable = Boolean(
-                        address.latitude && address.longitude,
-                      );
-                      const selected = location?.savedAddressId === address.id;
-                      return (
-                        <button
-                          key={address.id}
-                          type="button"
-                          disabled={!usable || status === 'resolving'}
-                          onClick={() => void selectSavedAddress(address)}
-                          className="relative rounded-xl border p-4 text-left transition hover:border-primary/40 disabled:cursor-not-allowed disabled:opacity-55"
-                        >
-                          <strong className="block pr-6 text-sm">
-                            {address.label ||
-                              address.addressType
-                                .toLowerCase()
-                                .replace('_', ' ')}
-                          </strong>
-                          <span className="mt-1 block text-xs leading-5 text-muted-foreground">
-                            {address.addressLine1}, {address.city}{' '}
-                            {address.pincode}
-                          </span>
-                          {!usable && (
-                            <span className="mt-2 block text-[11px] font-semibold text-amber-700">
-                              Add a map pin before using this address
-                            </span>
-                          )}
-                          {selected && (
-                            <span className="absolute right-3 top-3 grid h-5 w-5 place-items-center rounded-full bg-primary text-white">
-                              <Check className="h-3 w-3" />
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              <button
-                type="button"
-                onClick={() => setShowMap((shown) => !shown)}
-                className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-bold text-white hover:bg-primary/90"
-              >
-                <Search className="h-4 w-4" />
-                {showMap ? 'Hide location search' : 'Search another location'}
-              </button>
-
-              {showMap && (
-                <div className="mt-5">
-                  <AddressMapPicker
-                    onAddress={(address) => void inspectCandidate(address)}
-                  />
-                  {(candidate || candidateLoading) && (
-                    <div className="mt-4 rounded-xl border bg-muted/40 p-4">
-                      {candidateLoading ? (
-                        <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <LoaderCircle className="h-4 w-4 animate-spin" />{' '}
-                          Checking this location…
-                        </p>
-                      ) : candidate ? (
-                        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-                          <div>
-                            <p className="text-sm font-bold">
-                              {candidate.address.addressLine2 ||
-                                candidate.address.addressLine1 ||
-                                candidate.address.city}
-                            </p>
-                            <p
-                              className={`mt-1 text-xs ${candidate.resolution.serviceable ? 'text-emerald-700' : 'text-amber-700'}`}
-                            >
-                              {candidate.resolution.serviceable
-                                ? `${candidate.resolution.region?.name} Kitchen can serve this location.`
-                                : candidate.resolution.reason ===
-                                    'KITCHEN_CLOSED'
-                                  ? `${candidate.resolution.region?.name} Kitchen is currently closed.`
-                                  : 'This location is outside our current service area.'}
-                            </p>
-                          </div>
-                          <Button type="button" onClick={useCandidate}>
-                            Use this location
-                          </Button>
-                        </div>
-                      ) : null}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </section>
-        </div>
+          <span className="relative grid shrink-0 place-items-center">
+            {status === 'locating' || status === 'resolving' ? (
+              <LoaderCircle className="h-[18px] w-[18px] animate-spin" />
+            ) : (
+              <MapPin className="h-[18px] w-[18px]" />
+            )}
+            {location?.resolution.serviceable && (
+              <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-white" />
+            )}
+          </span>
+          <span className="hidden min-w-0 flex-1 xl:block">
+            <span className="block text-[9px] font-extrabold uppercase leading-none tracking-[0.12em] text-muted-foreground">
+              Deliver to
+            </span>
+            <span className="mt-1 flex min-w-0 items-center gap-1 text-xs font-bold leading-none text-foreground">
+              <span className="truncate">
+                {location?.label ||
+                  (status === 'locating'
+                    ? 'Detecting location…'
+                    : status === 'resolving'
+                      ? 'Checking location…'
+                      : 'Set location')}
+              </span>
+              <ChevronDown className="h-3.5 w-3.5 shrink-0 text-primary" />
+            </span>
+          </span>
+        </button>
       )}
+
+      {variant !== 'header' && (
+        <section
+          className={`border-b border-border bg-white ${
+            variant === 'responsive' ? 'md:hidden' : ''
+          }`}
+        >
+          <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-2 px-4 py-2 sm:gap-3 sm:px-6 sm:py-3 lg:px-10">
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              className="flex min-w-0 items-center gap-2.5 rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 sm:gap-3"
+            >
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary/10 text-primary sm:h-10 sm:w-10">
+                {status === 'locating' || status === 'resolving' ? (
+                  <LoaderCircle className="h-4 w-4 animate-spin sm:h-5 sm:w-5" />
+                ) : (
+                  <MapPin className="h-4 w-4 sm:h-5 sm:w-5" />
+                )}
+              </span>
+              <span className="min-w-0">
+                <span className="flex items-center gap-1 text-[13px] font-extrabold text-foreground sm:text-sm">
+                  <span className="truncate">
+                    {location?.label || 'Set delivery location'}
+                  </span>
+                  <ChevronDown className="h-4 w-4 shrink-0 text-primary" />
+                </span>
+                <span
+                  className={`mt-0.5 hidden truncate text-xs sm:block ${
+                    location?.resolution.serviceable
+                      ? 'text-emerald-700'
+                      : location
+                        ? 'text-amber-700'
+                        : 'text-muted-foreground'
+                  }`}
+                >
+                  {serviceMessage}
+                </span>
+              </span>
+            </button>
+            {location?.accuracyMeters && (
+              <span className="text-xs text-muted-foreground">
+                Approx. accuracy {Math.round(location.accuracyMeters)} m
+              </span>
+            )}
+          </div>
+        </section>
+      )}
+
+      {open &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[100] bg-slate-950/60 p-3 backdrop-blur-sm sm:grid sm:place-items-center"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delivery-location-title"
+          >
+            <button
+              type="button"
+              className="absolute inset-0"
+              aria-label="Close location selector"
+              onClick={() => setOpen(false)}
+            />
+            <section className="relative ml-auto flex max-h-[calc(100dvh-1.5rem)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl sm:ml-0">
+              <header className="flex items-start justify-between gap-4 border-b px-5 py-4 sm:px-6">
+                <div>
+                  <h2
+                    id="delivery-location-title"
+                    className="font-serif text-2xl font-bold"
+                  >
+                    Choose delivery location
+                  </h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Check serviceability here even if you are ordering for
+                    another city.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-full border text-muted-foreground hover:text-foreground"
+                  aria-label="Close"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </header>
+
+              <div className="overflow-y-auto p-5 sm:p-6">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={locateCustomer}
+                  disabled={status === 'locating' || status === 'resolving'}
+                  className="h-12 w-full justify-start rounded-xl"
+                >
+                  <Crosshair className="mr-3 h-4 w-4 text-primary" />
+                  Use my current location
+                </Button>
+
+                {error && (
+                  <p className="mt-3 flex gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                    {error}
+                  </p>
+                )}
+
+                {addresses.length > 0 && (
+                  <div className="mt-6">
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
+                      Saved addresses
+                    </p>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      {addresses.map((address) => {
+                        const usable = Boolean(
+                          address.latitude && address.longitude,
+                        );
+                        const selected =
+                          location?.savedAddressId === address.id;
+                        return (
+                          <button
+                            key={address.id}
+                            type="button"
+                            disabled={!usable || status === 'resolving'}
+                            onClick={() => void selectSavedAddress(address)}
+                            className="relative rounded-xl border p-4 text-left transition hover:border-primary/40 disabled:cursor-not-allowed disabled:opacity-55"
+                          >
+                            <strong className="block pr-6 text-sm">
+                              {address.label ||
+                                address.addressType
+                                  .toLowerCase()
+                                  .replace('_', ' ')}
+                            </strong>
+                            <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+                              {address.addressLine1}, {address.city}{' '}
+                              {address.pincode}
+                            </span>
+                            {!usable && (
+                              <span className="mt-2 block text-[11px] font-semibold text-amber-700">
+                                Add a map pin before using this address
+                              </span>
+                            )}
+                            {selected && (
+                              <span className="absolute right-3 top-3 grid h-5 w-5 place-items-center rounded-full bg-primary text-white">
+                                <Check className="h-3 w-3" />
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setShowMap((shown) => !shown)}
+                  className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-bold text-white hover:bg-primary/90"
+                >
+                  <Search className="h-4 w-4" />
+                  {showMap ? 'Hide location search' : 'Search another location'}
+                </button>
+
+                {showMap && (
+                  <div className="mt-5">
+                    <AddressMapPicker
+                      onAddress={(address) => void inspectCandidate(address)}
+                    />
+                    {(candidate || candidateLoading) && (
+                      <div className="mt-4 rounded-xl border bg-muted/40 p-4">
+                        {candidateLoading ? (
+                          <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <LoaderCircle className="h-4 w-4 animate-spin" />{' '}
+                            Checking this location…
+                          </p>
+                        ) : candidate ? (
+                          <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+                            <div>
+                              <p className="text-sm font-bold">
+                                {candidate.address.addressLine2 ||
+                                  candidate.address.addressLine1 ||
+                                  candidate.address.city}
+                              </p>
+                              <p
+                                className={`mt-1 text-xs ${candidate.resolution.serviceable ? 'text-emerald-700' : 'text-amber-700'}`}
+                              >
+                                {candidate.resolution.serviceable
+                                  ? `${candidate.resolution.region?.name} Kitchen can serve this location.`
+                                  : candidate.resolution.reason ===
+                                      'KITCHEN_CLOSED'
+                                    ? `${candidate.resolution.region?.name} Kitchen is currently closed.`
+                                    : 'This location is outside our current service area.'}
+                              </p>
+                            </div>
+                            <Button type="button" onClick={useCandidate}>
+                              Use this location
+                            </Button>
+                          </div>
+                        ) : null}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </section>
+          </div>,
+          document.body,
+        )}
     </>
   );
 }

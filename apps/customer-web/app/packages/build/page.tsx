@@ -181,7 +181,7 @@ function DishCatalogue({
   visible: Dish[];
 }) {
   return (
-    <aside className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-border bg-white shadow-[0_8px_22px_rgba(45,31,20,0.045)] lg:sticky lg:top-20 lg:max-h-[calc(100vh-96px)]">
+    <aside className="flex h-[calc(100dvh-23rem)] min-h-[400px] w-full min-w-0 max-w-full flex-col overflow-hidden rounded-2xl border border-border bg-white shadow-[0_8px_22px_rgba(45,31,20,0.045)] lg:sticky lg:top-20 lg:h-auto lg:max-h-[calc(100vh-96px)] lg:min-h-0">
       <div className="shrink-0 border-b border-border p-3">
         <div className="space-y-2.5">
           <label className="flex min-h-11 items-center gap-2 rounded-xl border border-border bg-[#fbf8f2] px-3 focus-within:border-primary/45 focus-within:ring-2 focus-within:ring-primary/10">
@@ -268,32 +268,32 @@ function DishCatalogue({
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-visible p-2 lg:overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2">
         <div className="space-y-2">
           {visible.map((dish) => {
             const selected = selectedIds.has(dish.id);
             return (
               <article
                 key={dish.id}
-                className="grid min-h-[88px] grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-border bg-white px-3 py-2.5 transition hover:border-primary/25 hover:bg-[#fffdf8]"
+                className="grid min-h-[74px] grid-cols-[46px_minmax(0,1fr)_auto] items-center gap-2 rounded-xl border border-border bg-white px-2.5 py-2 transition hover:border-primary/25 hover:bg-[#fffdf8] sm:min-h-[88px] sm:grid-cols-[56px_minmax(0,1fr)_auto] sm:gap-3 sm:px-3 sm:py-2.5"
               >
                 <Image
                   src={getDishImage(dish)}
                   alt=""
                   width={56}
                   height={56}
-                  sizes="56px"
-                  className="h-14 w-14 rounded-lg object-cover"
+                  sizes="(max-width: 639px) 46px, 56px"
+                  className="h-[46px] w-[46px] rounded-lg object-cover sm:h-14 sm:w-14"
                 />
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <VegDot veg={dish.veg} />
-                    <h3 className="min-w-0 text-[15px] font-bold leading-tight text-foreground">
+                    <h3 className="min-w-0 text-[13px] font-bold leading-tight text-foreground sm:text-[15px]">
                       {dish.name}
                     </h3>
                   </div>
                   <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <span className="text-[13px] font-extrabold text-foreground">
+                    <span className="text-[11px] font-extrabold text-foreground sm:text-[13px]">
                       {formatCurrency(dish.price)} / plate
                     </span>
                   </div>
@@ -303,7 +303,7 @@ function DishCatalogue({
                   aria-pressed={selected}
                   onClick={() => onToggleDish(dish.id)}
                   className={cn(
-                    'inline-flex min-h-10 w-fit min-w-[84px] items-center justify-center gap-1.5 rounded-lg border px-3 text-sm font-extrabold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30',
+                    'inline-flex min-h-9 w-fit min-w-[68px] items-center justify-center gap-1.5 rounded-lg border px-2.5 text-xs font-extrabold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 sm:min-h-10 sm:min-w-[84px] sm:px-3 sm:text-sm',
                     selected
                       ? 'border-primary bg-primary text-white hover:bg-primary/90'
                       : 'border-primary/45 bg-white text-primary hover:bg-primary/5',
@@ -748,9 +748,9 @@ function BuildPackageContent() {
   );
 
   const builderHeader = (
-    <div className="relative overflow-hidden rounded-2xl bg-[hsl(var(--hero-end))] px-5 py-5 text-white shadow-[0_8px_24px_rgba(45,20,20,0.12)] sm:px-7">
+    <div className="relative overflow-hidden rounded-2xl bg-[hsl(var(--hero-end))] px-4 py-4 text-white shadow-[0_8px_24px_rgba(45,20,20,0.12)] sm:px-7 sm:py-5">
       <div
-        className="absolute -right-10 -top-24 h-56 w-56 rounded-full border-[28px] border-accent/15"
+        className="absolute -right-10 -top-24 hidden h-56 w-56 rounded-full border-[28px] border-accent/15 sm:block"
         aria-hidden="true"
       />
       <div
@@ -763,15 +763,15 @@ function BuildPackageContent() {
           className="h-14 w-14 rounded-xl object-cover shadow-[0_0_0_5px_hsl(var(--accent)/0.18)]"
         />
       </div>
-      <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="relative flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <div className="min-w-0 max-w-[560px] sm:pr-24">
           <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-accent">
             Build your menu
           </p>
-          <h1 className="mt-1 font-serif text-[30px] font-bold leading-[1.05] text-white sm:text-[34px]">
+          <h1 className="mt-1 font-serif text-[25px] font-bold leading-[1.05] text-white sm:text-[34px]">
             Build Your Own Package
           </h1>
-          <p className="mt-1.5 text-sm font-semibold leading-5 text-white/75">
+          <p className="mt-1.5 hidden text-sm font-semibold leading-5 text-white/75 sm:block">
             Choose your favourite dishes and customize a menu that fits your
             occasion.
           </p>
@@ -822,9 +822,9 @@ function BuildPackageContent() {
   }
 
   return (
-    <main className="min-h-screen overflow-x-clip bg-background pb-28 lg:pb-16">
-      <div className="lg:hidden">
-        <div className="mx-auto grid max-w-[720px] grid-cols-2 gap-1 px-4 py-3">
+    <main className="min-h-screen overflow-x-clip bg-background pb-32 lg:pb-16">
+      <div className="sticky top-[60px] z-30 border-b border-border bg-background/95 backdrop-blur lg:hidden">
+        <div className="mx-auto grid max-w-[720px] grid-cols-2 gap-1 px-4 py-2">
           {[
             ['dishes', 'Add Dishes'],
             ['summary', 'Summary'],
@@ -846,13 +846,13 @@ function BuildPackageContent() {
         </div>
       </div>
 
-      <div className="mx-auto max-w-6xl px-4 py-4 sm:px-5 lg:px-6">
+      <div className="mx-auto w-full min-w-0 max-w-6xl px-4 py-4 sm:px-5 lg:px-6">
         {builderHeader}
-        <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+        <div className="mt-4 grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
           <div
             className={cn(
               mobileTab === 'dishes' ? 'block' : 'hidden',
-              'lg:block',
+              'min-w-0 lg:block',
             )}
           >
             {catalogue}
@@ -962,7 +962,7 @@ function BuildPackageContent() {
         </div>
       )}
 
-      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-white p-3 shadow-[0_-8px_24px_rgba(45,31,20,0.10)] lg:hidden">
+      <div className="fixed inset-x-0 bottom-16 z-40 border-t border-border bg-white p-3 shadow-[0_-8px_24px_rgba(45,31,20,0.10)] lg:hidden">
         <div className="mx-auto flex max-w-[720px] items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs font-bold text-muted-foreground">

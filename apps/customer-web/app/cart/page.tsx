@@ -648,7 +648,7 @@ export default function CartPage() {
     return (
       <AuthRequiredPanel
         title="Sign in to resume your order"
-        description="Your menu is saved on this device. Enter your mobile number to receive order updates, add event details, and continue to payment."
+        description="Your menu is saved. Sign in to add event details and continue to payment."
         returnHref="/cart"
       />
     );
@@ -685,9 +685,12 @@ export default function CartPage() {
   const activeGroup =
     groupedRows.find((group) => group.id === activeCategoryId) ??
     groupedRows[0];
+  const mobileTotal = pendingOrder
+    ? pendingBatch?.totalAmount ?? pendingOrder.totalAmount
+    : multiCartQuote?.totalAmount;
 
   return (
-    <main className="bg-background pb-28">
+    <main className="bg-background pb-44 lg:pb-28">
       <Script
         src="https://checkout.razorpay.com/v1/checkout.js"
         strategy="afterInteractive"
@@ -702,7 +705,7 @@ export default function CartPage() {
           className="absolute inset-0 -z-20 h-full w-full object-cover opacity-40"
         />
         <div className="absolute inset-0 -z-10 bg-[linear-gradient(90deg,hsl(var(--primary))_0%,hsl(var(--primary)/0.90)_48%,hsl(var(--primary)/0.62)_100%)]" />
-        <div className="mx-auto max-w-[1440px] px-4 py-5 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-[1440px] px-4 py-4 sm:px-6 sm:py-5 lg:px-8">
           <div className="hidden md:block">
             <OrderProgress
               current={2}
@@ -715,13 +718,13 @@ export default function CartPage() {
               Step 3 of 3
             </p>
           </div>
-          <div className="mt-6 flex flex-wrap items-end justify-between gap-4 md:mt-7">
+          <div className="mt-2 flex flex-wrap items-end justify-between gap-4 sm:mt-5 md:mt-7">
             <div>
-              <p className="eyebrow">Event, review & payment</p>
-              <h1 className="mt-2 font-serif text-3xl font-semibold leading-tight sm:text-4xl">
+              <p className="eyebrow hidden sm:block">Event, review & payment</p>
+              <h1 className="font-serif text-[26px] font-semibold leading-tight sm:mt-2 sm:text-4xl">
                 Complete your order.
               </h1>
-              <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-white/82">
+              <p className="mt-2 hidden max-w-2xl text-sm font-medium leading-6 text-white/82 sm:block">
                 Confirm delivery details, review the full menu, then pay
                 securely.
               </p>
@@ -730,7 +733,7 @@ export default function CartPage() {
         </div>
       </section>
 
-      <div className="mx-auto w-full max-w-[1440px] px-4 py-6 sm:px-6 lg:px-8">
+      <div className="mx-auto w-full max-w-[1440px] px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
         {isMultiCart && !pendingOrder && (
           <section className="mb-5 rounded-2xl border border-border bg-white p-4 shadow-sm sm:p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1030,7 +1033,7 @@ export default function CartPage() {
 
           <aside className="h-fit lg:sticky lg:top-24">
             <section className="overflow-hidden rounded-2xl border border-border bg-white shadow-[0_18px_44px_-30px_rgba(75,12,23,.8)]">
-              <div className="border-b p-6 pb-4">
+              <div className="border-b p-4 pb-3 sm:p-6 sm:pb-4">
                 <p className="eyebrow">
                   {pendingOrder ? 'Payment pending' : 'Order summary'}
                 </p>
@@ -1042,7 +1045,7 @@ export default function CartPage() {
                 {!pendingOrder && <OrderFacts cart={cart} />}
               </div>
               {pendingOrder ? (
-                <div className="p-6">
+                <div className="p-4 sm:p-6">
                   <div className="flex items-end justify-between border-b pb-5">
                     <span className="font-semibold">Total</span>
                     <strong className="font-serif text-3xl">
@@ -1062,7 +1065,7 @@ export default function CartPage() {
                   </Button>
                 </div>
               ) : (
-                <div className="p-6">
+                <div className="p-4 sm:p-6">
                   {multiCartQuote ? (
                     <MultiCartPriceSummary
                       carts={activeCarts}
@@ -1089,7 +1092,7 @@ export default function CartPage() {
                       onChange={(event) => setSpecialNotes(event.target.value)}
                       placeholder="e.g. Keep the food mildly spiced and pack chutney separately."
                       maxLength={1000}
-                      rows={4}
+                      rows={3}
                       className="mt-2 w-full resize-y rounded-xl border border-border bg-white p-3 text-sm leading-6 outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15"
                     />
                     <div className="mt-1.5 flex items-start justify-between gap-3 text-xs text-muted-foreground">
@@ -1097,31 +1100,36 @@ export default function CartPage() {
                       <span className="shrink-0">{specialNotes.length}/1000</span>
                     </div>
                   </div>
-                  <div className="mt-5 rounded-xl border border-accent/30 bg-accent/[0.08] p-3">
-                    <p className="flex items-center gap-2 text-sm font-bold text-foreground">
-                      <LockKeyhole className="h-4 w-4 text-primary" />
-                      Safe & secure payments
-                    </p>
-                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                      Your payment details are handled securely.
+                  <div className="hidden lg:block">
+                    <div className="mt-5 rounded-xl border border-accent/30 bg-accent/[0.08] p-3">
+                      <p className="flex items-center gap-2 text-sm font-bold text-foreground">
+                        <LockKeyhole className="h-4 w-4 text-primary" />
+                        Safe & secure payments
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                        Your payment details are handled securely.
+                      </p>
+                    </div>
+                    <Button
+                      className="mt-4 h-12 w-full"
+                      onClick={pay}
+                      disabled={
+                        !ready ||
+                        !multiCartQuote?.valid ||
+                        quoteLoading ||
+                        paying
+                      }
+                    >
+                      <LockKeyhole className="mr-2 h-4 w-4" />
+                      {paying ? 'Opening payment...' : 'Proceed to Payment'}
+                    </Button>
+                    <p className="mt-3 flex items-center justify-center gap-2 text-center text-xs text-muted-foreground">
+                      <ShieldCheck className="h-4 w-4 shrink-0" />
+                      {ready
+                        ? 'You will be redirected to our secure payment partner.'
+                        : 'Venue, date, time, and guest count are required.'}
                     </p>
                   </div>
-                  <Button
-                    className="mt-4 h-12 w-full"
-                    onClick={pay}
-                    disabled={
-                      !ready || !multiCartQuote?.valid || quoteLoading || paying
-                    }
-                  >
-                    <LockKeyhole className="mr-2 h-4 w-4" />
-                    {paying ? 'Opening payment...' : 'Proceed to Payment'}
-                  </Button>
-                  <p className="mt-3 flex items-center justify-center gap-2 text-center text-xs text-muted-foreground">
-                    <ShieldCheck className="h-4 w-4 shrink-0" />
-                    {ready
-                      ? 'You will be redirected to our secure payment partner.'
-                      : 'Venue, date, time, and guest count are required.'}
-                  </p>
                   {error && (
                     <p
                       role="alert"
@@ -1193,8 +1201,56 @@ export default function CartPage() {
           </div>
         )}
 
-        <TrustStrip />
+        <div className="hidden sm:block">
+          <TrustStrip />
+        </div>
       </div>
+
+      <section
+        className="fixed inset-x-0 bottom-16 z-40 border-t border-border bg-white/98 px-4 py-3 shadow-[0_-10px_28px_rgba(42,19,22,0.12)] backdrop-blur lg:hidden"
+        aria-label="Cart total and payment"
+      >
+        {error && (
+          <p role="alert" className="mb-2 text-xs font-semibold text-red-700">
+            {error}
+          </p>
+        )}
+        <div className="mx-auto flex max-w-xl items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-muted-foreground">
+              {pendingOrder ? 'Payment pending' : 'Order total'}
+            </p>
+            <strong className="mt-0.5 block truncate font-serif text-xl leading-none text-foreground">
+              {mobileTotal != null
+                ? formatCurrency(mobileTotal)
+                : quoteLoading
+                  ? 'Updating…'
+                  : 'Add event details'}
+            </strong>
+          </div>
+          {pendingOrder ? (
+            <RetryPaymentButton
+              order={pendingOrder}
+              orderIds={pendingBatch?.orderIds}
+              className="h-11 min-w-[148px]"
+            />
+          ) : (
+            <Button
+              className="h-11 min-w-[148px] px-5"
+              onClick={pay}
+              disabled={!ready || !multiCartQuote?.valid || quoteLoading || paying}
+            >
+              <LockKeyhole className="mr-2 h-4 w-4" />
+              {paying ? 'Opening…' : 'Pay securely'}
+            </Button>
+          )}
+        </div>
+        {!pendingOrder && !ready && (
+          <p className="mx-auto mt-1.5 max-w-xl text-[11px] text-muted-foreground">
+            Add venue, date, time, and guest count to continue.
+          </p>
+        )}
+      </section>
     </main>
   );
 }

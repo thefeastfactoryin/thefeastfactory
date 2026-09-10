@@ -53,7 +53,7 @@ export default function OtpPage() {
     <main className="page-shell">
       <form
         onSubmit={submit}
-        className="surface-card mx-auto max-w-md p-6 sm:p-8"
+        className="surface-card mx-auto max-w-md p-5 sm:p-8"
       >
         <Link
           href="/login"
@@ -61,21 +61,20 @@ export default function OtpPage() {
         >
           <ArrowLeft className="h-4 w-4" /> Change mobile number
         </Link>
-        <span className="mt-7 grid h-12 w-12 place-items-center rounded-full bg-primary/10 text-primary">
+        <span className="mt-5 grid h-11 w-11 place-items-center rounded-full bg-primary/10 text-primary sm:mt-7 sm:h-12 sm:w-12">
           <KeyRound className="h-5 w-5" />
         </span>
-        <h1 className="mt-5 font-serif text-3xl font-semibold">
+        <h1 className="mt-4 font-serif text-2xl font-semibold sm:mt-5 sm:text-3xl">
           Enter verification code
         </h1>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">
-          We sent a 6-digit OTP to your mobile number. In local development,
-          check the API console.
+          Enter the 6-digit OTP sent to your mobile number.
         </p>
 
         <Field
           label="OTP code"
           hint="The code expires shortly for your security."
-          className="mt-7"
+          className="mt-5 sm:mt-7"
         >
           <Input
             aria-label="OTP code"
@@ -108,7 +107,7 @@ export default function OtpPage() {
         >
           {submitting ? 'Verifying...' : 'Verify and continue'}
         </Button>
-        <p className="mt-5 flex gap-2 rounded-xl bg-primary/[0.055] p-3 text-xs leading-5 text-muted-foreground">
+        <p className="mt-5 hidden gap-2 rounded-xl bg-primary/[0.055] p-3 text-xs leading-5 text-muted-foreground sm:flex">
           <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
           Your profile, addresses, and order progress are protected behind this
           OTP session.

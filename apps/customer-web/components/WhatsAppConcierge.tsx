@@ -63,7 +63,7 @@ export function WhatsAppConcierge() {
   }
 
   return (
-    <div ref={containerRef} className="fixed bottom-10 right-4 z-40 md:right-6">
+    <div ref={containerRef} className="fixed bottom-20 right-4 z-40 hidden md:bottom-10 md:right-6 md:block">
       {prompt.isBubbleVisible && !isPanelOpen && (
         <aside className="absolute bottom-16 right-0 w-[calc(100vw-2rem)] max-w-[260px] rounded-xl border border-border bg-ivory p-4 pr-10 text-sm leading-5 text-foreground shadow-md">
           <p>{prompt.promptText}</p>
@@ -74,7 +74,7 @@ export function WhatsAppConcierge() {
       )}
 
       {isPanelOpen && (
-        <section className="fixed inset-x-0 bottom-0 w-full rounded-t-xl border border-border bg-ivory p-5 shadow-md motion-safe:animate-[concierge-sheet_200ms_ease-out] md:absolute md:inset-x-auto md:bottom-16 md:right-0 md:w-80 md:origin-bottom-right md:rounded-xl md:p-4 md:motion-safe:animate-[concierge-enter_200ms_ease-out]" aria-label="WhatsApp concierge options">
+        <section className="fixed inset-x-0 bottom-16 w-full rounded-t-xl border border-border bg-ivory p-5 shadow-md motion-safe:animate-[concierge-sheet_200ms_ease-out] md:absolute md:inset-x-auto md:bottom-16 md:right-0 md:w-80 md:origin-bottom-right md:rounded-xl md:p-4 md:motion-safe:animate-[concierge-enter_200ms_ease-out]" aria-label="WhatsApp concierge options">
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="font-serif text-lg font-bold text-foreground">Need help planning?</p>

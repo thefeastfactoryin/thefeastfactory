@@ -43,7 +43,7 @@ export default function ProfilePage() {
     return (
       <AuthRequiredPanel
         title="Sign in to manage your profile"
-        description="Your name, email, saved venues, and order history stay attached to your verified mobile number."
+        description="Manage your details, saved venues, and order history."
         returnHref="/profile"
       />
     );
@@ -88,9 +88,9 @@ export default function ProfilePage() {
   return (
     <main className="page-shell pb-28">
       <p className="eyebrow">Your account</p>
-      <h1 className="mt-3 font-serif text-5xl font-semibold">Profile</h1>
-      <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_360px]">
-        <form onSubmit={save} className="surface-card space-y-4 p-6 sm:p-8">
+      <h1 className="mt-2 font-serif text-3xl font-semibold sm:mt-3 sm:text-5xl">Profile</h1>
+      <div className="mt-5 grid gap-5 sm:mt-8 sm:gap-8 lg:grid-cols-[1fr_360px]">
+        <form onSubmit={save} className="surface-card space-y-4 p-5 sm:p-8">
           <Field label="Verified mobile">
             <Input value={profile.mobileNumber} disabled />
           </Field>
@@ -140,7 +140,7 @@ export default function ProfilePage() {
             </span>
             <span>
               <strong className="block">Your orders</strong>
-              <span className="text-sm text-muted-foreground">
+              <span className="hidden text-sm text-muted-foreground sm:inline">
                 History and live status
               </span>
             </span>
@@ -154,7 +154,7 @@ export default function ProfilePage() {
             </span>
             <span>
               <strong className="block">Saved addresses</strong>
-              <span className="text-sm text-muted-foreground">
+              <span className="hidden text-sm text-muted-foreground sm:inline">
                 Homes and event venues
               </span>
             </span>

@@ -6,13 +6,16 @@ import { useState } from 'react';
 import { apiRequest } from '../lib/api';
 import { useSessionStore } from '../store/session.store';
 import { Button } from './ui/button';
+import { cn } from '../lib/utils';
 
 export function RetryPaymentButton({
   order,
   orderIds,
+  className,
 }: {
   order: OrderSummary;
   orderIds?: string[];
+  className?: string;
 }) {
   const session = useSessionStore((s) => s.session);
   const [busy, setBusy] = useState(false);
@@ -119,7 +122,7 @@ export function RetryPaymentButton({
         src="https://checkout.razorpay.com/v1/checkout.js"
         strategy="afterInteractive"
       />
-      <Button onClick={retry} disabled={busy}>
+      <Button onClick={retry} disabled={busy} className={cn(className)}>
         {busy ? 'Opening payment…' : 'Retry payment'}
       </Button>
       {error && <p className="mt-2 text-sm text-red-700">{error}</p>}

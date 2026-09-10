@@ -25,3 +25,4 @@ apps/customer-web/.ds-ui.css
 .env*
 .DS_Store
 *.tsbuildinfo
+tmp/*

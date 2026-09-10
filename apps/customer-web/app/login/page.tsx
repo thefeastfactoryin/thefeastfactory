@@ -52,7 +52,7 @@ function LoginContent() {
   return (
     <main className="page-shell">
       <div className="mx-auto grid max-w-5xl gap-8 lg:grid-cols-[1fr_420px] lg:items-center">
-        <section className="max-w-2xl">
+        <section className="hidden max-w-2xl lg:block">
           <p className="eyebrow">Secure customer access</p>
           <h1 className="mt-3 font-serif text-5xl font-semibold sm:text-6xl">
             Plan catering without back-and-forth calls.
@@ -78,13 +78,13 @@ function LoginContent() {
           </div>
         </section>
 
-        <form onSubmit={submit} className="surface-card p-6 sm:p-8">
+        <form onSubmit={submit} className="surface-card p-5 sm:p-8">
           <span className="grid h-12 w-12 place-items-center rounded-full bg-primary/10 text-primary">
             <LockKeyhole className="h-5 w-5" />
           </span>
-          <h2 className="mt-5 font-serif text-3xl font-semibold">
+          <h1 className="mt-4 font-serif text-2xl font-semibold sm:mt-5 sm:text-3xl">
             Continue with mobile
-          </h2>
+          </h1>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
             We will send a 6-digit OTP to verify your number.
           </p>
@@ -92,7 +92,7 @@ function LoginContent() {
           <Field
             label="Mobile number"
             hint="Use a 10-digit Indian mobile number."
-            className="mt-7"
+            className="mt-5 sm:mt-7"
           >
             <div className="relative">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-muted-foreground">
@@ -134,8 +134,7 @@ function LoginContent() {
             {submitting ? 'Sending OTP...' : 'Send OTP'}
           </Button>
           <p className="mt-4 text-center text-xs leading-5 text-muted-foreground">
-            By continuing, your order details stay linked to this verified
-            mobile number.
+            Your order stays linked to this verified number.
           </p>
         </form>
       </div>

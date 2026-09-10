@@ -100,7 +100,7 @@ export default function AddressesPage() {
     return (
       <AuthRequiredPanel
         title="Sign in to manage venues"
-        description="Saved addresses make event planning faster and keep checkout from asking for venue details again."
+        description="Save venues for faster checkout."
         returnHref={`/addresses?tab=${activeTab}`}
       />
     );
@@ -186,17 +186,17 @@ export default function AddressesPage() {
     <main className="page-shell pb-20">
       <div className="max-w-3xl">
         <p className="eyebrow">Your venues</p>
-        <h1 className="mt-2 font-serif text-4xl font-semibold sm:text-5xl">
+        <h1 className="mt-1 font-serif text-3xl font-semibold sm:mt-2 sm:text-5xl">
           Venues & addresses
         </h1>
-        <p className="mt-2 leading-6 text-muted-foreground">
+        <p className="mt-2 hidden leading-6 text-muted-foreground sm:block">
           Save frequently used places or choose an exact event location on the
           map for faster planning.
         </p>
       </div>
 
       <div
-        className="mt-6 inline-flex w-full rounded-xl border border-border bg-muted/60 p-1 sm:w-auto"
+        className="mt-4 inline-flex w-full rounded-xl border border-border bg-muted/60 p-1 sm:mt-6 sm:w-auto"
         role="tablist"
         aria-label="Venue options"
       >
@@ -243,7 +243,7 @@ export default function AddressesPage() {
               <h2 className="font-serif text-2xl font-semibold">
                 Find the exact location
               </h2>
-              <p className="text-xs text-muted-foreground">
+              <p className="hidden text-xs text-muted-foreground sm:block">
                 Search, click, drag the pin, or use your location
               </p>
             </div>
@@ -272,7 +272,7 @@ export default function AddressesPage() {
                 <h2 className="font-serif text-2xl font-semibold">
                   Address details
                 </h2>
-                <p className="text-xs text-muted-foreground">
+                <p className="hidden text-xs text-muted-foreground sm:block">
                   Review the detected details before saving
                 </p>
               </div>
@@ -448,7 +448,7 @@ export default function AddressesPage() {
           ) : addresses.length ? (
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               {addresses.map((address) => (
-                <article key={address.id} className="surface-card p-6">
+                <article key={address.id} className="surface-card p-5 sm:p-6">
                   <div className="flex items-start justify-between gap-3">
                     <span className="grid h-10 w-10 place-items-center rounded-full bg-primary/10 text-primary">
                       <MapPin className="h-5 w-5" />

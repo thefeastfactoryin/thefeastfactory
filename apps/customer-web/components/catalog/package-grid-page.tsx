@@ -17,7 +17,6 @@ import {
   ShieldCheck,
   Users,
 } from 'lucide-react';
-import Image from 'next/image';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { apiRequest } from '../../lib/api';
@@ -114,46 +113,43 @@ export function PackageGridPage({
       .catch(() => setActiveCartCount(0));
   }, [session]);
 
-  const shown = useMemo(
-    () => {
-      const visible = packages.filter((pkg) => {
-        if (type !== 'MEAL_BOX' || diet === 'all') return true;
-        const included =
-          configs[pkg.id]?.categoryRules.flatMap((rule) =>
-            rule.items.filter(
-              (item) => item.role === 'INCLUDED' && !item.swapForMenuItemId,
-            ),
-          ) ?? [];
-        return diet === 'veg'
-          ? included.every((item) => item.isVeg)
-          : included.some((item) => !item.isVeg);
-      });
+  const shown = useMemo(() => {
+    const visible = packages.filter((pkg) => {
+      if (type !== 'MEAL_BOX' || diet === 'all') return true;
+      const included =
+        configs[pkg.id]?.categoryRules.flatMap((rule) =>
+          rule.items.filter(
+            (item) => item.role === 'INCLUDED' && !item.swapForMenuItemId,
+          ),
+        ) ?? [];
+      return diet === 'veg'
+        ? included.every((item) => item.isVeg)
+        : included.some((item) => !item.isVeg);
+    });
 
-      if (type !== 'MEAL_BOX' || diet !== 'all') return visible;
+    if (type !== 'MEAL_BOX' || diet !== 'all') return visible;
 
-      return visible.sort((first, second) => {
-        const firstIncluded =
-          configs[first.id]?.categoryRules.flatMap((rule) =>
-            rule.items.filter(
-              (item) => item.role === 'INCLUDED' && !item.swapForMenuItemId,
-            ),
-          ) ?? [];
-        const secondIncluded =
-          configs[second.id]?.categoryRules.flatMap((rule) =>
-            rule.items.filter(
-              (item) => item.role === 'INCLUDED' && !item.swapForMenuItemId,
-            ),
-          ) ?? [];
-        const firstIsVeg =
-          firstIncluded.length > 0 && firstIncluded.every((item) => item.isVeg);
-        const secondIsVeg =
-          secondIncluded.length > 0 && secondIncluded.every((item) => item.isVeg);
+    return visible.sort((first, second) => {
+      const firstIncluded =
+        configs[first.id]?.categoryRules.flatMap((rule) =>
+          rule.items.filter(
+            (item) => item.role === 'INCLUDED' && !item.swapForMenuItemId,
+          ),
+        ) ?? [];
+      const secondIncluded =
+        configs[second.id]?.categoryRules.flatMap((rule) =>
+          rule.items.filter(
+            (item) => item.role === 'INCLUDED' && !item.swapForMenuItemId,
+          ),
+        ) ?? [];
+      const firstIsVeg =
+        firstIncluded.length > 0 && firstIncluded.every((item) => item.isVeg);
+      const secondIsVeg =
+        secondIncluded.length > 0 && secondIncluded.every((item) => item.isVeg);
 
-        return Number(secondIsVeg) - Number(firstIsVeg);
-      });
-    },
-    [packages, configs, diet, type],
-  );
+      return Number(secondIsVeg) - Number(firstIsVeg);
+    });
+  }, [packages, configs, diet, type]);
   const detailsId = searchParams.get('details');
   const detailsPackage = packages.find((pkg) => pkg.id === detailsId);
 
@@ -171,7 +167,9 @@ export function PackageGridPage({
     confirmed = false,
   ) {
     if (!pkg.activeVersion || selecting) return;
-    const hasExistingCart = session ? activeCartCount > 0 : Boolean(currentPackage);
+    const hasExistingCart = session
+      ? activeCartCount > 0
+      : Boolean(currentPackage);
     if (hasExistingCart && !confirmed) {
       setPendingPackage(pkg);
       setPendingIntent(intent);
@@ -213,9 +211,7 @@ export function PackageGridPage({
       setGuestCount(pkg.activeVersion.minGuestCount);
       setActiveCartCount((count) => count + 1);
       const builder =
-        pkg.type === 'CUSTOM_PACKAGE'
-          ? '/packages/build'
-          : '/menu/select';
+        pkg.type === 'CUSTOM_PACKAGE' ? '/packages/build' : '/menu/select';
       const next = new URLSearchParams({
         packageVersionId: pkg.activeVersion.id,
       });
@@ -266,90 +262,53 @@ export function PackageGridPage({
   ];
   return (
     <main className="min-h-screen overflow-x-clip bg-background [font-family:var(--font-package-sans),sans-serif]">
-      {isMealBox ? (
-        // Height/content rationale: a compact product banner gets shoppers to the box grid quickly; the isolated open box makes this read unlike the Packages spread.
-        <section className="relative isolate overflow-hidden border-b border-border bg-ivory-warm">
-          <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_20%_35%,hsl(var(--accent)/0.12),transparent_34%),radial-gradient(circle_at_78%_30%,hsl(var(--primary)/0.07),transparent_32%)]" />
-          <div className="container-pad grid min-h-[280px] items-center gap-6 py-7 sm:grid-cols-[1fr_300px] sm:py-8 lg:min-h-[320px] lg:grid-cols-[1fr_380px] lg:px-16">
-            <div className="max-w-[650px]">
-              <p className="eyebrow text-primary">Packed meals for groups</p>
-              <h1 className="mt-2 font-serif text-[38px] font-bold leading-none tracking-tight text-foreground sm:text-[52px]">
-                {heroTitleLead && <span>{heroTitleLead} </span>}
-                <span className="text-primary">{heroTitleAccent}</span>
-              </h1>
-              <p className="mt-3 max-w-[580px] text-sm font-semibold leading-6 text-muted-foreground sm:text-base">
-                {heroDescription}
-              </p>
-              <div className="mt-5 flex flex-wrap gap-2">
-                {heroTrust.map(({ Icon, label }) => (
-                  <div
-                    key={label}
-                    className="flex items-center gap-2 rounded-full border border-primary/10 bg-white/80 px-3 py-2 text-xs font-extrabold text-foreground shadow-sm"
-                  >
-                    <Icon
-                      className="h-4 w-4 text-primary"
-                      aria-hidden="true"
-                      strokeWidth={2}
-                    />
-                    <span>{label}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="relative mx-auto aspect-square w-[210px] overflow-hidden rounded-[30px] border-8 border-white bg-white shadow-[0_18px_45px_rgba(63,35,21,0.18)] sm:w-[260px] lg:w-[300px]">
-              <Image
-                src="/order-mealbox.png"
-                alt="An opened, individually portioned meal box"
-                width={1448}
-                height={1086}
-                sizes="(max-width: 640px) 210px, (max-width: 1024px) 260px, 300px"
-                className="h-full w-full object-cover"
-              />
-            </div>
-          </div>
-        </section>
-      ) : (
-        // Height/content rationale: this split banner is less than half a landing hero and pairs browsing copy with a curated plated spread—not buffet trays.
-        <section className="relative isolate overflow-hidden border-b bg-hero-end text-white">
-          <img
-            src="/packages-hero-plated.png"
-            alt="A curated menu of four plated dishes"
-            className="absolute inset-0 -z-20 h-full w-full object-cover object-center"
-          />
-          <div className="absolute inset-0 -z-10 bg-[linear-gradient(90deg,hsl(var(--hero-end)/0.99)_0%,hsl(var(--hero-start)/0.94)_40%,hsl(var(--hero-start)/0.30)_72%,rgba(0,0,0,0.08)_100%)]" />
-          <div className="container-pad flex min-h-[300px] items-center py-7 sm:min-h-[330px] lg:min-h-[360px] lg:px-16 lg:py-9">
-            <div className="max-w-[620px]">
-              <p className="eyebrow">Premium Bulk Catering</p>
-              <h1 className="mt-2 font-serif text-[40px] font-bold leading-[0.95] tracking-tight text-white sm:text-[54px] lg:text-[64px]">
-                {heroTitleLead && <span>{heroTitleLead} </span>}
-                <span className="text-accent">{heroTitleAccent}</span>
-              </h1>
-              <p className="mt-3 max-w-[520px] text-base font-semibold leading-6 text-white/85 sm:text-lg">
-                {heroDescription}
-              </p>
-              <div className="mt-5 grid max-w-[600px] grid-cols-2 gap-2 sm:grid-cols-4">
-                {heroTrust.map(({ Icon, label }) => (
-                  <div
-                    key={label}
-                    className="flex min-h-11 items-center gap-2 rounded-xl border border-white/10 bg-black/15 px-2.5 py-2 text-white backdrop-blur-sm"
-                  >
-                    <Icon
-                      className="h-[18px] w-[18px] shrink-0 text-accent"
-                      aria-hidden="true"
-                      strokeWidth={2}
-                    />
-                    <span className="text-[11px] font-extrabold leading-tight">
-                      {label}
-                    </span>
-                  </div>
-                ))}
-              </div>
+      <section className="relative isolate overflow-hidden border-b bg-hero-end text-white">
+        <img
+          src={isMealBox ? '/order-mealbox.png' : '/packages-hero-plated.png'}
+          alt={
+            isMealBox
+              ? 'An opened, individually portioned meal box'
+              : 'A curated menu of four plated dishes'
+          }
+          className={`absolute inset-0 -z-20 h-full w-full object-cover ${
+            isMealBox ? 'object-[62%_center]' : 'object-center'
+          }`}
+        />
+        <div className="absolute inset-0 -z-10 bg-[linear-gradient(90deg,hsl(var(--hero-end)/0.99)_0%,hsl(var(--hero-start)/0.94)_40%,hsl(var(--hero-start)/0.30)_72%,rgba(0,0,0,0.08)_100%)]" />
+        <div className="container-pad flex min-h-[238px] items-center py-5 sm:min-h-[330px] sm:py-7 lg:min-h-[360px] lg:px-16 lg:py-9">
+          <div className="max-w-[620px]">
+            <p className="eyebrow">
+              {isMealBox ? 'Packed meals for groups' : 'Premium Bulk Catering'}
+            </p>
+            <h1 className="mt-2 font-serif text-[36px] font-bold leading-[0.95] tracking-tight text-white sm:text-[54px] lg:text-[64px]">
+              {heroTitleLead && <span>{heroTitleLead} </span>}
+              <span className="text-accent">{heroTitleAccent}</span>
+            </h1>
+            <p className="mt-3 hidden max-w-[520px] text-base font-semibold leading-6 text-white/85 sm:block sm:text-lg">
+              {heroDescription}
+            </p>
+            <div className="mt-4 grid max-w-[600px] grid-cols-2 gap-1.5 sm:mt-5 sm:grid-cols-4 sm:gap-2">
+              {heroTrust.map(({ Icon, label }) => (
+                <div
+                  key={label}
+                  className="flex min-h-10 items-center gap-2 rounded-xl border border-white/10 bg-black/15 px-2.5 py-1.5 text-white backdrop-blur-sm sm:min-h-11 sm:py-2"
+                >
+                  <Icon
+                    className="h-[18px] w-[18px] shrink-0 text-accent"
+                    aria-hidden="true"
+                    strokeWidth={2}
+                  />
+                  <span className="text-[11px] font-extrabold leading-tight">
+                    {label}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
-        </section>
-      )}
-      <div className="mx-auto w-full max-w-7xl px-4 pb-2 pt-6 sm:px-6 lg:px-8 lg:pt-7">
-        <div className="mb-5 text-center">
+        </div>
+      </section>
+      <div className="mx-auto w-full max-w-7xl px-4 pb-2 pt-4 sm:px-6 sm:pt-6 lg:px-8 lg:pt-7">
+        <div className="mb-5 hidden text-center sm:block">
           <div className="flex items-center justify-center gap-3">
             <span className="h-px w-8 rounded-full bg-accent/45" />
             <h2 className="text-2xl font-bold leading-tight text-foreground [font-family:var(--font-package-heading),serif] sm:text-3xl">
@@ -359,11 +318,6 @@ export function PackageGridPage({
             </h2>
             <span className="h-px w-8 rounded-full bg-accent/45" />
           </div>
-          <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-[15px]">
-              {isMealBox
-                ? 'Simple, well-balanced meals designed for groups'
-              : 'Explore curated packages for poojas, birthdays, corporate meals, house gatherings, and large events.'}
-          </p>
         </div>
         {type === 'MEAL_BOX' && (
           <div className="mb-6 flex flex-wrap gap-2" aria-label="Diet filter">
@@ -486,7 +440,7 @@ export function PackageGridPage({
                           <h2 className="text-[20px] font-bold leading-[1.12] text-foreground [font-family:var(--font-package-heading),serif]">
                             {pkg.name}
                           </h2>
-                          <p className="mt-1.5 line-clamp-2 min-h-[38px] text-[13px] leading-[1.42] text-muted-foreground">
+                          <p className="mt-1.5 hidden line-clamp-2 min-h-[38px] text-[13px] leading-[1.42] text-muted-foreground sm:block">
                             {pkg.description}
                           </p>
                         </div>
@@ -516,7 +470,7 @@ export function PackageGridPage({
                           </span>
                         </div>
                       </div>
-                      <span className="mt-2 inline-flex w-fit rounded-full bg-emerald-50 px-2.5 py-1 text-[10.5px] font-extrabold text-emerald-800 ring-1 ring-inset ring-emerald-200">
+                      <span className="mt-2 hidden w-fit rounded-full bg-emerald-50 px-2.5 py-1 text-[10.5px] font-extrabold text-emerald-800 ring-1 ring-inset ring-emerald-200 sm:inline-flex">
                         Includes packaging
                       </span>
                       <div className="hidden">
@@ -547,7 +501,7 @@ export function PackageGridPage({
                         <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10.5px] font-extrabold text-gold-text">
                           {pkg.isCustom
                             ? 'Custom menu selection'
-                              : `${Math.max(included.length, visibleIncluded.length)} menu highlights`}
+                            : `${Math.max(included.length, visibleIncluded.length)} menu highlights`}
                         </span>
                       </div>
                       {categoryHighlights.length ? (
@@ -614,31 +568,31 @@ export function PackageGridPage({
                       {isMealBox &&
                         categoryHighlights.length === 0 &&
                         remainingIncluded.length > 0 && (
-                        <details className="mt-3 border-t pt-3">
-                          <summary className="cursor-pointer text-sm font-bold text-primary">
-                            View {remainingIncluded.length} more included item
-                            {remainingIncluded.length === 1 ? '' : 's'}
-                          </summary>
-                          <ul className="mt-3 space-y-2">
-                            {remainingIncluded.map((item) => (
-                              <li
-                                key={`${item.categoryId}-${item.id}`}
-                                className="flex gap-2 text-sm"
-                              >
-                                <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                                <span>
-                                  <strong>{item.name}</strong>
-                                  <span className="text-xs text-muted-foreground">
-                                    {' '}
-                                    · {item.categoryName} ·{' '}
-                                    {item.isVeg ? 'Veg' : 'Non-Veg'}
+                          <details className="mt-3 border-t pt-3">
+                            <summary className="cursor-pointer text-sm font-bold text-primary">
+                              View {remainingIncluded.length} more included item
+                              {remainingIncluded.length === 1 ? '' : 's'}
+                            </summary>
+                            <ul className="mt-3 space-y-2">
+                              {remainingIncluded.map((item) => (
+                                <li
+                                  key={`${item.categoryId}-${item.id}`}
+                                  className="flex gap-2 text-sm"
+                                >
+                                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                                  <span>
+                                    <strong>{item.name}</strong>
+                                    <span className="text-xs text-muted-foreground">
+                                      {' '}
+                                      · {item.categoryName} ·{' '}
+                                      {item.isVeg ? 'Veg' : 'Non-Veg'}
+                                    </span>
                                   </span>
-                                </span>
-                              </li>
-                            ))}
-                          </ul>
-                        </details>
-                      )}
+                                </li>
+                              ))}
+                            </ul>
+                          </details>
+                        )}
                     </div>
                     {isMealBox &&
                       pkg.type !== 'MEAL_BOX' &&
@@ -725,9 +679,7 @@ export function PackageGridPage({
           nextName={pendingPackage.name}
           selecting={selecting === pendingPackage.id}
           onCancel={() => setPendingPackage(null)}
-          onClear={() =>
-            void clearCartAndChoose(pendingPackage, pendingIntent)
-          }
+          onClear={() => void clearCartAndChoose(pendingPackage, pendingIntent)}
           onConfirm={() => choose(pendingPackage, pendingIntent, true)}
         />
       )}

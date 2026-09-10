@@ -12,7 +12,7 @@ import {
   Utensils,
   UtensilsCrossed,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { StatePanel } from '../../components/ui/state-panel';
 import { DataImage } from '../../components/data-image';
 import { apiRequest } from '../../lib/api';
@@ -239,10 +239,10 @@ function FilterBar({
 ══════════════════════════════════════════════════════════ */
 function MenuCard({ item }: { item: MenuItem }) {
   return (
-    <article className="group flex flex-col overflow-hidden rounded-2xl border border-border bg-white shadow-[0_4px_18px_rgba(0,0,0,0.08)] transition-all duration-300 hover:-translate-y-1 hover:border-primary/25 hover:shadow-[0_14px_38px_rgba(0,0,0,0.14)]">
+    <article className="group grid min-h-[132px] grid-cols-[112px_minmax(0,1fr)] overflow-hidden rounded-xl border border-border bg-white shadow-[0_4px_18px_rgba(0,0,0,0.07)] transition-all duration-300 hover:-translate-y-1 hover:border-primary/25 hover:shadow-[0_14px_38px_rgba(0,0,0,0.14)] sm:flex sm:flex-col sm:rounded-2xl">
 
       {/* Food image — 3:2 aspect (slightly shorter than 4:3, fits more cards) */}
-      <div className="relative aspect-[4/2.5] overflow-hidden">
+      <div className="relative h-full min-h-[132px] overflow-hidden sm:aspect-[4/2.5] sm:h-auto sm:min-h-0">
         <DataImage
           src={item.imageUrl}
           alt={item.name}
@@ -256,7 +256,7 @@ function MenuCard({ item }: { item: MenuItem }) {
         {/* Diet badge — top-right */}
         <span
           className={cn(
-            'absolute right-3 top-3 flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold shadow-sm',
+            'absolute right-2 top-2 flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold shadow-sm sm:right-3 sm:top-3 sm:text-[10px]',
             item.isVeg ? 'bg-emerald-600 text-white' : 'bg-orange-500 text-white',
           )}
         >
@@ -265,7 +265,7 @@ function MenuCard({ item }: { item: MenuItem }) {
         </span>
 
         {/* Category — bottom-left over gradient */}
-        <div className="absolute bottom-2.5 left-3 flex items-center gap-1.5">
+        <div className="absolute bottom-2.5 left-3 hidden items-center gap-1.5 sm:flex">
           <span className="text-[10px] font-bold uppercase tracking-widest text-white/75">
             {item.category?.name ?? 'Menu'}
           </span>
@@ -273,15 +273,15 @@ function MenuCard({ item }: { item: MenuItem }) {
       </div>
 
       {/* Card body */}
-      <div className="flex flex-1 flex-col p-4">
+      <div className="flex min-w-0 flex-1 flex-col p-3 sm:p-4">
         {/* Dish name — primary hierarchy */}
-        <h2 className="font-serif text-[1.15rem] font-bold leading-snug text-foreground">
+        <h2 className="font-serif text-base font-bold leading-snug text-foreground sm:text-[1.15rem]">
           {item.name}
         </h2>
 
         {/* Description — 1 line, secondary */}
         {item.description && (
-          <p className="mt-1 line-clamp-1 text-xs leading-5 text-muted-foreground">
+          <p className="mt-1 hidden line-clamp-1 text-xs leading-5 text-muted-foreground sm:block">
             {item.description}
           </p>
         )}
@@ -290,14 +290,14 @@ function MenuCard({ item }: { item: MenuItem }) {
         <div className="flex-1" />
 
         {/* Price — high visual weight */}
-        <div className="mt-4 flex items-baseline gap-0.5">
-          <span className="text-2xl font-extrabold tracking-tight text-foreground">
+        <div className="mt-2 flex items-baseline gap-0.5 sm:mt-4">
+          <span className="text-xl font-extrabold tracking-tight text-foreground sm:text-2xl">
             ₹{item.generalPrice}
           </span>
           <span className="ml-1 text-xs font-medium text-muted-foreground">/ portion</span>
         </div>
 
-        <p className="mt-3 text-xs text-muted-foreground">Available in eligible packages</p>
+        <p className="mt-3 hidden text-xs text-muted-foreground sm:block">Available in eligible packages</p>
       </div>
     </article>
   );
@@ -347,6 +347,7 @@ export default function PublicMenuPage() {
   const [debouncedSearch, setDebouncedSearch]   = useState('');
   const [loading, setLoading]                   = useState(true);
   const [error, setError]                       = useState('');
+  const mobileInitialCategorySet = useRef(false);
 
   const sortedItems = useMemo(() => {
     return [...items].sort((a, b) => {
@@ -395,6 +396,19 @@ export default function PublicMenuPage() {
       .then(setCategories)
       .catch((reason) => setError(reason.message));
   }, []);
+
+  useEffect(() => {
+    if (
+      mobileInitialCategorySet.current ||
+      categories.length === 0 ||
+      typeof window === 'undefined' ||
+      !window.matchMedia('(max-width: 1023px)').matches
+    ) {
+      return;
+    }
+    mobileInitialCategorySet.current = true;
+    setCategoryId(categories[0].id);
+  }, [categories]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 300);
@@ -450,8 +464,13 @@ export default function PublicMenuPage() {
                 type="text"
                 placeholder="Search dishes by name..."
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="h-14 w-full rounded-2xl border border-border bg-white pl-14 pr-5 text-sm font-medium shadow-[0_8px_26px_rgba(88,64,48,0.08)] outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 sm:pr-64"
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setSearch(value);
+                  if (value.trim()) setCategoryId('');
+                  else if (categories[0]) setCategoryId(categories[0].id);
+                }}
+                className="h-12 w-full rounded-xl border border-border bg-white pl-12 pr-4 text-sm font-medium shadow-[0_8px_26px_rgba(88,64,48,0.08)] outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 sm:h-14 sm:rounded-2xl sm:pl-14 sm:pr-64"
               />
               <span className="pointer-events-none absolute right-5 top-1/2 hidden -translate-y-1/2 text-xs font-medium text-muted-foreground sm:block">
                 Example: Chicken 65, Paneer, Biryani
@@ -466,17 +485,6 @@ export default function PublicMenuPage() {
                 loading={loading}
               />
               <div className="mb-5 flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
-                <button
-                  type="button"
-                  onClick={() => setCategoryId('')}
-                  className={cn(
-                    'flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold',
-                    !categoryId ? 'bg-primary text-white shadow-sm' : 'border border-border bg-white text-muted-foreground',
-                  )}
-                >
-                  <LayoutGrid className="h-3.5 w-3.5" />
-                  All
-                </button>
                 {categories.map((cat) => {
                   const Icon = getCatIcon(cat.name);
                   return (
@@ -523,17 +531,17 @@ export default function PublicMenuPage() {
             {loading && <MenuSkeleton />}
 
             {!loading && !error && items.length > 0 && (
-              <div className="space-y-14 pb-8">
+              <div className="space-y-8 pb-4 lg:space-y-14 lg:pb-8">
                 {menuSections.map(({ category, items: categoryItems }, index) => (
                   <section
                     key={category.id}
                     className={cn(
                       'scroll-mt-36',
-                      index > 0 && 'border-t-2 border-primary/10 pt-10',
+                      index > 0 && 'border-t-2 border-primary/10 pt-7 lg:pt-10',
                     )}
                     aria-labelledby={`menu-category-${category.id}`}
                   >
-                    <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+                    <div className="mb-3 flex flex-wrap items-end justify-between gap-3 sm:mb-6">
                       <div>
                         <h2
                           id={`menu-category-${category.id}`}
@@ -548,14 +556,14 @@ export default function PublicMenuPage() {
                         {categoryItems.length === 1 ? 'dish' : 'dishes'}
                       </span>
                     </div>
-                    <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                    <div className="grid gap-3 sm:grid-cols-2 sm:gap-5 xl:grid-cols-3 2xl:grid-cols-4">
                       {categoryItems.map((item) => (
                         <MenuCard key={item.id} item={item} />
                       ))}
                     </div>
                   </section>
                 ))}
-                <div className="flex justify-center border-t border-border pt-8">
+                <div className="hidden justify-center border-t border-border pt-8 sm:flex">
                   <a
                     href={generateWhatsAppLink(whatsappMessages.recommendation)}
                     target="_blank"

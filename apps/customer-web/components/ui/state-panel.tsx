@@ -48,32 +48,32 @@ export function StatePanel({
   return (
     <div
       className={cn(
-        'surface-card mx-auto max-w-xl p-8 text-center sm:p-10',
+        'surface-card mx-auto max-w-xl p-5 text-center sm:p-10',
         className,
       )}
     >
       <span
         className={cn(
-          'mx-auto grid h-16 w-16 place-items-center rounded-full',
+        'mx-auto grid h-12 w-12 place-items-center rounded-full sm:h-16 sm:w-16',
           tone === 'danger'
             ? 'bg-red-50 text-red-700'
             : 'bg-primary/10 text-primary',
         )}
       >
         <PanelIcon
-          className={cn('h-7 w-7', tone === 'loading' && 'animate-spin')}
+          className={cn('h-5 w-5 sm:h-7 sm:w-7', tone === 'loading' && 'animate-spin')}
         />
       </span>
-      {eyebrow && <p className="eyebrow mt-6">{eyebrow}</p>}
-      <Heading className="mt-3 font-serif text-3xl font-semibold sm:text-4xl">
+      {eyebrow && <p className="eyebrow mt-4 sm:mt-6">{eyebrow}</p>}
+      <Heading className="mt-2 font-serif text-2xl font-semibold sm:mt-3 sm:text-4xl">
         {title}
       </Heading>
       {description && (
-        <p className="mt-3 leading-7 text-muted-foreground">{description}</p>
+        <p className="mt-2 text-sm leading-6 text-muted-foreground sm:mt-3 sm:text-base sm:leading-7">{description}</p>
       )}
       {children}
       {(actionHref || secondaryHref) && (
-        <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
+        <div className="mt-5 flex flex-col justify-center gap-2.5 sm:mt-7 sm:flex-row sm:gap-3">
           {actionHref && actionLabel && (
             <Button asChild>
               <Link href={actionHref}>
