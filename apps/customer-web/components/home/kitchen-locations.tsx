@@ -105,9 +105,8 @@ export function KitchenLocationsSection({
                   href={mapHref(location)}
                   target="_blank"
                   rel="noreferrer"
-                  className={variant === 'about' ? 'about-kitchen-card group' : 'group flex min-w-0 flex-col items-center justify-center border-border text-center sm:px-2 lg:border-r lg:last:border-r-0 lg:px-2'}
+                  className="group flex min-w-0 flex-col items-center justify-center border-border text-center sm:px-2 lg:border-r lg:last:border-r-0 lg:px-2"
                 >
-                  {variant === 'about' && <span className="about-kitchen-photo" aria-hidden="true" />}
                   <span className="flex h-11 items-center justify-center transition-transform duration-200 group-hover:-translate-y-0.5">
                     {iconSrc ? (
                       <img
