@@ -4,15 +4,20 @@ import type { OperatingRegion } from '@aranyam/shared-types';
 import {
   Award,
   Building2,
+  Cake,
   Calendar,
+  CalendarDays,
   CheckCircle2,
   ChefHat,
+  Church,
+  Flower2,
   HeartHandshake,
   MapPin,
   PackageCheck,
   ShieldCheck,
   Sparkles,
   Truck,
+  Utensils,
   Users,
 } from 'lucide-react';
 import Image from 'next/image';
@@ -69,11 +74,27 @@ const journey = [
   { title: 'Deliver', text: 'Putting experience into bulk food service' },
 ];
 
-const credentials = [
-  'FSSAI licensed kitchens',
-  'GST registered and compliant',
-  'Legal business operating in Telangana',
-  '10+ years of food and hospitality experience',
+const team = [
+  { name: 'Rakesh Reddy', role: 'Founder & CEO', image: '/RakeshReddy.png' },
+  { name: 'Bhuvan', role: 'Co-Founder & COO', image: '/Bhuvan.jpeg' },
+  { name: 'Arun Kumar', role: 'Co-Founder & Strategic Advisor', image: '/ArunKumar.jpeg' },
+  { name: 'Sandeep Goud', role: 'Co-Founder & Business Advisor', image: '/Sandeep.jpeg' },
+];
+
+const credentialItems = [
+  { Icon: CalendarDays, title: 'FSSAI Licensed', text: 'Kitchens' },
+  { Icon: Award, title: 'GST Registered', text: '& Compliant' },
+  { Icon: Building2, title: 'Legal Business', text: 'Operating in Telangana' },
+  { Icon: Sparkles, title: '10+ Years of Experience', text: 'in Food & Hospitality' },
+];
+
+const eventTypes = [
+  { Icon: Users, label: 'Weddings' },
+  { Icon: Building2, label: 'Corporate Events' },
+  { Icon: Cake, label: 'Birthdays' },
+  { Icon: Church, label: 'Religious Events' },
+  { Icon: Flower2, label: 'Community Events' },
+  { Icon: Utensils, label: 'Long Term Catering' },
 ];
 
 export default function AboutPage() {
@@ -86,16 +107,16 @@ export default function AboutPage() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-background">
+    <main className="about-page min-h-screen bg-background">
       <section className="border-b border-border bg-white">
-        <div className="container-pad grid gap-10 py-10 lg:grid-cols-[0.86fr_1fr] lg:items-center lg:py-12">
-          <div>
+        <div className="container-pad grid min-w-0 gap-8 py-8 lg:grid-cols-[0.86fr_1fr] lg:items-center lg:py-9">
+          <div className="min-w-0">
             <p className="eyebrow text-primary">About us</p>
-            <h1 className="mt-3 max-w-[560px] font-serif text-[38px] font-bold leading-[1.04] text-foreground sm:text-5xl">
+            <h1 className="mt-3 max-w-[560px] break-words font-serif text-[36px] font-bold leading-[1.02] text-foreground sm:text-[44px]">
               A Decade of Food Experience.{' '}
               <span className="text-primary">Now Delivered in Bulk.</span>
             </h1>
-            <div className="mt-5 max-w-[620px] space-y-4 text-sm leading-7 text-muted-foreground">
+            <div className="mt-5 max-w-[620px] space-y-3 text-[13px] leading-6 text-muted-foreground">
               <p>
                 We are a food and hospitality company with a journey dating
                 back to 2015. Over the years, we have built strong experience in
@@ -108,7 +129,7 @@ export default function AboutPage() {
               </p>
             </div>
 
-            <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-5">
+            <div className="mt-7 grid grid-cols-2 gap-3 sm:grid-cols-5">
               {stats.map(({ Icon, value, label }) => (
                 <div key={label} className="text-center">
                   <div className="mx-auto grid h-10 w-10 place-items-center rounded-full bg-primary/10 text-primary">
@@ -125,17 +146,17 @@ export default function AboutPage() {
             </div>
           </div>
 
-          <div className="relative">
+          <div className="relative min-w-0">
             <Image
               src="/about-hero.png"
-              alt="Guests enjoying a catered Indian gathering"
+              alt="The Feast Factory logo"
               width={1672}
               height={941}
               priority
               sizes="(max-width: 1024px) 100vw, 54vw"
-              className="h-[360px] w-full rounded-2xl object-cover shadow-lg sm:h-[440px]"
+              className="h-[330px] w-full rounded-[14px] object-cover shadow-lg sm:h-[380px]"
             />
-            <div className="absolute bottom-5 right-5 w-[min(78%,300px)] rounded-2xl bg-white p-5 shadow-xl">
+            <div className="absolute bottom-4 right-4 w-[min(78%,300px)] rounded-[14px] bg-white p-5 shadow-xl">
               <h2 className="font-serif text-2xl font-bold leading-tight text-foreground">
                 Built on Experience. Driven by Trust.
               </h2>
@@ -154,8 +175,8 @@ export default function AboutPage() {
         </div>
       </section>
 
-      <section className="container-pad grid gap-6 py-10 lg:grid-cols-[0.8fr_1.2fr]">
-        <div className="rounded-2xl border border-border bg-white p-6 shadow-sm">
+      <section className="container-pad grid gap-5 py-8 lg:grid-cols-[0.82fr_1.18fr]">
+        <div className="about-panel">
           <p className="eyebrow text-primary">Our journey</p>
           <h2 className="mt-3 font-serif text-3xl font-bold leading-tight">
             From Restaurants and Banquets to Bulk Food
@@ -181,7 +202,7 @@ export default function AboutPage() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-border bg-white p-6 shadow-sm">
+        <div className="about-panel">
           <p className="eyebrow text-primary">Why customers trust us</p>
           <h2 className="mt-3 font-serif text-3xl font-bold leading-tight">
             Our Promise to You
@@ -206,20 +227,21 @@ export default function AboutPage() {
 
       <KitchenLocationsSection
         locations={kitchens}
-        className="border-y border-border bg-white py-10 lg:py-12"
+        variant="about"
+        className="border-y border-border bg-white py-7 lg:py-8"
       />
 
-      <section className="container-pad grid gap-6 py-10 lg:grid-cols-[0.85fr_1.15fr]">
-        <div className="rounded-2xl border border-border bg-white p-6 shadow-sm">
+      <section className="container-pad grid items-stretch gap-5 py-7 lg:grid-cols-[0.9fr_0.82fr_1.55fr]">
+        <div className="about-panel flex min-h-[330px] flex-col justify-between p-5">
           <p className="eyebrow text-primary">Our corporate office</p>
-          <h2 className="mt-3 font-serif text-3xl font-bold leading-tight">
+          <h2 className="mt-2 font-serif text-2xl font-bold leading-tight">
             A Business You Can Reach
           </h2>
-          <p className="mt-4 text-sm leading-7 text-muted-foreground">
+          <p className="mt-3 text-xs leading-5 text-muted-foreground">
             Our corporate operations are managed from our Hyderabad office,
             supporting our kitchens and customer service across Telangana.
           </p>
-          <p className="mt-5 flex gap-2 text-sm font-semibold leading-6 text-foreground">
+          <p className="mt-4 flex gap-2 text-xs font-semibold leading-5 text-foreground">
             <MapPin className="mt-1 h-4 w-4 shrink-0 text-primary" />
             2nd Floor, Jains Balaji Big Town Complex, 203, Malkajgiri,
             Telangana 500047, India.
@@ -232,53 +254,66 @@ export default function AboutPage() {
             View on Map <MapPin className="h-4 w-4" />
           </Link>
         </div>
-
-        <div className="grid gap-6 sm:grid-cols-2">
-          <Image
-            src="/office-hero.png"
-            alt="The Feast Factory food service setup"
+        <Image
+            src="/Office.jpeg"
+            alt="The Feast Factory office and buffet setup"
             width={1200}
             height={800}
             sizes="(max-width: 1024px) 100vw, 34vw"
-            className="h-full min-h-[260px] rounded-2xl object-cover shadow-sm"
+            className="about-office-logo h-full min-h-[330px] w-full rounded-[14px] shadow-sm"
           />
-          <div className="rounded-2xl border border-border bg-white p-6 shadow-sm">
-            <p className="eyebrow text-primary">Our credentials</p>
-            <div className="mt-5 space-y-4">
-              {credentials.map((credential) => (
-                <p
-                  key={credential}
-                  className="flex items-center gap-3 text-sm font-bold text-foreground"
-                >
-                  <ShieldCheck className="h-5 w-5 text-primary" />
-                  {credential}
-                </p>
-              ))}
-            </div>
-            <div className="mt-7 rounded-2xl bg-primary p-5 text-white">
-              <p className="font-serif text-2xl font-bold">
-                From 10 guests to 2500+ guests
-              </p>
-              <p className="mt-2 text-sm leading-6 text-white/80">
-                No matter the gathering size, we are here with delicious food
-                and timely delivery to make your event a grand success.
-              </p>
-            </div>
+        <div className="about-panel min-h-[330px] p-5">
+          <p className="eyebrow text-primary">Our team</p>
+          <div className="mt-3 grid grid-cols-4 gap-3">
+            {team.map((member) => (
+              <div key={member.name} className="min-w-0 text-center">
+                <div className="about-team-photo" style={{ backgroundImage: `url(${member.image})` }} />
+                <p className="mt-2 text-[11px] font-bold leading-4 text-foreground">{member.name}</p>
+                <p className="mt-1 text-[10px] leading-4 text-muted-foreground">{member.role}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
-      <section className="container-pad pb-12">
-        <div className="flex flex-col gap-4 rounded-2xl border border-primary/15 bg-primary/[0.04] p-5 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="font-serif text-2xl font-bold text-foreground">
-              Need help with your bulk order?
-            </p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Our team can assist with planning your event and choosing the
-              right package.
-            </p>
+      <section className="container-pad pb-5">
+        <div className="about-credentials-panel">
+          <p className="eyebrow text-primary">Our credentials</p>
+          <div className="about-credentials-grid">
+            {credentialItems.map(({ Icon, title, text }) => (
+              <div key={title} className="about-credential-item">
+                <Icon className="h-7 w-7 shrink-0 text-primary" strokeWidth={1.5} />
+                <p><strong>{title}</strong><span>{text}</span></p>
+              </div>
+            ))}
+            <div className="about-years-badge"><strong>10+</strong><span>YEARS</span></div>
           </div>
+        </div>
+      </section>
+
+      <section className="container-pad pb-8">
+        <div className="about-events-panel">
+          <div className="about-capacity">
+            <p className="font-serif text-lg font-bold">From 10 Guests to 2500+ Guests</p>
+            <p className="mt-1 text-[10px] leading-4 text-white/80">No matter the gathering size, we are here with large-scale delicious food and timely delivery to make your event a grand success.</p>
+          </div>
+          <div className="about-event-grid">
+            {eventTypes.map(({ Icon, label }) => (
+              <div key={label} className="about-event-item">
+                <Icon className="h-7 w-7 text-primary" strokeWidth={1.4} />
+                <span>{label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="container-pad pb-10">
+        <div className="about-help-panel">
+          <div>
+            <p className="font-serif text-2xl font-bold text-foreground">Need help with your bulk order?</p>
+            <p className="mt-1 text-sm text-muted-foreground">Our team can assist with planning your event and choosing the right package.</p>
+            </div>
           <div className="flex flex-wrap gap-3">
             <Link
               href="tel:+919000000000"
