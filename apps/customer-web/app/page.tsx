@@ -46,6 +46,20 @@ const heroTags = [
   { label: 'FSSAI Certified', icon: BadgeCheck },
   { label: 'Delivered Piping Hot', icon: Flame },
 ];
+const heroImages = [
+  {
+    src: '/office-hero.png',
+    alt: 'A catered Indian buffet arranged in a modern office meeting room',
+  },
+  {
+    src: '/pooja-thali.png',
+    alt: 'A festive Indian pooja thali served beside flowers and a lit diya',
+  },
+  {
+    src: '/farmhouse-hero.png',
+    alt: 'An outdoor farmhouse catering spread prepared for an evening event',
+  },
+];
 
 const offeringIcons: Record<string, LucideIcon> = {
   MEAL_BOX: PackageIcon,
@@ -80,6 +94,14 @@ export default function HomePage() {
   const [selecting, setSelecting] = useState('');
   const [selectionError, setSelectionError] = useState('');
   const [activeCartCount, setActiveCartCount] = useState(0);
+  const [activeHeroImage, setActiveHeroImage] = useState(0);
+  useEffect(() => {
+    const interval = window.setInterval(
+      () => setActiveHeroImage((current) => (current + 1) % heroImages.length),
+      5000,
+    );
+    return () => window.clearInterval(interval);
+  }, []);
   useEffect(() => {
     Promise.all([
       apiRequest<OrderingOffering[]>('/catalog/ordering-offerings'),
@@ -253,11 +275,17 @@ export default function HomePage() {
 
             <div className="relative min-w-0 lg:-mr-8">
               <div className="relative h-[160px] overflow-hidden rounded-[18px] border border-accent/15 shadow-[0_22px_52px_rgba(0,0,0,0.30)] sm:h-auto sm:aspect-[16/9] sm:rounded-[24px] lg:h-[390px] lg:aspect-auto lg:rounded-[26px]">
-                <img
-                  src="/office-hero.png"
-                  alt="A catered Indian buffet arranged in a modern office meeting room"
-                  className="h-full w-full object-cover object-center"
-                />
+                {heroImages.map((image, index) => (
+                  <img
+                    key={image.src}
+                    src={image.src}
+                    alt={index === activeHeroImage ? image.alt : ''}
+                    aria-hidden={index !== activeHeroImage}
+                    className={`absolute inset-0 h-full w-full object-cover object-center transition-opacity duration-1000 motion-reduce:transition-none ${
+                      index === activeHeroImage ? 'opacity-100' : 'opacity-0'
+                    }`}
+                  />
+                ))}
               </div>
             </div>
           </div>

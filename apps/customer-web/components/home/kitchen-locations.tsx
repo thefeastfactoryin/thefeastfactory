@@ -4,14 +4,28 @@ import Link from 'next/link';
 
 const landmarkIcons: Record<string, string> = {
   warangal:
-    '/kitchen-icons/ChatGPT%20Image%20Sep%2010,%202026%20at%2009_20_08%20PM.png',
+    '/kitchen-icons/warangal.png',
   hyderabad:
-    '/kitchen-icons/ChatGPT%20Image%20Sep%2010,%202026%20at%2009_22_14%20PM.png',
+    '/kitchen-icons/hyderabad.png',
   karimnagar:
-    '/kitchen-icons/ChatGPT%20Image%20Sep%2010,%202026%20at%2009_23_22%20PM.png',
+    '/kitchen-icons/karimnagar.png',
   khammam:
-    '/kitchen-icons/ChatGPT%20Image%20Sep%2010,%202026%20at%2009_24_17%20PM.png',
+    '/kitchen-icons/khammam.png',
 };
+
+const aboutKitchenImages: Record<string, string> = {
+  warangal: '/Warangal Kitchen.JPG',
+  hyderabad: '/Hyderabad Kitchen.jpeg',
+  karimnagar: '/Karimnagar Kitchen.png',
+};
+
+function normalizeCityKey(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/\s*kitchen\s*/gi, '')
+    .replace(/[^a-z]/g, '')
+    .trim();
+}
 
 function mapHref(region: OperatingRegion) {
   return (
@@ -21,7 +35,8 @@ function mapHref(region: OperatingRegion) {
 }
 
 function landmarkIconFor(location: OperatingRegion) {
-  return landmarkIcons[location.name.trim().toLowerCase()];
+  const key = normalizeCityKey(location.name);
+  return landmarkIcons[key];
 }
 
 function FloralAccent({ side }: { side: 'left' | 'right' }) {
@@ -135,6 +150,8 @@ export function KitchenLocationsSection({
             <div className="flex snap-x snap-mandatory overflow-x-auto border-t border-border [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:min-w-0 lg:flex-1 lg:overflow-visible lg:border-l lg:border-t-0">
               {visibleLocations.map((location) => {
                 const cityName = location.name.replace(/\s+Kitchen$/i, '');
+                const iconSrc = landmarkIconFor(location);
+
                 return (
                   <a
                     key={location.id}
@@ -143,10 +160,18 @@ export function KitchenLocationsSection({
                     rel="noreferrer"
                     className="flex min-w-[138px] flex-1 snap-start flex-col items-center justify-center border-r border-border px-3 py-4 text-center transition-colors hover:bg-primary/[0.025] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary lg:min-w-[130px]"
                   >
-                    <Landmark
-                      className="h-7 w-7 text-primary"
-                      aria-hidden="true"
-                    />
+                    <span className="flex h-9 items-center justify-center">
+                      {iconSrc ? (
+                        <img
+                          src={iconSrc}
+                          alt=""
+                          aria-hidden="true"
+                          className="h-8 w-8 object-contain"
+                        />
+                      ) : (
+                        <Landmark className="h-7 w-7 text-primary" aria-hidden="true" />
+                      )}
+                    </span>
                     <h3 className="mt-2 text-sm font-extrabold text-foreground">
                       {cityName}
                     </h3>
@@ -232,6 +257,11 @@ export function KitchenLocationsSection({
           >
             {locations.map((location) => {
               const iconSrc = landmarkIconFor(location);
+              const cityKey = normalizeCityKey(location.name);
+              const kitchenImage =
+                aboutKitchenImages[cityKey] ||
+                location.kitchenImageUrl ||
+                '/about-gathering.png';
               return (
                 <a
                   key={location.id}
@@ -245,7 +275,11 @@ export function KitchenLocationsSection({
                   }
                 >
                   {variant === 'about' && (
-                    <span className="about-kitchen-photo" aria-hidden="true" />
+                    <span
+                      className="about-kitchen-photo"
+                      aria-hidden="true"
+                      style={{ backgroundImage: `url("${kitchenImage}")` }}
+                    />
                   )}
                   <span className="flex h-11 items-center justify-center transition-transform duration-200 group-hover:-translate-y-0.5">
                     {iconSrc ? (

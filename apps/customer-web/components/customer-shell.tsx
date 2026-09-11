@@ -49,8 +49,8 @@ const navLinks = [
 
 const mobileLinks = [
   { href: '/', label: 'Home', icon: Home },
-  { href: '/menu', label: 'Menu', icon: BookOpen },
   { href: '/packages', label: 'Packages', icon: Package },
+  { href: '/packages/meal-boxes', label: 'Meal Boxes', icon: Package },
 ];
 
 const WhatsAppConcierge = dynamic(
