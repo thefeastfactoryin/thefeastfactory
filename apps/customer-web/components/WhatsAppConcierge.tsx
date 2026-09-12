@@ -4,7 +4,12 @@ import { MessageCircle, Phone, Sparkles, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useWhatsAppPrompt } from '../hooks/use-whatsapp-prompt';
 import { useRouteMessage } from '../hooks/use-route-message';
-import { generateWhatsAppLink, whatsappMessages } from '../lib/generate-whatsapp-link';
+import {
+  generateWhatsAppLink,
+  getSupportPhone,
+  whatsappMessages,
+} from '../lib/generate-whatsapp-link';
+import { usePublicSettings } from './public-settings-provider';
 
 function trackWhatsAppClick(action: string) {
   window.dispatchEvent(new CustomEvent('tff:whatsapp-click', { detail: { action } }));
@@ -16,6 +21,8 @@ export function WhatsAppConcierge() {
   const hasAutoOpened = useRef(false);
   const prompt = useWhatsAppPrompt();
   const routeMessage = useRouteMessage();
+  const settings = usePublicSettings();
+  const supportPhone = getSupportPhone(settings?.business.supportPhone);
 
   useEffect(() => {
     if (prompt.isDismissed || isPanelOpen || hasAutoOpened.current) return;
@@ -54,7 +61,13 @@ export function WhatsAppConcierge() {
   function openLink(message: string, action: string) {
     prompt.hideBubble();
     trackWhatsAppClick(action);
-    window.open(generateWhatsAppLink(message), '_blank', 'noopener,noreferrer');
+    window.open(generateWhatsAppLink(message, supportPhone), '_blank', 'noopener,noreferrer');
+  }
+
+  function callSupport() {
+    prompt.hideBubble();
+    trackWhatsAppClick('call');
+    window.location.href = `tel:${supportPhone}`;
   }
 
   function dismissConcierge() {
@@ -63,7 +76,7 @@ export function WhatsAppConcierge() {
   }
 
   return (
-    <div ref={containerRef} className="fixed bottom-20 right-4 z-40 hidden md:bottom-10 md:right-6 md:block">
+    <div ref={containerRef} className="fixed bottom-20 right-4 z-40 md:bottom-10 md:right-6">
       {prompt.isBubbleVisible && !isPanelOpen && (
         <aside className="absolute bottom-16 right-0 w-[calc(100vw-2rem)] max-w-[260px] rounded-xl border border-border bg-ivory p-4 pr-10 text-sm leading-5 text-foreground shadow-md">
           <p>{prompt.promptText}</p>
@@ -85,7 +98,7 @@ export function WhatsAppConcierge() {
           <div className="mt-5 grid gap-4">
             <button type="button" onClick={() => openLink(routeMessage, 'chat')} className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-primary/90 px-4 text-sm font-bold text-white shadow-sm transition-all hover:-translate-y-px hover:bg-primary hover:shadow-md"><MessageCircle className="h-4 w-4" />Chat on WhatsApp</button>
             <button type="button" onClick={() => openLink(whatsappMessages.recommendation, 'recommendation')} className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-primary/35 px-4 text-sm font-bold text-primary transition-all hover:-translate-y-px hover:bg-primary/5 hover:shadow-sm"><Sparkles className="h-4 w-4" />Suggest a menu for me</button>
-            <button type="button" onClick={() => openLink(whatsappMessages.callback, 'callback')} className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-border px-4 text-sm font-bold text-foreground transition-all hover:-translate-y-px hover:bg-muted hover:shadow-sm"><Phone className="h-4 w-4" />Call me back</button>
+            <button type="button" onClick={callSupport} className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-border px-4 text-sm font-bold text-foreground transition-all hover:-translate-y-px hover:bg-muted hover:shadow-sm"><Phone className="h-4 w-4" />Call now</button>
           </div>
         </section>
       )}

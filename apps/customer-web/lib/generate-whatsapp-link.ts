@@ -12,9 +12,14 @@ export const whatsappMessages = {
 
 export type WhatsAppMessageKey = keyof typeof whatsappMessages;
 
+export function getSupportPhone(supportPhone?: string | null) {
+  return (supportPhone ?? businessInfo.supportPhone).trim();
+}
+
 export function generateWhatsAppLink(
   message: string = whatsappMessages.default,
+  supportPhone?: string | null,
 ) {
-  const phoneNumber = businessInfo.supportPhone.replace(/\D/g, '');
+  const phoneNumber = getSupportPhone(supportPhone).replace(/\D/g, '');
   return `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
 }

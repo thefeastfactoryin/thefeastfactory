@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { StatePanel } from '../../components/ui/state-panel';
+import { usePublicSettings } from '../../components/public-settings-provider';
 import { DataImage } from '../../components/data-image';
 import { apiRequest } from '../../lib/api';
 import { generateWhatsAppLink, whatsappMessages } from '../../lib/generate-whatsapp-link';
@@ -337,6 +338,7 @@ function MenuSkeleton() {
    Page
 ══════════════════════════════════════════════════════════ */
 export default function PublicMenuPage() {
+  const settings = usePublicSettings();
   const [categories, setCategories]             = useState<MenuCategory[]>([]);
   const [items, setItems]                       = useState<MenuItem[]>([]);
   const [countItems, setCountItems]             = useState<MenuItem[]>([]);
@@ -565,7 +567,7 @@ export default function PublicMenuPage() {
                 ))}
                 <div className="hidden justify-center border-t border-border pt-8 sm:flex">
                   <a
-                    href={generateWhatsAppLink(whatsappMessages.recommendation)}
+                    href={generateWhatsAppLink(whatsappMessages.recommendation, settings?.business.supportPhone)}
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex h-11 items-center justify-center rounded-full border border-primary/35 px-5 text-sm font-bold text-primary transition-colors hover:bg-primary/5"
