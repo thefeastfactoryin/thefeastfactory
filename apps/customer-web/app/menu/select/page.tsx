@@ -1309,7 +1309,7 @@ function SwapDrawer({
   const selected =
     alternatives.find((item) => item.id === pendingSwapId) ?? original;
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/45 lg:grid lg:justify-items-end">
+    <div className="fixed inset-0 z-[60] bg-slate-950/45 lg:grid lg:justify-items-end">
       <button
         type="button"
         className="absolute inset-0"
