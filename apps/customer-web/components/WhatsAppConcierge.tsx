@@ -76,7 +76,7 @@ export function WhatsAppConcierge() {
   }
 
   return (
-    <div ref={containerRef} className="fixed bottom-20 right-4 z-40 md:bottom-10 md:right-6">
+    <div ref={containerRef} className="fixed bottom-36 right-4 z-40 md:bottom-10 md:right-6">
       {prompt.isBubbleVisible && !isPanelOpen && (
         <aside className="absolute bottom-16 right-0 w-[calc(100vw-2rem)] max-w-[260px] rounded-xl border border-border bg-ivory p-4 pr-10 text-sm leading-5 text-foreground shadow-md">
           <p>{prompt.promptText}</p>

@@ -19,7 +19,10 @@ const envSchema = z.object({
   MSG91_TEMPLATE_ID: z.string().optional().default(''),
   MSG91_FLOW_ID: z.string().optional().default(''),
   MSG91_SENDER_ID: z.string().optional().default(''),
+  MSG91_ORDER_FLOW_ID: z.string().optional().default(''),
   MSG91_OTP_EXPIRY_SECONDS: z.coerce.number().default(300),
+  RESEND_API_KEY: z.string().optional().default(''),
+  ORDER_NOTIFICATION_FROM_EMAIL: z.string().optional().default(''),
   TEST_LOGIN_OTP_ENABLED: z
     .enum(['true', 'false'])
     .default('false')

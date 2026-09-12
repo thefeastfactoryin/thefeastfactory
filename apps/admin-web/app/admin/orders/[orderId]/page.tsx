@@ -5,7 +5,7 @@ import {
   type OrderDetails,
   type OrderNote,
 } from '@aranyam/shared-types';
-import { MapPin, MessageSquareText } from 'lucide-react';
+import { MapPin, MessageSquareText, Printer } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { StatusBadge } from '../../../../components/status-badge';
@@ -74,8 +74,65 @@ export default function AdminOrderDetail() {
   }
   if (!order) return <main className="admin-page">Loading order...</main>;
   const address = order.event?.address;
+  const eventDate = order.event?.eventDate
+    ? new Date(order.event.eventDate).toLocaleDateString('en-IN')
+    : 'Not scheduled';
+  const eventTime = order.event?.eventTimeStart || 'Not scheduled';
+  const venue = [
+    address?.addressLine1,
+    address?.city,
+    address?.state,
+    address?.pincode,
+  ]
+    .filter(Boolean)
+    .join(', ');
   return (
     <main className="admin-page">
+      <section className="print-ticket" aria-label="Kitchen print ticket">
+        <header className="print-ticket-header">
+          <strong>The Feast Factory</strong>
+          <span>KITCHEN ORDER</span>
+        </header>
+        <div className="print-ticket-rule" />
+        <div className="print-ticket-row print-ticket-order">
+          <strong>{order.orderNumber}</strong>
+          <strong>{order.orderStatus}</strong>
+        </div>
+        <div className="print-ticket-row">
+          <span>Date</span>
+          <strong>{eventDate}</strong>
+        </div>
+        <div className="print-ticket-row">
+          <span>Time</span>
+          <strong>{eventTime}</strong>
+        </div>
+        <div className="print-ticket-row">
+          <span>Guests</span>
+          <strong>{order.guestCount}</strong>
+        </div>
+        <div className="print-ticket-rule" />
+        <p className="print-ticket-label">CUSTOMER</p>
+        <p>{order.user.name || 'Customer'}</p>
+        <p>{order.user.mobileNumber}</p>
+        {order.event?.eventName && <p>{order.event.eventName}</p>}
+        {venue && <p>{venue}</p>}
+        <div className="print-ticket-rule" />
+        <p className="print-ticket-label">ITEMS</p>
+        {order.selectedItems.map((item) => (
+          <div className="print-ticket-item" key={item.id}>
+            <span>
+              {item.quantity} x {item.menuItemName}
+            </span>
+            <span>{item.isVeg ? 'VEG' : 'NON-VEG'}</span>
+          </div>
+        ))}
+        <div className="print-ticket-rule" />
+        <p className="print-ticket-label">KITCHEN INSTRUCTIONS</p>
+        <p>{order.specialNotes?.trim() || 'None'}</p>
+        {order.region?.name && (
+          <p className="print-ticket-footer">Kitchen: {order.region.name}</p>
+        )}
+      </section>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-primary">
@@ -93,7 +150,16 @@ export default function AdminOrderDetail() {
             </p>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => window.print()}
+            title="Print a kitchen ticket on the configured POS printer"
+          >
+            <Printer className="mr-2 h-4 w-4" />
+            Print kitchen ticket
+          </Button>
           <StatusBadge value={order.orderStatus} />
           <StatusBadge value={order.paymentStatus} />
         </div>

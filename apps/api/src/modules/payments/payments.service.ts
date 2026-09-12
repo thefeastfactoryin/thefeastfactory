@@ -3,6 +3,7 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  Optional,
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -18,6 +19,7 @@ import Razorpay from 'razorpay';
 import { PrismaService } from '../../prisma/prisma.service';
 import { OperationsService } from '../operations/operations.service';
 import { VerifyPaymentDto } from './dto/verify-payment.dto';
+import { OrderNotificationService } from '../notifications/order-notification.service';
 
 type GatewayPayment = {
   id: string;
@@ -43,6 +45,7 @@ export class PaymentsService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly operations: OperationsService,
+    @Optional() private readonly notifications?: OrderNotificationService,
   ) {}
 
   async createGatewayOrder(userId: string, orderId: string) {
@@ -620,6 +623,7 @@ export class PaymentsService {
     });
     if (marked) {
       await this.operations.generateOrderDocuments(payment.orderId);
+      void this.notifications?.notifyConfirmedOrder(payment.orderId);
     }
   }
 

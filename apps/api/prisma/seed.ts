@@ -230,7 +230,12 @@ async function seedAdmin() {
   const passwordHash = await bcrypt.hash('Admin@12345', 12);
   await prisma.adminUser.upsert({
     where: { email: 'admin@thefeastfactory.local' },
-    update: { name: 'The Feast Factory Admin', role: AdminRole.ADMIN },
+    update: {
+      name: 'The Feast Factory Admin',
+      role: AdminRole.ADMIN,
+      passwordHash,
+      isActive: true,
+    },
     create: {
       email: 'admin@thefeastfactory.local',
       name: 'The Feast Factory Admin',
