@@ -7,6 +7,7 @@ import type {
   PackageConfiguration,
   PackageSelectionPrice,
 } from '@aranyam/shared-types';
+import { mobileNumberSchema } from '@aranyam/validation';
 import {
   CalendarDays,
   CheckCircle2,
@@ -35,6 +36,8 @@ import { DataImage } from '../../components/data-image';
 import { RetryPaymentButton } from '../../components/retry-payment-button';
 import { SelectionContextPanel } from '../../components/selection-context-panel';
 import { Button } from '../../components/ui/button';
+import { Field } from '../../components/ui/form';
+import { Input } from '../../components/ui/input';
 import { AuthRequiredPanel, StatePanel } from '../../components/ui/state-panel';
 import { apiRequest } from '../../lib/api';
 import { formatCurrency } from '../../lib/format';
@@ -142,6 +145,11 @@ export default function CartPage() {
   const [error, setError] = useState('');
   const [activeCategoryId, setActiveCategoryId] = useState('');
   const [specialNotes, setSpecialNotes] = useState('');
+  const [contactNumber, setContactNumber] = useState('');
+
+  useEffect(() => {
+    setContactNumber(session?.user.mobileNumber ?? '');
+  }, [session?.user.mobileNumber]);
 
   const loadQuote = useCallback(async (currentCartId?: string) => {
     if (!session) return;
@@ -545,6 +553,11 @@ export default function CartPage() {
 
   async function pay() {
     if (!session || !cart || !ready || !multiCartQuote?.valid) return;
+    const validatedContactNumber = mobileNumberSchema.safeParse(contactNumber);
+    if (!validatedContactNumber.success) {
+      setError('Enter a valid 10-digit contact number to continue.');
+      return;
+    }
     setError('');
     setPaying(true);
     try {
@@ -609,7 +622,7 @@ export default function CartPage() {
         prefill: {
           name: session.user.name ?? '',
           email: session.user.email ?? '',
-          contact: session.user.mobileNumber,
+          contact: validatedContactNumber.data,
         },
         theme: { color: '#7c1d2c' },
         modal: {
@@ -1079,6 +1092,28 @@ export default function CartPage() {
                     </div>
                   )}
                   <div className="mt-5">
+                    <Field
+                      label="Contact number"
+                      hint="Required for order and delivery updates."
+                    >
+                      <Input
+                        aria-label="Contact number"
+                        type="tel"
+                        inputMode="numeric"
+                        autoComplete="tel"
+                        value={contactNumber}
+                        onChange={(event) =>
+                          setContactNumber(
+                            event.target.value.replace(/\D/g, '').slice(0, 10),
+                          )
+                        }
+                        maxLength={10}
+                        placeholder="9876543210"
+                        required
+                      />
+                    </Field>
+                  </div>
+                  <div className="mt-5">
                     <label
                       htmlFor="special-kitchen-request"
                       className="flex items-center gap-2 text-sm font-bold text-foreground"
@@ -1115,6 +1150,7 @@ export default function CartPage() {
                       onClick={pay}
                       disabled={
                         !ready ||
+                        !mobileNumberSchema.safeParse(contactNumber).success ||
                         !multiCartQuote?.valid ||
                         quoteLoading ||
                         paying
@@ -1236,9 +1272,15 @@ export default function CartPage() {
             />
           ) : (
             <Button
-              className="h-11 min-w-[148px] px-5"
+              className="h-11 min-w-[132px] px-3 text-xs sm:min-w-[148px] sm:px-5 sm:text-sm"
               onClick={pay}
-              disabled={!ready || !multiCartQuote?.valid || quoteLoading || paying}
+              disabled={
+                !ready ||
+                !mobileNumberSchema.safeParse(contactNumber).success ||
+                !multiCartQuote?.valid ||
+                quoteLoading ||
+                paying
+              }
             >
               <LockKeyhole className="mr-2 h-4 w-4" />
               {paying ? 'Opening…' : 'Pay securely'}
@@ -1247,7 +1289,7 @@ export default function CartPage() {
         </div>
         {!pendingOrder && !ready && (
           <p className="mx-auto mt-1.5 max-w-xl text-[11px] text-muted-foreground">
-            Add venue, date, time, and guest count to continue.
+            Add venue, date, time, guest count, and contact number to continue.
           </p>
         )}
       </section>
