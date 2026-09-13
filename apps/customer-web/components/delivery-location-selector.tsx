@@ -10,6 +10,7 @@ import {
   MapPin,
   Search,
   X,
+  Zap,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -29,11 +30,21 @@ import {
 import { Button } from './ui/button';
 
 const SAVED_ADDRESS_MATCH_KM = 0.5;
+const DELIVERY_LEAD_TIME_HOURS = 24;
 
 type LocationCandidate = {
   address: MapAddress;
   resolution: LocationResolution;
 };
+
+function formatDeliveryEstimate(date: Date) {
+  return new Intl.DateTimeFormat('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(date);
+}
 
 export function DeliveryLocationSelector({
   active,
@@ -55,9 +66,19 @@ export function DeliveryLocationSelector({
   const [addressesLoaded, setAddressesLoaded] = useState(false);
   const [candidate, setCandidate] = useState<LocationCandidate>();
   const [candidateLoading, setCandidateLoading] = useState(false);
+  const [deliveryEstimate, setDeliveryEstimate] = useState('');
   const addressBookRevision = useAddressBookStore((state) => state.revision);
   const requestedAutomatically = useRef(false);
   const lastSavedMatchAttempt = useRef('');
+
+  useEffect(() => {
+    if (!active) return;
+    setDeliveryEstimate(
+      formatDeliveryEstimate(
+        new Date(Date.now() + DELIVERY_LEAD_TIME_HOURS * 60 * 60 * 1000),
+      ),
+    );
+  }, [active]);
 
   useEffect(() => {
     if (!session) {
@@ -288,12 +309,20 @@ export function DeliveryLocationSelector({
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border bg-card text-primary transition-colors hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 xl:h-11 xl:w-auto xl:max-w-[190px] xl:justify-start xl:gap-2.5 xl:rounded-xl xl:px-3 xl:text-left"
+          className="flex h-10 w-[42vw] max-w-[150px] shrink-0 items-center justify-start gap-1.5 rounded-xl border border-border bg-card px-2 text-left text-primary transition-colors hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 sm:h-11 sm:w-auto sm:min-w-[280px] sm:max-w-[340px] sm:gap-2.5 sm:px-3"
           aria-label={
-            location ? `Deliver to ${location.label}` : 'Set delivery location'
+            location
+              ? location.resolution.serviceable
+                ? `Delivery by ${deliveryEstimate || 'tomorrow'} to ${location.label}`
+                : `Unavailable at this location: ${location.label}`
+              : 'Set delivery location'
           }
           title={
-            location ? `Deliver to ${location.label}` : 'Set delivery location'
+            location
+              ? location.resolution.serviceable
+                ? `Delivery by ${deliveryEstimate || 'tomorrow'} to ${location.label}`
+                : `Unavailable at this location: ${location.label}`
+              : 'Set delivery location'
           }
         >
           <span className="relative grid shrink-0 place-items-center">
@@ -306,20 +335,36 @@ export function DeliveryLocationSelector({
               <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-white" />
             )}
           </span>
-          <span className="hidden min-w-0 flex-1 xl:block">
-            <span className="block text-[9px] font-extrabold uppercase leading-none tracking-[0.12em] text-muted-foreground">
-              Deliver to
-            </span>
-            <span className="mt-1 flex min-w-0 items-center gap-1 text-xs font-bold leading-none text-foreground">
+          <span className="block min-w-0 flex-1">
+            <span
+              className={`flex items-center gap-1 whitespace-nowrap text-[10px] font-extrabold leading-none sm:text-sm ${
+                location && !location.resolution.serviceable
+                  ? 'text-red-700'
+                  : 'text-primary'
+              }`}
+            >
+              <Zap className="h-3 w-3 shrink-0 fill-current sm:h-4 sm:w-4" aria-hidden="true" />
               <span className="truncate">
-                {location?.label ||
+                {!location
+                  ? 'Set delivery location'
+                  : !location.resolution.serviceable
+                    ? 'Unavailable at this location'
+                    : deliveryEstimate
+                      ? `Delivery by ${deliveryEstimate}`
+                      : 'Calculating delivery time…'}
+              </span>
+            </span>
+            <span className="mt-1 flex min-w-0 items-center gap-1 text-[10px] font-semibold leading-none text-muted-foreground sm:text-xs">
+              <span className="truncate">
+                {location?.address?.addressLine1 ||
+                  location?.label ||
                   (status === 'locating'
                     ? 'Detecting location…'
                     : status === 'resolving'
                       ? 'Checking location…'
                       : 'Set location')}
               </span>
-              <ChevronDown className="h-3.5 w-3.5 shrink-0 text-primary" />
+              <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground sm:h-4 sm:w-4" />
             </span>
           </span>
         </button>
