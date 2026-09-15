@@ -72,13 +72,24 @@ body {
 }
 
 @keyframes concierge-sheet {
-  from { opacity: 0; transform: translateY(16px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes concierge-pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.05); }
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
 }
 
 ::-webkit-scrollbar {
@@ -95,7 +106,7 @@ body {
 
 @layer components {
   .about-page .about-panel {
-    @apply rounded-[14px] border border-border bg-white p-5 shadow-[0_3px_14px_rgba(74,43,35,0.04)] sm:p-6;
+    @apply rounded-[14px] border border-border bg-white p-4 shadow-[0_3px_14px_rgba(74,43,35,0.04)] sm:p-6;
   }
 
   .about-kitchen-panel {
@@ -107,15 +118,15 @@ body {
   }
 
   .about-kitchen-grid {
-    @apply grid gap-3 sm:grid-cols-2 lg:grid-cols-4;
+    @apply -mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-2 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-4;
   }
 
   .about-kitchen-card {
-    @apply flex min-w-0 flex-col items-center rounded-[10px] border border-border bg-white p-2 text-center;
+    @apply flex w-[82%] shrink-0 snap-start flex-col items-center rounded-[10px] border border-border bg-white p-2 text-center sm:w-auto;
   }
 
   .about-kitchen-photo {
-    @apply block h-36 w-full rounded-lg bg-cover bg-center sm:h-40;
+    @apply block h-32 w-full rounded-lg bg-cover bg-center sm:h-40;
     background-image: url('/about-gathering.png');
   }
 
@@ -149,11 +160,7 @@ body {
   }
 
   .about-team-photo {
-    @apply mx-auto aspect-[4/5] w-full max-w-[116px] rounded-lg bg-cover bg-center shadow-sm;
-  }
-
-  .about-office-logo {
-    @apply bg-black object-contain object-center;
+    @apply mx-auto aspect-[4/5] w-full max-w-[150px] rounded-xl bg-cover bg-center shadow-sm sm:max-w-[176px];
   }
 
   .about-credentials-panel,
@@ -162,7 +169,7 @@ body {
   }
 
   .about-credentials-grid {
-    @apply mt-3 grid items-center gap-4 sm:grid-cols-2 lg:grid-cols-5;
+    @apply mt-3 grid grid-cols-2 items-center gap-4 lg:grid-cols-5;
   }
 
   .about-credential-item {
@@ -179,7 +186,7 @@ body {
   }
 
   .about-years-badge {
-    @apply mx-auto grid h-16 w-16 place-items-center rounded-full border-2 border-accent text-center text-primary;
+    @apply col-span-2 mx-auto grid h-16 w-16 place-items-center rounded-full border-2 border-accent text-center text-primary lg:col-span-1;
   }
 
   .about-years-badge strong {
@@ -199,15 +206,15 @@ body {
   }
 
   .about-event-grid {
-    @apply grid flex-1 grid-cols-2 gap-4 py-3 sm:grid-cols-3 lg:grid-cols-6 lg:gap-2;
+    @apply grid flex-1 grid-cols-3 gap-3 py-2 sm:gap-4 sm:py-3 lg:grid-cols-6 lg:gap-2;
   }
 
   .about-event-item {
-    @apply flex flex-col items-center justify-center gap-1 text-center text-[10px] font-semibold text-foreground;
+    @apply flex min-w-0 flex-col items-center justify-center gap-1 text-center text-[10px] font-semibold leading-3 text-foreground;
   }
 
   .about-help-panel {
-    @apply flex flex-col gap-4 rounded-[14px] border border-primary/15 bg-primary/[0.04] p-5 sm:flex-row sm:items-center sm:justify-between;
+    @apply flex flex-col gap-4 rounded-[14px] border border-primary/15 bg-primary/[0.04] p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5;
   }
 
   /* ─── Typography ─── */

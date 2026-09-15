@@ -309,7 +309,7 @@ export function DeliveryLocationSelector({
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="flex h-10 w-[42vw] max-w-[150px] shrink-0 items-center justify-start gap-1.5 rounded-xl border border-border bg-card px-2 text-left text-primary transition-colors hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 sm:h-11 sm:w-auto sm:min-w-[280px] sm:max-w-[340px] sm:gap-2.5 sm:px-3"
+          className="flex h-10 w-[39vw] max-w-[145px] shrink-0 items-center justify-start gap-1.5 rounded-xl border border-border bg-card px-2 text-left text-primary transition-colors hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 sm:h-11 sm:w-auto sm:min-w-[280px] sm:max-w-[340px] sm:gap-2.5 sm:px-3"
           aria-label={
             location
               ? location.resolution.serviceable
@@ -343,7 +343,10 @@ export function DeliveryLocationSelector({
                   : 'text-primary'
               }`}
             >
-              <Zap className="h-3 w-3 shrink-0 fill-current sm:h-4 sm:w-4" aria-hidden="true" />
+              <Zap
+                className="h-3 w-3 shrink-0 fill-current sm:h-4 sm:w-4"
+                aria-hidden="true"
+              />
               <span className="truncate">
                 {!location
                   ? 'Set delivery location'

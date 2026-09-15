@@ -7,8 +7,6 @@ import {
   Cake,
   Calendar,
   CalendarDays,
-  CheckCircle2,
-  ChefHat,
   Church,
   Flower2,
   HeartHandshake,
@@ -30,8 +28,7 @@ const stats = [
   { Icon: Calendar, value: '2015', label: 'F&B journey began' },
   { Icon: Award, value: '10+', label: 'Years of experience' },
   { Icon: MapPin, value: '4', label: 'Major cities' },
-  { Icon: ChefHat, value: 'Multiple', label: 'Restaurant and banquet experience' },
-  { Icon: Users, value: '500+', label: 'Guest event capability' },
+  { Icon: Users, value: '2,500+', label: 'Guest capability' },
 ];
 
 const promises = [
@@ -77,15 +74,27 @@ const journey = [
 const team = [
   { name: 'Rakesh Reddy', role: 'Founder & CEO', image: '/RakeshReddy.png' },
   { name: 'Bhuvan', role: 'Co-Founder & COO', image: '/Bhuvan.jpeg' },
-  { name: 'Arun Kumar', role: 'Co-Founder & Strategic Advisor', image: '/ArunKumar.jpeg' },
-  { name: 'Sandeep Goud', role: 'Co-Founder & Business Advisor', image: '/Sandeep.jpeg' },
+  {
+    name: 'Arun Kumar',
+    role: 'Co-Founder & Strategic Advisor',
+    image: '/ArunKumar.jpeg',
+  },
+  {
+    name: 'Sandeep Goud',
+    role: 'Co-Founder & Business Advisor',
+    image: '/Sandeep.jpeg',
+  },
 ];
 
 const credentialItems = [
   { Icon: CalendarDays, title: 'FSSAI Licensed', text: 'Kitchens' },
   { Icon: Award, title: 'GST Registered', text: '& Compliant' },
   { Icon: Building2, title: 'Legal Business', text: 'Operating in Telangana' },
-  { Icon: Sparkles, title: '10+ Years of Experience', text: 'in Food & Hospitality' },
+  {
+    Icon: Sparkles,
+    title: '10+ Years of Experience',
+    text: 'in Food & Hospitality',
+  },
 ];
 
 const eventTypes = [
@@ -109,91 +118,77 @@ export default function AboutPage() {
   return (
     <main className="about-page min-h-screen bg-background">
       <section className="border-b border-border bg-white">
-        <div className="container-pad grid min-w-0 gap-8 py-8 lg:grid-cols-[0.86fr_1fr] lg:items-center lg:py-9">
-          <div className="min-w-0">
+        <div className="container-pad grid min-w-0 gap-5 py-6 lg:grid-cols-[0.86fr_1fr] lg:gap-x-8 lg:gap-y-0 lg:py-9">
+          <div className="min-w-0 lg:col-start-1 lg:row-start-1 lg:self-end">
             <p className="eyebrow text-primary">About us</p>
-            <h1 className="mt-3 max-w-[560px] break-words font-serif text-[36px] font-bold leading-[1.02] text-foreground sm:text-[44px]">
+            <h1 className="mt-3 max-w-[560px] break-words font-serif text-[34px] font-bold leading-[1.03] text-foreground sm:text-[44px]">
               A Decade of Food Experience.{' '}
               <span className="text-primary">Now Delivered in Bulk.</span>
             </h1>
-            <div className="mt-5 max-w-[620px] space-y-3 text-[13px] leading-6 text-muted-foreground">
+            <div className="mt-4 max-w-[620px] text-[13px] leading-[1.65] text-muted-foreground sm:mt-5 sm:leading-6">
               <p>
-                We are a food and hospitality company with a journey dating
-                back to 2015. Over the years, we have built strong experience in
-                restaurant operations, banquets, and large-scale food service
-                across Telangana.
+                Since 2015, we have built hands-on experience across
+                restaurants, banquets, and large events in Telangana. The Feast
+                Factory brings that experience to bulk ordering through our own
+                kitchens.
               </p>
-              <p>
-                The Feast Factory brings that experience to you through a
-                simple, reliable, and transparent bulk food ordering platform.
-              </p>
-            </div>
-
-            <div className="mt-7 grid grid-cols-2 gap-3 sm:grid-cols-5">
-              {stats.map(({ Icon, value, label }) => (
-                <div key={label} className="text-center">
-                  <div className="mx-auto grid h-10 w-10 place-items-center rounded-full bg-primary/10 text-primary">
-                    <Icon className="h-5 w-5" />
-                  </div>
-                  <p className="mt-3 font-serif text-xl font-bold text-foreground">
-                    {value}
-                  </p>
-                  <p className="mt-1 text-[11px] font-medium leading-4 text-muted-foreground">
-                    {label}
-                  </p>
-                </div>
-              ))}
             </div>
           </div>
 
-          <div className="relative min-w-0">
+          <div className="relative min-w-0 overflow-hidden rounded-[14px] shadow-md lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-center lg:shadow-lg">
             <Image
               src="/about-hero.png"
-              alt="The Feast Factory logo"
+              alt="Guests enjoying a catered gathering by The Feast Factory"
               width={1672}
               height={941}
               priority
               sizes="(max-width: 1024px) 100vw, 54vw"
-              className="h-[330px] w-full rounded-[14px] object-cover shadow-lg sm:h-[380px]"
+              className="h-[210px] w-full object-cover sm:h-[320px] lg:h-[380px]"
             />
-            <div className="absolute bottom-4 right-4 w-[min(78%,300px)] rounded-[14px] bg-white p-5 shadow-xl">
-              <h2 className="font-serif text-2xl font-bold leading-tight text-foreground">
+            <div className="absolute inset-x-0 bottom-0 hidden bg-gradient-to-t from-black/75 via-black/35 to-transparent px-6 pb-5 pt-14 lg:block">
+              <h2 className="font-serif text-2xl font-bold leading-tight text-white">
                 Built on Experience. Driven by Trust.
               </h2>
-              <div className="mt-4 space-y-2.5 text-sm font-semibold text-muted-foreground">
-                {['Own Kitchens', 'Valid Food Licences', 'Not Outsourced', 'Quality Assured'].map(
-                  (item) => (
-                    <p key={item} className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-primary" />
-                      {item}
-                    </p>
-                  ),
-                )}
-              </div>
             </div>
+          </div>
+
+          <div className="grid grid-cols-4 gap-2 lg:col-start-1 lg:row-start-2 lg:mt-7 lg:self-start">
+            {stats.map(({ Icon, value, label }) => (
+              <div key={label} className="min-w-0 text-center">
+                <div className="mx-auto grid h-9 w-9 place-items-center rounded-full bg-primary/10 text-primary sm:h-10 sm:w-10">
+                  <Icon className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
+                </div>
+                <p className="mt-2 font-serif text-lg font-bold text-foreground sm:mt-3 sm:text-xl">
+                  {value}
+                </p>
+                <p className="mt-0.5 text-[10px] font-medium leading-3.5 text-muted-foreground sm:mt-1 sm:text-[11px] sm:leading-4">
+                  {label}
+                </p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
-      <section className="container-pad grid gap-5 py-8 lg:grid-cols-[0.82fr_1.18fr]">
+      <section className="container-pad grid gap-4 py-6 sm:gap-5 sm:py-8 lg:grid-cols-[0.82fr_1.18fr]">
         <div className="about-panel">
           <p className="eyebrow text-primary">Our journey</p>
-          <h2 className="mt-3 font-serif text-3xl font-bold leading-tight">
+          <h2 className="mt-3 font-serif text-[26px] font-bold leading-tight sm:text-3xl">
             From Restaurants and Banquets to Bulk Food
           </h2>
-          <p className="mt-4 text-sm leading-7 text-muted-foreground">
-            Since 2015, we have been creating memorable food experiences through
-            restaurants and banquet services. This journey has given us a deep
-            understanding of quality, quantity, hygiene, timely delivery, and
-            customer satisfaction.
+          <p className="mt-3 text-[13px] leading-6 text-muted-foreground sm:mt-4 sm:text-sm sm:leading-7">
+            Our restaurant and banquet experience taught us how to manage
+            quality, quantity, hygiene, and timely delivery at event scale.
           </p>
-          <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div className="mt-5 grid grid-cols-2 gap-4 sm:mt-6 sm:grid-cols-4">
             {journey.map((item) => (
               <div key={item.title} className="text-center">
                 <div className="mx-auto mb-2 grid h-9 w-9 place-items-center rounded-full bg-primary/10">
                   <Sparkles className="h-4 w-4 text-primary" />
                 </div>
-                <p className="text-sm font-bold text-foreground">{item.title}</p>
+                <p className="text-sm font-bold text-foreground">
+                  {item.title}
+                </p>
                 <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
                   {item.text}
                 </p>
@@ -204,18 +199,26 @@ export default function AboutPage() {
 
         <div className="about-panel">
           <p className="eyebrow text-primary">Why customers trust us</p>
-          <h2 className="mt-3 font-serif text-3xl font-bold leading-tight">
+          <h2 className="mt-3 font-serif text-[26px] font-bold leading-tight sm:text-3xl">
             Our Promise to You
           </h2>
-          <div className="mt-6 grid gap-5 sm:grid-cols-2">
+          <div className="mt-5 grid grid-cols-2 gap-3 sm:mt-6 sm:gap-5">
             {promises.map(({ Icon, title, text }) => (
-              <div key={title} className="flex gap-3">
-                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-primary/10">
-                  <Icon className="h-5 w-5 text-primary" />
+              <div
+                key={title}
+                className="flex items-center gap-2.5 sm:items-start sm:gap-3"
+              >
+                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary/10 sm:h-10 sm:w-10">
+                  <Icon
+                    className="h-4.5 w-4.5 text-primary sm:h-5 sm:w-5"
+                    aria-hidden="true"
+                  />
                 </div>
-                <div>
-                  <p className="text-sm font-bold text-foreground">{title}</p>
-                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                <div className="min-w-0">
+                  <p className="text-xs font-bold leading-4 text-foreground sm:text-sm">
+                    {title}
+                  </p>
+                  <p className="mt-1 hidden text-xs leading-5 text-muted-foreground sm:block">
                     {text}
                   </p>
                 </div>
@@ -231,8 +234,8 @@ export default function AboutPage() {
         className="scroll-mt-24 border-y border-border bg-white py-7 lg:py-8"
       />
 
-      <section className="container-pad grid items-stretch gap-5 py-7 lg:grid-cols-[0.9fr_0.82fr_1.55fr]">
-        <div className="about-panel flex min-h-[330px] flex-col justify-between p-5">
+      <section className="container-pad grid items-stretch gap-4 py-6 sm:gap-5 sm:py-7 lg:grid-cols-[0.72fr_1.78fr]">
+        <div className="about-panel flex flex-col justify-between lg:min-h-[330px]">
           <p className="eyebrow text-primary">Our corporate office</p>
           <h2 className="mt-2 font-serif text-2xl font-bold leading-tight">
             A Business You Can Reach
@@ -243,8 +246,8 @@ export default function AboutPage() {
           </p>
           <p className="mt-4 flex gap-2 text-xs font-semibold leading-5 text-foreground">
             <MapPin className="mt-1 h-4 w-4 shrink-0 text-primary" />
-            2nd Floor, Jains Balaji Big Town Complex, 203, Malkajgiri,
-            Telangana 500047, India.
+            2nd Floor, Jains Balaji Big Town Complex, 203, Malkajgiri, Telangana
+            500047, India.
           </p>
           <Link
             href="https://www.google.com/maps?q=Jains+Balaji+Big+Town+Complex+Malkajgiri"
@@ -254,22 +257,21 @@ export default function AboutPage() {
             View on Map <MapPin className="h-4 w-4" />
           </Link>
         </div>
-        <Image
-            src="/Office.jpeg"
-            alt="The Feast Factory office and buffet setup"
-            width={1200}
-            height={800}
-            sizes="(max-width: 1024px) 100vw, 34vw"
-            className="about-office-logo h-full min-h-[330px] w-full rounded-[14px] shadow-sm"
-          />
-        <div className="about-panel min-h-[330px] p-5">
+        <div className="about-panel lg:min-h-[330px]">
           <p className="eyebrow text-primary">Our team</p>
-          <div className="mt-3 grid grid-cols-4 gap-3">
+          <div className="mt-5 grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-4 sm:gap-5">
             {team.map((member) => (
               <div key={member.name} className="min-w-0 text-center">
-                <div className="about-team-photo" style={{ backgroundImage: `url(${member.image})` }} />
-                <p className="mt-2 text-[11px] font-bold leading-4 text-foreground">{member.name}</p>
-                <p className="mt-1 text-[10px] leading-4 text-muted-foreground">{member.role}</p>
+                <div
+                  className="about-team-photo"
+                  style={{ backgroundImage: `url(${member.image})` }}
+                />
+                <p className="mt-3 text-sm font-bold leading-5 text-foreground">
+                  {member.name}
+                </p>
+                <p className="mt-1 text-[11px] font-medium leading-4 text-muted-foreground sm:text-xs sm:leading-5">
+                  {member.role}
+                </p>
               </div>
             ))}
           </div>
@@ -282,11 +284,20 @@ export default function AboutPage() {
           <div className="about-credentials-grid">
             {credentialItems.map(({ Icon, title, text }) => (
               <div key={title} className="about-credential-item">
-                <Icon className="h-7 w-7 shrink-0 text-primary" strokeWidth={1.5} />
-                <p><strong>{title}</strong><span>{text}</span></p>
+                <Icon
+                  className="h-7 w-7 shrink-0 text-primary"
+                  strokeWidth={1.5}
+                />
+                <p>
+                  <strong>{title}</strong>
+                  <span>{text}</span>
+                </p>
               </div>
             ))}
-            <div className="about-years-badge"><strong>10+</strong><span>YEARS</span></div>
+            <div className="about-years-badge">
+              <strong>10+</strong>
+              <span>YEARS</span>
+            </div>
           </div>
         </div>
       </section>
@@ -294,8 +305,13 @@ export default function AboutPage() {
       <section className="container-pad pb-8">
         <div className="about-events-panel">
           <div className="about-capacity">
-            <p className="font-serif text-lg font-bold">From 10 Guests to 2500+ Guests</p>
-            <p className="mt-1 text-[10px] leading-4 text-white/80">No matter the gathering size, we are here with large-scale delicious food and timely delivery to make your event a grand success.</p>
+            <p className="font-serif text-lg font-bold">
+              From 10 to 2,500+ guests
+            </p>
+            <p className="mt-1 text-[10px] leading-4 text-white/80">
+              Reliable food preparation and timely delivery for gatherings of
+              every size.
+            </p>
           </div>
           <div className="about-event-grid">
             {eventTypes.map(({ Icon, label }) => (
@@ -311,9 +327,13 @@ export default function AboutPage() {
       <section className="container-pad pb-10">
         <div className="about-help-panel">
           <div>
-            <p className="font-serif text-2xl font-bold text-foreground">Need help with your bulk order?</p>
-            <p className="mt-1 text-sm text-muted-foreground">Our team can assist with planning your event and choosing the right package.</p>
-            </div>
+            <p className="font-serif text-[22px] font-bold leading-tight text-foreground sm:text-2xl">
+              Need help with your bulk order?
+            </p>
+            <p className="mt-1 text-[13px] leading-5 text-muted-foreground sm:text-sm">
+              We can help plan your event and choose the right package.
+            </p>
+          </div>
           <div className="flex flex-wrap gap-3">
             <Link
               href="tel:+919000000000"

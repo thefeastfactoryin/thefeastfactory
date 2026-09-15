@@ -127,8 +127,8 @@ export function CustomerShell({
     <div className="min-h-screen pb-16 md:pb-0">
       {/* ─── Desktop header ─── */}
       <header className="sticky top-0 z-40 border-b border-border bg-white/95 backdrop-blur-xl">
-        <div className="mx-auto flex h-[60px] max-w-[1536px] items-center justify-between gap-3 px-4 sm:h-[78px] sm:px-6 lg:px-10">
-          <div className="flex min-w-0 flex-1 items-center gap-2 md:flex-none">
+        <div className="mx-auto flex h-[60px] max-w-[1536px] items-center justify-between gap-1.5 px-3 sm:h-[78px] sm:gap-3 sm:px-6 lg:px-10">
+          <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2 md:flex-none">
             {/* Logo */}
             <Link
               href="/"
@@ -140,7 +140,7 @@ export function CustomerShell({
                 className="h-9 w-9 shrink-0 rounded-md object-cover shadow-[0_4px_12px_rgba(122,31,43,0.14)] sm:h-14 sm:w-14"
               />
               <span className="flex min-w-0 flex-col">
-                <span className="block truncate whitespace-nowrap font-serif text-[15px] font-semibold leading-none tracking-normal text-primary sm:text-[22px]">
+                <span className="block truncate whitespace-nowrap font-serif text-[13px] font-semibold leading-none tracking-normal text-primary sm:text-[22px]">
                   The Feast Factory
                 </span>
               </span>

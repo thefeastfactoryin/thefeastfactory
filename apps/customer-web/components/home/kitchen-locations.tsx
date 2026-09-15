@@ -3,14 +3,10 @@ import { Building2, Hourglass, Landmark, MapPin } from 'lucide-react';
 import Link from 'next/link';
 
 const landmarkIcons: Record<string, string> = {
-  warangal:
-    '/kitchen-icons/warangal.png',
-  hyderabad:
-    '/kitchen-icons/hyderabad.png',
-  karimnagar:
-    '/kitchen-icons/karimnagar.png',
-  khammam:
-    '/kitchen-icons/khammam.png',
+  warangal: '/kitchen-icons/warangal.png',
+  hyderabad: '/kitchen-icons/hyderabad.png',
+  karimnagar: '/kitchen-icons/karimnagar.png',
+  khammam: '/kitchen-icons/khammam.png',
 };
 
 const aboutKitchenImages: Record<string, string> = {
@@ -169,7 +165,10 @@ export function KitchenLocationsSection({
                           className="h-8 w-8 object-contain"
                         />
                       ) : (
-                        <Landmark className="h-7 w-7 text-primary" aria-hidden="true" />
+                        <Landmark
+                          className="h-7 w-7 text-primary"
+                          aria-hidden="true"
+                        />
                       )}
                     </span>
                     <h3 className="mt-2 text-sm font-extrabold text-foreground">
@@ -232,8 +231,7 @@ export function KitchenLocationsSection({
             <div className="about-kitchen-heading">
               <p className="eyebrow">Our kitchens across Telangana</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Food Prepared in Our Own Kitchens, Across {locations.length}{' '}
-                Major Cities.
+                Prepared in our own kitchens across {locations.length} cities.
               </p>
             </div>
           )}
@@ -254,6 +252,7 @@ export function KitchenLocationsSection({
                 ? 'about-kitchen-grid'
                 : 'grid flex-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:px-6'
             }
+            aria-label={variant === 'about' ? 'Kitchen locations' : undefined}
           >
             {locations.map((location) => {
               const iconSrc = landmarkIconFor(location);
