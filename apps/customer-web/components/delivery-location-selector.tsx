@@ -309,7 +309,7 @@ export function DeliveryLocationSelector({
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="flex h-10 w-[39vw] max-w-[145px] shrink-0 items-center justify-start gap-1.5 rounded-xl border border-border bg-card px-2 text-left text-primary transition-colors hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 sm:h-11 sm:w-auto sm:min-w-[280px] sm:max-w-[340px] sm:gap-2.5 sm:px-3"
+          className="flex h-10 w-[50vw] max-w-[185px] shrink-0 items-center justify-start gap-1.5 rounded-xl border border-border bg-white px-2 text-left text-primary transition-colors hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 sm:h-11 sm:w-auto sm:min-w-[280px] sm:max-w-[340px] sm:gap-2.5 sm:px-3"
           aria-label={
             location
               ? location.resolution.serviceable
@@ -337,7 +337,7 @@ export function DeliveryLocationSelector({
           </span>
           <span className="block min-w-0 flex-1">
             <span
-              className={`flex items-center gap-1 whitespace-nowrap text-[10px] font-extrabold leading-none sm:text-sm ${
+              className={`flex items-center gap-1 whitespace-nowrap text-[9px] font-bold leading-none sm:text-[13px] ${
                 location && !location.resolution.serviceable
                   ? 'text-red-700'
                   : 'text-primary'
@@ -366,7 +366,7 @@ export function DeliveryLocationSelector({
                       : 'Calculating delivery time…'}
               </span>
             </span>
-            <span className="mt-1 flex min-w-0 items-center gap-1 text-[10px] font-semibold leading-none text-muted-foreground sm:text-xs">
+            <span className="mt-1 flex min-w-0 items-center gap-1 text-[10px] font-medium leading-none text-foreground/70 sm:text-[13px]">
               <span className="truncate">
                 {location?.address?.addressLine1 ||
                   location?.label ||

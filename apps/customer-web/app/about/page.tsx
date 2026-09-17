@@ -22,6 +22,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { KitchenLocationsSection } from '../../components/home/kitchen-locations';
+import { usePublicSettings } from '../../components/public-settings-provider';
 import { apiRequest } from '../../lib/api';
 
 const stats = [
@@ -107,6 +108,7 @@ const eventTypes = [
 ];
 
 export default function AboutPage() {
+  const settings = usePublicSettings();
   const [kitchens, setKitchens] = useState<OperatingRegion[]>([]);
 
   useEffect(() => {
@@ -336,7 +338,7 @@ export default function AboutPage() {
           </div>
           <div className="flex flex-wrap gap-3">
             <Link
-              href="tel:+919000000000"
+              href={settings?.business.supportPhone ? `tel:${settings.business.supportPhone}` : '/contact'}
               className="inline-flex min-h-11 items-center rounded-full border border-primary/30 px-5 text-sm font-bold text-primary"
             >
               Call Us
