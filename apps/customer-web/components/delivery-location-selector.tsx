@@ -347,7 +347,16 @@ export function DeliveryLocationSelector({
                 className="h-3 w-3 shrink-0 fill-current sm:h-4 sm:w-4"
                 aria-hidden="true"
               />
-              <span className="truncate">
+              <span className="truncate sm:hidden">
+                {!location
+                  ? 'Set location'
+                  : !location.resolution.serviceable
+                    ? 'Unavailable here'
+                    : deliveryEstimate
+                      ? `By ${deliveryEstimate}`
+                      : 'Calculating…'}
+              </span>
+              <span className="hidden truncate sm:inline">
                 {!location
                   ? 'Set delivery location'
                   : !location.resolution.serviceable
