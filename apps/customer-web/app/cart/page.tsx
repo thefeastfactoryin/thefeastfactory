@@ -1545,11 +1545,11 @@ function MultiCartPriceSummary({
             label="Delivery"
             value={formatCurrency(aggregate.deliveryFee)}
           />
-          {deliveryQuote?.region && (
+          {/* {deliveryQuote?.region && (
             <p className="mt-1 text-[11px] leading-5 text-muted-foreground">
               {deliveryQuote.region.name} kitchen · {deliveryQuote.distanceKm} km
             </p>
-          )}
+          )} */}
         </div>
       </div>
       <div className="my-5 h-px bg-border" />
