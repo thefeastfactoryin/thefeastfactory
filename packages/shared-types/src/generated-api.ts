@@ -1511,10 +1511,13 @@ export interface components {
         readonly UpdateCartDto: {
             /** Format: uuid */
             readonly addressId?: string;
+            /** @enum {string} */
+            readonly deliveryServiceType?: "STANDARD" | "DOORSTEP" | "ASSISTED";
             readonly eventDate?: string;
             readonly eventName?: string;
             readonly eventTimeStart?: string;
             readonly guestCount?: number;
+            readonly helperCount?: number;
             /** Format: uuid */
             readonly packageVersionId: string;
             /** Format: uuid */

@@ -2,6 +2,7 @@
 
 import type {
   CartSummary,
+  DeliveryServiceType,
   GatewayOrder,
   OrderSummary,
   PackageConfiguration,
@@ -18,11 +19,14 @@ import {
   MapPin,
   MessageSquareText,
   Minus,
+  Package,
   Pencil,
   Plus,
   ReceiptText,
   ShieldCheck,
   ShoppingBag,
+  Truck,
+  UserRound,
   Trash2,
   Users,
 } from 'lucide-react';
@@ -146,6 +150,7 @@ export default function CartPage() {
   const [activeCategoryId, setActiveCategoryId] = useState('');
   const [specialNotes, setSpecialNotes] = useState('');
   const [contactNumber, setContactNumber] = useState('');
+  const [updatingDelivery, setUpdatingDelivery] = useState(false);
 
   useEffect(() => {
     setContactNumber(session?.user.mobileNumber ?? '');
@@ -316,6 +321,44 @@ export default function CartPage() {
       setError((reason as Error).message);
     } finally {
       setUpdatingCartId('');
+    }
+  }
+
+  async function updateDeliveryService(
+    deliveryServiceType: DeliveryServiceType,
+    helperCount: number,
+  ) {
+    if (!session || !cart || updatingDelivery || pendingOrder) return;
+    setUpdatingDelivery(true);
+    setError('');
+    try {
+      const updatedCarts = await Promise.all(
+        activeCarts.map((packageCart) =>
+          apiRequest<CartSummary>(
+            `/cart/${packageCart.id}`,
+            {
+              method: 'PUT',
+              body: JSON.stringify({
+                packageVersionId: packageCart.packageVersionId,
+                deliveryServiceType,
+                helperCount,
+              }),
+            },
+            session.accessToken,
+          ),
+        ),
+      );
+      setActiveCarts(updatedCarts);
+      const updated = updatedCarts.find((entry) => entry.id === cart.id);
+      if (updated) {
+        setCart(updated);
+        hydrate(updated);
+      }
+      await loadQuote(cart.id);
+    } catch (reason) {
+      setError((reason as Error).message);
+    } finally {
+      setUpdatingDelivery(false);
     }
   }
 
@@ -933,6 +976,15 @@ export default function CartPage() {
               />
             ))}
 
+            {!pendingOrder && multiCartQuote && (
+              <DeliveryServiceOptions
+                cart={cart}
+                quote={quote}
+                disabled={updatingDelivery}
+                onChange={updateDeliveryService}
+              />
+            )}
+
             <section className="overflow-hidden rounded-2xl border border-border bg-white shadow-[0_14px_36px_-30px_rgba(75,12,23,.55)]">
               <div className="flex flex-wrap items-center justify-between gap-4 p-5 pb-3 sm:p-6 sm:pb-4">
                 <div className="flex min-w-0 items-start gap-3">
@@ -1509,9 +1561,6 @@ function MultiCartPriceSummary({
   aggregate: MultiCartQuote;
 }) {
   const cartById = new Map(carts.map((cart) => [cart.id, cart]));
-  const deliveryQuote = aggregate.carts.find(
-    ({ quote }) => Number(quote.deliveryFee) > 0,
-  )?.quote;
   return (
     <>
       <div className="space-y-3 text-sm">
@@ -1560,6 +1609,186 @@ function MultiCartPriceSummary({
         </strong>
       </div>
     </>
+  );
+}
+
+function DeliveryServiceOptions({
+  cart,
+  quote,
+  disabled,
+  onChange,
+}: {
+  cart: CartSummary;
+  quote?: PackageSelectionPrice;
+  disabled: boolean;
+  onChange: (
+    deliveryServiceType: DeliveryServiceType,
+    helperCount: number,
+  ) => void;
+}) {
+  const selected = cart.deliveryServiceType ?? 'STANDARD';
+  const helperCount = cart.helperCount || 1;
+  const baseDelivery = Number(quote?.baseDeliveryFee ?? quote?.deliveryFee ?? 0);
+  const options: Array<{
+    type: DeliveryServiceType;
+    title: string;
+    description: string;
+    addon: number;
+    icon: typeof Truck;
+  }> = [
+    {
+      type: 'STANDARD',
+      title: 'Standard Delivery',
+      description: 'Food delivered to your building or office entrance.',
+      addon: 0,
+      icon: Truck,
+    },
+    {
+      type: 'DOORSTEP',
+      title: 'Doorstep Delivery',
+      description: 'We deliver the food directly to your doorstep.',
+      addon: 399,
+      icon: Package,
+    },
+    {
+      type: 'ASSISTED',
+      title: 'Assisted Service',
+      description: 'Delivery and service support for your gathering.',
+      addon: helperCount * 999,
+      icon: UserRound,
+    },
+  ];
+
+  return (
+    <section className="mb-5">
+      <div className="mb-4 flex items-start gap-3">
+        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-primary/[0.08] text-primary">
+          <Truck className="h-6 w-6" />
+        </span>
+        <div>
+          <p className="eyebrow">Delivery & service</p>
+          <h3 className="mt-1 font-serif text-2xl font-semibold leading-tight sm:text-[28px]">
+            Choose how we serve you
+          </h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Select the option that best suits your event.
+          </p>
+        </div>
+        {/* {quote?.distanceKm && (
+          <span className="text-right text-xs text-muted-foreground">
+            {quote.distanceKm} km from kitchen
+          </span>
+        )} */}
+      </div>
+      <div className="flex gap-3 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {options.map(({ type, title, description, addon, icon: Icon }) => {
+          const isSelected = selected === type;
+          const total = baseDelivery + addon;
+          return (
+            <button
+              key={type}
+              type="button"
+              disabled={disabled}
+              onClick={() =>
+                onChange(type, type === 'ASSISTED' ? helperCount : 0)
+              }
+              className={cn(
+                'relative flex min-h-[258px] min-w-[220px] flex-1 flex-col rounded-2xl border p-5 text-left transition',
+                isSelected
+                  ? 'border-primary bg-primary/[0.04] shadow-[0_12px_28px_-24px_rgba(75,12,23,.8)]'
+                  : 'border-border bg-white hover:border-primary/40',
+                disabled && 'cursor-wait opacity-70',
+              )}
+            >
+              <span className="flex items-start justify-between gap-3">
+                <span
+                  className={cn(
+                    'grid h-12 w-12 place-items-center rounded-full',
+                    isSelected
+                      ? 'bg-primary/10 text-primary'
+                      : 'bg-muted text-primary',
+                  )}
+                >
+                  <Icon className="h-5 w-5" />
+                </span>
+                <span
+                  className={cn(
+                    'grid h-5 w-5 place-items-center rounded-full border',
+                    isSelected
+                      ? 'border-primary bg-primary text-white'
+                      : 'border-foreground/50',
+                  )}
+                  aria-hidden="true"
+                >
+                  {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
+                </span>
+              </span>
+              <strong className="mt-5 font-serif text-xl leading-tight text-primary">
+                {title}
+              </strong>
+              <span className="mt-2 max-w-[28ch] text-sm leading-5 text-muted-foreground">
+                {description}
+              </span>
+              <span className="mt-auto pt-5 text-base font-semibold text-primary">
+                {addon === 0
+                  ? `Base ${formatCurrency(baseDelivery)}`
+                  : `+ ${formatCurrency(addon)}`}
+              </span>
+              <span
+                className={cn(
+                  'mt-1 text-xs',
+                  isSelected
+                    ? 'font-semibold text-primary'
+                    : 'text-muted-foreground',
+                )}
+              >
+                Total {formatCurrency(total)}
+              </span>
+              {type === 'ASSISTED' && isSelected && (
+                <span className="mt-3 flex items-center justify-between rounded-lg border bg-white px-2 py-1.5">
+                  <span className="text-xs text-muted-foreground">Helpers</span>
+                  <span className="flex items-center gap-2">
+                    <span
+                      role="button"
+                      tabIndex={disabled || helperCount <= 1 ? -1 : 0}
+                      aria-label="Remove helper"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        if (helperCount > 1)
+                          onChange('ASSISTED', helperCount - 1);
+                      }}
+                      className="grid h-7 w-7 place-items-center rounded-md border text-primary"
+                    >
+                      −
+                    </span>
+                    <strong className="min-w-4 text-center text-sm">
+                      {helperCount}
+                    </strong>
+                    <span
+                      role="button"
+                      tabIndex={disabled || helperCount >= 10 ? -1 : 0}
+                      aria-label="Add helper"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        if (helperCount < 10)
+                          onChange('ASSISTED', helperCount + 1);
+                      }}
+                      className="grid h-7 w-7 place-items-center rounded-md border text-primary"
+                    >
+                      +
+                    </span>
+                  </span>
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+      {/* <p className="mt-3 text-xs leading-5 text-muted-foreground">
+        Base delivery is calculated at ₹25 per billable kilometre. Doorstep is
+        +₹399 and assisted service is +₹999 per helper.
+      </p> */}
+    </section>
   );
 }
 

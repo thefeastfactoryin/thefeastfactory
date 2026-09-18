@@ -80,6 +80,8 @@ export class OrdersService {
     const assignment = await this.regions.assign(
       cart.address.latitude,
       cart.address.longitude,
+      cart.deliveryServiceType,
+      cart.helperCount,
     );
     const totalAmount = menuQuote.totalAmount.plus(assignment.deliveryFee);
     const eventDate = cart.eventDate;
@@ -108,6 +110,8 @@ export class OrdersService {
           finalPerPlatePrice: menuQuote.finalPerPlatePrice,
           totalAmount,
           distanceKm: assignment.distanceKm,
+          deliveryServiceType: assignment.deliveryServiceType,
+          helperCount: assignment.helperCount,
           deliveryFee: assignment.deliveryFee,
           packageName: menuQuote.packageName,
           packageVersionNo: menuQuote.packageVersionNo,

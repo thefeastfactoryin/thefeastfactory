@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ForbiddenException } from '@nestjs/common';
-import { AdminRole, Prisma } from '@prisma/client';
+import { AdminRole, DeliveryServiceType, Prisma } from '@prisma/client';
 import { OperatingRegionsService } from '../src/modules/operating-regions/operating-regions.service';
 
 function region(
@@ -42,6 +42,31 @@ test('location resolution uses an available overlapping kitchen', async () => {
   assert.equal(result.serviceable, true);
   assert.equal(result.reason, null);
   assert.equal(result.region?.id, 'nearby-open');
+});
+
+test('delivery service pricing adds doorstep and assisted charges', async () => {
+  const available = region('hyderabad', '17.3850', '78.4867', true);
+  const service = new OperatingRegionsService({
+    operatingRegion: { findMany: async () => [available] },
+  } as never);
+
+  const doorstep = await service.assign(
+    available.centerLatitude,
+    available.centerLongitude,
+    DeliveryServiceType.DOORSTEP,
+  );
+  const assisted = await service.assign(
+    available.centerLatitude,
+    available.centerLongitude,
+    DeliveryServiceType.ASSISTED,
+    2,
+  );
+
+  assert.equal(doorstep.baseDeliveryFee.toFixed(2), '0.00');
+  assert.equal(doorstep.serviceAddon.toFixed(2), '399.00');
+  assert.equal(doorstep.deliveryFee.toFixed(2), '399.00');
+  assert.equal(assisted.serviceAddon.toFixed(2), '1998.00');
+  assert.equal(assisted.deliveryFee.toFixed(2), '1998.00');
 });
 
 test('location resolution reports a closed kitchen when no open kitchen covers it', async () => {

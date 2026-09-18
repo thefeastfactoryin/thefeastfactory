@@ -96,6 +96,12 @@ enum CartStatus {
   EXPIRED
 }
 
+enum DeliveryServiceType {
+  STANDARD
+  DOORSTEP
+  ASSISTED
+}
+
 // =============================================================================
 // CUSTOMER DOMAIN
 // =============================================================================
@@ -286,23 +292,25 @@ model PackageMenuItem {
 // =============================================================================
 
 model Cart {
-  id               String     @id @default(uuid())
-  userId           String     @map("user_id")
-  packageVersionId String     @map("package_version_id")
-  addressId        String?    @map("address_id")
-  regionId         String?    @map("region_id")
-  eventName        String?    @map("event_name") @db.VarChar(200)
-  eventDate        DateTime?  @map("event_date") @db.Date
-  eventTimeStart   DateTime?  @map("event_time_start") @db.Time
-  guestCount       Int?       @map("guest_count")
-  distanceKm       Decimal?   @map("distance_km") @db.Decimal(8, 2)
-  deliveryFee      Decimal    @default(0) @map("delivery_fee") @db.Decimal(10, 2)
-  specialNotes     String?    @map("special_notes") @db.VarChar(1000)
-  status           CartStatus @default(ACTIVE)
-  expiresAt        DateTime?  @map("expires_at")
-  lastQuotedAt     DateTime?  @map("last_quoted_at")
-  createdAt        DateTime   @default(now()) @map("created_at")
-  updatedAt        DateTime   @default(now()) @updatedAt @map("updated_at")
+  id                  String              @id @default(uuid())
+  userId              String              @map("user_id")
+  packageVersionId    String              @map("package_version_id")
+  addressId           String?             @map("address_id")
+  regionId            String?             @map("region_id")
+  eventName           String?             @map("event_name") @db.VarChar(200)
+  eventDate           DateTime?           @map("event_date") @db.Date
+  eventTimeStart      DateTime?           @map("event_time_start") @db.Time
+  guestCount          Int?                @map("guest_count")
+  distanceKm          Decimal?            @map("distance_km") @db.Decimal(8, 2)
+  deliveryFee         Decimal             @default(0) @map("delivery_fee") @db.Decimal(10, 2)
+  deliveryServiceType DeliveryServiceType @default(STANDARD) @map("delivery_service_type")
+  helperCount         Int                 @default(0) @map("helper_count")
+  specialNotes        String?             @map("special_notes") @db.VarChar(1000)
+  status              CartStatus          @default(ACTIVE)
+  expiresAt           DateTime?           @map("expires_at")
+  lastQuotedAt        DateTime?           @map("last_quoted_at")
+  createdAt           DateTime            @default(now()) @map("created_at")
+  updatedAt           DateTime            @default(now()) @updatedAt @map("updated_at")
 
   user           User             @relation(fields: [userId], references: [id])
   packageVersion PackageVersion   @relation(fields: [packageVersionId], references: [id])
@@ -361,13 +369,15 @@ model Order {
   eventTimeStart DateTime? @map("event_time_start") @db.Time
   specialNotes   String?   @map("special_notes") @db.VarChar(1000)
 
-  guestCount                Int      @map("guest_count")
-  basePerPlatePrice         Decimal  @map("base_per_plate_price") @db.Decimal(10, 2)
-  totalCustomizationCharges Decimal  @default(0) @map("total_customization_charges") @db.Decimal(10, 2)
-  finalPerPlatePrice        Decimal  @map("final_per_plate_price") @db.Decimal(10, 2)
-  totalAmount               Decimal  @map("total_amount") @db.Decimal(10, 2)
-  distanceKm                Decimal? @map("distance_km") @db.Decimal(8, 2)
-  deliveryFee               Decimal  @default(0) @map("delivery_fee") @db.Decimal(10, 2)
+  guestCount                Int                 @map("guest_count")
+  basePerPlatePrice         Decimal             @map("base_per_plate_price") @db.Decimal(10, 2)
+  totalCustomizationCharges Decimal             @default(0) @map("total_customization_charges") @db.Decimal(10, 2)
+  finalPerPlatePrice        Decimal             @map("final_per_plate_price") @db.Decimal(10, 2)
+  totalAmount               Decimal             @map("total_amount") @db.Decimal(10, 2)
+  distanceKm                Decimal?            @map("distance_km") @db.Decimal(8, 2)
+  deliveryFee               Decimal             @default(0) @map("delivery_fee") @db.Decimal(10, 2)
+  deliveryServiceType       DeliveryServiceType @default(STANDARD) @map("delivery_service_type")
+  helperCount               Int                 @default(0) @map("helper_count")
 
   packageName      String @map("package_name") @db.VarChar(100)
   packageVersionNo Int    @map("package_version_no")

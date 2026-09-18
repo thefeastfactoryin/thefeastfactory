@@ -89,6 +89,7 @@ export type MenuItem = {
 };
 
 export type PackageType = 'MEAL_BOX' | 'FIXED_PACKAGE' | 'CUSTOM_PACKAGE';
+export type DeliveryServiceType = 'STANDARD' | 'DOORSTEP' | 'ASSISTED';
 export type OrderingOfferingCode = 'MEAL_BOX' | 'PACKAGES' | 'CUSTOM_MENU';
 export type OrderingOffering = {
   id: string;
@@ -221,6 +222,10 @@ export type PackageSelectionPrice = {
   billableDistanceKm?: number | null;
   deliveryFeePerKm?: string | null;
   deliveryFee: string;
+  deliveryServiceType: DeliveryServiceType;
+  helperCount: number;
+  baseDeliveryFee?: string;
+  serviceAddon?: string;
   subtotalAmount: string;
   totalAmount: string;
   items: Array<{
@@ -250,6 +255,8 @@ export type CartSummary = {
   updatedAt: string;
   pendingOrderId?: string | null;
   specialNotes?: string | null;
+  deliveryServiceType: DeliveryServiceType;
+  helperCount: number;
   address?: UserAddress | null;
   package: {
     id: string;
@@ -331,6 +338,8 @@ export type OrderSummary = {
   region?: OperatingRegion | null;
   distanceKm?: string | null;
   deliveryFee?: string;
+  deliveryServiceType?: DeliveryServiceType;
+  helperCount?: number;
   totalAmount: string;
   createdAt: string;
   specialNotes?: string | null;

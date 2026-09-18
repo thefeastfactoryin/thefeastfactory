@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { AdminRole, Prisma } from '@prisma/client';
+import { AdminRole, DeliveryServiceType, Prisma } from '@prisma/client';
 import { JwtPayload } from '../../common/auth/jwt-payload';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UpdateOperatingRegionDto } from './dto/update-operating-region.dto';
@@ -15,8 +15,16 @@ export type RegionAssignment = {
   region: RegionRow;
   distanceKm: Prisma.Decimal;
   billableDistanceKm: number;
+  deliveryServiceType: DeliveryServiceType;
+  helperCount: number;
+  baseDeliveryFee: Prisma.Decimal;
+  serviceAddon: Prisma.Decimal;
   deliveryFee: Prisma.Decimal;
 };
+
+const BASE_DELIVERY_FEE_PER_KM = new Prisma.Decimal('25');
+const DOORSTEP_SERVICE_FEE = new Prisma.Decimal('399');
+const ASSISTED_FEE_PER_HELPER = new Prisma.Decimal('999');
 
 @Injectable()
 export class OperatingRegionsService {
@@ -116,6 +124,8 @@ export class OperatingRegionsService {
   async assign(
     latitude?: Prisma.Decimal | string | null,
     longitude?: Prisma.Decimal | string | null,
+    deliveryServiceType: DeliveryServiceType = DeliveryServiceType.STANDARD,
+    helperCount = 0,
   ): Promise<RegionAssignment> {
     if (
       latitude === undefined ||
@@ -176,13 +186,17 @@ export class OperatingRegionsService {
 
     const distanceKm = new Prisma.Decimal(nearest.distance.toFixed(2));
     const billableDistanceKm = Math.ceil(nearest.distance);
+    const pricing = this.deliveryPricing(
+      billableDistanceKm,
+      deliveryServiceType,
+      helperCount,
+      nearest.region.deliveryFeePerKm,
+    );
     return {
       region: nearest.region,
       distanceKm,
       billableDistanceKm,
-      deliveryFee: new Prisma.Decimal(billableDistanceKm).mul(
-        nearest.region.deliveryFeePerKm,
-      ),
+      ...pricing,
     };
   }
 
@@ -190,6 +204,8 @@ export class OperatingRegionsService {
     regionId: string,
     latitude?: Prisma.Decimal | string | null,
     longitude?: Prisma.Decimal | string | null,
+    deliveryServiceType: DeliveryServiceType = DeliveryServiceType.STANDARD,
+    helperCount = 0,
   ): Promise<RegionAssignment> {
     const region = await this.prisma.operatingRegion.findFirst({
       where: { id: regionId, isActive: true, isAcceptingOrders: true },
@@ -230,13 +246,47 @@ export class OperatingRegionsService {
 
     const distanceKm = new Prisma.Decimal(distance.toFixed(2));
     const billableDistanceKm = Math.ceil(distance);
+    const pricing = this.deliveryPricing(
+      billableDistanceKm,
+      deliveryServiceType,
+      helperCount,
+      region.deliveryFeePerKm,
+    );
     return {
       region,
       distanceKm,
       billableDistanceKm,
-      deliveryFee: new Prisma.Decimal(billableDistanceKm).mul(
-        region.deliveryFeePerKm,
-      ),
+      ...pricing,
+    };
+  }
+
+  private deliveryPricing(
+    billableDistanceKm: number,
+    deliveryServiceType: DeliveryServiceType,
+    helperCount: number,
+    baseFeePerKm = BASE_DELIVERY_FEE_PER_KM,
+  ) {
+    if (
+      deliveryServiceType === DeliveryServiceType.ASSISTED &&
+      (!Number.isInteger(helperCount) || helperCount < 1 || helperCount > 10)
+    ) {
+      throw new BadRequestException('Choose between 1 and 10 helpers.');
+    }
+    const normalizedHelperCount =
+      deliveryServiceType === DeliveryServiceType.ASSISTED ? helperCount : 0;
+    const baseDeliveryFee = baseFeePerKm.mul(billableDistanceKm);
+    const serviceAddon =
+      deliveryServiceType === DeliveryServiceType.DOORSTEP
+        ? DOORSTEP_SERVICE_FEE
+        : deliveryServiceType === DeliveryServiceType.ASSISTED
+          ? ASSISTED_FEE_PER_HELPER.mul(normalizedHelperCount)
+          : new Prisma.Decimal(0);
+    return {
+      deliveryServiceType,
+      helperCount: normalizedHelperCount,
+      baseDeliveryFee,
+      serviceAddon,
+      deliveryFee: baseDeliveryFee.plus(serviceAddon),
     };
   }
 

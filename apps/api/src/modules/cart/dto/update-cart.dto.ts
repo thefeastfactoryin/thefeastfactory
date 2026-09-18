@@ -1,6 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { DeliveryServiceType } from '@prisma/client';
 import {
   IsDateString,
+  IsEnum,
   IsInt,
   IsOptional,
   IsString,
@@ -22,5 +24,14 @@ export class UpdateCartDto {
   eventDate?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() @Matches(/^([01]\d|2[0-3]):[0-5]\d$/) eventTimeStart?: string;
   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(1) guestCount?: number;
+  @ApiPropertyOptional({ enum: DeliveryServiceType })
+  @IsOptional()
+  @IsEnum(DeliveryServiceType)
+  deliveryServiceType?: DeliveryServiceType;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  helperCount?: number;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(1000) specialNotes?: string;
 }

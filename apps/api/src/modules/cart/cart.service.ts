@@ -3,7 +3,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { CartStatus, OrderStatus, Prisma } from '@prisma/client';
+import {
+  CartStatus,
+  DeliveryServiceType,
+  OrderStatus,
+  Prisma,
+} from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { eventLocalInstant } from '../../common/event-time';
@@ -64,7 +69,12 @@ export class CartService {
           'Address, event date, time, and pax are required together',
         );
       }
-      const event = await this.validateEventDetails(userId, dto);
+      const event = await this.validateEventDetails(
+        userId,
+        dto,
+        cart.deliveryServiceType,
+        cart.helperCount,
+      );
       const updated = await this.prisma.cart.update({
         where: { id: cart.id },
         data: {
@@ -76,6 +86,8 @@ export class CartService {
           guestCount: dto.guestCount,
           distanceKm: event.distanceKm,
           deliveryFee: event.deliveryFee,
+          deliveryServiceType: event.deliveryServiceType,
+          helperCount: event.helperCount,
           specialNotes: dto.specialNotes,
           lastQuotedAt: null,
           expiresAt: this.expiryDate(),
@@ -152,7 +164,12 @@ export class CartService {
           'Address, event date, time, and pax are required together',
         );
       }
-      const event = await this.validateEventDetails(userId, dto);
+      const event = await this.validateEventDetails(
+        userId,
+        dto,
+        cart.deliveryServiceType,
+        cart.helperCount,
+      );
       const updated = await this.prisma.cart.update({
         where: { id },
         data: {
@@ -164,6 +181,8 @@ export class CartService {
           guestCount: dto.guestCount,
           distanceKm: event.distanceKm,
           deliveryFee: event.deliveryFee,
+          deliveryServiceType: event.deliveryServiceType,
+          helperCount: event.helperCount,
           specialNotes: dto.specialNotes,
           lastQuotedAt: null,
           expiresAt: this.expiryDate(),
@@ -173,13 +192,31 @@ export class CartService {
       return this.serializeCart(updated);
     }
     if (dto.addressId !== undefined) {
-      return this.updateAddress(userId, id, dto.addressId, dto.regionId);
+      return this.updateAddress(
+        userId,
+        id,
+        dto.addressId,
+        dto.regionId,
+        cart.deliveryServiceType,
+        cart.helperCount,
+      );
     }
     if (dto.guestCount !== undefined) {
       return this.updateQuantity(userId, id, dto.guestCount);
     }
     if (dto.regionId !== undefined) {
       return this.updateRegion(userId, id, dto.regionId);
+    }
+    if (
+      dto.deliveryServiceType !== undefined ||
+      dto.helperCount !== undefined
+    ) {
+      return this.updateDeliveryService(
+        userId,
+        id,
+        dto.deliveryServiceType ?? cart.deliveryServiceType,
+        dto.helperCount ?? cart.helperCount,
+      );
     }
     return this.serializeCart(cart);
   }
@@ -444,7 +481,12 @@ export class CartService {
   async quote(userId: string, id: string) {
     const cart = await this.assertActiveCart(userId, id);
     const assignment = cart.address
-      ? await this.regions.assign(cart.address.latitude, cart.address.longitude)
+      ? await this.regions.assign(
+          cart.address.latitude,
+          cart.address.longitude,
+          cart.deliveryServiceType,
+          cart.helperCount,
+        )
       : null;
     const guestCount = cart.guestCount ?? cart.packageVersion.minGuestCount;
     const quote = await this.pricing.quote(
@@ -466,6 +508,8 @@ export class CartService {
           ? {
               regionId: assignment.region.id,
               distanceKm: assignment.distanceKm,
+              deliveryServiceType: assignment.deliveryServiceType,
+              helperCount: assignment.helperCount,
               deliveryFee: assignment.deliveryFee,
             }
           : {}),
@@ -475,6 +519,9 @@ export class CartService {
     const region = assignment?.region ?? cart.region;
     const distanceKm = assignment?.distanceKm ?? cart.distanceKm;
     const deliveryFeeValue = assignment?.deliveryFee ?? cart.deliveryFee;
+    const baseDeliveryFee =
+      assignment?.baseDeliveryFee ?? deliveryFeeValue;
+    const serviceAddon = assignment?.serviceAddon ?? new Prisma.Decimal(0);
     const deliveryFee = deliveryFeeValue.toFixed(2);
     return {
       valid: true,
@@ -486,6 +533,11 @@ export class CartService {
         distanceKm === null ? null : Math.ceil(Number(distanceKm)),
       deliveryFeePerKm: region?.deliveryFeePerKm.toFixed(2) ?? null,
       deliveryFee,
+      deliveryServiceType:
+        assignment?.deliveryServiceType ?? cart.deliveryServiceType,
+      helperCount: assignment?.helperCount ?? cart.helperCount,
+      baseDeliveryFee: baseDeliveryFee.toFixed(2),
+      serviceAddon: serviceAddon.toFixed(2),
       subtotalAmount: serialized.totalAmount,
       totalAmount: quote.totalAmount.plus(deliveryFeeValue).toFixed(2),
     };
@@ -598,6 +650,8 @@ export class CartService {
           ? cart.order.id
           : null,
       specialNotes: cart.specialNotes,
+      deliveryServiceType: cart.deliveryServiceType,
+      helperCount: cart.helperCount,
       address: cart.address,
       package: cart.packageVersion
         ? {
@@ -654,7 +708,12 @@ export class CartService {
     };
   }
 
-  private async validateEventDetails(userId: string, dto: UpdateCartDto) {
+  private async validateEventDetails(
+    userId: string,
+    dto: UpdateCartDto,
+    deliveryServiceType: DeliveryServiceType,
+    helperCount: number,
+  ) {
     const [address, version, settingRows] = await Promise.all([
       this.prisma.userAddress.findFirst({
         where: { id: dto.addressId!, userId },
@@ -732,8 +791,15 @@ export class CartService {
           dto.regionId,
           address.latitude,
           address.longitude,
+          deliveryServiceType,
+          helperCount,
         )
-      : await this.regions.assign(address.latitude, address.longitude);
+      : await this.regions.assign(
+          address.latitude,
+          address.longitude,
+          deliveryServiceType,
+          helperCount,
+        );
     return { eventDate, eventTime, ...assignment };
   }
 
@@ -756,6 +822,8 @@ export class CartService {
     cartId: string,
     addressId: string,
     regionId?: string,
+    deliveryServiceType: DeliveryServiceType = DeliveryServiceType.STANDARD,
+    helperCount = 0,
   ) {
     const address = await this.prisma.userAddress.findFirst({
       where: { id: addressId, userId },
@@ -768,15 +836,59 @@ export class CartService {
           regionId,
           address.latitude,
           address.longitude,
+          deliveryServiceType,
+          helperCount,
         )
-      : await this.regions.assign(address.latitude, address.longitude);
+      : await this.regions.assign(
+          address.latitude,
+          address.longitude,
+          deliveryServiceType,
+          helperCount,
+        );
     const updated = await this.prisma.cart.update({
       where: { id: cartId },
       data: {
         addressId,
         regionId: assignment.region.id,
         distanceKm: assignment.distanceKm,
+        deliveryServiceType: assignment.deliveryServiceType,
+        helperCount: assignment.helperCount,
         deliveryFee: assignment.deliveryFee,
+        lastQuotedAt: null,
+        expiresAt: this.expiryDate(),
+      },
+      include: this.cartInclude(),
+    });
+    return this.serializeCart(updated);
+  }
+
+  private async updateDeliveryService(
+    userId: string,
+    id: string,
+    deliveryServiceType: DeliveryServiceType,
+    helperCount: number,
+  ) {
+    const cart = await this.assertActiveCart(userId, id);
+    const assignment = cart.address
+      ? await this.regions.assign(
+          cart.address.latitude,
+          cart.address.longitude,
+          deliveryServiceType,
+          helperCount,
+        )
+      : null;
+    const updated = await this.prisma.cart.update({
+      where: { id },
+      data: {
+        deliveryServiceType,
+        helperCount: assignment?.helperCount ?? helperCount,
+        ...(assignment
+          ? {
+              regionId: assignment.region.id,
+              distanceKm: assignment.distanceKm,
+              deliveryFee: assignment.deliveryFee,
+            }
+          : {}),
         lastQuotedAt: null,
         expiresAt: this.expiryDate(),
       },
