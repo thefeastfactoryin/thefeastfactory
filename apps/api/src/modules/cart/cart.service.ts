@@ -7,6 +7,7 @@ import {
   CartStatus,
   DeliveryServiceType,
   OrderStatus,
+  PackageType,
   Prisma,
 } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
@@ -53,6 +54,8 @@ export class CartService {
   ) {}
 
   async upsert(userId: string, dto: UpdateCartDto) {
+    const isKg = (await this.assertPackageVersion(dto.packageVersionId)).package.type === PackageType.ORDER_BY_KG;
+    if (isKg) dto = { ...dto, guestCount: undefined };
     const cart = await this.createOrFetch(userId, {
       packageVersionId: dto.packageVersionId,
       regionId: dto.regionId,
@@ -63,7 +66,7 @@ export class CartService {
         !dto.addressId ||
         !dto.eventDate ||
         !dto.eventTimeStart ||
-        !dto.guestCount
+        (!isKg && !dto.guestCount)
       ) {
         throw new BadRequestException(
           'Address, event date, time, and pax are required together',
@@ -83,11 +86,12 @@ export class CartService {
           eventName: dto.eventName,
           eventDate: event.eventDate,
           eventTimeStart: event.eventTime,
-          guestCount: dto.guestCount,
+          guestCount: isKg ? null : dto.guestCount,
           distanceKm: event.distanceKm,
           deliveryFee: event.deliveryFee,
           deliveryServiceType: event.deliveryServiceType,
           helperCount: event.helperCount,
+          contactNumber: dto.contactNumber ?? cart.contactNumber,
           specialNotes: dto.specialNotes,
           lastQuotedAt: null,
           expiresAt: this.expiryDate(),
@@ -110,7 +114,7 @@ export class CartService {
       const updated = await this.prisma.cart.update({
         where: { id: cart.id },
         data: {
-          guestCount: dto.guestCount,
+          guestCount: isKg ? null : dto.guestCount,
           lastQuotedAt: null,
           expiresAt: this.expiryDate(),
         },
@@ -122,24 +126,36 @@ export class CartService {
       const updated = await this.updateRegion(userId, cart.id, dto.regionId);
       return updated;
     }
+    if (dto.contactNumber !== undefined) {
+      return this.updateContactNumber(userId, cart.id, dto.contactNumber);
+    }
     return cart;
   }
 
   async create(userId: string, dto: CreateCartDto) {
     const version = await this.assertPackageVersion(dto.packageVersionId);
-    const guestCount = dto.guestCount ?? version.minGuestCount;
+    const isKg = version.package.type === PackageType.ORDER_BY_KG;
+    if (isKg && dto.regionId) {
+      await this.assertKgRegionAvailability(version.package.id, dto.regionId);
+    }
+    const guestCount = isKg ? null : dto.guestCount ?? version.minGuestCount;
     if (
-      guestCount < version.minGuestCount ||
-      (version.maxGuestCount && guestCount > version.maxGuestCount)
+      !isKg && (guestCount! < version.minGuestCount ||
+      (version.maxGuestCount && guestCount! > version.maxGuestCount))
     ) {
       throw new BadRequestException('Guest count is outside package limits');
     }
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { mobileNumber: true },
+    });
     const cart = await this.prisma.cart.create({
       data: {
         userId,
         packageVersionId: dto.packageVersionId,
         regionId: await this.validRegionId(dto.regionId),
         guestCount,
+        contactNumber: user.mobileNumber,
         expiresAt: this.expiryDate(),
       },
       include: this.cartInclude(),
@@ -149,6 +165,8 @@ export class CartService {
 
   async update(userId: string, id: string, dto: UpdateCartDto) {
     const cart = await this.assertActiveCart(userId, id);
+    const isKg = cart.packageVersion.package.type === PackageType.ORDER_BY_KG;
+    if (isKg) dto = { ...dto, guestCount: undefined };
     if (cart.packageVersionId !== dto.packageVersionId) {
       throw new BadRequestException('Package does not match this cart');
     }
@@ -158,7 +176,7 @@ export class CartService {
         !dto.addressId ||
         !dto.eventDate ||
         !dto.eventTimeStart ||
-        !dto.guestCount
+        (!isKg && !dto.guestCount)
       ) {
         throw new BadRequestException(
           'Address, event date, time, and pax are required together',
@@ -178,11 +196,12 @@ export class CartService {
           eventName: dto.eventName,
           eventDate: event.eventDate,
           eventTimeStart: event.eventTime,
-          guestCount: dto.guestCount,
+          guestCount: isKg ? null : dto.guestCount,
           distanceKm: event.distanceKm,
           deliveryFee: event.deliveryFee,
           deliveryServiceType: event.deliveryServiceType,
           helperCount: event.helperCount,
+          contactNumber: dto.contactNumber ?? cart.contactNumber,
           specialNotes: dto.specialNotes,
           lastQuotedAt: null,
           expiresAt: this.expiryDate(),
@@ -217,6 +236,9 @@ export class CartService {
         dto.deliveryServiceType ?? cart.deliveryServiceType,
         dto.helperCount ?? cart.helperCount,
       );
+    }
+    if (dto.contactNumber !== undefined) {
+      return this.updateContactNumber(userId, id, dto.contactNumber);
     }
     return this.serializeCart(cart);
   }
@@ -297,6 +319,7 @@ export class CartService {
 
   async updateQuantity(userId: string, id: string, guestCount: number) {
     const cart = await this.assertActiveCart(userId, id);
+    if (cart.packageVersion.package.type === PackageType.ORDER_BY_KG) throw new BadRequestException('Edit dish weights for kg orders');
     const minimum = cart.packageVersion.minGuestCount;
     const maximum = cart.packageVersion.maxGuestCount;
     if (guestCount < minimum || (maximum && guestCount > maximum)) {
@@ -382,7 +405,8 @@ export class CartService {
         !cart.regionId ||
         !cart.eventDate ||
         !cart.eventTimeStart ||
-        !cart.guestCount,
+        !cart.contactNumber ||
+        (!cart.guestCount && cart.packageVersion.package.type !== PackageType.ORDER_BY_KG),
     );
     if (incomplete) {
       throw new BadRequestException(
@@ -423,7 +447,10 @@ export class CartService {
   }
 
   async createOrFetch(userId: string, dto: CreateCartDto) {
-    await this.assertPackageVersion(dto.packageVersionId);
+    const version = await this.assertPackageVersion(dto.packageVersionId);
+    if (version.package.type === PackageType.ORDER_BY_KG && dto.regionId) {
+      await this.assertKgRegionAvailability(version.package.id, dto.regionId);
+    }
     const existing = await this.prisma.cart.findFirst({
       where: {
         userId,
@@ -438,11 +465,16 @@ export class CartService {
       return this.serializeCart(existing);
     }
 
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { mobileNumber: true },
+    });
     const cart = await this.prisma.cart.create({
       data: {
         userId,
         packageVersionId: dto.packageVersionId,
         regionId: await this.validRegionId(dto.regionId),
+        contactNumber: user.mobileNumber,
         expiresAt: this.expiryDate(),
       },
       include: this.cartInclude(),
@@ -453,7 +485,11 @@ export class CartService {
   async replaceItems(userId: string, id: string, dto: ReplaceCartItemsDto) {
     const cart = await this.assertActiveCart(userId, id);
     if (dto.items.length) {
-      await this.validateCartItems(cart.packageVersionId, dto.items);
+      await this.validateCartItems(
+        cart.packageVersionId,
+        dto.items,
+        cart.regionId ?? undefined,
+      );
     }
     const updated = await this.prisma.$transaction(async (tx) => {
       await tx.cartItem.deleteMany({ where: { cartId: id } });
@@ -466,6 +502,7 @@ export class CartService {
             replacedMenuItemId: item.replacedMenuItemId ?? null,
             role: item.role,
             quantity: item.quantity ?? 1,
+            weightGrams: item.weightGrams ?? null,
           })),
         });
       }
@@ -498,7 +535,9 @@ export class CartService {
         replacedMenuItemId: item.replacedMenuItemId,
         role: item.role,
         quantity: item.quantity,
+        weightGrams: item.weightGrams,
       })),
+      assignment?.region.id ?? cart.regionId ?? undefined,
     );
     await this.prisma.cart.update({
       where: { id },
@@ -549,7 +588,8 @@ export class CartService {
       !cart.addressId ||
       !cart.eventDate ||
       !cart.eventTimeStart ||
-      !cart.guestCount
+      !cart.contactNumber ||
+      (!cart.guestCount && cart.packageVersion.package.type !== PackageType.ORDER_BY_KG)
     ) {
       throw new BadRequestException(
         'Add event and venue details before checkout',
@@ -564,6 +604,7 @@ export class CartService {
           replacedMenuItemId: item.replacedMenuItemId,
           role: item.role,
           quantity: item.quantity,
+        weightGrams: item.weightGrams,
         })),
       },
       cart.id,
@@ -579,6 +620,7 @@ export class CartService {
   private async validateCartItems(
     packageVersionId: string,
     items: CartSelectionItemDto[],
+    regionId?: string,
   ) {
     const version = await this.assertPackageVersion(packageVersionId);
     const maxItemQuantity = Math.max(
@@ -586,7 +628,7 @@ export class CartService {
       ...items.map((item) => item.quantity ?? 1),
     );
     const guestCount = Math.max(version.minGuestCount, maxItemQuantity);
-    await this.pricing.quote(packageVersionId, guestCount, items);
+    await this.pricing.quote(packageVersionId, guestCount, items, regionId);
   }
 
   private async assertActiveCart(userId: string, id: string) {
@@ -650,6 +692,7 @@ export class CartService {
           ? cart.order.id
           : null,
       specialNotes: cart.specialNotes,
+      contactNumber: cart.contactNumber,
       deliveryServiceType: cart.deliveryServiceType,
       helperCount: cart.helperCount,
       address: cart.address,
@@ -691,6 +734,7 @@ export class CartService {
         replacedMenuItemName: item.replacedMenuItem?.name ?? null,
         role: item.role,
         quantity: item.quantity,
+        weightGrams: item.weightGrams,
         isVeg: item.menuItem?.isVeg,
       })),
     };
@@ -719,6 +763,7 @@ export class CartService {
         where: { id: dto.addressId!, userId },
       }),
       this.prisma.packageVersion.findFirst({
+        include: { package: true },
         where: {
           id: dto.packageVersionId,
           isActive: true,
@@ -744,8 +789,8 @@ export class CartService {
     if (!version)
       throw new BadRequestException('Package version is not available');
     if (
-      dto.guestCount! < version.minGuestCount ||
-      (version.maxGuestCount && dto.guestCount! > version.maxGuestCount)
+      version.package.type !== PackageType.ORDER_BY_KG && (dto.guestCount! < version.minGuestCount ||
+      (version.maxGuestCount && dto.guestCount! > version.maxGuestCount))
     ) {
       throw new BadRequestException('Guest count is outside package limits');
     }
@@ -815,6 +860,21 @@ export class CartService {
       );
     }
     return region.id;
+  }
+
+  private async assertKgRegionAvailability(
+    packageId: string,
+    regionId: string,
+  ) {
+    const disabled = await this.prisma.packageRegionAvailability.findFirst({
+      where: { packageId, regionId, isAvailable: false },
+      select: { id: true },
+    });
+    if (disabled) {
+      throw new BadRequestException(
+        'Order by KG is currently unavailable at this location',
+      );
+    }
   }
 
   private async updateAddress(
@@ -892,6 +952,20 @@ export class CartService {
         lastQuotedAt: null,
         expiresAt: this.expiryDate(),
       },
+      include: this.cartInclude(),
+    });
+    return this.serializeCart(updated);
+  }
+
+  private async updateContactNumber(
+    userId: string,
+    id: string,
+    contactNumber: string,
+  ) {
+    await this.assertActiveCart(userId, id);
+    const updated = await this.prisma.cart.update({
+      where: { id },
+      data: { contactNumber, expiresAt: this.expiryDate() },
       include: this.cartInclude(),
     });
     return this.serializeCart(updated);

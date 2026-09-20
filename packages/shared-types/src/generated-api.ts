@@ -385,6 +385,38 @@ export interface paths {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/admin/package-versions/{id}/region-availability": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get: operations["AdminPackagesController_getRegionAvailability"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/admin/package-versions/{id}/region-availability/{regionId}": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put: operations["AdminPackagesController_updateRegionAvailability"];
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/admin/packages": {
         readonly parameters: {
             readonly query?: never;
@@ -1295,6 +1327,7 @@ export interface components {
             readonly replacedMenuItemId?: string | null;
             /** @enum {string} */
             readonly role: "INCLUDED" | "SWAP" | "EXTRA" | "CUSTOM";
+            readonly weightGrams?: number | null;
         };
         readonly CheckoutCartDto: {
             /** @example Please keep the food mildly spiced and pack chutney separately. */
@@ -1362,6 +1395,8 @@ export interface components {
             readonly isVeg: boolean;
             /** @example Paneer Tikka */
             readonly name: string;
+            /** @example 400.00 */
+            readonly pricePerKg?: string | null;
         };
         readonly CreateOrderNoteDto: {
             readonly body: string;
@@ -1383,14 +1418,14 @@ export interface components {
              * @default FIXED_PACKAGE
              * @enum {string}
              */
-            readonly type: "MEAL_BOX" | "FIXED_PACKAGE" | "CUSTOM_PACKAGE";
+            readonly type: "MEAL_BOX" | "FIXED_PACKAGE" | "CUSTOM_PACKAGE" | "ORDER_BY_KG";
         };
         readonly CreatePackageVersionDto: {
             /** @example 499.00 */
             readonly basePricePerPlate: string;
             /** @default true */
             readonly isActive: boolean;
-            readonly maxGuestCount?: number;
+            readonly maxGuestCount?: number | null;
             /** @default 10 */
             readonly minGuestCount: number;
             readonly publishedAt?: string | null;
@@ -1439,8 +1474,15 @@ export interface components {
             /** @enum {string} */
             readonly role: "INCLUDED" | "EXTRA" | "CUSTOM_SELECTABLE";
         };
+        readonly PackageMenuItemRegionAvailabilityDto: {
+            readonly isAvailable: boolean;
+            /** Format: uuid */
+            readonly packageMenuItemId: string;
+        };
         readonly PreviewPackageQuoteDto: {
             readonly guestCount: number;
+            /** Format: uuid */
+            readonly regionId?: string;
             readonly selectedItems: readonly components["schemas"]["SelectedPackageItemDto"][];
         };
         readonly RefreshTokenDto: {
@@ -1476,6 +1518,7 @@ export interface components {
             readonly replacedMenuItemId?: string | null;
             /** @enum {string} */
             readonly role?: "INCLUDED" | "SWAP" | "EXTRA" | "CUSTOM";
+            readonly weightGrams?: number | null;
         };
         readonly SettingInput: {
             readonly key: string;
@@ -1511,6 +1554,7 @@ export interface components {
         readonly UpdateCartDto: {
             /** Format: uuid */
             readonly addressId?: string;
+            readonly contactNumber?: string;
             /** @enum {string} */
             readonly deliveryServiceType?: "STANDARD" | "DOORSTEP" | "ASSISTED";
             readonly eventDate?: string;
@@ -1552,6 +1596,8 @@ export interface components {
             readonly isVeg: boolean;
             /** @example Paneer Tikka */
             readonly name?: string;
+            /** @example 400.00 */
+            readonly pricePerKg?: string | null;
         };
         readonly UpdateOperatingRegionDto: {
             readonly centerLatitude?: string;
@@ -1597,7 +1643,11 @@ export interface components {
              * @default FIXED_PACKAGE
              * @enum {string}
              */
-            readonly type: "MEAL_BOX" | "FIXED_PACKAGE" | "CUSTOM_PACKAGE";
+            readonly type: "MEAL_BOX" | "FIXED_PACKAGE" | "CUSTOM_PACKAGE" | "ORDER_BY_KG";
+        };
+        readonly UpdatePackageRegionAvailabilityDto: {
+            readonly isAvailable: boolean;
+            readonly items: readonly components["schemas"]["PackageMenuItemRegionAvailabilityDto"][];
         };
         readonly UpdatePackageVersionDto: {
             /** @example 499.00 */
@@ -2265,6 +2315,49 @@ export interface operations {
             };
         };
     };
+    readonly AdminPackagesController_getRegionAvailability: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly id: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    readonly AdminPackagesController_updateRegionAvailability: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly id: string;
+                readonly regionId: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["UpdatePackageRegionAvailabilityDto"];
+            };
+        };
+        readonly responses: {
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     readonly AdminPackagesController_listPackages: {
         readonly parameters: {
             readonly query?: never;
@@ -2888,7 +2981,9 @@ export interface operations {
                 headers: {
                     readonly [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    readonly "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -2909,7 +3004,9 @@ export interface operations {
                 headers: {
                     readonly [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    readonly "application/json": readonly Record<string, never>[];
+                };
             };
         };
     };
@@ -2947,7 +3044,9 @@ export interface operations {
                 headers: {
                     readonly [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    readonly "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -3272,7 +3371,9 @@ export interface operations {
                 headers: {
                     readonly [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    readonly "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -3295,7 +3396,9 @@ export interface operations {
                 headers: {
                     readonly [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    readonly "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -3378,7 +3481,9 @@ export interface operations {
     };
     readonly PackagesController_getConfiguration: {
         readonly parameters: {
-            readonly query?: never;
+            readonly query?: {
+                readonly regionId?: string;
+            };
             readonly header?: never;
             readonly path: {
                 readonly id: string;
@@ -3414,13 +3519,17 @@ export interface operations {
                 headers: {
                     readonly [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    readonly "application/json": Record<string, never>;
+                };
             };
         };
     };
     readonly PackagesController_listPackages: {
         readonly parameters: {
-            readonly query?: never;
+            readonly query?: {
+                readonly regionId?: string;
+            };
             readonly header?: never;
             readonly path?: never;
             readonly cookie?: never;

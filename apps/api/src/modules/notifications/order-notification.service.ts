@@ -128,11 +128,12 @@ export class OrderNotificationService {
 
   private orderMessage(order: {
     orderNumber: string;
+    contactNumber: string;
     user: { name: string | null; mobileNumber: string; email: string | null };
     eventName: string | null;
     eventDate: Date;
     eventTimeStart: Date | null;
-    guestCount: number;
+    guestCount: number | null;
     packageName: string;
     totalAmount: { toFixed: (digits: number) => string };
     address: {
@@ -142,10 +143,10 @@ export class OrderNotificationService {
       state: string;
       pincode: string;
     };
-    selectedItems: Array<{ menuItemName: string; quantity: number }>;
+    selectedItems: Array<{ menuItemName: string; quantity: number; weightGrams?: number | null }>;
   }) {
     const items = order.selectedItems
-      .map((item) => `${item.menuItemName} x${item.quantity}`)
+      .map((item) => item.weightGrams ? `${item.menuItemName} ${item.weightGrams / 1000} kg` : `${item.menuItemName} x${item.quantity}`)
       .join(', ');
     const address = [
       order.address.addressLine1,
@@ -158,10 +159,10 @@ export class OrderNotificationService {
       .join(', ');
     return [
       `New confirmed order: ${order.orderNumber}`,
-      `Customer: ${order.user.name || 'Guest'} (${order.user.mobileNumber})`,
+      `Customer: ${order.user.name || 'Guest'} (${order.contactNumber})`,
       `Email: ${order.user.email || 'Not provided'}`,
       `Event: ${order.eventName || 'Not provided'} on ${order.eventDate.toISOString().slice(0, 10)} at ${order.eventTimeStart ? order.eventTimeStart.toISOString().slice(11, 16) : 'Not provided'}`,
-      `Guests: ${order.guestCount}`,
+      order.guestCount == null ? 'Order by KG' : `Guests: ${order.guestCount}`,
       `Package: ${order.packageName}`,
       `Amount: INR ${order.totalAmount.toFixed(2)}`,
       `Venue: ${address}`,

@@ -11,6 +11,7 @@ import type {
 import { mobileNumberSchema } from '@aranyam/validation';
 import {
   CalendarDays,
+  Check,
   CheckCircle2,
   Clock3,
   CreditCard,
@@ -21,6 +22,7 @@ import {
   Minus,
   Package,
   Pencil,
+  Phone,
   Plus,
   ReceiptText,
   ShieldCheck,
@@ -40,7 +42,6 @@ import { DataImage } from '../../components/data-image';
 import { RetryPaymentButton } from '../../components/retry-payment-button';
 import { SelectionContextPanel } from '../../components/selection-context-panel';
 import { Button } from '../../components/ui/button';
-import { Field } from '../../components/ui/form';
 import { Input } from '../../components/ui/input';
 import { AuthRequiredPanel, StatePanel } from '../../components/ui/state-panel';
 import { apiRequest } from '../../lib/api';
@@ -73,6 +74,9 @@ type ReviewRow = {
   replacedName?: string | null;
   adjustmentAmount: string;
   quantity: number;
+  weightGrams?: number | null;
+  pricePerKg?: string | null;
+  lineTotal?: string | null;
   totalAdjustmentAmount?: string;
 };
 
@@ -150,39 +154,44 @@ export default function CartPage() {
   const [activeCategoryId, setActiveCategoryId] = useState('');
   const [specialNotes, setSpecialNotes] = useState('');
   const [contactNumber, setContactNumber] = useState('');
+  const [editingContact, setEditingContact] = useState(false);
+  const [savingContact, setSavingContact] = useState(false);
   const [updatingDelivery, setUpdatingDelivery] = useState(false);
 
   useEffect(() => {
     setContactNumber(session?.user.mobileNumber ?? '');
   }, [session?.user.mobileNumber]);
 
-  const loadQuote = useCallback(async (currentCartId?: string) => {
-    if (!session) return;
-    setQuoteLoading(true);
-    try {
-      const aggregate = await apiRequest<MultiCartQuote>(
-        '/cart/quote-all',
-        { method: 'POST' },
-        session.accessToken,
-      );
-      const detail = aggregate.carts.find(
-        (entry) => entry.cartId === currentCartId,
-      )?.quote;
-      setMultiCartQuote(aggregate);
-      setQuote(detail ?? aggregate.carts[0]?.quote);
-      setError(
-        aggregate.valid
-          ? ''
-          : 'The latest quote could not be completed. Please review your delivery details.',
-      );
-    } catch (reason) {
-      setQuote(undefined);
-      setMultiCartQuote(undefined);
-      setError((reason as Error).message);
-    } finally {
-      setQuoteLoading(false);
-    }
-  }, [session]);
+  const loadQuote = useCallback(
+    async (currentCartId?: string) => {
+      if (!session) return;
+      setQuoteLoading(true);
+      try {
+        const aggregate = await apiRequest<MultiCartQuote>(
+          '/cart/quote-all',
+          { method: 'POST' },
+          session.accessToken,
+        );
+        const detail = aggregate.carts.find(
+          (entry) => entry.cartId === currentCartId,
+        )?.quote;
+        setMultiCartQuote(aggregate);
+        setQuote(detail ?? aggregate.carts[0]?.quote);
+        setError(
+          aggregate.valid
+            ? ''
+            : 'The latest quote could not be completed. Please review your delivery details.',
+        );
+      } catch (reason) {
+        setQuote(undefined);
+        setMultiCartQuote(undefined);
+        setError((reason as Error).message);
+      } finally {
+        setQuoteLoading(false);
+      }
+    },
+    [session],
+  );
 
   useEffect(() => {
     if (!session) return;
@@ -197,6 +206,7 @@ export default function CartPage() {
         setCart(value);
         setActiveCarts(allCarts);
         setSpecialNotes(value.specialNotes ?? '');
+        setContactNumber(value.contactNumber || session!.user.mobileNumber);
         hydrate(value);
         const configuration = await apiRequest<PackageConfiguration>(
           `/package-versions/${value.packageVersionId}/configuration`,
@@ -362,6 +372,49 @@ export default function CartPage() {
     }
   }
 
+  async function persistContactNumber(value: string) {
+    if (!session || !cart) return;
+    const updatedCarts = await Promise.all(
+      activeCarts.map((packageCart) =>
+        apiRequest<CartSummary>(
+          `/cart/${packageCart.id}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              packageVersionId: packageCart.packageVersionId,
+              contactNumber: value,
+            }),
+          },
+          session.accessToken,
+        ),
+      ),
+    );
+    setActiveCarts(updatedCarts);
+    const updated = updatedCarts.find((entry) => entry.id === cart.id);
+    if (updated) {
+      setCart(updated);
+      hydrate(updated);
+    }
+  }
+
+  async function saveContactNumber() {
+    const validated = mobileNumberSchema.safeParse(contactNumber);
+    if (!validated.success) {
+      setError('Enter a valid 10-digit contact number to continue.');
+      return;
+    }
+    setSavingContact(true);
+    setError('');
+    try {
+      await persistContactNumber(validated.data);
+      setEditingContact(false);
+    } catch (reason) {
+      setError((reason as Error).message);
+    } finally {
+      setSavingContact(false);
+    }
+  }
+
   async function removeCart(cartId: string) {
     if (!session || deletingCartId || pendingOrder) return;
     setDeletingCartId(cartId);
@@ -388,7 +441,8 @@ export default function CartPage() {
         const next = remaining[0];
         setCart(next);
         setQuote(
-          multiCartQuote?.carts.find((entry) => entry.cartId === next.id)?.quote,
+          multiCartQuote?.carts.find((entry) => entry.cartId === next.id)
+            ?.quote,
         );
         hydrate(next);
         setConfig(
@@ -475,12 +529,18 @@ export default function CartPage() {
           replacedName: item.replacedMenuItemName,
           adjustmentAmount: item.adjustmentAmount,
           quantity: item.quantity,
+          weightGrams: item.weightGrams,
+          pricePerKg: item.pricePerKg ?? configured?.pricePerKg,
+          lineTotal: item.lineTotal,
           totalAdjustmentAmount: item.totalAdjustmentAmount,
         };
       });
     }
 
-    if (config.packageType === 'CUSTOM_PACKAGE') {
+    if (
+      config.packageType === 'CUSTOM_PACKAGE' ||
+      config.packageType === 'ORDER_BY_KG'
+    ) {
       return cart.items.map((item) => {
         const configured = configItems.get(item.menuItemId);
         return {
@@ -493,6 +553,9 @@ export default function CartPage() {
           role: 'CUSTOM',
           adjustmentAmount: configured?.adjustmentAmount ?? '0.00',
           quantity: item.quantity,
+          weightGrams: item.weightGrams,
+          pricePerKg: item.pricePerKg ?? configured?.pricePerKg,
+          lineTotal: item.lineTotal,
         };
       });
     }
@@ -538,6 +601,9 @@ export default function CartPage() {
           role: 'EXTRA' as const,
           adjustmentAmount: configured?.adjustmentAmount ?? '0.00',
           quantity: item.quantity,
+          weightGrams: item.weightGrams,
+          pricePerKg: item.pricePerKg ?? configured?.pricePerKg,
+          lineTotal: item.lineTotal,
         };
       });
     return [...included, ...extras];
@@ -604,6 +670,7 @@ export default function CartPage() {
     setError('');
     setPaying(true);
     try {
+      await persistContactNumber(validatedContactNumber.data);
       const selectedQuote =
         multiCartQuote.carts.find((entry) => entry.cartId === cart.id)?.quote ??
         quote;
@@ -659,7 +726,9 @@ export default function CartPage() {
         name: 'The Feast Factory',
         description:
           orders.length === 1
-            ? `${cart.package.name} for ${selectedQuote?.guestCount ?? cart.guestCount ?? cart.package.minGuestCount} guests`
+            ? cart.package.type === 'ORDER_BY_KG'
+              ? `${cart.package.name} · ${cart.items.reduce((sum, item) => sum + (item.weightGrams ?? 0), 0) / 1000} kg`
+              : `${cart.package.name} for ${selectedQuote?.guestCount ?? cart.guestCount ?? cart.package.minGuestCount} guests`
             : `${orders.length} packages in one checkout`,
         order_id: gateway.id,
         prefill: {
@@ -733,16 +802,18 @@ export default function CartPage() {
   const ready =
     activeCarts.length > 0 && activeCarts.every((entry) => eventReady(entry));
   const editHref =
-    cart.package.type === 'CUSTOM_PACKAGE'
-      ? `/packages/build?packageVersionId=${cart.packageVersionId}&cartId=${cart.id}`
-      : `/menu/select?packageVersionId=${cart.packageVersionId}&cartId=${cart.id}`;
+    cart.package.type === 'ORDER_BY_KG'
+      ? `/order-by-kg?packageVersionId=${cart.packageVersionId}&cartId=${cart.id}`
+      : cart.package.type === 'CUSTOM_PACKAGE'
+        ? `/packages/build?packageVersionId=${cart.packageVersionId}&cartId=${cart.id}`
+        : `/menu/select?packageVersionId=${cart.packageVersionId}&cartId=${cart.id}`;
   const isMealBox = cart.package.type === 'MEAL_BOX';
   const isMultiCart = activeCarts.length > 1;
   const activeGroup =
     groupedRows.find((group) => group.id === activeCategoryId) ??
     groupedRows[0];
   const mobileTotal = pendingOrder
-    ? pendingBatch?.totalAmount ?? pendingOrder.totalAmount
+    ? (pendingBatch?.totalAmount ?? pendingOrder.totalAmount)
     : multiCartQuote?.totalAmount;
 
   return (
@@ -798,7 +869,8 @@ export default function CartPage() {
                   Packages in your cart ({activeCarts.length})
                 </h2>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Each package keeps its own count and menu. Payment is combined.
+                  Each package keeps its own count and menu. Payment is
+                  combined.
                 </p>
               </div>
               <Link
@@ -879,76 +951,86 @@ export default function CartPage() {
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
-                  <div className="relative z-10 mt-3 flex items-center justify-between gap-3 rounded-lg border bg-white p-2">
-                    <span className="text-xs font-semibold text-muted-foreground">
-                      {packageCart.package.type === 'MEAL_BOX'
-                        ? 'Box count'
-                        : 'Guest count'}
-                    </span>
-                    <div className="flex items-center overflow-hidden rounded-lg border">
-                      <button
-                        type="button"
-                        aria-label={`Decrease count for ${packageCart.package.name}`}
-                        disabled={
-                          Boolean(updatingCartId) ||
-                          (packageCart.guestCount ??
-                            packageCart.package.minGuestCount) <=
-                            packageCart.package.minGuestCount
-                        }
-                        onClick={() =>
-                          void updatePackageQuantity(
-                            packageCart,
+                  {packageCart.package.type === 'ORDER_BY_KG' ? (
+                    <p className="mt-3 rounded-lg border bg-white p-3 text-sm font-semibold">
+                      {packageCart.items.reduce(
+                        (sum, item) => sum + (item.weightGrams ?? 0),
+                        0,
+                      ) / 1000}{' '}
+                      kg total · Edit dish weights below
+                    </p>
+                  ) : (
+                    <div className="relative z-10 mt-3 flex items-center justify-between gap-3 rounded-lg border bg-white p-2">
+                      <span className="text-xs font-semibold text-muted-foreground">
+                        {packageCart.package.type === 'MEAL_BOX'
+                          ? 'Box count'
+                          : 'Guest count'}
+                      </span>
+                      <div className="flex items-center overflow-hidden rounded-lg border">
+                        <button
+                          type="button"
+                          aria-label={`Decrease count for ${packageCart.package.name}`}
+                          disabled={
+                            Boolean(updatingCartId) ||
                             (packageCart.guestCount ??
-                              packageCart.package.minGuestCount) - 1,
-                          )
-                        }
-                        className="grid h-9 w-9 place-items-center text-primary disabled:opacity-30"
-                      >
-                        <Minus className="h-3.5 w-3.5" />
-                      </button>
-                      <input
-                        aria-label={`Count for ${packageCart.package.name}`}
-                        inputMode="numeric"
-                        defaultValue={
-                          packageCart.guestCount ??
-                          packageCart.package.minGuestCount
-                        }
-                        key={`${packageCart.id}-${packageCart.guestCount}`}
-                        onBlur={(event) => {
-                          const next = clampPackageQuantity(
-                            packageCart,
-                            Number(event.target.value),
-                          );
-                          event.currentTarget.value = String(next);
-                          void updatePackageQuantity(packageCart, next);
-                        }}
-                        className="h-9 w-14 border-x text-center text-sm font-bold outline-none"
-                      />
-                      <button
-                        type="button"
-                        aria-label={`Increase count for ${packageCart.package.name}`}
-                        disabled={
-                          Boolean(updatingCartId) ||
-                          Boolean(
-                            packageCart.package.maxGuestCount &&
+                              packageCart.package.minGuestCount) <=
+                              packageCart.package.minGuestCount
+                          }
+                          onClick={() =>
+                            void updatePackageQuantity(
+                              packageCart,
+                              (packageCart.guestCount ??
+                                packageCart.package.minGuestCount) - 1,
+                            )
+                          }
+                          className="grid h-9 w-9 place-items-center text-primary disabled:opacity-30"
+                        >
+                          <Minus className="h-3.5 w-3.5" />
+                        </button>
+                        <input
+                          aria-label={`Count for ${packageCart.package.name}`}
+                          inputMode="numeric"
+                          defaultValue={
+                            packageCart.guestCount ??
+                            packageCart.package.minGuestCount
+                          }
+                          key={`${packageCart.id}-${packageCart.guestCount}`}
+                          onBlur={(event) => {
+                            const next = clampPackageQuantity(
+                              packageCart,
+                              Number(event.target.value),
+                            );
+                            event.currentTarget.value = String(next);
+                            void updatePackageQuantity(packageCart, next);
+                          }}
+                          className="h-9 w-14 border-x text-center text-sm font-bold outline-none"
+                        />
+                        <button
+                          type="button"
+                          aria-label={`Increase count for ${packageCart.package.name}`}
+                          disabled={
+                            Boolean(updatingCartId) ||
+                            Boolean(
+                              packageCart.package.maxGuestCount &&
                               (packageCart.guestCount ??
                                 packageCart.package.minGuestCount) >=
                                 packageCart.package.maxGuestCount,
-                          )
-                        }
-                        onClick={() =>
-                          void updatePackageQuantity(
-                            packageCart,
-                            (packageCart.guestCount ??
-                              packageCart.package.minGuestCount) + 1,
-                          )
-                        }
-                        className="grid h-9 w-9 place-items-center text-primary disabled:opacity-30"
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                      </button>
+                            )
+                          }
+                          onClick={() =>
+                            void updatePackageQuantity(
+                              packageCart,
+                              (packageCart.guestCount ??
+                                packageCart.package.minGuestCount) + 1,
+                            )
+                          }
+                          className="grid h-9 w-9 place-items-center text-primary disabled:opacity-30"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </article>
               ))}
             </div>
@@ -963,27 +1045,27 @@ export default function CartPage() {
 
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_392px] lg:items-start">
           <div className="min-w-0 space-y-4">
-            {!isMultiCart && (pendingOrder ? (
-              <EventSummary cart={cart} />
-            ) : (
-              <SelectionContextPanel
-                cartId={cart.id}
-                packageVersionId={cart.packageVersionId}
-                minPax={cart.package.minGuestCount}
-                maxPax={cart.package.maxGuestCount}
-                hideQuantity
-                onSaved={onEventSaved}
-              />
-            ))}
-
-            {!pendingOrder && multiCartQuote && (
-              <DeliveryServiceOptions
-                cart={cart}
-                quote={quote}
-                disabled={updatingDelivery}
-                onChange={updateDeliveryService}
-              />
-            )}
+            {!isMultiCart &&
+              (pendingOrder ? (
+                <EventSummary cart={cart} />
+              ) : (
+                <SelectionContextPanel
+                  cartId={cart.id}
+                  packageVersionId={cart.packageVersionId}
+                  minPax={cart.package.minGuestCount}
+                  maxPax={cart.package.maxGuestCount}
+                  hideQuantity
+                  deliveryService={
+                    <DeliveryServiceOptions
+                      cart={cart}
+                      quote={quote}
+                      disabled={updatingDelivery}
+                      onChange={updateDeliveryService}
+                    />
+                  }
+                  onSaved={onEventSaved}
+                />
+              ))}
 
             <section className="overflow-hidden rounded-2xl border border-border bg-white shadow-[0_14px_36px_-30px_rgba(75,12,23,.55)]">
               <div className="flex flex-wrap items-center justify-between gap-4 p-5 pb-3 sm:p-6 sm:pb-4">
@@ -1081,19 +1163,28 @@ export default function CartPage() {
               )}
             </section>
 
-            {isMultiCart && (pendingOrder ? (
-              <EventSummary cart={cart} />
-            ) : (
-              <SelectionContextPanel
-                key={cart.id}
-                cartId={cart.id}
-                packageVersionId={cart.packageVersionId}
-                minPax={cart.package.minGuestCount}
-                maxPax={cart.package.maxGuestCount}
-                hideQuantity
-                onSaved={onEventSaved}
-              />
-            ))}
+            {isMultiCart &&
+              (pendingOrder ? (
+                <EventSummary cart={cart} />
+              ) : (
+                <SelectionContextPanel
+                  key={cart.id}
+                  cartId={cart.id}
+                  packageVersionId={cart.packageVersionId}
+                  minPax={cart.package.minGuestCount}
+                  maxPax={cart.package.maxGuestCount}
+                  hideQuantity
+                  deliveryService={
+                    <DeliveryServiceOptions
+                      cart={cart}
+                      quote={quote}
+                      disabled={updatingDelivery}
+                      onChange={updateDeliveryService}
+                    />
+                  }
+                  onSaved={onEventSaved}
+                />
+              ))}
           </div>
 
           <aside className="h-fit lg:sticky lg:top-24">
@@ -1143,27 +1234,69 @@ export default function CartPage() {
                         : 'Confirm the delivery time and venue to calculate the final total.'}
                     </div>
                   )}
-                  <div className="mt-5">
-                    <Field
-                      label="Contact number"
-                      hint="Required for order and delivery updates."
-                    >
-                      <Input
-                        aria-label="Contact number"
-                        type="tel"
-                        inputMode="numeric"
-                        autoComplete="tel"
-                        value={contactNumber}
-                        onChange={(event) =>
-                          setContactNumber(
-                            event.target.value.replace(/\D/g, '').slice(0, 10),
-                          )
+                  <div className="mt-5 rounded-xl border border-border bg-ivory/60 p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <label
+                          htmlFor="cart-contact-number"
+                          className="flex items-center gap-2 text-xs font-bold text-muted-foreground"
+                        >
+                          <Phone className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+                          Contact number
+                        </label>
+                        {!editingContact && (
+                          <p className="mt-1 text-sm font-semibold tracking-wide text-foreground">
+                            +91 {contactNumber || 'Add contact number'}
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        disabled={savingContact}
+                        onClick={() =>
+                          editingContact
+                            ? void saveContactNumber()
+                            : setEditingContact(true)
                         }
-                        maxLength={10}
-                        placeholder="9876543210"
-                        required
-                      />
-                    </Field>
+                        className="inline-flex min-h-9 items-center gap-1.5 rounded-full px-3 text-xs font-bold text-primary transition hover:bg-primary/[0.07] disabled:opacity-60"
+                      >
+                        {editingContact ? (
+                          <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                        ) : (
+                          <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                        )}
+                        {savingContact
+                          ? 'Saving…'
+                          : editingContact
+                            ? 'Save'
+                            : 'Edit'}
+                      </button>
+                    </div>
+                    {editingContact ? (
+                      <div className="mt-2 flex min-h-12 items-center overflow-hidden rounded-xl border border-input bg-white focus-within:ring-2 focus-within:ring-primary/30">
+                        <span className="border-r px-3 text-sm font-semibold text-muted-foreground">
+                          +91
+                        </span>
+                        <Input
+                          id="cart-contact-number"
+                          aria-label="Contact number"
+                          type="tel"
+                          inputMode="numeric"
+                          autoComplete="tel"
+                          autoFocus
+                          value={contactNumber}
+                          onChange={(event) =>
+                            setContactNumber(
+                              event.target.value.replace(/\D/g, '').slice(0, 10),
+                            )
+                          }
+                          maxLength={10}
+                          placeholder="9876543210"
+                          required
+                          className="min-h-11 rounded-none border-0 focus-visible:ring-0"
+                        />
+                      </div>
+                    ) : null}
                   </div>
                   <div className="mt-5">
                     <label
@@ -1183,8 +1316,12 @@ export default function CartPage() {
                       className="mt-2 w-full resize-y rounded-xl border border-border bg-white p-3 text-sm leading-6 outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15"
                     />
                     <div className="mt-1.5 flex items-start justify-between gap-3 text-xs text-muted-foreground">
-                      <span>One note applies to every package in this order.</span>
-                      <span className="shrink-0">{specialNotes.length}/1000</span>
+                      <span>
+                        One note applies to every package in this order.
+                      </span>
+                      <span className="shrink-0">
+                        {specialNotes.length}/1000
+                      </span>
                     </div>
                   </div>
                   <div className="hidden lg:block">
@@ -1341,7 +1478,7 @@ export default function CartPage() {
         </div>
         {!pendingOrder && !ready && (
           <p className="mx-auto mt-1.5 max-w-xl text-[11px] text-muted-foreground">
-            Add venue, date, time, guest count, and contact number to continue.
+            Add venue, date, time, and contact details to continue.
           </p>
         )}
       </section>
@@ -1355,7 +1492,7 @@ function eventReady(cart: CartSummary) {
     cart.event.region &&
     cart.event.eventDate &&
     cart.event.eventTimeStart &&
-    cart.event.guestCount,
+    (cart.package.type === 'ORDER_BY_KG' || cart.event.guestCount),
   );
 }
 
@@ -1387,8 +1524,18 @@ function EventSummary({ cart }: { cart: CartSummary }) {
         />
         <Info
           icon={Users}
-          label={cart.package.type === 'MEAL_BOX' ? 'Boxes' : 'Guests'}
-          value={String(cart.event?.guestCount ?? cart.guestCount ?? 'Not set')}
+          label={
+            cart.package.type === 'ORDER_BY_KG'
+              ? 'Weight'
+              : cart.package.type === 'MEAL_BOX'
+                ? 'Boxes'
+                : 'Guests'
+          }
+          value={
+            cart.package.type === 'ORDER_BY_KG'
+              ? `${cart.items.reduce((sum, item) => sum + (item.weightGrams ?? 0), 0) / 1000} kg`
+              : String(cart.event?.guestCount ?? cart.guestCount ?? 'Not set')
+          }
         />
         <Info
           icon={MapPin}
@@ -1441,6 +1588,13 @@ function ReviewDishCard({ row }: { row: ReviewRow }) {
               Replaces {row.replacedName}
             </span>
           )}
+          {row.weightGrams != null && (
+            <span className="mt-1 block text-xs font-semibold text-primary">
+              {row.weightGrams / 1000} kg · {formatCurrency(row.pricePerKg)} /
+              kg
+              {row.lineTotal && ` · ${formatCurrency(row.lineTotal)}`}
+            </span>
+          )}
           {row.role === 'EXTRA' && (
             <span className="mt-1 block text-[11px] text-muted-foreground">
               {row.quantity} portion{row.quantity === 1 ? '' : 's'}
@@ -1474,11 +1628,7 @@ function ReviewDishCard({ row }: { row: ReviewRow }) {
   );
 }
 
-function OrderFacts({
-  cart,
-}: {
-  cart: CartSummary;
-}) {
+function OrderFacts({ cart }: { cart: CartSummary }) {
   const address = cart.event?.address ?? cart.address;
   const facts = [
     ['Delivery date', formatCartDate(cart.event?.eventDate)],
@@ -1561,6 +1711,10 @@ function MultiCartPriceSummary({
   aggregate: MultiCartQuote;
 }) {
   const cartById = new Map(carts.map((cart) => [cart.id, cart]));
+  const assistedQuote = aggregate.carts.find(
+    ({ quote }) => quote.deliveryServiceType === 'ASSISTED',
+  )?.quote;
+  const assistedPeople = assistedQuote?.helperCount ?? 0;
   return (
     <>
       <div className="space-y-3 text-sm">
@@ -1594,9 +1748,22 @@ function MultiCartPriceSummary({
             label="Delivery"
             value={formatCurrency(aggregate.deliveryFee)}
           />
+          {assistedPeople > 0 && (
+            <div className="mt-2 flex items-center justify-between gap-4 border-t border-border/70 pt-2 text-xs">
+              <span className="flex items-center gap-1.5 font-medium text-muted-foreground">
+                <UserRound className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+                Assisted service
+              </span>
+              <span className="font-semibold text-foreground">
+                {assistedPeople}{' '}
+                {assistedPeople === 1 ? 'service person' : 'service persons'}
+              </span>
+            </div>
+          )}
           {/* {deliveryQuote?.region && (
             <p className="mt-1 text-[11px] leading-5 text-muted-foreground">
-              {deliveryQuote.region.name} kitchen · {deliveryQuote.distanceKm} km
+              {deliveryQuote.region.name} kitchen · {deliveryQuote.distanceKm}{' '}
+              km
             </p>
           )} */}
         </div>
@@ -1660,7 +1827,7 @@ function DeliveryServiceOptions({
   ];
 
   return (
-    <section className="mb-5">
+    <section className="mt-6">
       <div className="mb-4 flex items-start gap-3">
         <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-primary/[0.08] text-primary">
           <Truck className="h-6 w-6" />
@@ -1674,120 +1841,115 @@ function DeliveryServiceOptions({
             Select the option that best suits your event.
           </p>
         </div>
-        {/* {quote?.distanceKm && (
-          <span className="text-right text-xs text-muted-foreground">
-            {quote.distanceKm} km from kitchen
-          </span>
-        )} */}
       </div>
-      <div className="flex gap-3 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div
+        className="flex gap-3 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        role="radiogroup"
+        aria-label="Delivery service"
+      >
         {options.map(({ type, title, description, addon, icon: Icon }) => {
           const isSelected = selected === type;
           const total = baseDelivery + addon;
           return (
-            <button
+            <div
               key={type}
-              type="button"
-              disabled={disabled}
-              onClick={() =>
-                onChange(type, type === 'ASSISTED' ? helperCount : 0)
-              }
               className={cn(
-                'relative flex min-h-[258px] min-w-[220px] flex-1 flex-col rounded-2xl border p-5 text-left transition',
+                'min-w-[220px] flex-1 overflow-hidden rounded-2xl border transition',
                 isSelected
                   ? 'border-primary bg-primary/[0.04] shadow-[0_12px_28px_-24px_rgba(75,12,23,.8)]'
                   : 'border-border bg-white hover:border-primary/40',
                 disabled && 'cursor-wait opacity-70',
               )}
             >
-              <span className="flex items-start justify-between gap-3">
-                <span
-                  className={cn(
-                    'grid h-12 w-12 place-items-center rounded-full',
-                    isSelected
-                      ? 'bg-primary/10 text-primary'
-                      : 'bg-muted text-primary',
-                  )}
-                >
-                  <Icon className="h-5 w-5" />
-                </span>
-                <span
-                  className={cn(
-                    'grid h-5 w-5 place-items-center rounded-full border',
-                    isSelected
-                      ? 'border-primary bg-primary text-white'
-                      : 'border-foreground/50',
-                  )}
-                  aria-hidden="true"
-                >
-                  {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
-                </span>
-              </span>
-              <strong className="mt-5 font-serif text-xl leading-tight text-primary">
-                {title}
-              </strong>
-              <span className="mt-2 max-w-[28ch] text-sm leading-5 text-muted-foreground">
-                {description}
-              </span>
-              <span className="mt-auto pt-5 text-base font-semibold text-primary">
-                {addon === 0
-                  ? `Base ${formatCurrency(baseDelivery)}`
-                  : `+ ${formatCurrency(addon)}`}
-              </span>
-              <span
-                className={cn(
-                  'mt-1 text-xs',
-                  isSelected
-                    ? 'font-semibold text-primary'
-                    : 'text-muted-foreground',
-                )}
+              <button
+                type="button"
+                role="radio"
+                aria-checked={isSelected}
+                disabled={disabled}
+                onClick={() =>
+                  onChange(type, type === 'ASSISTED' ? helperCount : 0)
+                }
+                className="flex min-h-[258px] w-full flex-col p-5 text-left"
               >
-                Total {formatCurrency(total)}
-              </span>
+                <span className="flex items-start justify-between gap-3">
+                  <span
+                    className={cn(
+                      'grid h-12 w-12 place-items-center rounded-full',
+                      isSelected
+                        ? 'bg-primary/10 text-primary'
+                        : 'bg-muted text-primary',
+                    )}
+                  >
+                    <Icon className="h-5 w-5" />
+                  </span>
+                  <span
+                    className={cn(
+                      'grid h-5 w-5 place-items-center rounded-full border',
+                      isSelected
+                        ? 'border-primary bg-primary text-white'
+                        : 'border-foreground/50',
+                    )}
+                    aria-hidden="true"
+                  >
+                    {isSelected && (
+                      <span className="h-2 w-2 rounded-full bg-white" />
+                    )}
+                  </span>
+                </span>
+                <strong className="mt-5 font-serif text-xl leading-tight text-primary">
+                  {title}
+                </strong>
+                <span className="mt-2 max-w-[28ch] text-sm leading-5 text-muted-foreground">
+                  {description}
+                </span>
+                <span className="mt-auto pt-5 text-base font-semibold text-primary">
+                  {addon === 0
+                    ? `Base ${formatCurrency(baseDelivery)}`
+                    : `+ ${formatCurrency(addon)}`}
+                </span>
+                <span
+                  className={cn(
+                    'mt-1 text-xs',
+                    isSelected
+                      ? 'font-semibold text-primary'
+                      : 'text-muted-foreground',
+                  )}
+                >
+                  Total {formatCurrency(total)}
+                </span>
+              </button>
               {type === 'ASSISTED' && isSelected && (
-                <span className="mt-3 flex items-center justify-between rounded-lg border bg-white px-2 py-1.5">
+                <div className="mx-5 mb-5 flex items-center justify-between rounded-lg border bg-white px-2 py-1.5">
                   <span className="text-xs text-muted-foreground">Helpers</span>
                   <span className="flex items-center gap-2">
-                    <span
-                      role="button"
-                      tabIndex={disabled || helperCount <= 1 ? -1 : 0}
+                    <button
+                      type="button"
+                      disabled={disabled || helperCount <= 1}
                       aria-label="Remove helper"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        if (helperCount > 1)
-                          onChange('ASSISTED', helperCount - 1);
-                      }}
-                      className="grid h-7 w-7 place-items-center rounded-md border text-primary"
+                      onClick={() => onChange('ASSISTED', helperCount - 1)}
+                      className="grid h-7 w-7 place-items-center rounded-md border text-primary disabled:opacity-30"
                     >
                       −
-                    </span>
+                    </button>
                     <strong className="min-w-4 text-center text-sm">
                       {helperCount}
                     </strong>
-                    <span
-                      role="button"
-                      tabIndex={disabled || helperCount >= 10 ? -1 : 0}
+                    <button
+                      type="button"
+                      disabled={disabled || helperCount >= 10}
                       aria-label="Add helper"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        if (helperCount < 10)
-                          onChange('ASSISTED', helperCount + 1);
-                      }}
-                      className="grid h-7 w-7 place-items-center rounded-md border text-primary"
+                      onClick={() => onChange('ASSISTED', helperCount + 1)}
+                      className="grid h-7 w-7 place-items-center rounded-md border text-primary disabled:opacity-30"
                     >
                       +
-                    </span>
+                    </button>
                   </span>
-                </span>
+                </div>
               )}
-            </button>
+            </div>
           );
         })}
       </div>
-      {/* <p className="mt-3 text-xs leading-5 text-muted-foreground">
-        Base delivery is calculated at ₹25 per billable kilometre. Doorstep is
-        +₹399 and assisted service is +₹999 per helper.
-      </p> */}
     </section>
   );
 }

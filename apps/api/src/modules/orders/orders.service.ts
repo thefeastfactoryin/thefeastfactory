@@ -53,14 +53,15 @@ export class OrdersService {
   ) {
     const cart = await this.prisma.cart.findFirst({
       where: { id: cartId, userId, status: CartStatus.ACTIVE },
-      include: { address: true, region: true, order: true },
+      include: { address: true, region: true, order: true, packageVersion: { include: { package: true } } },
     });
     if (
       !cart ||
       !cart.address ||
       !cart.eventDate ||
       !cart.eventTimeStart ||
-      !cart.guestCount
+      !cart.contactNumber ||
+      (!cart.guestCount && cart.packageVersion.package.type !== PackageType.ORDER_BY_KG)
     ) {
       throw new BadRequestException(
         'Complete event and venue details before checkout',
@@ -72,16 +73,17 @@ export class OrdersService {
     }
     if (existingOrder)
       throw new BadRequestException('An order already exists for this cart');
-    const menuQuote = await this.pricing.quote(
-      cart.packageVersionId,
-      cart.guestCount,
-      dto.selectedItems,
-    );
     const assignment = await this.regions.assign(
       cart.address.latitude,
       cart.address.longitude,
       cart.deliveryServiceType,
       cart.helperCount,
+    );
+    const menuQuote = await this.pricing.quote(
+      cart.packageVersionId,
+      cart.guestCount ?? 1,
+      dto.selectedItems,
+      assignment.region.id,
     );
     const totalAmount = menuQuote.totalAmount.plus(assignment.deliveryFee);
     const eventDate = cart.eventDate;
@@ -104,6 +106,8 @@ export class OrdersService {
           eventDate,
           eventTimeStart: cart.eventTimeStart,
           specialNotes: cart.specialNotes,
+          contactNumber: cart.contactNumber,
+          packageType: menuQuote.packageType,
           guestCount: menuQuote.guestCount,
           basePerPlatePrice: menuQuote.basePerPlatePrice,
           totalCustomizationCharges: menuQuote.totalCustomizationCharges,
@@ -124,6 +128,9 @@ export class OrdersService {
               replacedMenuItemId: item.replacedMenuItemId ?? null,
               role: item.role,
               quantity: item.quantity,
+              weightGrams: item.weightGrams ?? null,
+              pricePerKg: item.pricePerKg ?? null,
+              lineTotal: item.lineTotal ?? null,
               menuItemName: item.menuItemName,
               categoryName: item.categoryName,
               replacedMenuItemName: item.replacedMenuItemName ?? null,
@@ -296,9 +303,9 @@ export class OrdersService {
       itemPrice: item.itemPrice.toFixed(2),
       includedValue: item.includedValue.toFixed(2),
       adjustmentAmount: item.adjustmentAmount.toFixed(2),
-      totalAdjustmentAmount: item.adjustmentAmount
-        .mul(order.guestCount)
-        .toFixed(2),
+      pricePerKg: item.pricePerKg?.toFixed(2) ?? null,
+      lineTotal: item.lineTotal?.toFixed(2) ?? null,
+      totalAdjustmentAmount: item.lineTotal?.toFixed(2) ?? item.adjustmentAmount.mul(order.guestCount ?? 1).toFixed(2),
     }));
     const payments = order.payments?.map((payment) => ({
       ...payment,
@@ -312,9 +319,10 @@ export class OrdersService {
     const deliveryFee = order.deliveryFee.toFixed(2);
     return {
       ...order,
-      basePerPlatePrice: order.basePerPlatePrice.toFixed(2),
-      totalCustomizationCharges: order.totalCustomizationCharges.toFixed(2),
-      finalPerPlatePrice: order.finalPerPlatePrice.toFixed(2),
+      contactNumber: order.contactNumber,
+      basePerPlatePrice: order.basePerPlatePrice?.toFixed(2) ?? null,
+      totalCustomizationCharges: order.totalCustomizationCharges?.toFixed(2) ?? null,
+      finalPerPlatePrice: order.finalPerPlatePrice?.toFixed(2) ?? null,
       distanceKm,
       deliveryFee,
       totalAmount: order.totalAmount.toFixed(2),

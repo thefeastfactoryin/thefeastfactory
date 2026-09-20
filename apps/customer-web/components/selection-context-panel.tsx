@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import type { RefObject } from 'react';
+import type { ReactNode, RefObject } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiRequest } from '../lib/api';
 import { cn } from '../lib/utils';
@@ -373,6 +373,7 @@ export function SelectionContextPanel({
   maxPax,
   variant = 'default',
   hideQuantity = false,
+  deliveryService,
   onSaved,
 }: {
   cartId: string;
@@ -381,6 +382,7 @@ export function SelectionContextPanel({
   maxPax?: number | null;
   variant?: 'default' | 'sidebar';
   hideQuantity?: boolean;
+  deliveryService?: ReactNode;
   onSaved?: (cart: CartSummary) => void;
 }) {
   const sidebar = variant === 'sidebar';
@@ -389,6 +391,7 @@ export function SelectionContextPanel({
   const deliveryLocation = useDeliveryLocationStore((state) => state.location);
   const addressBookRevision = useAddressBookStore((state) => state.revision);
   const pkg = useOrderBuilderStore((state) => state.package);
+  const isKg = pkg?.packageType === 'ORDER_BY_KG';
   const setEvent = useOrderBuilderStore((state) => state.setEvent);
   const setDbCartId = useOrderBuilderStore((state) => state.setDbCartId);
   const setGuestCount = useOrderBuilderStore((state) => state.setGuestCount);
@@ -465,7 +468,7 @@ export function SelectionContextPanel({
         if (cart?.packageVersionId === packageVersionId && cart.event) {
           setEventDate(cart.event.eventDate);
           setEventTimeStart(cart.event.eventTimeStart || '');
-          setGuestCount(cart.event.guestCount);
+          setGuestCount(cart.event.guestCount ?? minPax);
           setAssignedRegion(cart.event.region ?? cart.region ?? null);
         } else {
           setEventDate('');
@@ -525,7 +528,7 @@ export function SelectionContextPanel({
   useEffect(() => {
     if (!session || !hydrated.current) return;
     const validGuests =
-      guestCount >= minPax && (!maxPax || guestCount <= maxPax);
+      isKg || (guestCount >= minPax && (!maxPax || guestCount <= maxPax));
     if (!addressId) {
       setMessage('Choose a delivery venue.');
       return;
@@ -558,7 +561,7 @@ export function SelectionContextPanel({
                     eventName: pkg?.packageName,
                     eventDate,
                     eventTimeStart,
-                    guestCount,
+                    ...(isKg ? {} : { guestCount }),
                   }
                 : {}),
             }),
@@ -599,6 +602,7 @@ export function SelectionContextPanel({
     guestCount,
     minPax,
     maxPax,
+    isKg,
     addresses,
     pkg?.packageName,
     setDbCartId,
@@ -658,7 +662,7 @@ export function SelectionContextPanel({
           'mt-5 grid gap-4 rounded-2xl border border-border bg-[#fcfaf6] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]',
           sidebar
             ? 'grid-cols-1'
-            : hideQuantity
+            : hideQuantity || isKg
               ? 'md:grid-cols-2'
               : 'md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_224px]',
         )}
@@ -680,7 +684,7 @@ export function SelectionContextPanel({
             slots={deliveryTimeSlots}
           />
         </Field>
-        {!hideQuantity && (
+        {!hideQuantity && !isKg && (
           <div>
             <span className="mb-2 block text-sm font-semibold">
               {guestLabel}
@@ -735,6 +739,8 @@ export function SelectionContextPanel({
         </p>
         <p className="mt-1 text-xs leading-5">{kitchenAddress}</p>
       </div>
+
+      {deliveryService}
 
       <div className="mt-6 flex items-center justify-between gap-4">
         <div>

@@ -68,12 +68,14 @@ enum PackageType {
   MEAL_BOX
   FIXED_PACKAGE
   CUSTOM_PACKAGE
+  ORDER_BY_KG
 }
 
 enum OrderingOfferingCode {
   MEAL_BOX
   PACKAGES
   CUSTOM_MENU
+  ORDER_BY_KG
 }
 
 enum PackageMenuItemRole {
@@ -181,6 +183,7 @@ model MenuItem {
   description  String?   @db.VarChar(1000)
   boxPrice     Decimal   @map("box_price") @db.Decimal(10, 2)
   generalPrice Decimal   @map("general_price") @db.Decimal(10, 2)
+  pricePerKg   Decimal?  @map("price_per_kg") @db.Decimal(10, 2)
   isVeg        Boolean   @default(true) @map("is_veg")
   isActive     Boolean   @default(true) @map("is_active")
   imageUrl     String?   @map("image_url") @db.VarChar(500)
@@ -220,7 +223,8 @@ model Package {
   updatedAt     DateTime    @default(now()) @updatedAt @map("updated_at")
   deletedAt     DateTime?   @map("deleted_at")
 
-  versions PackageVersion[]
+  versions             PackageVersion[]
+  regionAvailabilities PackageRegionAvailability[]
 
   @@index([type])
   @@index([isActive])
@@ -277,14 +281,47 @@ model PackageMenuItem {
   createdAt        DateTime            @default(now()) @map("created_at")
   updatedAt        DateTime            @default(now()) @updatedAt @map("updated_at")
 
-  packageVersion PackageVersion @relation(fields: [packageVersionId], references: [id])
-  category       MenuCategory   @relation(fields: [categoryId], references: [id])
-  menuItem       MenuItem       @relation(fields: [menuItemId], references: [id])
+  packageVersion      PackageVersion                      @relation(fields: [packageVersionId], references: [id])
+  category            MenuCategory                        @relation(fields: [categoryId], references: [id])
+  menuItem            MenuItem                            @relation(fields: [menuItemId], references: [id])
+  regionAvailabilities PackageMenuItemRegionAvailability[]
 
   @@unique([packageVersionId, menuItemId, role])
   @@index([packageVersionId, role])
   @@index([packageVersionId, categoryId])
   @@map("package_menu_items")
+}
+
+model PackageRegionAvailability {
+  id          String   @id @default(uuid())
+  packageId   String   @map("package_id")
+  regionId    String   @map("region_id")
+  isAvailable Boolean  @default(true) @map("is_available")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
+
+  package Package         @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  region  OperatingRegion @relation(fields: [regionId], references: [id], onDelete: Cascade)
+
+  @@unique([packageId, regionId])
+  @@index([regionId, isAvailable])
+  @@map("package_region_availabilities")
+}
+
+model PackageMenuItemRegionAvailability {
+  id                String   @id @default(uuid())
+  packageMenuItemId String   @map("package_menu_item_id")
+  regionId          String   @map("region_id")
+  isAvailable       Boolean  @default(true) @map("is_available")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at")
+
+  packageMenuItem PackageMenuItem @relation(fields: [packageMenuItemId], references: [id], onDelete: Cascade)
+  region          OperatingRegion @relation(fields: [regionId], references: [id], onDelete: Cascade)
+
+  @@unique([packageMenuItemId, regionId])
+  @@index([regionId, isAvailable])
+  @@map("package_menu_item_region_availabilities")
 }
 
 // =============================================================================
@@ -305,6 +342,7 @@ model Cart {
   deliveryFee         Decimal             @default(0) @map("delivery_fee") @db.Decimal(10, 2)
   deliveryServiceType DeliveryServiceType @default(STANDARD) @map("delivery_service_type")
   helperCount         Int                 @default(0) @map("helper_count")
+  contactNumber       String              @map("contact_number") @db.VarChar(10)
   specialNotes        String?             @map("special_notes") @db.VarChar(1000)
   status              CartStatus          @default(ACTIVE)
   expiresAt           DateTime?           @map("expires_at")
@@ -335,6 +373,7 @@ model CartItem {
   replacedMenuItemId String?          @map("replaced_menu_item_id")
   role               SelectedItemRole
   quantity           Int              @default(1)
+  weightGrams        Int?             @map("weight_grams")
   createdAt          DateTime         @default(now()) @map("created_at")
   updatedAt          DateTime         @default(now()) @updatedAt @map("updated_at")
 
@@ -369,15 +408,17 @@ model Order {
   eventTimeStart DateTime? @map("event_time_start") @db.Time
   specialNotes   String?   @map("special_notes") @db.VarChar(1000)
 
-  guestCount                Int                 @map("guest_count")
-  basePerPlatePrice         Decimal             @map("base_per_plate_price") @db.Decimal(10, 2)
-  totalCustomizationCharges Decimal             @default(0) @map("total_customization_charges") @db.Decimal(10, 2)
-  finalPerPlatePrice        Decimal             @map("final_per_plate_price") @db.Decimal(10, 2)
+  packageType               PackageType?        @map("package_type")
+  guestCount                Int?                @map("guest_count")
+  basePerPlatePrice         Decimal?            @map("base_per_plate_price") @db.Decimal(10, 2)
+  totalCustomizationCharges Decimal?            @default(0) @map("total_customization_charges") @db.Decimal(10, 2)
+  finalPerPlatePrice        Decimal?            @map("final_per_plate_price") @db.Decimal(10, 2)
   totalAmount               Decimal             @map("total_amount") @db.Decimal(10, 2)
   distanceKm                Decimal?            @map("distance_km") @db.Decimal(8, 2)
   deliveryFee               Decimal             @default(0) @map("delivery_fee") @db.Decimal(10, 2)
   deliveryServiceType       DeliveryServiceType @default(STANDARD) @map("delivery_service_type")
   helperCount               Int                 @default(0) @map("helper_count")
+  contactNumber             String              @map("contact_number") @db.VarChar(10)
 
   packageName      String @map("package_name") @db.VarChar(100)
   packageVersionNo Int    @map("package_version_no")
@@ -426,7 +467,10 @@ model OrderSelectedItem {
   replacedMenuItemId String?          @map("replaced_menu_item_id")
   role               SelectedItemRole
   quantity           Int              @default(1)
+  weightGrams        Int?             @map("weight_grams")
 
+  pricePerKg           Decimal? @map("price_per_kg") @db.Decimal(10, 2)
+  lineTotal            Decimal? @map("line_total") @db.Decimal(10, 2)
   menuItemName         String   @map("menu_item_name") @db.VarChar(150)
   categoryName         String   @map("category_name") @db.VarChar(100)
   replacedMenuItemName String?  @map("replaced_menu_item_name") @db.VarChar(150)
@@ -548,9 +592,11 @@ model OperatingRegion {
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @default(now()) @updatedAt @map("updated_at")
 
-  admins AdminUser[]
-  carts  Cart[]
-  orders Order[]
+  admins                        AdminUser[]
+  carts                         Cart[]
+  orders                        Order[]
+  packageAvailabilities         PackageRegionAvailability[]
+  packageMenuItemAvailabilities PackageMenuItemRegionAvailability[]
 
   @@index([isActive])
   @@map("operating_regions")

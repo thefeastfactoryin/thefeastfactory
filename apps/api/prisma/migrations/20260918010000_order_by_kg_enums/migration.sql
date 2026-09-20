@@ -1,0 +1,2 @@
+ALTER TYPE "PackageType" ADD VALUE 'ORDER_BY_KG';
+ALTER TYPE "OrderingOfferingCode" ADD VALUE 'ORDER_BY_KG';

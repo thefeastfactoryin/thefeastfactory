@@ -1,0 +1,526 @@
+'use client';
+
+import type {
+  CartSummary,
+  PackageConfiguration,
+  PackageSelectionPrice,
+  PackageSummary,
+} from '@aranyam/shared-types';
+import {
+  ArrowRight,
+  Minus,
+  Plus,
+  Search,
+  Sparkles,
+} from 'lucide-react';
+import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { apiRequest } from '../../lib/api';
+import { formatCurrency } from '../../lib/format';
+import { orderByKgImage } from '../../lib/catalog-display';
+import { useSessionStore } from '../../store/session.store';
+import { useOrderBuilderStore } from '../../store/order-builder.store';
+import { useDeliveryLocationStore } from '../../store/delivery-location.store';
+import { DataImage } from '../data-image';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+
+type Weights = Record<string, number>;
+type KgQuote = PackageSelectionPrice & {
+  items: Array<PackageSelectionPrice['items'][number]>;
+};
+
+export function KgOrderBuilder() {
+  const router = useRouter();
+  const params = useSearchParams();
+  const requestedVersion = params.get('packageVersionId');
+  const requestedCart = params.get('cartId');
+  const session = useSessionStore((state) => state.session);
+  const location = useDeliveryLocationStore((state) => state.location);
+  const regionId = location?.resolution.region?.id;
+  const hydrate = useOrderBuilderStore((state) => state.hydrateFromCart);
+  const [packages, setPackages] = useState<PackageSummary[]>([]);
+  const [config, setConfig] = useState<PackageConfiguration>();
+  const [weights, setWeights] = useState<Weights>({});
+  const [search, setSearch] = useState('');
+  const [diet, setDiet] = useState('ALL');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [quoteError, setQuoteError] = useState('');
+  const [quote, setQuote] = useState<KgQuote>();
+  const [quoting, setQuoting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const savedCartId = useRef<string | null>(requestedCart);
+
+  useEffect(() => {
+    let current = true;
+    setLoading(true);
+    setError('');
+    setConfig(undefined);
+    setQuote(undefined);
+    savedCartId.current = requestedCart;
+    (async () => {
+      const rows = (
+        await apiRequest<PackageSummary[]>(
+          `/packages${regionId ? `?regionId=${regionId}` : ''}`,
+        )
+      ).filter((pkg) => pkg.type === 'ORDER_BY_KG' && pkg.activeVersion);
+      if (!current) return;
+      setPackages(rows);
+      let versionId = requestedVersion ?? rows[0]?.activeVersion?.id;
+      let cart: CartSummary | undefined;
+      if (requestedCart) {
+        if (!session) {
+          router.replace(
+            `/login?returnTo=${encodeURIComponent(`/order-by-kg?${params.toString()}`)}`,
+          );
+          return;
+        }
+        cart = await apiRequest<CartSummary>(
+          `/cart/${requestedCart}`,
+          {},
+          session.accessToken,
+        );
+        if (
+          cart.package.type !== 'ORDER_BY_KG' ||
+          (requestedVersion && cart.packageVersionId !== requestedVersion)
+        )
+          throw new Error('This cart does not match the selected KG menu.');
+        versionId = cart.packageVersionId;
+      }
+      if (!versionId) return;
+      const next = await apiRequest<PackageConfiguration>(
+        `/package-versions/${versionId}/configuration${regionId ? `?regionId=${regionId}` : ''}`,
+      );
+      if (next.packageType !== 'ORDER_BY_KG')
+        throw new Error('Choose an Order by KG menu.');
+      if (!current) return;
+      setConfig(next);
+      let initial: Weights = {};
+      if (cart) {
+        initial = Object.fromEntries(
+          cart.items.map((item) => [item.menuItemId, item.weightGrams ?? 500]),
+        );
+      } else {
+        try {
+          initial = JSON.parse(
+            sessionStorage.getItem(`kg-draft:${next.id}`) || '{}',
+          );
+        } catch {
+          initial = {};
+        }
+      }
+      const allowed = new Set(
+        next.categoryRules.flatMap((rule) => rule.items.map((item) => item.id)),
+      );
+      setWeights(
+        Object.fromEntries(
+          Object.entries(initial).filter(
+            ([id, grams]) =>
+              allowed.has(id) &&
+              Number.isInteger(grams) &&
+              grams >= 500 &&
+              grams <= 100000 &&
+              grams % 500 === 0,
+          ),
+        ),
+      );
+    })()
+      .catch((reason: Error) => {
+        if (current) setError(reason.message);
+      })
+      .finally(() => {
+        if (current) setLoading(false);
+      });
+    return () => {
+      current = false;
+    };
+  }, [requestedVersion, requestedCart, session?.accessToken, regionId]);
+
+  const selectedItems = useMemo(
+    () =>
+      config?.categoryRules.flatMap((rule) =>
+        rule.items
+          .filter((item) => weights[item.id])
+          .map((item) => ({
+            categoryId: rule.category.id,
+            menuItemId: item.id,
+            role: 'CUSTOM' as const,
+            quantity: 1,
+            weightGrams: weights[item.id],
+          })),
+      ) ?? [],
+    [config, weights],
+  );
+
+  useEffect(() => {
+    if (!config || loading) return;
+    if (!requestedCart)
+      sessionStorage.setItem(`kg-draft:${config.id}`, JSON.stringify(weights));
+    setQuote(undefined);
+    setQuoteError('');
+    if (!selectedItems.length) {
+      setQuoting(false);
+      return;
+    }
+    let current = true;
+    setQuoting(true);
+    const timer = window.setTimeout(() => {
+      apiRequest<KgQuote>(`/package-versions/${config.id}/preview-quote`, {
+        method: 'POST',
+        body: JSON.stringify({
+          guestCount: 1,
+          selectedItems,
+          ...(regionId ? { regionId } : {}),
+        }),
+      })
+        .then((next) => {
+          if (current) setQuote(next);
+        })
+        .catch((reason: Error) => {
+          if (current) setQuoteError(reason.message);
+        })
+        .finally(() => {
+          if (current) setQuoting(false);
+        });
+    }, 200);
+    return () => {
+      current = false;
+      window.clearTimeout(timer);
+    };
+  }, [config, selectedItems, weights, loading, requestedCart, regionId]);
+
+  function changeWeight(id: string, grams: number) {
+    setQuote(undefined);
+    setWeights((current) => {
+      const next = { ...current };
+      if (grams <= 0) delete next[id];
+      else next[id] = Math.min(100000, Math.max(500, grams));
+      return next;
+    });
+  }
+
+  async function save() {
+    if (!config || !quote || quoting || saving || !selectedItems.length) return;
+    if (!session) {
+      sessionStorage.setItem(`kg-draft:${config.id}`, JSON.stringify(weights));
+      router.push(
+        `/login?returnTo=${encodeURIComponent(`/order-by-kg?packageVersionId=${config.id}`)}`,
+      );
+      return;
+    }
+    setSaving(true);
+    setError('');
+    try {
+      if (!savedCartId.current) {
+        const created = await apiRequest<CartSummary>(
+          '/cart',
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              packageVersionId: config.id,
+              ...(location?.resolution.serviceable && location.resolution.region
+                ? { regionId: location.resolution.region.id }
+                : {}),
+            }),
+          },
+          session.accessToken,
+        );
+        savedCartId.current = created.id;
+      }
+      const cart = await apiRequest<CartSummary>(
+        `/cart/${savedCartId.current}/items`,
+        { method: 'PUT', body: JSON.stringify({ items: selectedItems }) },
+        session.accessToken,
+      );
+      hydrate(cart);
+      sessionStorage.removeItem(`kg-draft:${config.id}`);
+      window.dispatchEvent(new Event('cart-updated'));
+      router.push('/cart');
+    } catch (reason) {
+      setError((reason as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const groups =
+    config?.categoryRules
+      .map((rule) => ({
+        ...rule,
+        items: rule.items.filter(
+          (item) =>
+            `${item.name} ${rule.category.name}`
+              .toLowerCase()
+              .includes(search.toLowerCase()) &&
+            (diet === 'ALL' || (diet === 'VEG' ? item.isVeg : !item.isVeg)),
+        ),
+      }))
+      .filter((rule) => rule.items.length) ?? [];
+  const quoteById = new Map(
+    quote?.items.map((item) => [item.menuItemId, item]) ?? [],
+  );
+  return (
+    <main className="bg-ivory pb-10">
+      <section className="bg-primary px-3 py-3 text-white sm:px-5 sm:py-5 lg:px-8">
+        <div className="relative mx-auto min-h-[310px] max-w-[1440px] overflow-hidden rounded-[22px] sm:min-h-[340px] lg:min-h-[390px] lg:rounded-[28px]">
+          <img
+            src={orderByKgImage}
+            alt="Indian dishes prepared in bulk beside a weighing scale"
+            className="absolute inset-0 h-full w-full object-cover object-[62%_center] sm:object-center"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#3f0812]/95 via-[#3f0812]/75 to-[#3f0812]/10 sm:via-[#3f0812]/60 lg:via-[#3f0812]/35" />
+          <div className="relative flex min-h-[310px] max-w-2xl flex-col justify-end px-5 py-6 sm:min-h-[340px] sm:px-8 sm:py-8 lg:min-h-[390px] lg:px-12">
+            <p className="flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[0.18em] text-accent sm:text-xs">
+              <Sparkles className="h-4 w-4" aria-hidden="true" /> Flexible bulk
+              catering
+            </p>
+            <h1 className="mt-2 max-w-xl font-serif text-[34px] font-bold leading-[1.05] sm:text-5xl lg:text-6xl">
+              Your favourites, by the kilo
+            </h1>
+            <p className="mt-3 max-w-lg text-sm leading-6 text-white/85 sm:text-base">
+              Choose your dishes and set the right quantity in easy 0.5 kg
+              steps, with live itemised pricing.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-semibold text-white/90 sm:text-xs">
+              <span className="rounded-full border border-white/20 bg-black/20 px-3 py-1.5 backdrop-blur-sm">
+                0.5 kg minimum
+              </span>
+              <span className="rounded-full border border-white/20 bg-black/20 px-3 py-1.5 backdrop-blur-sm">
+                Kitchen-specific menu
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
+      <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 sm:py-5 lg:px-10">
+        {error && (
+          <p
+            role="alert"
+            className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"
+          >
+            {error}
+          </p>
+        )}
+        {loading ? (
+          <p role="status">Loading dishes…</p>
+        ) : !config ||
+          !config.categoryRules.some((rule) => rule.items.length) ? (
+          <section className="rounded-2xl border bg-card p-8">
+            <h2 className="font-serif text-2xl font-bold">
+              {error
+                ? 'Unable to load this menu'
+                : 'No dishes available by kg right now'}
+            </h2>
+            <p className="mt-3 text-sm text-muted-foreground">
+              Please check back soon, or explore our meal boxes and packages.
+            </p>
+            <Link
+              href="/packages"
+              className="mt-5 inline-flex min-h-11 items-center gap-2 font-bold text-primary"
+            >
+              View packages <ArrowRight className="h-4 w-4" />
+            </Link>
+          </section>
+        ) : (
+          <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="min-w-0">
+              {packages.length > 1 && !requestedCart && (
+                <label className="mb-4 block text-sm font-semibold">
+                  KG menu
+                  <select
+                    className="mt-2 block min-h-11 w-full rounded-xl border bg-card px-3"
+                    value={config.id}
+                    onChange={(event) =>
+                      router.push(
+                        `/order-by-kg?packageVersionId=${event.target.value}`,
+                      )
+                    }
+                  >
+                    {packages.map((pkg) => (
+                      <option key={pkg.id} value={pkg.activeVersion!.id}>
+                        {pkg.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              <div className="mb-6 flex flex-wrap gap-3">
+                <div className="relative min-w-0 flex-1">
+                  <Search
+                    className="absolute left-3 top-3 h-4 w-4 text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                  <Input
+                    aria-label="Search dishes"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Search dishes"
+                    className="pl-9"
+                  />
+                </div>
+                <select
+                  aria-label="Diet preference"
+                  className="min-h-11 rounded-xl border bg-card px-3 text-sm"
+                  value={diet}
+                  onChange={(event) => setDiet(event.target.value)}
+                >
+                  <option value="ALL">All dishes</option>
+                  <option value="VEG">Vegetarian</option>
+                  <option value="NON_VEG">Non-vegetarian</option>
+                </select>
+              </div>
+              {!groups.length && (
+                <p className="rounded-xl border bg-card p-5 text-sm">
+                  No dishes match your search.
+                </p>
+              )}
+              {groups.map((rule) => (
+                <section key={rule.id} className="mb-7">
+                  <h2 className="mb-4 font-serif text-2xl font-bold">
+                    {rule.category.name}
+                  </h2>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {rule.items.map((item) => (
+                      <article
+                        key={item.id}
+                        className="flex flex-col overflow-hidden rounded-2xl border border-primary/10 bg-card"
+                      >
+                        <DataImage
+                          src={item.imageUrl}
+                          alt={item.name}
+                          className="h-40 w-full object-cover"
+                        />
+                        <div className="flex flex-1 flex-col p-4">
+                          <p className="text-xs text-muted-foreground">
+                            {item.isVeg ? 'Vegetarian' : 'Non-vegetarian'}
+                          </p>
+                          <h3 className="mt-1 text-base font-bold">
+                            {item.name}
+                          </h3>
+                          <p className="mt-2 font-semibold text-primary">
+                            {formatCurrency(item.pricePerKg)}{' '}
+                            <span className="text-xs font-normal">/ kg</span>
+                          </p>
+                          <div className="mt-auto flex items-center justify-between gap-2 pt-4">
+                            {weights[item.id] ? (
+                              <div className="flex items-center rounded-lg border">
+                                <button
+                                  type="button"
+                                  disabled={saving}
+                                  onClick={() =>
+                                    changeWeight(
+                                      item.id,
+                                      weights[item.id] - 500,
+                                    )
+                                  }
+                                  aria-label={`Decrease ${item.name} weight`}
+                                  className="grid h-11 w-11 place-items-center text-primary disabled:opacity-40"
+                                >
+                                  <Minus className="h-4 w-4" />
+                                </button>
+                                <span className="min-w-16 text-center text-sm font-bold">
+                                  {weights[item.id] / 1000} kg
+                                </span>
+                                <button
+                                  type="button"
+                                  disabled={
+                                    saving || weights[item.id] >= 100000
+                                  }
+                                  onClick={() =>
+                                    changeWeight(
+                                      item.id,
+                                      weights[item.id] + 500,
+                                    )
+                                  }
+                                  aria-label={`Increase ${item.name} weight`}
+                                  className="grid h-11 w-11 place-items-center text-primary disabled:opacity-40"
+                                >
+                                  <Plus className="h-4 w-4" />
+                                </button>
+                              </div>
+                            ) : (
+                              <Button
+                                variant="outline"
+                                disabled={saving}
+                                onClick={() => changeWeight(item.id, 500)}
+                              >
+                                Add 0.5 kg <Plus className="ml-2 h-4 w-4" />
+                              </Button>
+                            )}
+                            {quoteById.get(item.id)?.lineTotal && (
+                              <span className="text-sm font-bold">
+                                {formatCurrency(
+                                  quoteById.get(item.id)!.lineTotal,
+                                )}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+            <aside className="rounded-2xl border bg-card p-5 lg:sticky lg:top-24">
+              <h2 className="font-serif text-2xl font-bold">Your selection</h2>
+              {!selectedItems.length && (
+                <p className="mt-3 text-sm text-muted-foreground">
+                  Add a dish to get started.
+                </p>
+              )}
+              <div className="mt-4 space-y-3" aria-live="polite">
+                {quote?.items.map((item) => (
+                  <div key={item.menuItemId} className="border-b pb-3 text-sm">
+                    <div className="flex justify-between gap-3">
+                      <span>{item.menuItemName}</span>
+                      <strong>{formatCurrency(item.lineTotal)}</strong>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {(item.weightGrams ?? 0) / 1000} kg ×{' '}
+                      {formatCurrency(item.pricePerKg)} / kg
+                    </p>
+                  </div>
+                ))}
+                {quoting && (
+                  <p role="status" className="text-sm">
+                    Updating total…
+                  </p>
+                )}
+                {quoteError && (
+                  <p role="alert" className="text-sm text-red-700">
+                    {quoteError}
+                  </p>
+                )}
+              </div>
+              <div className="mt-5 flex justify-between font-bold">
+                <span>Food subtotal</span>
+                <span>{quote ? formatCurrency(quote.totalAmount) : '—'}</span>
+              </div>
+              <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                Delivery is calculated once you select your venue. Prices are
+                checked again at checkout.
+              </p>
+              <Button
+                className="mt-5 w-full"
+                disabled={!quote || quoting || saving || !selectedItems.length}
+                onClick={() => void save()}
+              >
+                {saving
+                  ? 'Saving…'
+                  : session
+                    ? requestedCart
+                      ? 'Update cart'
+                      : 'Add to cart'
+                    : 'Sign in to continue'}
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </aside>
+          </div>
+        )}
+      </div>
+    </main>
+  );
+}

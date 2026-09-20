@@ -22,6 +22,7 @@ test('a concurrent checkout uniqueness race returns the winning order', async ()
     eventTimeStart: new Date('1970-01-01T18:00:00.000Z'),
     eventName: null,
     specialNotes: null,
+    contactNumber: '9876543210',
     order: null,
   };
   const winningOrder = {

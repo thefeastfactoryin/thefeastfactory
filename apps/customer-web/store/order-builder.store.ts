@@ -36,6 +36,7 @@ export type SelectedItem = {
   includedValue?: string;
   adjustmentAmount: string;
   quantity?: number;
+  weightGrams?: number | null;
   isVeg: boolean;
 };
 
@@ -205,6 +206,7 @@ export const useOrderBuilderStore = create<OrderBuilderState>()(
             itemPrice: '0.00',
             adjustmentAmount: '0.00',
             quantity: item.quantity,
+            weightGrams: item.weightGrams,
             isVeg: item.isVeg,
           })),
         }),

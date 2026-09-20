@@ -35,6 +35,7 @@ type MenuForm = {
   description: string;
   boxPrice: string;
   generalPrice: string;
+  pricePerKg: string;
   isVeg: boolean;
   isActive: boolean;
   imageUrl: string;
@@ -46,6 +47,7 @@ const emptyForm: MenuForm = {
   description: '',
   boxPrice: '',
   generalPrice: '',
+  pricePerKg: '',
   isVeg: true,
   isActive: true,
   imageUrl: '',
@@ -125,6 +127,7 @@ export default function MenuItems() {
       description: item.description ?? '',
       boxPrice: item.boxPrice,
       generalPrice: item.generalPrice,
+      pricePerKg: item.pricePerKg ?? '',
       isVeg: item.isVeg,
       isActive: item.isActive,
       imageUrl: item.imageUrl ?? '',
@@ -146,6 +149,7 @@ export default function MenuItems() {
         description: form.description.trim() || undefined,
         boxPrice: formatMoney(form.boxPrice),
         generalPrice: formatMoney(form.generalPrice),
+        pricePerKg: form.pricePerKg.trim() ? formatMoney(form.pricePerKg) : null,
         isVeg: form.isVeg,
         isActive: form.isActive,
         imageUrl: form.imageUrl.trim() || undefined,
@@ -155,6 +159,9 @@ export default function MenuItems() {
         Number.isNaN(Number(payload.generalPrice))
       ) {
         throw new Error('Both menu prices must be valid amounts.');
+      }
+      if (payload.pricePerKg !== null && (!Number.isFinite(Number(payload.pricePerKg)) || Number(payload.pricePerKg) <= 0)) {
+        throw new Error('Price per kg must be positive, or leave it blank to disable kg ordering.');
       }
       await apiRequest(
         form.id ? `/admin/menu/items/${form.id}` : '/admin/menu/items',
@@ -288,6 +295,7 @@ export default function MenuItems() {
                 <td>{item.category.name}</td>
                 <td className="font-semibold">
                   ₹{item.boxPrice} / ₹{item.generalPrice}
+                  <span className="block text-xs text-muted-foreground">{item.pricePerKg ? `₹${item.pricePerKg} / kg` : 'KG not enabled'}</span>
                 </td>
                 <td>{item.isVeg ? 'Vegetarian' : 'Non-vegetarian'}</td>
                 <td>{item.isActive ? 'Active' : 'Hidden'}</td>
@@ -434,6 +442,11 @@ export default function MenuItems() {
                 </Field>
               </div>
               <div className="grid gap-4 md:grid-cols-2">
+                <Field label="Price per kg" optional>
+                  <Input type="number" min="0.01" max="99999999.99" step="0.01" inputMode="decimal" value={form.pricePerKg}
+                    onChange={(event) => setForm({ ...form, pricePerKg: event.target.value })} placeholder="Leave blank to disable" />
+                  <p className="mt-1 text-xs text-muted-foreground">Then add this dish to an Order by KG package.</p>
+                </Field>
                 <Field label="Meal-box price">
                   <Input
                     value={form.boxPrice}

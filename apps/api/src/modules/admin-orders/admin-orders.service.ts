@@ -58,7 +58,12 @@ export class AdminOrdersService {
           : { orderStatus: { not: OrderStatus.PENDING_PAYMENT } }),
         ...(query.paymentStatus ? { paymentStatus: query.paymentStatus } : {}),
         ...(query.mobileNumber
-          ? { user: { mobileNumber: { contains: query.mobileNumber } } }
+          ? {
+              OR: [
+                { contactNumber: { contains: query.mobileNumber } },
+                { user: { mobileNumber: { contains: query.mobileNumber } } },
+              ],
+            }
           : {}),
         ...(query.dateFrom || query.dateTo
           ? {

@@ -309,7 +309,7 @@ export function DeliveryLocationSelector({
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="flex h-10 w-[50vw] max-w-[185px] shrink-0 items-center justify-start gap-1.5 rounded-xl border border-border bg-white px-2 text-left text-primary transition-colors hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 sm:h-11 sm:w-auto sm:min-w-[280px] sm:max-w-[340px] sm:gap-2.5 sm:px-3"
+          className="flex h-10 min-w-0 flex-1 items-center justify-start gap-2 rounded-xl border border-border bg-white px-2.5 text-left text-primary shadow-[0_2px_8px_rgba(45,31,20,0.04)] transition-colors hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 sm:h-11 sm:w-auto sm:flex-none sm:min-w-[280px] sm:max-w-[340px] sm:gap-2.5 sm:px-3"
           aria-label={
             location
               ? location.resolution.serviceable
@@ -325,26 +325,26 @@ export function DeliveryLocationSelector({
               : 'Set delivery location'
           }
         >
-          <span className="relative grid shrink-0 place-items-center">
+          <span className="relative grid h-7 w-7 shrink-0 place-items-center rounded-full bg-primary/10 text-primary sm:h-auto sm:w-auto sm:rounded-none sm:bg-transparent">
             {status === 'locating' || status === 'resolving' ? (
-              <LoaderCircle className="h-[18px] w-[18px] animate-spin" />
+              <LoaderCircle className="h-4 w-4 animate-spin sm:h-[18px] sm:w-[18px]" />
             ) : (
-              <MapPin className="h-[18px] w-[18px]" />
+              <MapPin className="h-4 w-4 sm:h-[18px] sm:w-[18px]" />
             )}
             {location?.resolution.serviceable && (
-              <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-white" />
+              <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white sm:-right-1 sm:-top-1 sm:bottom-auto sm:h-2 sm:w-2" />
             )}
           </span>
           <span className="block min-w-0 flex-1">
             <span
-              className={`flex items-center gap-1 whitespace-nowrap text-[9px] font-bold leading-none sm:text-[13px] ${
+              className={`flex min-w-0 items-center gap-1 whitespace-nowrap text-[10px] font-bold leading-none sm:text-[13px] ${
                 location && !location.resolution.serviceable
                   ? 'text-red-700'
                   : 'text-primary'
               }`}
             >
               <Zap
-                className="h-3 w-3 shrink-0 fill-current sm:h-4 sm:w-4"
+                className="hidden h-4 w-4 shrink-0 fill-current sm:block"
                 aria-hidden="true"
               />
               <span className="truncate sm:hidden">
@@ -366,7 +366,7 @@ export function DeliveryLocationSelector({
                       : 'Calculating delivery time…'}
               </span>
             </span>
-            <span className="mt-1 flex min-w-0 items-center gap-1 text-[10px] font-medium leading-none text-foreground/70 sm:text-[13px]">
+            <span className="mt-0.5 flex min-w-0 items-center gap-1 text-[10px] font-medium leading-none text-foreground/70 sm:mt-1 sm:text-[13px]">
               <span className="truncate">
                 {location?.address?.addressLine1 ||
                   location?.label ||

@@ -82,15 +82,24 @@ export type MenuItem = {
   description?: string | null;
   boxPrice: string;
   generalPrice: string;
+  pricePerKg?: string | null;
   isVeg: boolean;
   isActive: boolean;
   imageUrl?: string | null;
   category?: MenuCategory;
 };
 
-export type PackageType = 'MEAL_BOX' | 'FIXED_PACKAGE' | 'CUSTOM_PACKAGE';
+export type PackageType =
+  | 'MEAL_BOX'
+  | 'FIXED_PACKAGE'
+  | 'CUSTOM_PACKAGE'
+  | 'ORDER_BY_KG';
 export type DeliveryServiceType = 'STANDARD' | 'DOORSTEP' | 'ASSISTED';
-export type OrderingOfferingCode = 'MEAL_BOX' | 'PACKAGES' | 'CUSTOM_MENU';
+export type OrderingOfferingCode =
+  | 'MEAL_BOX'
+  | 'PACKAGES'
+  | 'CUSTOM_MENU'
+  | 'ORDER_BY_KG';
 export type OrderingOffering = {
   id: string;
   code: OrderingOfferingCode;
@@ -199,6 +208,19 @@ export type PackageConfiguration = {
   }>;
 };
 
+export type KgRegionAvailability = {
+  region: OperatingRegion;
+  isAvailable: boolean;
+  items: Array<{
+    packageMenuItemId: string;
+    menuItemId: string;
+    menuItemName: string;
+    categoryName: string;
+    pricePerKg?: string | null;
+    isAvailable: boolean;
+  }>;
+};
+
 export type PackageSelection = {
   selectedItems: Array<{
     categoryId: string;
@@ -206,6 +228,7 @@ export type PackageSelection = {
     replacedMenuItemId?: string | null;
     role?: SelectedItemRole;
     quantity?: number;
+    weightGrams?: number | null;
   }>;
 };
 
@@ -213,10 +236,11 @@ export type PackageSelectionPrice = {
   valid: boolean;
   errors: string[];
   packageName: string;
-  guestCount: number;
-  basePerPlatePrice: string;
-  totalCustomizationCharges: string;
-  finalPerPlatePrice: string;
+  packageType?: PackageType;
+  guestCount: number | null;
+  basePerPlatePrice: string | null;
+  totalCustomizationCharges: string | null;
+  finalPerPlatePrice: string | null;
   region?: OperatingRegion | null;
   distanceKm?: string | null;
   billableDistanceKm?: number | null;
@@ -240,6 +264,10 @@ export type PackageSelectionPrice = {
     includedValue: string;
     adjustmentAmount: string;
     quantity: number;
+    weightGrams?: number | null;
+    pricePerKg?: string | null;
+    lineTotal?: string | null;
+
     totalAdjustmentAmount: string;
   }>;
 };
@@ -255,6 +283,7 @@ export type CartSummary = {
   updatedAt: string;
   pendingOrderId?: string | null;
   specialNotes?: string | null;
+  contactNumber: string;
   deliveryServiceType: DeliveryServiceType;
   helperCount: number;
   address?: UserAddress | null;
@@ -272,7 +301,7 @@ export type CartSummary = {
     eventName?: string | null;
     eventDate: string;
     eventTimeStart?: string | null;
-    guestCount: number;
+    guestCount: number | null;
     address?: UserAddress;
     region?: OperatingRegion | null;
     distanceKm?: string | null;
@@ -288,6 +317,10 @@ export type CartSummary = {
     replacedMenuItemName?: string | null;
     role: SelectedItemRole;
     quantity: number;
+    weightGrams?: number | null;
+    pricePerKg?: string | null;
+    lineTotal?: string | null;
+
     isVeg: boolean;
   }>;
 };
@@ -333,7 +366,9 @@ export type OrderSummary = {
   orderStatus: OrderStatus;
   paymentStatus: PaymentStatus;
   packageName: string;
-  guestCount: number;
+  packageType?: PackageType | null;
+  guestCount: number | null;
+  contactNumber: string;
   regionId?: string | null;
   region?: OperatingRegion | null;
   distanceKm?: string | null;
@@ -366,6 +401,9 @@ export type OrderSelectedItem = {
   includedValue: string;
   adjustmentAmount: string;
   quantity: number;
+  weightGrams?: number | null;
+  pricePerKg?: string | null;
+  lineTotal?: string | null;
   totalAdjustmentAmount?: string;
 };
 

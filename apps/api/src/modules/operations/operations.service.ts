@@ -67,10 +67,10 @@ type PdfSnapshot = {
   order: {
     orderNumber: string;
     packageName: string;
-    guestCount: number;
-    finalPerPlatePrice: string;
-    basePerPlatePrice: string;
-    customizationCharges: string;
+    guestCount: number | null;
+    finalPerPlatePrice: string | null;
+    basePerPlatePrice: string | null;
+    customizationCharges: string | null;
     deliveryFee: string;
     totalAmount: string;
     eventDate: string | Date;
@@ -82,7 +82,7 @@ type PdfSnapshot = {
     };
     customer: { name?: string | null; mobileNumber: string; email?: string | null };
     payment?: { reference?: string | null; method?: string | null; paidAt?: string | Date | null } | null;
-    items: Array<{ name: string; category: string; role: string; itemPrice: string; adjustmentAmount: string }>;
+    items: Array<{ weightGrams?: number | null; pricePerKg?: string | null; lineTotal?: string | null; name: string; category: string; role: string; itemPrice: string; adjustmentAmount: string }>;
   };
   tax: { cgstRate: string; sgstRate: string; igstRate: string };
   refund?: { amount: string; reason?: string | null };
@@ -514,9 +514,9 @@ export class OperationsService {
         orderNumber: order.orderNumber,
         packageName: order.packageName,
         guestCount: order.guestCount,
-        finalPerPlatePrice: order.finalPerPlatePrice.toFixed(2),
-        basePerPlatePrice: order.basePerPlatePrice.toFixed(2),
-        customizationCharges: order.totalCustomizationCharges.toFixed(2),
+        finalPerPlatePrice: order.finalPerPlatePrice?.toFixed(2) ?? null,
+        basePerPlatePrice: order.basePerPlatePrice?.toFixed(2) ?? null,
+        customizationCharges: order.totalCustomizationCharges?.toFixed(2) ?? null,
         deliveryFee: order.deliveryFee.toFixed(2),
         totalAmount: order.totalAmount.toFixed(2),
         createdAt: order.createdAt,
@@ -524,7 +524,7 @@ export class OperationsService {
         address: order.address,
         customer: {
           name: order.user.name,
-          mobileNumber: order.user.mobileNumber,
+          mobileNumber: order.contactNumber,
           email: order.user.email,
         },
         payment: order.payments[0] ? {
@@ -534,6 +534,9 @@ export class OperationsService {
         } : null,
         items: order.selectedItems.map((item) => ({
           name: item.menuItemName,
+          weightGrams: item.weightGrams,
+          pricePerKg: item.pricePerKg?.toFixed(2) ?? null,
+          lineTotal: item.lineTotal?.toFixed(2) ?? null,
           category: item.categoryName,
           role: item.role,
           itemPrice: item.itemPrice.toFixed(2),
@@ -585,15 +588,19 @@ export class OperationsService {
       document
         .moveDown()
         .fontSize(12)
-        .text(`${data.order.packageName} for ${data.order.guestCount} guests`);
+        .text(data.order.guestCount == null ? `${data.order.packageName} — Order by KG` : `${data.order.packageName} for ${data.order.guestCount} guests`);
       document.fontSize(10).text(`Venue: ${data.order.address.addressLine1}, ${data.order.address.city}, ${data.order.address.state} ${data.order.address.pincode}`);
       document.moveDown().fontSize(11).text('Selected items');
       for (const item of data.order.items) {
-        document.fontSize(9).text(`${item.name} — ${item.category} (${item.role}) — INR ${item.itemPrice}`);
+        document.fontSize(9).text(item.weightGrams
+          ? `${item.name} — ${item.weightGrams / 1000} kg x INR ${item.pricePerKg}/kg — INR ${item.lineTotal}`
+          : `${item.name} — ${item.category} (${item.role}) — INR ${item.itemPrice}`);
       }
+      if (data.order.guestCount != null) {
       document.moveDown().fontSize(10).text(`Base per pax: INR ${data.order.basePerPlatePrice}`);
       document.text(`Customization per pax: INR ${data.order.customizationCharges}`);
       document.text(`Final per pax: INR ${data.order.finalPerPlatePrice}`);
+      }
       document.text(`Delivery fee: INR ${data.order.deliveryFee}`);
       document.text(`Total paid: INR ${data.order.totalAmount}`);
       if (data.order.payment?.reference) document.text(`Payment reference: ${data.order.payment.reference}`);

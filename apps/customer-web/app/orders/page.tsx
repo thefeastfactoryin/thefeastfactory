@@ -118,7 +118,7 @@ export default function OrdersPage() {
                   />
                   <TableValue
                     label="Count"
-                    value={String(order.guestCount)}
+                    value={order.packageType === 'ORDER_BY_KG' ? 'By KG' : String(order.guestCount)}
                     numeric
                   />
                   <div className="mt-3 md:mt-0">

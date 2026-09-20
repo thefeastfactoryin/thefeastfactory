@@ -38,6 +38,7 @@ async function main() {
   await seedFixedPackages(menuItems);
   await seedMealBoxes(menuItems);
   await seedCustomPackage(menuItems);
+  await seedOrderByKg(menuItems);
 }
 
 async function seedOrderingOfferings() {
@@ -66,6 +67,14 @@ async function seedOrderingOfferings() {
       'Build your menu',
       3,
     ],
+    [
+      OrderingOfferingCode.ORDER_BY_KG,
+      'Order by KG',
+      'Choose freshly prepared dishes in 0.5 kg steps for family meals and larger gatherings.',
+      '/order-by-kg-bulk.png',
+      'Build a bulk order',
+      4,
+    ],
   ] as const;
   for (const [
     code,
@@ -77,7 +86,14 @@ async function seedOrderingOfferings() {
   ] of offerings) {
     await prisma.orderingOffering.upsert({
       where: { code },
-      update: { title, description, displayOrder, isActive: true },
+      update: {
+        title,
+        description,
+        imageUrl,
+        ctaLabel,
+        displayOrder,
+        isActive: true,
+      },
       create: { code, title, description, imageUrl, ctaLabel, displayOrder },
     });
   }
@@ -531,6 +547,70 @@ async function seedCustomPackage(menuItems: SeedMenuItem[]) {
   );
 }
 
+async function seedOrderByKg(menuItems: SeedMenuItem[]) {
+  const prices = ['425.00', '480.00', '525.00', '575.00', '640.00', '695.00'];
+  const selected = selectBalancedItems(menuItems, prices.length);
+  if (!selected.length) return;
+
+  for (const [index, item] of selected.entries()) {
+    await prisma.menuItem.update({
+      where: { id: item.id },
+      data: { pricePerKg: new Prisma.Decimal(prices[index]) },
+    });
+  }
+
+  const pkg = await prisma.package.upsert({
+    where: { name: 'Order by KG' },
+    update: {
+      description:
+        'Choose freshly prepared dishes by weight in convenient 0.5 kg increments.',
+      imageUrl: '/order-by-kg-bulk.png',
+      badgeLabel: 'Bulk ordering',
+      type: PackageType.ORDER_BY_KG,
+      displayOrder: 90,
+      isActive: true,
+      deletedAt: null,
+    },
+    create: {
+      name: 'Order by KG',
+      description:
+        'Choose freshly prepared dishes by weight in convenient 0.5 kg increments.',
+      imageUrl: '/order-by-kg-bulk.png',
+      badgeLabel: 'Bulk ordering',
+      type: PackageType.ORDER_BY_KG,
+      displayOrder: 90,
+    },
+  });
+  const version = await prisma.packageVersion.upsert({
+    where: { packageId_versionNo: { packageId: pkg.id, versionNo: 1 } },
+    update: {
+      basePricePerPlate: new Prisma.Decimal(0),
+      minGuestCount: 1,
+      maxGuestCount: null,
+      isActive: true,
+      publishedAt: new Date(),
+    },
+    create: {
+      packageId: pkg.id,
+      versionNo: 1,
+      basePricePerPlate: new Prisma.Decimal(0),
+      minGuestCount: 1,
+      maxGuestCount: null,
+      isActive: true,
+      publishedAt: new Date(),
+    },
+  });
+  await prisma.packageMenuItem.deleteMany({
+    where: { packageVersionId: version.id },
+  });
+  await upsertPackageItems(
+    version.id,
+    selected,
+    PackageMenuItemRole.CUSTOM_SELECTABLE,
+    { isSwappable: false },
+  );
+}
+
 async function upsertPackageVersion(input: {
   name: string;
   description: string;
@@ -556,6 +636,7 @@ async function upsertPackageVersion(input: {
     '8 Item Veg Meal Box': { imageUrl: '/tray-8.png' },
     '8 Item Non-Veg Meal Box': { imageUrl: '/tray-8-non-veg.png' },
     'Custom Menu': { imageUrl: '/order-build.png' },
+    'Order by KG': { imageUrl: '/order-by-kg-bulk.png' },
   };
   const display = presentation[input.name];
   const pkg = await prisma.package.upsert({

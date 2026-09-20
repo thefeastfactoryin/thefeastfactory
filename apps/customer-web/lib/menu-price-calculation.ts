@@ -6,6 +6,8 @@ type CalculationItem = {
   adjustmentAmount?: string | number | null;
   totalAdjustmentAmount?: string | number | null;
   quantity?: number | null;
+  weightGrams?: number | null;
+  pricePerKg?: string | null;
 };
 
 export function formatMenuCalculation({
@@ -14,11 +16,16 @@ export function formatMenuCalculation({
   unitLabel,
   items,
 }: {
-  basePrice: string | number;
-  guestCount: number;
+  basePrice: string | number | null;
+  guestCount: number | null;
   unitLabel: 'box' | 'guest';
   items: CalculationItem[];
 }) {
+  if (items.some((item) => item.weightGrams != null)) {
+    return items.filter((item) => item.weightGrams != null).map((item) =>
+      `${formatCurrency(item.pricePerKg ?? item.itemPrice ?? 0)} × ${item.weightGrams! / 1000} kg`
+    ).join(' + ');
+  }
   const units = `${guestCount} ${
     guestCount === 1
       ? unitLabel
@@ -37,7 +44,7 @@ export function formatMenuCalculation({
     const totalAdjustment = Number(
       item.totalAdjustmentAmount ??
         (item.role === 'EXTRA'
-          ? adjustment * (item.quantity ?? guestCount)
+          ? adjustment * (item.quantity ?? guestCount ?? 0)
           : adjustment),
     );
     if (totalAdjustment <= 0) return;

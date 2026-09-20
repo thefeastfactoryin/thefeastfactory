@@ -21,12 +21,17 @@ import {
   Package as PackageIcon,
   Sprout,
   Users,
+  Weight,
   type LucideIcon,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { catalogCopy, offeringDisplay } from '../lib/catalog-display';
+import {
+  catalogCopy,
+  offeringDisplay,
+  orderByKgImage,
+} from '../lib/catalog-display';
 import { apiRequest } from '../lib/api';
 import { DataImage } from '../components/data-image';
 import {
@@ -64,11 +69,13 @@ const heroImages = [
 const offeringIcons: Record<string, LucideIcon> = {
   MEAL_BOX: PackageIcon,
   PACKAGES: CalendarDays,
+  ORDER_BY_KG: Weight,
   CUSTOM_MENU: ChefHat,
 };
 const offeringFallbackImages: Record<string, string> = {
   MEAL_BOX: '/order-mealbox.png',
   PACKAGES: '/order-occasion.png',
+  ORDER_BY_KG: orderByKgImage,
   CUSTOM_MENU: '/order-build.png',
 };
 export default function HomePage() {
@@ -95,6 +102,7 @@ export default function HomePage() {
   const [selectionError, setSelectionError] = useState('');
   const [activeCartCount, setActiveCartCount] = useState(0);
   const [activeHeroImage, setActiveHeroImage] = useState(0);
+  const [kgAvailableAtLocation, setKgAvailableAtLocation] = useState(true);
   useEffect(() => {
     const interval = window.setInterval(
       () => setActiveHeroImage((current) => (current + 1) % heroImages.length),
@@ -106,13 +114,20 @@ export default function HomePage() {
     Promise.all([
       apiRequest<OrderingOffering[]>('/catalog/ordering-offerings'),
       apiRequest<OperatingRegion[]>('/operating-regions'),
-      apiRequest<PackageSummary[]>('/packages'),
+      apiRequest<PackageSummary[]>(
+        `/packages${deliveryLocation?.resolution.region?.id ? `?regionId=${deliveryLocation.resolution.region.id}` : ''}`,
+      ),
     ])
       .then(async ([nextOfferings, nextKitchenLocations, rows]) => {
         setOfferings(nextOfferings);
         setKitchenLocations(nextKitchenLocations);
+        setKgAvailableAtLocation(
+          rows.some(
+            (row) => row.type === 'ORDER_BY_KG' && Boolean(row.activeVersion),
+          ),
+        );
         const featured = rows
-          .filter((row) => row.isFeatured && row.activeVersion)
+          .filter((row) => row.isFeatured && row.activeVersion && row.type !== 'ORDER_BY_KG')
           .sort((a, b) => (a.featuredOrder ?? 999) - (b.featuredOrder ?? 999))
           .slice(0, 4);
         setPackages(featured);
@@ -130,7 +145,7 @@ export default function HomePage() {
         setConfigs(Object.fromEntries(details));
       })
       .catch(() => {});
-  }, []);
+  }, [deliveryLocation?.resolution.region?.id]);
 
   useEffect(() => {
     if (!session) {
@@ -208,14 +223,16 @@ export default function HomePage() {
     await selectPackage(pkg, true);
   }
 
+  const offeringOrder = ['MEAL_BOX', 'PACKAGES', 'ORDER_BY_KG', 'CUSTOM_MENU'];
   const homeOfferings = offerings
-    .filter((offering) =>
-      ['MEAL_BOX', 'PACKAGES', 'CUSTOM_MENU'].includes(offering.code),
+    .filter(
+      (offering) =>
+        offeringOrder.includes(offering.code) &&
+        (offering.code !== 'ORDER_BY_KG' || kgAvailableAtLocation),
     )
     .sort(
       (first, second) =>
-        ['MEAL_BOX', 'PACKAGES', 'CUSTOM_MENU'].indexOf(first.code) -
-        ['MEAL_BOX', 'PACKAGES', 'CUSTOM_MENU'].indexOf(second.code),
+        offeringOrder.indexOf(first.code) - offeringOrder.indexOf(second.code),
     );
   return (
     <main className="bg-background">
@@ -299,7 +316,7 @@ export default function HomePage() {
       />
 
       <section id="ordering-styles" className="bg-ivory py-8 sm:py-10 lg:py-12">
-        <div className="mx-auto grid w-full max-w-[1440px] gap-4 px-4 sm:grid-cols-2 sm:px-6 md:grid-cols-3 lg:gap-6 lg:px-10">
+        <div className="mx-auto grid w-full max-w-[1440px] gap-4 px-4 sm:grid-cols-2 sm:px-6 xl:grid-cols-4 lg:gap-5 lg:px-10">
           {homeOfferings.map((offering) => {
             const display = offeringDisplay[offering.code];
             const Icon = offeringIcons[offering.code] ?? PackageIcon;
@@ -323,7 +340,9 @@ export default function HomePage() {
                       ? 'Easy group meals'
                       : offering.code === 'PACKAGES'
                         ? 'Most popular for events'
-                        : 'Create your own menu'}
+                        : offering.code === 'ORDER_BY_KG'
+                          ? 'Bulk food, simple ordering'
+                          : 'Create your own menu'}
                   </span>
                 </div>
                 <div className="relative flex min-h-[142px] flex-1 flex-col px-5 pb-5 pt-7 lg:px-6 lg:pb-6">
@@ -333,7 +352,7 @@ export default function HomePage() {
                   <h3 className="font-serif text-[26px] font-bold leading-tight tracking-tight text-foreground lg:text-[30px]">
                     {isCustomPackage ? 'Custom Package' : offering.title}
                   </h3>
-                  <p className="mt-1 line-clamp-2 text-sm leading-6 text-muted-foreground">
+                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
                     {offering.description}
                   </p>
                   <span className="mt-auto inline-flex items-center gap-2 pt-3 text-sm font-bold text-primary">

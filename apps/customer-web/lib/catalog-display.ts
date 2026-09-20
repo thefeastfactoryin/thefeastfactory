@@ -1,8 +1,16 @@
-import type { OrderingOfferingCode } from '@aranyam/shared-types';
+import type {
+  OrderingOfferingCode,
+} from '@aranyam/shared-types';
 
-export const offeringDisplay: Record<OrderingOfferingCode, { href: string }> = {
+export const orderByKgImage = '/order-by-kg-bulk.png';
+
+export const offeringDisplay: Record<
+  OrderingOfferingCode,
+  { href: string }
+> = {
   MEAL_BOX: { href: '/packages/meal-boxes' },
   PACKAGES: { href: '/packages' },
+  ORDER_BY_KG: { href: '/order-by-kg' },
   // The builder needs a selected package version, so establish that context
   // in the catalog before entering the builder.
   CUSTOM_MENU: { href: '/packages?type=CUSTOM_PACKAGE' },

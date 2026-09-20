@@ -17,13 +17,18 @@ export type SelectedItemInput = {
   replacedMenuItemId?: string | null;
   role?: SelectedItemRole;
   quantity?: number;
+  weightGrams?: number | null;
 };
 
 type VersionForQuote = Prisma.PackageVersionGetPayload<{
   include: {
-    package: true;
+    package: { include: { regionAvailabilities: true } };
     packageMenuItems: {
-      include: { menuItem: true; category: true };
+      include: {
+        menuItem: true;
+        category: true;
+        regionAvailabilities: true;
+      };
     };
   };
 }>;
@@ -41,6 +46,9 @@ type QuoteItem = {
   includedValue: Prisma.Decimal;
   adjustmentAmount: Prisma.Decimal;
   quantity: number;
+  weightGrams?: number;
+  pricePerKg?: Prisma.Decimal;
+  lineTotal?: Prisma.Decimal;
   totalAdjustmentAmount: Prisma.Decimal;
 };
 
@@ -52,6 +60,7 @@ export class PricingService {
     packageVersionId: string,
     guestCount: number,
     selectedItems: SelectedItemInput[],
+    regionId?: string,
   ) {
     const version = await this.prisma.packageVersion.findFirst({
       where: {
@@ -61,18 +70,54 @@ export class PricingService {
         package: { isActive: true, deletedAt: null },
       },
       include: {
-        package: true,
+        package: {
+          include: {
+            regionAvailabilities: regionId
+              ? { where: { regionId } }
+              : false,
+          },
+        },
         packageMenuItems: {
           where: {
             isAvailable: true,
             menuItem: { isActive: true, deletedAt: null },
           },
-          include: { menuItem: true, category: true },
+          include: {
+            menuItem: true,
+            category: true,
+            regionAvailabilities: regionId
+              ? { where: { regionId } }
+              : false,
+          },
           orderBy: [{ displayOrder: 'asc' }, { menuItem: { name: 'asc' } }],
         },
       },
     });
     if (!version) throw new NotFoundException('Package version not found');
+    if (version.package.type === PackageType.ORDER_BY_KG) {
+      if (
+        regionId &&
+        version.package.regionAvailabilities?.some(
+          (availability) => !availability.isAvailable,
+        )
+      ) {
+        throw new BadRequestException(
+          'Order by KG is currently unavailable at this location',
+        );
+      }
+      const items = this.kgItems(version, selectedItems, regionId);
+      const totalAmount = items.reduce((sum, item) => sum.plus(item.lineTotal!), new Prisma.Decimal(0));
+      if (totalAmount.greaterThan('99999999.99')) throw new BadRequestException('Order total exceeds the supported amount');
+      return {
+        packageVersionId: version.id, packageName: version.package.name,
+        packageVersionNo: version.versionNo, packageType: version.package.type,
+        guestCount: null, basePerPlatePrice: null, totalCustomizationCharges: null,
+        finalPerPlatePrice: null, totalAmount, items,
+      };
+    }
+    if (selectedItems.some((item) => item.weightGrams != null)) {
+      throw new BadRequestException('Weights are only supported for kg orders');
+    }
     if (
       guestCount < version.minGuestCount ||
       (version.maxGuestCount && guestCount > version.maxGuestCount)
@@ -90,6 +135,7 @@ export class PricingService {
       packageVersionId: version.id,
       packageName: version.package.name,
       packageVersionNo: version.versionNo,
+      packageType: version.package.type,
       guestCount,
       basePerPlatePrice: version.basePricePerPlate,
       totalCustomizationCharges: customization,
@@ -97,6 +143,52 @@ export class PricingService {
       totalAmount: finalPerPlate.mul(guestCount),
       items,
     };
+  }
+
+  private kgItems(
+    version: VersionForQuote,
+    selections: SelectedItemInput[],
+    regionId?: string,
+  ): QuoteItem[] {
+    if (!selections.length) throw new BadRequestException('Choose at least one dish');
+    const allowed = new Map(version.packageMenuItems
+      .filter((row) =>
+        row.role === PackageMenuItemRole.CUSTOM_SELECTABLE &&
+        row.isAvailable &&
+        row.category.isActive &&
+        row.menuItem.isActive &&
+        !row.menuItem.deletedAt &&
+        (!regionId ||
+          !row.regionAvailabilities?.some(
+            (availability) => !availability.isAvailable,
+          )))
+      .map((row) => [row.menuItemId, row]));
+    const seen = new Set<string>();
+    return selections.map((selection) => {
+      const row = allowed.get(selection.menuItemId);
+      if (!row || row.categoryId !== selection.categoryId || !row.menuItem.pricePerKg?.greaterThan(0)) {
+        throw new BadRequestException('Selected dish is not available for kg ordering');
+      }
+      if (seen.has(selection.menuItemId)) throw new BadRequestException('Duplicate dishes are not allowed');
+      seen.add(selection.menuItemId);
+      if (selection.replacedMenuItemId || (selection.role && selection.role !== SelectedItemRole.CUSTOM) || (selection.quantity != null && selection.quantity !== 1)) {
+        throw new BadRequestException('Kg orders use dish weights, without swaps or portion quantities');
+      }
+      const grams = selection.weightGrams;
+      if (!Number.isInteger(grams) || grams! < 500 || grams! > 100000 || grams! % 500 !== 0) {
+        throw new BadRequestException('Choose 0.5–100 kg per dish in 0.5 kg increments');
+      }
+      const lineTotal = row.menuItem.pricePerKg.mul(grams!).div(1000).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+      if (lineTotal.greaterThan('99999999.99')) throw new BadRequestException('Dish total exceeds the supported amount');
+      return {
+        categoryId: row.categoryId, categoryName: row.category.name,
+        menuItemId: row.menuItemId, menuItemName: row.menuItem.name,
+        role: SelectedItemRole.CUSTOM, isVeg: row.menuItem.isVeg,
+        quantity: 1, weightGrams: grams!, pricePerKg: row.menuItem.pricePerKg,
+        lineTotal, itemPrice: row.menuItem.pricePerKg, includedValue: new Prisma.Decimal(0),
+        adjustmentAmount: new Prisma.Decimal(0), totalAdjustmentAmount: lineTotal,
+      };
+    });
   }
 
   private async evaluate(
@@ -416,9 +508,9 @@ export class PricingService {
   serialize(quote: Awaited<ReturnType<PricingService['quote']>>) {
     return {
       ...quote,
-      basePerPlatePrice: quote.basePerPlatePrice.toFixed(2),
-      totalCustomizationCharges: quote.totalCustomizationCharges.toFixed(2),
-      finalPerPlatePrice: quote.finalPerPlatePrice.toFixed(2),
+      basePerPlatePrice: quote.basePerPlatePrice?.toFixed(2) ?? null,
+      totalCustomizationCharges: quote.totalCustomizationCharges?.toFixed(2) ?? null,
+      finalPerPlatePrice: quote.finalPerPlatePrice?.toFixed(2) ?? null,
       totalAmount: quote.totalAmount.toFixed(2),
       items: quote.items.map((item) => ({
         ...item,
@@ -426,6 +518,8 @@ export class PricingService {
         includedValue: item.includedValue.toFixed(2),
         adjustmentAmount: item.adjustmentAmount.toFixed(2),
         quantity: item.quantity,
+        pricePerKg: item.pricePerKg?.toFixed(2) ?? null,
+        lineTotal: item.lineTotal?.toFixed(2) ?? null,
         totalAdjustmentAmount: item.totalAdjustmentAmount.toFixed(2),
       })),
     };

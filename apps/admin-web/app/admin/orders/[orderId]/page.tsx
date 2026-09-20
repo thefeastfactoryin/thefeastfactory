@@ -107,13 +107,13 @@ export default function AdminOrderDetail() {
           <strong>{eventTime}</strong>
         </div>
         <div className="print-ticket-row">
-          <span>Guests</span>
-          <strong>{order.guestCount}</strong>
+          <span>{order.packageType === 'ORDER_BY_KG' ? 'Ordering' : 'Guests'}</span>
+          <strong>{order.packageType === 'ORDER_BY_KG' ? 'By KG' : order.guestCount}</strong>
         </div>
         <div className="print-ticket-rule" />
         <p className="print-ticket-label">CUSTOMER</p>
         <p>{order.user.name || 'Customer'}</p>
-        <p>{order.user.mobileNumber}</p>
+        <p>{order.contactNumber}</p>
         {order.event?.eventName && <p>{order.event.eventName}</p>}
         {venue && <p>{venue}</p>}
         <div className="print-ticket-rule" />
@@ -121,7 +121,7 @@ export default function AdminOrderDetail() {
         {order.selectedItems.map((item) => (
           <div className="print-ticket-item" key={item.id}>
             <span>
-              {item.quantity} x {item.menuItemName}
+              {item.weightGrams != null ? `${item.weightGrams / 1000} kg` : `${item.quantity} x`} {item.menuItemName}
             </span>
             <span>{item.isVeg ? 'VEG' : 'NON-VEG'}</span>
           </div>
@@ -140,8 +140,8 @@ export default function AdminOrderDetail() {
           </p>
           <h1 className="admin-title mt-2">{order.orderNumber}</h1>
           <p className="mt-2 text-muted-foreground">
-            {order.user.name || order.user.mobileNumber} · {order.packageName} ·{' '}
-            {order.guestCount} guests
+            {order.user.name || order.contactNumber} · {order.packageName} ·{' '}
+            {order.packageType === 'ORDER_BY_KG' ? 'By KG' : order.guestCount}{order.packageType === 'ORDER_BY_KG' ? '' : ' guests'}
           </p>
           {order.region && (
             <p className="mt-1 text-sm text-muted-foreground">
@@ -212,7 +212,7 @@ export default function AdminOrderDetail() {
                       {item.isVeg ? 'Vegetarian' : 'Non-vegetarian'}
                     </p>
                   </div>
-                  <span>+₹{item.adjustmentAmount}</span>
+                  <span>{item.weightGrams != null ? `${item.weightGrams / 1000} kg × ₹${item.pricePerKg}/kg = ₹${item.lineTotal}` : `+₹${item.adjustmentAmount}`}</span>
                 </div>
               ))}
             </div>

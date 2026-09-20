@@ -89,6 +89,7 @@ export const createMenuItemSchema = z.object({
   description: z.string().trim().max(1000).optional().nullable(),
   boxPrice: moneyStringSchema,
   generalPrice: moneyStringSchema,
+  pricePerKg: moneyStringSchema.refine((value) => Number(value) > 0, "Kg price must be positive").nullable().optional(),
   isVeg: z.boolean().default(true),
   isActive: z.boolean().default(true),
   imageUrl: z.string().url().max(500).optional().nullable(),
@@ -100,7 +101,7 @@ export const createPackageSchema = z.object({
   name: z.string().trim().min(1).max(100),
   description: z.string().trim().max(1000).optional().nullable(),
   type: z
-    .enum(['MEAL_BOX', 'FIXED_PACKAGE', 'CUSTOM_PACKAGE'])
+    .enum(['MEAL_BOX', 'FIXED_PACKAGE', 'CUSTOM_PACKAGE', 'ORDER_BY_KG'])
     .default('FIXED_PACKAGE'),
   displayOrder: z.number().int().min(0).default(0),
   isActive: z.boolean().default(true),

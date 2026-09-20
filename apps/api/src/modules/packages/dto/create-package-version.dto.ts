@@ -25,11 +25,11 @@ export class CreatePackageVersionDto {
   @Min(1)
   minGuestCount?: number;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ type: Number, nullable: true })
   @IsOptional()
   @IsInt()
   @Min(1)
-  maxGuestCount?: number;
+  maxGuestCount?: number | null;
 
   @ApiPropertyOptional({ default: true })
   @IsOptional()

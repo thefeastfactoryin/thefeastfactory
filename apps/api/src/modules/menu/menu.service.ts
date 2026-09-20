@@ -130,6 +130,7 @@ export class MenuService {
         description: dto.description?.trim(),
         boxPrice: new Prisma.Decimal(dto.boxPrice),
         generalPrice: new Prisma.Decimal(dto.generalPrice),
+        pricePerKg: dto.pricePerKg ? new Prisma.Decimal(dto.pricePerKg) : null,
         isVeg: dto.isVeg ?? true,
         isActive: dto.isActive ?? true,
         imageUrl: dto.imageUrl,
@@ -240,6 +241,9 @@ export class MenuService {
         ...(dto.generalPrice !== undefined
           ? { generalPrice: new Prisma.Decimal(dto.generalPrice) }
           : {}),
+        ...(dto.pricePerKg !== undefined
+          ? { pricePerKg: dto.pricePerKg === null ? null : new Prisma.Decimal(dto.pricePerKg) }
+          : {}),
         ...(dto.isVeg !== undefined ? { isVeg: dto.isVeg } : {}),
         ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
         ...(dto.imageUrl !== undefined ? { imageUrl: dto.imageUrl } : {}),
@@ -278,6 +282,7 @@ export class MenuService {
     T extends {
       boxPrice: Prisma.Decimal;
       generalPrice: Prisma.Decimal;
+      pricePerKg?: Prisma.Decimal | null;
       category?: unknown;
     },
   >(item: T) {
@@ -285,6 +290,7 @@ export class MenuService {
       ...item,
       boxPrice: item.boxPrice.toFixed(2),
       generalPrice: item.generalPrice.toFixed(2),
+      pricePerKg: item.pricePerKg?.toFixed(2) ?? null,
     };
   }
 }

@@ -195,9 +195,9 @@ export default function AdminOrders() {
                   )}
                 </td>
                 <td>
-                  {order.user?.name || order.user?.mobileNumber}
+                  {order.user?.name || order.contactNumber}
                   <span className="block text-xs text-muted-foreground">
-                    {order.user?.mobileNumber}
+                    {order.contactNumber}
                   </span>
                 </td>
                 <td>

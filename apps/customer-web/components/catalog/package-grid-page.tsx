@@ -74,7 +74,7 @@ export function PackageGridPage({
     ])
       .then(async ([rows, categoryRows]) => {
         const requestedType = searchParams.get('type');
-        const visible = rows.filter(
+        const visible = rows.filter((row) => row.type !== 'ORDER_BY_KG').filter(
           (row) =>
             row.activeVersion &&
             (type === 'PACKAGES'

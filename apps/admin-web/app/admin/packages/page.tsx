@@ -5,6 +5,7 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
 import Switch from '@mui/material/Switch';
 import type {
+  KgRegionAvailability,
   MenuCategory,
   MenuItem,
   PackageConfiguration,
@@ -15,6 +16,7 @@ import {
   ClipboardList,
   ImagePlus,
   LayoutDashboard,
+  MapPin,
   Pencil,
   Plus,
   Save,
@@ -50,7 +52,7 @@ type AdminPackage = {
   badgeLabel?: string | null;
   displayOrder: number;
   isCustom: boolean;
-  type: 'MEAL_BOX' | 'FIXED_PACKAGE' | 'CUSTOM_PACKAGE';
+  type: 'MEAL_BOX' | 'FIXED_PACKAGE' | 'CUSTOM_PACKAGE' | 'ORDER_BY_KG';
   isActive: boolean;
   isFeatured: boolean;
   featuredOrder?: number | null;
@@ -68,7 +70,7 @@ type CompositionFilter =
   | 'EXTRA'
   | 'CUSTOM_SELECTABLE'
   | 'NONE';
-type PackageEditorTab = 'overview' | 'pricing' | 'composition';
+type PackageEditorTab = 'overview' | 'pricing' | 'composition' | 'locations';
 
 type PackageForm = {
   id?: string;
@@ -108,6 +110,11 @@ const packageTypeTabs: Array<{
     type: 'FIXED_PACKAGE',
     label: 'Fixed packages',
     description: 'Curated menus with included dishes and optional extras.',
+  },
+  {
+    type: 'ORDER_BY_KG',
+    label: 'Order by KG',
+    description: 'Selected dishes with individual weights and prices per kg.',
   },
   {
     type: 'CUSTOM_PACKAGE',
@@ -151,6 +158,15 @@ export default function AdminPackages() {
   const [categories, setCategories] = useState<MenuCategory[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItemWithCategory[]>([]);
   const [config, setConfig] = useState<PackageConfiguration>();
+  const [regionAvailability, setRegionAvailability] = useState<
+    KgRegionAvailability[]
+  >([]);
+  const [savedRegionAvailability, setSavedRegionAvailability] = useState<
+    KgRegionAvailability[]
+  >([]);
+  const [selectedRegionId, setSelectedRegionId] = useState('');
+  const [locationAvailabilityDirty, setLocationAvailabilityDirty] =
+    useState(false);
   const [selectedPackageId, setSelectedPackageId] = useState('');
   const [selectedVersionId, setSelectedVersionId] = useState('');
   const [activeType, setActiveType] =
@@ -192,7 +208,9 @@ export default function AdminPackages() {
       ? 'New meal box'
       : activeType === 'FIXED_PACKAGE'
         ? 'New fixed package'
-        : 'New custom menu';
+        : activeType === 'ORDER_BY_KG'
+          ? 'New KG menu'
+          : 'New custom menu';
   const activeTypePackages = packages.filter((pkg) => pkg.type === activeType);
   const filteredPackages = activeTypePackages.filter((pkg) =>
     `${pkg.name} ${pkg.description ?? ''}`
@@ -322,6 +340,29 @@ export default function AdminPackages() {
     );
   }
 
+  async function loadRegionAvailability(versionId = selectedVersionId) {
+    if (!session || !versionId || selectedPackage?.type !== 'ORDER_BY_KG') {
+      setRegionAvailability([]);
+      setSavedRegionAvailability([]);
+      setSelectedRegionId('');
+      setLocationAvailabilityDirty(false);
+      return;
+    }
+    const rows = await apiRequest<KgRegionAvailability[]>(
+      `/admin/package-versions/${versionId}/region-availability`,
+      {},
+      session.accessToken,
+    );
+    setRegionAvailability(rows);
+    setSavedRegionAvailability(rows);
+    setSelectedRegionId((current) =>
+      rows.some((row) => row.region.id === current)
+        ? current
+        : (rows[0]?.region.id ?? ''),
+    );
+    setLocationAvailabilityDirty(false);
+  }
+
   useEffect(() => {
     loadBase().catch((reason) => setError((reason as Error).message));
   }, [session]);
@@ -329,6 +370,12 @@ export default function AdminPackages() {
   useEffect(() => {
     loadConfig().catch((reason) => setError((reason as Error).message));
   }, [selectedVersionId, session]);
+
+  useEffect(() => {
+    loadRegionAvailability().catch((reason) =>
+      setError((reason as Error).message),
+    );
+  }, [selectedVersionId, selectedPackage?.type, session]);
 
   useEffect(() => {
     if (!selectedVersion) {
@@ -363,6 +410,7 @@ export default function AdminPackages() {
   }
 
   function formatGuestRange(version: Version) {
+    if (selectedPackage?.type === 'ORDER_BY_KG') return 'By weight';
     return version.maxGuestCount
       ? `${version.minGuestCount}-${version.maxGuestCount} guests`
       : `${version.minGuestCount}+ guests`;
@@ -591,7 +639,8 @@ export default function AdminPackages() {
             },
           ]
         : []),
-      ...(selectedPackage?.type === 'CUSTOM_PACKAGE'
+      ...(selectedPackage?.type === 'CUSTOM_PACKAGE' ||
+      selectedPackage?.type === 'ORDER_BY_KG'
         ? [
             {
               filter: 'CUSTOM_SELECTABLE' as CompositionFilter,
@@ -746,6 +795,59 @@ export default function AdminPackages() {
     }
   }
 
+  async function saveRegionAvailability() {
+    if (!session || !selectedVersionId || !selectedRegionId) return;
+    const selected = regionAvailability.find(
+      (row) => row.region.id === selectedRegionId,
+    );
+    if (!selected) return;
+    setSaving(true);
+    setError('');
+    try {
+      const rows = await apiRequest<KgRegionAvailability[]>(
+        `/admin/package-versions/${selectedVersionId}/region-availability/${selectedRegionId}`,
+        {
+          method: 'PUT',
+          body: JSON.stringify({
+            isAvailable: selected.isAvailable,
+            items: selected.items.map((item) => ({
+              packageMenuItemId: item.packageMenuItemId,
+              isAvailable: item.isAvailable,
+            })),
+          }),
+        },
+        session.accessToken,
+      );
+      setRegionAvailability(rows);
+      setSavedRegionAvailability(rows);
+      setLocationAvailabilityDirty(false);
+      setMessage(`${selected.region.name} KG availability saved.`);
+    } catch (reason) {
+      setError((reason as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function updateSelectedRegion(
+    update: (row: KgRegionAvailability) => KgRegionAvailability,
+  ) {
+    const current = regionAvailability.find(
+      (row) => row.region.id === selectedRegionId,
+    );
+    if (!current) return;
+    const next = update(current);
+    setRegionAvailability((rows) =>
+      rows.map((row) => (row.region.id === selectedRegionId ? next : row)),
+    );
+    const saved = savedRegionAvailability.find(
+      (row) => row.region.id === selectedRegionId,
+    );
+    setLocationAvailabilityDirty(
+      !saved || JSON.stringify(next) !== JSON.stringify(saved),
+    );
+  }
+
   if (!session)
     return <main className="admin-page">Sign in to manage packages.</main>;
 
@@ -872,7 +974,7 @@ export default function AdminPackages() {
                           {pkg.versions.length} version
                           {pkg.versions.length === 1 ? '' : 's'} ·{' '}
                           {activeVersion
-                            ? `₹${activeVersion.basePricePerPlate}`
+                            ? pkg.type === 'ORDER_BY_KG' ? 'Priced per dish / kg' : `₹${activeVersion.basePricePerPlate}`
                             : 'No active price'}
                         </span>
                       </span>
@@ -988,6 +1090,15 @@ export default function AdminPackages() {
                       icon: ClipboardList,
                       count: pendingChanges.composition || undefined,
                     },
+                    ...(selectedPackage.type === 'ORDER_BY_KG'
+                      ? [
+                          {
+                            value: 'locations' as PackageEditorTab,
+                            label: 'Location availability',
+                            icon: MapPin,
+                          },
+                        ]
+                      : []),
                   ]}
                 />
 
@@ -1124,59 +1235,68 @@ export default function AdminPackages() {
                           ))}
                         </Select>
                       </Field>
-                      <Field label="Package price">
-                        <Input
-                          value={priceForm.basePricePerPlate}
-                          inputMode="decimal"
-                          placeholder="499.00"
-                          onBlur={(event) =>
-                            setPriceForm({
-                              ...priceForm,
-                              basePricePerPlate: formatMoney(
-                                event.target.value,
-                              ),
-                            })
-                          }
-                          onChange={(event) =>
-                            setPriceForm({
-                              ...priceForm,
-                              basePricePerPlate: event.target.value,
-                            })
-                          }
-                          required
-                          disabled={!selectedVersionId}
-                        />
-                      </Field>
-                      <Field label="Min guests">
-                        <Input
-                          type="number"
-                          min={1}
-                          value={priceForm.minGuestCount}
-                          onChange={(event) =>
-                            setPriceForm({
-                              ...priceForm,
-                              minGuestCount: event.target.value,
-                            })
-                          }
-                          required
-                          disabled={!selectedVersionId}
-                        />
-                      </Field>
-                      <Field label="Max guests" optional>
-                        <Input
-                          type="number"
-                          min={1}
-                          value={priceForm.maxGuestCount}
-                          onChange={(event) =>
-                            setPriceForm({
-                              ...priceForm,
-                              maxGuestCount: event.target.value,
-                            })
-                          }
-                          placeholder="No max"
-                          disabled={!selectedVersionId}
-                        />
-                      </Field>
+                      {selectedPackage?.type !== 'ORDER_BY_KG' ? (
+                        <>
+                          <Field label="Package price">
+                            <Input
+                              value={priceForm.basePricePerPlate}
+                              inputMode="decimal"
+                              placeholder="499.00"
+                              onBlur={(event) =>
+                                setPriceForm({
+                                  ...priceForm,
+                                  basePricePerPlate: formatMoney(
+                                    event.target.value,
+                                  ),
+                                })
+                              }
+                              onChange={(event) =>
+                                setPriceForm({
+                                  ...priceForm,
+                                  basePricePerPlate: event.target.value,
+                                })
+                              }
+                              required
+                              disabled={!selectedVersionId}
+                            />
+                          </Field>
+                          <Field label="Min guests">
+                            <Input
+                              type="number"
+                              min={1}
+                              value={priceForm.minGuestCount}
+                              onChange={(event) =>
+                                setPriceForm({
+                                  ...priceForm,
+                                  minGuestCount: event.target.value,
+                                })
+                              }
+                              required
+                              disabled={!selectedVersionId}
+                            />
+                          </Field>
+                          <Field label="Max guests" optional>
+                            <Input
+                              type="number"
+                              min={1}
+                              value={priceForm.maxGuestCount}
+                              onChange={(event) =>
+                                setPriceForm({
+                                  ...priceForm,
+                                  maxGuestCount: event.target.value,
+                                })
+                              }
+                              placeholder="No max"
+                              disabled={!selectedVersionId}
+                            />
+                          </Field>
+                        </>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">
+                          Prices come from Menu items. Customers select 0.5–100
+                          kg per dish in 0.5 kg increments.
+                        </p>
+                      )}
                       <Field label="Publish status">
                         <Select
                           value={priceForm.published ? 'published' : 'draft'}
@@ -1428,7 +1548,13 @@ export default function AdminPackages() {
                                   </div>
                                 </td>
                                 <td>{item.category.name}</td>
-                                <td>₹{item.generalPrice}</td>
+                                <td>
+                                  {selectedPackage.type === 'ORDER_BY_KG'
+                                    ? item.pricePerKg
+                                      ? `₹${item.pricePerKg} / kg`
+                                      : 'Not priced for KG'
+                                    : `₹${item.generalPrice}`}
+                                </td>
                                 <td>
                                   <Select
                                     value={role}
@@ -1474,7 +1600,15 @@ export default function AdminPackages() {
                                   ) : role === 'EXTRA' ? (
                                     `+₹${item.generalPrice} per pax`
                                   ) : role === 'CUSTOM_SELECTABLE' ? (
-                                    `₹${item.generalPrice} per pax`
+                                    selectedPackage.type === 'ORDER_BY_KG' ? (
+                                      item.pricePerKg ? (
+                                        `₹${item.pricePerKg} per kg`
+                                      ) : (
+                                        'Set a kg price in Menu items'
+                                      )
+                                    ) : (
+                                      `₹${item.generalPrice} per pax`
+                                    )
                                   ) : (
                                     '—'
                                   )}
@@ -1492,6 +1626,181 @@ export default function AdminPackages() {
                     </div>
                   </div>
                 )}
+
+                {editorTab === 'locations' &&
+                  selectedPackage.type === 'ORDER_BY_KG' && (
+                    <div
+                      id="package-editor-locations-panel"
+                      role="tabpanel"
+                      aria-labelledby="package-editor-locations-tab"
+                      className="p-4"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3 border-b pb-4">
+                        <div>
+                          <h3 className="text-xl font-semibold">
+                            Availability by kitchen
+                          </h3>
+                          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+                            Turn off the complete KG menu for a kitchen, or keep
+                            it open and choose the dishes that kitchen can
+                            prepare.
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          onClick={() => saveRegionAvailability()}
+                          disabled={
+                            !selectedRegionId ||
+                            !locationAvailabilityDirty ||
+                            saving
+                          }
+                        >
+                          <Save className="mr-2 h-4 w-4" />
+                          {saving ? 'Saving...' : 'Save availability'}
+                        </Button>
+                      </div>
+
+                      {!regionAvailability.length ? (
+                        <p className="py-8 text-sm text-muted-foreground">
+                          No kitchen locations are configured.
+                        </p>
+                      ) : (
+                        <div className="mt-4 grid gap-5 lg:grid-cols-[240px_1fr]">
+                          <div className="space-y-2" role="list">
+                            {regionAvailability.map((row) => (
+                              <button
+                                key={row.region.id}
+                                type="button"
+                                onClick={() => {
+                                  if (
+                                    locationAvailabilityDirty &&
+                                    !window.confirm(
+                                      'Discard unsaved location availability changes?',
+                                    )
+                                  )
+                                    return;
+                                  const saved = savedRegionAvailability.find(
+                                    (candidate) =>
+                                      candidate.region.id === selectedRegionId,
+                                  );
+                                  if (saved) {
+                                    setRegionAvailability((current) =>
+                                      current.map((candidate) =>
+                                        candidate.region.id ===
+                                        selectedRegionId
+                                          ? saved
+                                          : candidate,
+                                      ),
+                                    );
+                                  }
+                                  setSelectedRegionId(row.region.id);
+                                  setLocationAvailabilityDirty(false);
+                                }}
+                                className={`w-full rounded-xl border p-3 text-left transition ${
+                                  selectedRegionId === row.region.id
+                                    ? 'border-primary bg-primary/5'
+                                    : 'bg-white hover:border-primary/40'
+                                }`}
+                              >
+                                <span className="block font-semibold">
+                                  {row.region.name}
+                                </span>
+                                <span className="mt-1 block text-xs text-muted-foreground">
+                                  {row.isAvailable
+                                    ? `${row.items.filter((item) => item.isAvailable).length} of ${row.items.length} dishes available`
+                                    : 'KG ordering turned off'}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+
+                          {regionAvailability
+                            .filter(
+                              (row) => row.region.id === selectedRegionId,
+                            )
+                            .map((row) => (
+                              <section key={row.region.id}>
+                                <div className="flex items-center justify-between gap-4 rounded-xl border bg-muted/20 p-4">
+                                  <div>
+                                    <h4 className="font-semibold">
+                                      Order by KG in {row.region.name}
+                                    </h4>
+                                    <p className="mt-1 text-xs text-muted-foreground">
+                                      Turning this off removes the option for
+                                      customers assigned to this kitchen.
+                                    </p>
+                                  </div>
+                                  <label className="flex items-center gap-2 text-sm font-semibold">
+                                    <Switch
+                                      checked={row.isAvailable}
+                                      onChange={(event) =>
+                                        updateSelectedRegion((current) => ({
+                                          ...current,
+                                          isAvailable: event.target.checked,
+                                        }))
+                                      }
+                                    />
+                                    {row.isAvailable ? 'Available' : 'Off'}
+                                  </label>
+                                </div>
+
+                                <div className="mt-4 overflow-hidden rounded-xl border bg-white">
+                                  <div className="border-b px-4 py-3">
+                                    <h4 className="font-semibold">
+                                      Dishes available from this kitchen
+                                    </h4>
+                                  </div>
+                                  <div className="divide-y">
+                                    {row.items.map((item) => (
+                                      <label
+                                        key={item.packageMenuItemId}
+                                        className={`flex items-center justify-between gap-4 px-4 py-3 ${
+                                          row.isAvailable
+                                            ? ''
+                                            : 'opacity-50'
+                                        }`}
+                                      >
+                                        <span>
+                                          <span className="block text-sm font-semibold">
+                                            {item.menuItemName}
+                                          </span>
+                                          <span className="mt-0.5 block text-xs text-muted-foreground">
+                                            {item.categoryName} ·{' '}
+                                            {item.pricePerKg
+                                              ? `₹${item.pricePerKg} / kg`
+                                              : 'No KG price'}
+                                          </span>
+                                        </span>
+                                        <Switch
+                                          checked={item.isAvailable}
+                                          disabled={!row.isAvailable}
+                                          onChange={(event) =>
+                                            updateSelectedRegion((current) => ({
+                                              ...current,
+                                              items: current.items.map(
+                                                (candidate) =>
+                                                  candidate.packageMenuItemId ===
+                                                  item.packageMenuItemId
+                                                    ? {
+                                                        ...candidate,
+                                                        isAvailable:
+                                                          event.target.checked,
+                                                      }
+                                                    : candidate,
+                                              ),
+                                            }))
+                                          }
+                                        />
+                                      </label>
+                                    ))}
+                                  </div>
+                                </div>
+                              </section>
+                            ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
               </div>
             ) : (
               <div className="admin-card grid min-h-[420px] place-items-center text-center">
@@ -1647,6 +1956,7 @@ export default function AdminPackages() {
                     <option value="MEAL_BOX">Meal box</option>
                     <option value="FIXED_PACKAGE">Fixed package</option>
                     <option value="CUSTOM_PACKAGE">Custom package</option>
+                    <option value="ORDER_BY_KG">Order by KG</option>
                   </Select>
                 </Field>
                 <label className="flex items-center justify-between rounded-xl border px-3 py-2">
@@ -1721,54 +2031,67 @@ export default function AdminPackages() {
                       required
                     />
                   </Field>
-                  <Field label="Package price">
-                    <Input
-                      value={versionForm.basePricePerPlate}
-                      inputMode="decimal"
-                      placeholder="499.00"
-                      onBlur={(event) =>
-                        setVersionForm({
-                          ...versionForm,
-                          basePricePerPlate: formatMoney(event.target.value),
-                        })
-                      }
-                      onChange={(event) =>
-                        setVersionForm({
-                          ...versionForm,
-                          basePricePerPlate: event.target.value,
-                        })
-                      }
-                      required
-                    />
-                  </Field>
-                  <Field label="Minimum guests">
-                    <Input
-                      type="number"
-                      min={1}
-                      value={versionForm.minGuestCount}
-                      onChange={(event) =>
-                        setVersionForm({
-                          ...versionForm,
-                          minGuestCount: event.target.value,
-                        })
-                      }
-                      required
-                    />
-                  </Field>
-                  <Field label="Maximum guests" optional>
-                    <Input
-                      type="number"
-                      min={1}
-                      value={versionForm.maxGuestCount}
-                      onChange={(event) =>
-                        setVersionForm({
-                          ...versionForm,
-                          maxGuestCount: event.target.value,
-                        })
-                      }
-                      placeholder="No max"
-                    />
-                  </Field>
+                  {(dialogMode === 'create-package'
+                    ? packageForm.type
+                    : selectedPackage?.type) !== 'ORDER_BY_KG' ? (
+                    <>
+                      <Field label="Package price">
+                        <Input
+                          value={versionForm.basePricePerPlate}
+                          inputMode="decimal"
+                          placeholder="499.00"
+                          onBlur={(event) =>
+                            setVersionForm({
+                              ...versionForm,
+                              basePricePerPlate: formatMoney(
+                                event.target.value,
+                              ),
+                            })
+                          }
+                          onChange={(event) =>
+                            setVersionForm({
+                              ...versionForm,
+                              basePricePerPlate: event.target.value,
+                            })
+                          }
+                          required
+                        />
+                      </Field>
+                      <Field label="Minimum guests">
+                        <Input
+                          type="number"
+                          min={1}
+                          value={versionForm.minGuestCount}
+                          onChange={(event) =>
+                            setVersionForm({
+                              ...versionForm,
+                              minGuestCount: event.target.value,
+                            })
+                          }
+                          required
+                        />
+                      </Field>
+                      <Field label="Maximum guests" optional>
+                        <Input
+                          type="number"
+                          min={1}
+                          value={versionForm.maxGuestCount}
+                          onChange={(event) =>
+                            setVersionForm({
+                              ...versionForm,
+                              maxGuestCount: event.target.value,
+                            })
+                          }
+                          placeholder="No max"
+                        />
+                      </Field>
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Prices come from Menu items. Customers select 0.5–100 kg
+                      per dish in 0.5 kg increments.
+                    </p>
+                  )}
                 </div>
                 <label className="flex items-center justify-between rounded-xl border px-3 py-2">
                   <span className="font-medium">Published</span>

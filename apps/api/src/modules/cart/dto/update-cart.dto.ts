@@ -33,5 +33,10 @@ export class UpdateCartDto {
   @IsInt()
   @Min(0)
   helperCount?: number;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Matches(/^[6-9]\d{9}$/)
+  contactNumber?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(1000) specialNotes?: string;
 }

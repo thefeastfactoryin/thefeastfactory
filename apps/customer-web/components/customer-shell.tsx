@@ -9,6 +9,7 @@ import {
   Package,
   ShoppingBag,
   User,
+  Weight,
   X,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -36,6 +37,12 @@ const navLinks = [
     label: 'Meal Boxes',
     activeKey: '/packages/meal-boxes',
     icon: Package,
+  },
+  {
+    href: '/order-by-kg',
+    label: 'Order by KG',
+    activeKey: '/order-by-kg',
+    icon: Weight,
   },
   {
     href: '/orders',
@@ -132,14 +139,14 @@ export function CustomerShell({
             {/* Logo */}
             <Link
               href="/"
-              className="flex min-w-0 items-center gap-2.5 sm:gap-3"
+              className="flex shrink-0 items-center gap-2.5 sm:gap-3"
             >
               <img
                 src="/logo.png"
                 alt="The Feast Factory logo"
                 className="h-9 w-9 shrink-0 rounded-md object-cover shadow-[0_4px_12px_rgba(122,31,43,0.14)] sm:h-14 sm:w-14"
               />
-              <span className="flex min-w-0 flex-col">
+              <span className="hidden min-w-0 flex-col sm:flex">
                 <span className="block truncate whitespace-nowrap font-serif text-[13px] font-semibold leading-none tracking-normal text-primary sm:text-[22px]">
                   The Feast Factory
                 </span>
@@ -150,7 +157,10 @@ export function CustomerShell({
           </div>
 
           {/* Desktop nav */}
-          <nav className="hidden items-center gap-1 md:flex">
+          <nav
+            className="hidden items-center gap-1 xl:flex"
+            aria-label="Main navigation"
+          >
             {desktopLinks.map(({ href, label, activeKey }) => {
               const selfMatch =
                 activeKey === '/'
@@ -171,7 +181,7 @@ export function CustomerShell({
                   key={label}
                   href={href}
                   className={cn(
-                    'relative px-3 py-2 text-[13.5px] font-semibold tracking-[0.005em] transition-colors duration-250 ease-premium lg:px-3.5',
+                    'relative whitespace-nowrap px-2.5 py-2 text-[13.5px] font-semibold tracking-[0.005em] transition-colors duration-250 ease-premium 2xl:px-3.5',
                     active
                       ? 'text-primary after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-accent lg:after:inset-x-3.5'
                       : 'text-foreground/70 hover:text-foreground',
@@ -222,7 +232,7 @@ export function CustomerShell({
           <button
             type="button"
             onClick={() => setMobileMenuOpen((open) => !open)}
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-border bg-card text-primary transition-colors hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 md:hidden"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-border bg-card text-primary transition-colors hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 xl:hidden"
             aria-expanded={mobileMenuOpen}
             aria-controls="mobile-header-menu"
             aria-label={
@@ -240,7 +250,7 @@ export function CustomerShell({
         {mobileMenuOpen && (
           <nav
             id="mobile-header-menu"
-            className="grid grid-cols-2 gap-2 border-t border-border bg-white px-4 py-3 shadow-[0_12px_28px_rgba(45,31,20,0.08)] md:hidden"
+            className="grid grid-cols-2 gap-2 border-t border-border bg-white px-4 py-3 shadow-[0_12px_28px_rgba(45,31,20,0.08)] xl:hidden"
             aria-label="Expanded mobile navigation"
           >
             {desktopLinks.map(({ href, label, icon: Icon }) => (

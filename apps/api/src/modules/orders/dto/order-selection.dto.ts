@@ -7,6 +7,8 @@ import {
   IsOptional,
   IsUUID,
   Min,
+  Max,
+  IsDivisibleBy,
   ValidateNested,
 } from 'class-validator';
 import { SelectedItemRole } from '@prisma/client';
@@ -35,6 +37,14 @@ export class OrderSelectedItemDto {
   @IsInt()
   @Min(1)
   quantity?: number;
+
+  @ApiProperty({ type: Number, required: false, nullable: true, minimum: 500, maximum: 100000, multipleOf: 500 })
+  @IsOptional()
+  @IsInt()
+  @Min(500)
+  @Max(100000)
+  @IsDivisibleBy(500)
+  weightGrams?: number | null;
 }
 
 export class OrderSelectionDto {

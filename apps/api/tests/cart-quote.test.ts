@@ -18,6 +18,9 @@ test('adding the same package twice creates independent cart records', async () 
     },
   };
   const prisma = {
+    user: {
+      findUniqueOrThrow: async () => ({ mobileNumber: '9876543210' }),
+    },
     packageVersion: { findFirst: async () => packageVersion },
     cart: {
       create: async ({ data }: { data: Record<string, unknown> }) => ({
@@ -287,7 +290,7 @@ test('package quantities update independently within package limits', async () =
     id: 'cart-1',
     userId: 'user-1',
     packageVersionId: 'version-1',
-    packageVersion: { minGuestCount: 10, maxGuestCount: 50 },
+    packageVersion: { minGuestCount: 10, maxGuestCount: 50, package: { type: 'MEAL_BOX' } },
     items: [],
   };
   const prisma = {
@@ -385,6 +388,7 @@ test('batch checkout validates every cart before creating any order', async () =
     eventDate: new Date('2026-08-10T00:00:00.000Z'),
     eventTimeStart: new Date('1970-01-01T18:00:00.000Z'),
     guestCount: 20,
+    contactNumber: '9876543210',
     items: [],
   }));
   const prisma = {
@@ -434,6 +438,7 @@ test('batch checkout applies one trimmed kitchen instruction to every cart', asy
     eventDate: new Date('2026-08-10T00:00:00.000Z'),
     eventTimeStart: new Date('1970-01-01T18:00:00.000Z'),
     guestCount: 20,
+    contactNumber: '9876543210',
     items: [],
   }));
   let savedUpdate:

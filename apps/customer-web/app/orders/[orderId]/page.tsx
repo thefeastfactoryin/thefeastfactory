@@ -13,6 +13,7 @@ import {
   Download,
   MapPin,
   Package,
+  Phone,
   ReceiptText,
   Sparkles,
   Users,
@@ -151,8 +152,8 @@ export default function OrderPage() {
           <Fact icon={Package} label="Package" value={order.packageName} />
           <Fact
             icon={Users}
-            label="Guests / boxes"
-            value={String(order.guestCount)}
+            label={order.packageType === 'ORDER_BY_KG' ? 'Weight' : 'Guests / boxes'}
+            value={order.packageType === 'ORDER_BY_KG' ? `${order.selectedItems.reduce((sum, item) => sum + (item.weightGrams ?? 0), 0) / 1000} kg` : String(order.guestCount)}
           />
           <Fact icon={CalendarDays} label="Event date" value={eventDate} />
           <Fact
@@ -268,6 +269,10 @@ export default function OrderPage() {
                     {order.event.address.pincode}
                   </p>
                 )}
+                <p className="mt-3 flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <Phone className="h-4 w-4 text-primary" aria-hidden="true" />
+                  +91 {order.contactNumber}
+                </p>
               </section>
             )}
 
@@ -364,7 +369,7 @@ function MenuItemRow({
   guestCount,
 }: {
   item: OrderSelectedItem;
-  guestCount: number;
+  guestCount: number | null;
 }) {
   const role = roleCopy[item.role];
   const portions = item.role === 'EXTRA' ? item.quantity : guestCount;
@@ -390,11 +395,12 @@ function MenuItemRow({
           </span>
         </div>
         <p className="numeric-text mt-1 text-xs text-muted-foreground">
-          {portions} {portions === 1 ? 'portion' : 'portions'}
+          {item.weightGrams != null ? `${item.weightGrams / 1000} kg · ${formatCurrency(item.pricePerKg)} / kg` : `${portions} ${portions === 1 ? 'portion' : 'portions'}`}
           {item.replacedMenuItemName &&
             ` · replaces ${item.replacedMenuItemName}`}
         </p>
       </div>
+      {item.lineTotal && <span className="text-sm font-bold text-primary">{formatCurrency(item.lineTotal)}</span>}
       {item.role === 'EXTRA' && Number(item.totalAdjustmentAmount ?? 0) > 0 && (
         <span className="numeric-text shrink-0 text-sm font-bold text-primary">
           +{formatCurrency(item.totalAdjustmentAmount)}

@@ -20,6 +20,7 @@ import { UpdatePackageDto } from './dto/update-package.dto';
 import { UpdatePackageVersionDto } from './dto/update-package-version.dto';
 import { UpsertPackageMenuItemDto } from './dto/upsert-package-menu-item.dto';
 import { ReplacePackageCompositionDto } from './dto/replace-package-composition.dto';
+import { UpdatePackageRegionAvailabilityDto } from './dto/update-package-region-availability.dto';
 import { PackagesService } from './packages.service';
 
 @ApiTags('admin-packages')
@@ -58,6 +59,20 @@ export class AdminPackagesController {
   @Get('package-versions/:id/configuration')
   getVersionConfiguration(@Param('id') id: string) {
     return this.packages.getAdminConfiguration(id);
+  }
+
+  @Get('package-versions/:id/region-availability')
+  getRegionAvailability(@Param('id') id: string) {
+    return this.packages.getRegionAvailability(id);
+  }
+
+  @Put('package-versions/:id/region-availability/:regionId')
+  updateRegionAvailability(
+    @Param('id') id: string,
+    @Param('regionId') regionId: string,
+    @Body() dto: UpdatePackageRegionAvailabilityDto,
+  ) {
+    return this.packages.updateRegionAvailability(id, regionId, dto);
   }
 
   @Post('package-versions/:id/menu-items')

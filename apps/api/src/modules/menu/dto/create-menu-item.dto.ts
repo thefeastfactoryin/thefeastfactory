@@ -33,6 +33,11 @@ export class CreateMenuItemDto {
   @Matches(/^\d+(\.\d{1,2})?$/)
   generalPrice!: string;
 
+  @ApiPropertyOptional({ type: String, nullable: true, example: '400.00' })
+  @IsOptional()
+  @Matches(/^(?!0+(?:\.0{1,2})?$)\d{1,8}(?:\.\d{1,2})?$/)
+  pricePerKg?: string | null;
+
   @ApiPropertyOptional({ default: true })
   @IsOptional()
   @IsBoolean()

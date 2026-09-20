@@ -22,6 +22,7 @@ import { UpdatePackageVersionDto } from './dto/update-package-version.dto';
 import { UpsertPackageMenuItemDto } from './dto/upsert-package-menu-item.dto';
 import { ReplacePackageCompositionDto } from './dto/replace-package-composition.dto';
 import { PreviewPackageQuoteDto } from './dto/preview-package-quote.dto';
+import { UpdatePackageRegionAvailabilityDto } from './dto/update-package-region-availability.dto';
 
 type VersionConfiguration = Awaited<
   ReturnType<PackagesService['loadVersionConfiguration']>
@@ -47,10 +48,11 @@ export class PackagesService {
     private readonly pricing: PricingService,
   ) {}
 
-  async listPackages() {
+  async listPackages(regionId?: string) {
     const packages = await this.prisma.package.findMany({
       where: { isActive: true, deletedAt: null },
       include: {
+        regionAvailabilities: regionId ? { where: { regionId } } : false,
         versions: {
           where: { isActive: true, publishedAt: { not: null } },
           orderBy: { versionNo: 'desc' },
@@ -60,7 +62,13 @@ export class PackagesService {
       orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
     });
 
-    return packages.map((pkg) => ({
+    return packages
+      .filter(
+        (pkg) =>
+          !regionId ||
+          !(pkg.regionAvailabilities?.some((row) => !row.isAvailable) ?? false),
+      )
+      .map((pkg) => ({
       id: pkg.id,
       name: pkg.name,
       description: pkg.description,
@@ -74,7 +82,7 @@ export class PackagesService {
       activeVersion: pkg.versions[0]
         ? this.serializeVersion(pkg.versions[0])
         : null,
-    }));
+      }));
   }
 
   async getActiveVersion(packageId: string) {
@@ -98,9 +106,13 @@ export class PackagesService {
     };
   }
 
-  async getConfiguration(versionId: string) {
-    const version = await this.loadVersionConfiguration(versionId, true);
-    return this.serializeConfiguration(version, true);
+  async getConfiguration(versionId: string, regionId?: string) {
+    const version = await this.loadVersionConfiguration(
+      versionId,
+      true,
+      regionId,
+    );
+    return this.serializeConfiguration(version, true, regionId);
   }
 
   async previewQuote(versionId: string, dto: PreviewPackageQuoteDto) {
@@ -108,6 +120,7 @@ export class PackagesService {
       versionId,
       dto.guestCount,
       dto.selectedItems,
+      dto.regionId,
     );
     return { valid: true, errors: [], ...this.pricing.serialize(quote) };
   }
@@ -117,14 +130,125 @@ export class PackagesService {
     return this.serializeConfiguration(version, false);
   }
 
+  async getRegionAvailability(versionId: string) {
+    const version = await this.loadVersionConfiguration(versionId, false);
+    if (version.package.type !== PackageType.ORDER_BY_KG) {
+      throw new BadRequestException(
+        'Location availability is configured here only for Order by KG menus',
+      );
+    }
+    const regions = await this.prisma.operatingRegion.findMany({
+      orderBy: [{ publicDisplayOrder: 'asc' }, { name: 'asc' }],
+    });
+    const packageRows = await this.prisma.packageRegionAvailability.findMany({
+      where: { packageId: version.packageId },
+    });
+    const packageByRegion = new Map(
+      packageRows.map((row) => [row.regionId, row.isAvailable]),
+    );
+    const itemRows = version.packageMenuItems.filter(
+      (row) => row.role === PackageMenuItemRole.CUSTOM_SELECTABLE,
+    );
+    const overrides = await this.prisma.packageMenuItemRegionAvailability.findMany(
+      { where: { packageMenuItemId: { in: itemRows.map((row) => row.id) } } },
+    );
+    const availabilityByKey = new Map(
+      overrides.map((row) => [
+        `${row.regionId}:${row.packageMenuItemId}`,
+        row.isAvailable,
+      ]),
+    );
+    return regions.map((region) => ({
+      region: {
+        ...region,
+        centerLatitude: region.centerLatitude.toFixed(8),
+        centerLongitude: region.centerLongitude.toFixed(8),
+        serviceRadiusKm: region.serviceRadiusKm.toFixed(2),
+        deliveryFeePerKm: region.deliveryFeePerKm.toFixed(2),
+      },
+      isAvailable: packageByRegion.get(region.id) ?? true,
+      items: itemRows.map((row) => ({
+        packageMenuItemId: row.id,
+        menuItemId: row.menuItemId,
+        menuItemName: row.menuItem.name,
+        categoryName: row.category.name,
+        pricePerKg: row.menuItem.pricePerKg?.toFixed(2) ?? null,
+        isAvailable:
+          availabilityByKey.get(`${region.id}:${row.id}`) ?? true,
+      })),
+    }));
+  }
+
+  async updateRegionAvailability(
+    versionId: string,
+    regionId: string,
+    dto: UpdatePackageRegionAvailabilityDto,
+  ) {
+    const version = await this.loadVersionConfiguration(versionId, false);
+    if (version.package.type !== PackageType.ORDER_BY_KG) {
+      throw new BadRequestException(
+        'Location availability is supported only for Order by KG menus',
+      );
+    }
+    const region = await this.prisma.operatingRegion.findUnique({
+      where: { id: regionId },
+      select: { id: true },
+    });
+    if (!region) throw new NotFoundException('Operating region not found');
+    const allowedIds = new Set(version.packageMenuItems.map((row) => row.id));
+    if (dto.items.some((item) => !allowedIds.has(item.packageMenuItemId))) {
+      throw new BadRequestException(
+        'One or more dishes do not belong to this KG menu version',
+      );
+    }
+    await this.prisma.$transaction(async (tx) => {
+      await tx.packageRegionAvailability.upsert({
+        where: {
+          packageId_regionId: { packageId: version.packageId, regionId },
+        },
+        update: { isAvailable: dto.isAvailable },
+        create: {
+          packageId: version.packageId,
+          regionId,
+          isAvailable: dto.isAvailable,
+        },
+      });
+      for (const item of dto.items) {
+        await tx.packageMenuItemRegionAvailability.upsert({
+          where: {
+            packageMenuItemId_regionId: {
+              packageMenuItemId: item.packageMenuItemId,
+              regionId,
+            },
+          },
+          update: { isAvailable: item.isAvailable },
+          create: {
+            packageMenuItemId: item.packageMenuItemId,
+            regionId,
+            isAvailable: item.isAvailable,
+          },
+        });
+      }
+    });
+    return this.getRegionAvailability(versionId);
+  }
+
   async validateSelection(versionId: string, dto: PackageSelectionDto) {
     const version = await this.loadVersionConfiguration(versionId, true);
+    if (version.package.type === PackageType.ORDER_BY_KG) {
+      const quote = await this.pricing.quote(versionId, 1, dto.selectedItems);
+      return { valid: true, errors: [], ...this.pricing.serialize(quote) };
+    }
     const result = await this.evaluateSelection(version, dto);
     return { valid: result.errors.length === 0, errors: result.errors };
   }
 
   async priceSelection(versionId: string, dto: PackageSelectionDto) {
     const version = await this.loadVersionConfiguration(versionId, true);
+    if (version.package.type === PackageType.ORDER_BY_KG) {
+      const quote = await this.pricing.quote(versionId, 1, dto.selectedItems);
+      return { valid: true, errors: [], ...this.pricing.serialize(quote) };
+    }
     const result = await this.evaluateSelection(version, dto);
     const totalCustomizationCharges = result.items.reduce(
       (total, item) => total.plus(item.adjustmentAmount),
@@ -167,7 +291,10 @@ export class PackagesService {
   }
 
   async updatePackage(id: string, dto: UpdatePackageDto) {
-    await this.assertPackage(id);
+    const current = await this.assertPackage(id);
+    if (dto.type && dto.type !== current.type && (dto.type === PackageType.ORDER_BY_KG || current.type === PackageType.ORDER_BY_KG)) {
+      throw new BadRequestException('Create a new package to change between kg and per-person ordering');
+    }
     return this.prisma.package.update({
       where: { id },
       data: {
@@ -195,7 +322,8 @@ export class PackagesService {
   }
 
   async createVersion(packageId: string, dto: CreatePackageVersionDto) {
-    await this.assertPackage(packageId);
+    const pkg = await this.assertPackage(packageId);
+    if (pkg.type === PackageType.ORDER_BY_KG) dto = { ...dto, basePricePerPlate: '0', minGuestCount: 1, maxGuestCount: null };
     this.assertGuestRange(dto.minGuestCount ?? 10, dto.maxGuestCount);
     const version = await this.prisma.packageVersion.create({
       data: {
@@ -218,6 +346,8 @@ export class PackagesService {
 
   async updateVersion(id: string, dto: UpdatePackageVersionDto) {
     const current = await this.assertVersion(id);
+    const pkg = await this.assertPackage(current.packageId);
+    if (pkg.type === PackageType.ORDER_BY_KG) dto = { ...dto, basePricePerPlate: '0', minGuestCount: 1, maxGuestCount: null };
     this.assertGuestRange(
       dto.minGuestCount ?? current.minGuestCount,
       dto.maxGuestCount === undefined
@@ -254,7 +384,11 @@ export class PackagesService {
   }
 
   async upsertMenuItem(versionId: string, dto: UpsertPackageMenuItemDto) {
-    await this.assertVersion(versionId);
+    const version = await this.assertVersion(versionId);
+    const pkg = await this.assertPackage(version.packageId);
+    if (pkg.type === PackageType.ORDER_BY_KG && (dto.role !== PackageMenuItemRole.CUSTOM_SELECTABLE || dto.isSwappable)) {
+      throw new BadRequestException('Kg dishes must be selectable without swaps');
+    }
     const item = await this.prisma.menuItem.findFirst({
       where: {
         id: dto.menuItemId,
@@ -375,6 +509,7 @@ export class PackagesService {
   private async loadVersionConfiguration(
     versionId: string,
     publicOnly: boolean,
+    regionId?: string,
   ) {
     const version = await this.prisma.packageVersion.findFirst({
       where: {
@@ -388,7 +523,13 @@ export class PackagesService {
           : {}),
       },
       include: {
-        package: true,
+        package: {
+          include: {
+            regionAvailabilities: regionId
+              ? { where: { regionId } }
+              : false,
+          },
+        },
         packageMenuItems: {
           where: publicOnly
             ? {
@@ -396,19 +537,47 @@ export class PackagesService {
                 menuItem: { isActive: true, deletedAt: null },
               }
             : {},
-          include: { menuItem: true, category: true },
+          include: {
+            menuItem: true,
+            category: true,
+            regionAvailabilities: regionId
+              ? { where: { regionId } }
+              : false,
+          },
           orderBy: [{ displayOrder: 'asc' }, { menuItem: { name: 'asc' } }],
         },
       },
     });
     if (!version) throw new NotFoundException('Package version not found');
+    if (
+      publicOnly &&
+      regionId &&
+      version.package.regionAvailabilities?.some((row) => !row.isAvailable)
+    ) {
+      throw new NotFoundException(
+        'Order by KG is currently unavailable at this location',
+      );
+    }
     return version;
   }
 
   private async serializeConfiguration(
     version: VersionConfiguration,
     publicOnly: boolean,
+    regionId?: string,
   ) {
+    const availableVersion =
+      publicOnly && regionId
+        ? {
+            ...version,
+            packageMenuItems: version.packageMenuItems.filter(
+              (row) =>
+                !row.regionAvailabilities?.some(
+                  (availability) => !availability.isAvailable,
+                ),
+            ),
+          }
+        : version;
     return {
       id: version.id,
       packageId: version.packageId,
@@ -419,7 +588,9 @@ export class PackagesService {
       basePricePerPlate: version.basePricePerPlate.toFixed(2),
       minGuestCount: version.minGuestCount,
       maxGuestCount: version.maxGuestCount,
-      categoryRules: !publicOnly
+      categoryRules: publicOnly && version.package.type === PackageType.ORDER_BY_KG
+        ? this.configuredCategoryRules({ ...availableVersion, packageMenuItems: availableVersion.packageMenuItems.filter((row) => row.category.isActive && row.menuItem.pricePerKg?.greaterThan(0)) })
+        : !publicOnly
         ? this.configuredCategoryRules(version)
         : version.package.type === PackageType.CUSTOM_PACKAGE
           ? await this.customCategoryRules(version, publicOnly)
@@ -443,7 +614,7 @@ export class PackagesService {
             PackageMenuItemRole.INCLUDED,
             PackageMenuItemRole.EXTRA,
           ])
-        : version.package.type === PackageType.CUSTOM_PACKAGE
+        : (version.package.type === PackageType.CUSTOM_PACKAGE || version.package.type === PackageType.ORDER_BY_KG)
           ? new Set<PackageMenuItemRole>([
               PackageMenuItemRole.CUSTOM_SELECTABLE,
             ])
@@ -661,6 +832,7 @@ export class PackagesService {
       description: string | null;
       boxPrice: Prisma.Decimal;
       generalPrice: Prisma.Decimal;
+      pricePerKg?: Prisma.Decimal | null;
       isVeg: boolean;
       isActive: boolean;
       imageUrl: string | null;
@@ -693,6 +865,7 @@ export class PackagesService {
       isAvailable: item.isActive,
       boxPrice: item.boxPrice.toFixed(2),
       generalPrice: item.generalPrice.toFixed(2),
+      pricePerKg: item.pricePerKg?.toFixed(2) ?? null,
       itemPrice: itemPrice.toFixed(2),
       includedValue: includedValue.toFixed(2),
       adjustmentAmount: adjustmentAmount.toFixed(2),
@@ -984,10 +1157,17 @@ export class PackagesService {
       where: { id },
       include: {
         package: true,
-        packageMenuItems: { where: { isAvailable: true } },
+        packageMenuItems: { where: { isAvailable: true }, include: { menuItem: true, category: true } },
       },
     });
     if (!version) throw new NotFoundException('Package version not found');
+    if (version.package.type === PackageType.ORDER_BY_KG) {
+      if (!basePrice.isZero()) throw new BadRequestException('Kg packages have no base price');
+      const rows = version.packageMenuItems;
+      if (!rows.length || rows.some((row) => row.role !== PackageMenuItemRole.CUSTOM_SELECTABLE || !row.category.isActive || !row.menuItem.isActive || row.menuItem.deletedAt || !row.menuItem.pricePerKg?.greaterThan(0))) {
+        throw new BadRequestException('Kg packages require active selectable dishes with a positive price per kg');
+      }
+    }
     const roles = new Set(version.packageMenuItems.map((row) => row.role));
     if (
       version.package.type === PackageType.MEAL_BOX &&
