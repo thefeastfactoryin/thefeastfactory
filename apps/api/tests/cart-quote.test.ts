@@ -250,6 +250,29 @@ test('cart quote combines menu subtotal and delivery fee', async () => {
   assert.equal(quote.billableDistanceKm, 22);
 });
 
+test('multi-package quote charges the highest delivery fee only once', async () => {
+  const carts = [{ id: 'cart-1' }, { id: 'cart-2' }];
+  const prisma = {
+    cart: { findMany: async () => carts },
+  };
+  const service = new CartService(
+    prisma as never,
+    {} as never,
+    {} as never,
+    {} as never,
+  );
+  service.quote = async (_userId, cartId) => ({
+    subtotalAmount: cartId === 'cart-1' ? '1000.00' : '1500.00',
+    deliveryFee: cartId === 'cart-1' ? '220.00' : '200.00',
+  }) as never;
+
+  const quote = await service.quoteAll('user-1');
+
+  assert.equal(quote.subtotalAmount, '2500.00');
+  assert.equal(quote.deliveryFee, '220.00');
+  assert.equal(quote.totalAmount, '2720.00');
+});
+
 test('removing an active package cart leaves other deliveries unchanged', async () => {
   const calls: string[] = [];
   const prisma = {
@@ -447,7 +470,10 @@ test('batch checkout applies one trimmed kitchen instruction to every cart', asy
         data: { specialNotes: string | null };
       }
     | undefined;
-  const checkedOutCartIds: string[] = [];
+  const checkedOutCarts: Array<{
+    cartId: string;
+    deliveryFee: string | undefined;
+  }> = [];
   const prisma = {
     cart: {
       findMany: async () => carts,
@@ -463,9 +489,15 @@ test('batch checkout applies one trimmed kitchen instruction to every cart', asy
     {} as never,
     {} as never,
   );
-  service.quote = async () => ({ valid: true }) as never;
-  service.checkout = async (_userId, cartId) => {
-    checkedOutCartIds.push(cartId);
+  service.quote = async (_userId, cartId) => ({
+    valid: true,
+    deliveryFee: cartId === 'cart-1' ? '220.00' : '200.00',
+  }) as never;
+  service.checkout = async (_userId, cartId, _batchId, deliveryFee) => {
+    checkedOutCarts.push({
+      cartId,
+      deliveryFee: deliveryFee?.toFixed(2),
+    });
     return { id: `order-${cartId}` } as never;
   };
 
@@ -479,7 +511,10 @@ test('batch checkout applies one trimmed kitchen instruction to every cart', asy
     },
     data: { specialNotes: 'Keep the food mildly spiced.' },
   });
-  assert.deepEqual(checkedOutCartIds, ['cart-1', 'cart-2']);
+  assert.deepEqual(checkedOutCarts, [
+    { cartId: 'cart-1', deliveryFee: '220.00' },
+    { cartId: 'cart-2', deliveryFee: '0.00' },
+  ]);
 });
 
 test('active cart queries exclude expired carts while allowing legacy null expiry', async () => {

@@ -372,10 +372,7 @@ export class CartService {
       (sum, quote) => sum.plus(quote.subtotalAmount),
       new Prisma.Decimal(0),
     );
-    const deliveryFee = quotes.reduce(
-      (sum, quote) => sum.plus(quote.deliveryFee),
-      new Prisma.Decimal(0),
-    );
+    const deliveryFee = this.batchDeliveryFee(quotes);
     return {
       valid: true,
       carts: carts.map((cart, index) => ({
@@ -416,18 +413,35 @@ export class CartService {
     // Validate the full batch before creating the first order. Without this
     // preflight, a stale or invalid later cart could leave an earlier cart in
     // PENDING_PAYMENT with no complete payment batch to resume.
-    await Promise.all(carts.map((cart) => this.quote(userId, cart.id)));
+    const quotes = await Promise.all(
+      carts.map((cart) => this.quote(userId, cart.id)),
+    );
     await this.saveCheckoutInstructions(
       userId,
       carts.map((cart) => cart.id),
       specialNotes,
     );
     const checkoutBatchId = randomUUID();
+    const deliveryFee = this.batchDeliveryFee(quotes);
     const orders = [];
-    for (const cart of carts) {
-      orders.push(await this.checkout(userId, cart.id, checkoutBatchId));
+    for (const [index, cart] of carts.entries()) {
+      orders.push(
+        await this.checkout(
+          userId,
+          cart.id,
+          checkoutBatchId,
+          index === 0 ? deliveryFee : new Prisma.Decimal(0),
+        ),
+      );
     }
     return orders;
+  }
+
+  private batchDeliveryFee(quotes: Array<{ deliveryFee: string }>) {
+    return quotes.reduce((highest, quote) => {
+      const fee = new Prisma.Decimal(quote.deliveryFee);
+      return fee.greaterThan(highest) ? fee : highest;
+    }, new Prisma.Decimal(0));
   }
 
   private async saveCheckoutInstructions(
@@ -582,7 +596,12 @@ export class CartService {
     };
   }
 
-  async checkout(userId: string, id: string, checkoutBatchId?: string) {
+  async checkout(
+    userId: string,
+    id: string,
+    checkoutBatchId?: string,
+    deliveryFeeOverride?: Prisma.Decimal,
+  ) {
     const cart = await this.assertActiveCart(userId, id);
     if (
       !cart.addressId ||
@@ -609,6 +628,7 @@ export class CartService {
       },
       cart.id,
       checkoutBatchId,
+      deliveryFeeOverride,
     );
     await this.prisma.cart.update({
       where: { id },

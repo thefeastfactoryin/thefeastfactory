@@ -9,6 +9,7 @@ import {
   OrderStatus,
   PackageMenuItemRole,
   PackageType,
+  Prisma,
   SelectedItemRole,
 } from '@prisma/client';
 import type {
@@ -50,6 +51,7 @@ export class OrdersService {
     dto: OrderSelectionDto,
     cartId: string,
     checkoutBatchId?: string,
+    deliveryFeeOverride?: Prisma.Decimal,
   ) {
     const cart = await this.prisma.cart.findFirst({
       where: { id: cartId, userId, status: CartStatus.ACTIVE },
@@ -85,7 +87,8 @@ export class OrdersService {
       dto.selectedItems,
       assignment.region.id,
     );
-    const totalAmount = menuQuote.totalAmount.plus(assignment.deliveryFee);
+    const deliveryFee = deliveryFeeOverride ?? assignment.deliveryFee;
+    const totalAmount = menuQuote.totalAmount.plus(deliveryFee);
     const eventDate = cart.eventDate;
     const addressId = cart.addressId!;
     const eventInstant = storedEventInstant(eventDate, cart.eventTimeStart);
@@ -116,7 +119,7 @@ export class OrdersService {
           distanceKm: assignment.distanceKm,
           deliveryServiceType: assignment.deliveryServiceType,
           helperCount: assignment.helperCount,
-          deliveryFee: assignment.deliveryFee,
+          deliveryFee,
           packageName: menuQuote.packageName,
           packageVersionNo: menuQuote.packageVersionNo,
           orderStatus: OrderStatus.PENDING_PAYMENT,

@@ -99,9 +99,9 @@ function withoutCartQuote(
     (sum, entry) => sum + Number(entry.quote.subtotalAmount),
     0,
   );
-  const delivery = carts.reduce(
-    (sum, entry) => sum + Number(entry.quote.deliveryFee),
+  const delivery = Math.max(
     0,
+    ...carts.map((entry) => Number(entry.quote.deliveryFee)),
   );
   return {
     ...aggregate,
