@@ -262,34 +262,41 @@ export function KgOrderBuilder() {
     quote?.items.map((item) => [item.menuItemId, item]) ?? [],
   );
   return (
-    <main className="bg-ivory pb-10">
-      <section className="bg-primary px-3 py-3 text-white sm:px-5 sm:py-5 lg:px-8">
-        <div className="relative mx-auto min-h-[310px] max-w-[1440px] overflow-hidden rounded-[22px] sm:min-h-[340px] lg:min-h-[390px] lg:rounded-[28px]">
-          <img
-            src={orderByKgImage}
-            alt="Indian dishes prepared in bulk beside a weighing scale"
-            className="absolute inset-0 h-full w-full object-cover object-[62%_center] sm:object-center"
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#3f0812]/95 via-[#3f0812]/75 to-[#3f0812]/10 sm:via-[#3f0812]/60 lg:via-[#3f0812]/35" />
-          <div className="relative flex min-h-[310px] max-w-2xl flex-col justify-end px-5 py-6 sm:min-h-[340px] sm:px-8 sm:py-8 lg:min-h-[390px] lg:px-12">
+    <main className="min-h-screen overflow-x-clip bg-background pb-10 [font-family:var(--font-package-sans),sans-serif]">
+      <section className="relative isolate overflow-hidden border-b bg-hero-end text-white">
+        <img
+          src={orderByKgImage}
+          alt="Indian dishes prepared in bulk beside a weighing scale"
+          className="absolute inset-0 -z-20 h-full w-full object-cover object-[62%_center] sm:object-center"
+        />
+        <div className="absolute inset-0 -z-10 bg-[linear-gradient(90deg,hsl(var(--hero-end)/0.99)_0%,hsl(var(--hero-start)/0.94)_40%,hsl(var(--hero-start)/0.30)_72%,rgba(0,0,0,0.08)_100%)]" />
+        <div className="container-pad flex min-h-[238px] items-center py-5 sm:min-h-[330px] sm:py-7 lg:min-h-[360px] lg:px-16 lg:py-9">
+          <div className="max-w-[620px]">
             <p className="flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[0.18em] text-accent sm:text-xs">
               <Sparkles className="h-4 w-4" aria-hidden="true" /> Flexible bulk
               catering
             </p>
-            <h1 className="mt-2 max-w-xl font-serif text-[34px] font-bold leading-[1.05] sm:text-5xl lg:text-6xl">
-              Your favourites, by the kilo
+            <h1 className="mt-2 font-serif text-[36px] font-bold leading-[0.95] tracking-tight text-white sm:text-[54px] lg:text-[64px]">
+              Your favourites,{' '}
+              <span className="text-accent">by the kilo</span>
             </h1>
-            <p className="mt-3 max-w-lg text-sm leading-6 text-white/85 sm:text-base">
+            <p className="mt-3 hidden max-w-[520px] text-base font-semibold leading-6 text-white/85 sm:block sm:text-lg">
               Choose your dishes and set the right quantity in easy 0.5 kg
               steps, with live itemised pricing.
             </p>
-            <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-semibold text-white/90 sm:text-xs">
-              <span className="rounded-full border border-white/20 bg-black/20 px-3 py-1.5 backdrop-blur-sm">
-                0.5 kg minimum
-              </span>
-              <span className="rounded-full border border-white/20 bg-black/20 px-3 py-1.5 backdrop-blur-sm">
-                Kitchen-specific menu
-              </span>
+            <div className="mt-4 grid max-w-[400px] grid-cols-2 gap-1.5 sm:mt-5 sm:gap-2">
+              {['0.5 kg minimum', 'Kitchen-specific menu'].map((label) => (
+                <div
+                  key={label}
+                  className="flex min-h-10 items-center rounded-xl border border-white/10 bg-black/15 px-2.5 py-1.5 text-[11px] font-extrabold text-white backdrop-blur-sm sm:min-h-11 sm:px-3"
+                >
+                  <Sparkles
+                    className="mr-2 h-[18px] w-[18px] shrink-0 text-accent"
+                    aria-hidden="true"
+                  />
+                  {label}
+                </div>
+              ))}
             </div>
           </div>
         </div>
