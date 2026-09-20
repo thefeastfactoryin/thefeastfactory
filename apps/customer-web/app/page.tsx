@@ -335,7 +335,7 @@ export default function HomePage() {
                     alt={`${offering.title} catering presentation`}
                     className="h-full w-full object-cover transition-transform duration-500 ease-premium group-hover:scale-[1.035] motion-reduce:transition-none"
                   />
-                  <span className="absolute left-4 top-4 rounded-full bg-white/95 px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.12em] text-primary shadow-sm">
+                  {/* <span className="absolute left-4 top-4 rounded-full bg-white/95 px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.12em] text-primary shadow-sm">
                     {offering.code === 'MEAL_BOX'
                       ? 'Easy group meals'
                       : offering.code === 'PACKAGES'
@@ -343,7 +343,7 @@ export default function HomePage() {
                         : offering.code === 'ORDER_BY_KG'
                           ? 'Bulk food, simple ordering'
                           : 'Create your own menu'}
-                  </span>
+                  </span> */}
                 </div>
                 <div className="relative flex min-h-[142px] flex-1 flex-col px-5 pb-5 pt-7 lg:px-6 lg:pb-6">
                   <span className="absolute -top-5 left-5 grid h-11 w-11 place-items-center rounded-full border border-border bg-ivory text-primary shadow-sm lg:left-6">
