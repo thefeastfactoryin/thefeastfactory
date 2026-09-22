@@ -1,6 +1,7 @@
 'use client';
 import type { IntegrationReadiness } from '@aranyam/shared-types';
 import { useEffect, useState } from 'react';
+import { AdminPageHeader } from '../../../components/admin-page-header';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { apiRequest } from '../../../lib/api';
@@ -66,6 +67,7 @@ type PlatformSetting = { key: string; value: string };
 export default function Settings() {
   const session = useAdminSessionStore((state) => state.session);
   const [values, setValues] = useState<Record<string, string>>({});
+  const [savedValues, setSavedValues] = useState<Record<string, string>>({});
   const [readiness, setReadiness] = useState<IntegrationReadiness>();
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -79,14 +81,16 @@ export default function Settings() {
         {},
         session.accessToken,
       ),
-    ]).then(([settings, nextReadiness]) => {
-      setValues(
-        Object.fromEntries(
+    ])
+      .then(([settings, nextReadiness]) => {
+        const nextValues = Object.fromEntries(
           settings.map((setting) => [setting.key, setting.value]),
-        ),
-      );
-      setReadiness(nextReadiness);
-    });
+        );
+        setValues(nextValues);
+        setSavedValues(nextValues);
+        setReadiness(nextReadiness);
+      })
+      .catch((reason) => setError((reason as Error).message));
   }, [session]);
   async function save(event: React.FormEvent) {
     event.preventDefault();
@@ -96,144 +100,169 @@ export default function Settings() {
     setError('');
     try {
       await apiRequest(
-      '/admin/settings',
-      {
-        method: 'PATCH',
-        body: JSON.stringify({
-          settings: Object.entries(values)
-            .filter(
-              ([key]) =>
-                businessKeys.includes(key) ||
-                operationalSettings.some((setting) => setting.key === key),
-            )
-            .map(([key, value]) => ({ key, value })),
-        }),
-      },
+        '/admin/settings',
+        {
+          method: 'PATCH',
+          body: JSON.stringify({
+            settings: Object.entries(values)
+              .filter(
+                ([key]) =>
+                  businessKeys.includes(key) ||
+                  operationalSettings.some((setting) => setting.key === key),
+              )
+              .map(([key, value]) => ({ key, value })),
+          }),
+        },
         session.accessToken,
       );
       setMessage('Settings saved.');
+      setSavedValues(values);
     } catch (reason) {
       setError((reason as Error).message);
     } finally {
       setSaving(false);
     }
   }
+
+  const hasChanges = JSON.stringify(values) !== JSON.stringify(savedValues);
+
+  function updateValue(key: string, value: string) {
+    setValues((current) => ({ ...current, [key]: value }));
+    setMessage('');
+    setError('');
+  }
+
+  function readinessLabel(
+    value: IntegrationReadiness[keyof IntegrationReadiness],
+  ) {
+    if (value === true) return 'Configured';
+    if (value === false) return 'Not configured';
+    if (value === 'configured-client-side') return 'Client configured';
+    if (value === 'deferred') return 'Planned later';
+    return String(value);
+  }
+
   return (
     <main className="admin-page">
-      <p className="text-sm font-semibold uppercase tracking-[0.18em] text-primary">
-        Configuration
-      </p>
-      <h1 className="admin-title mt-2">Platform settings</h1>
-      <div className="mt-7 grid gap-6 xl:grid-cols-[1fr_.7fr]">
-        <form onSubmit={save} className="admin-card">
-          <h2 className="text-xl font-semibold">Business and invoice data</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            GST invoices remain unavailable until legal name, address, GSTIN,
-            and state code are complete.
-          </p>
-          <div className="mt-5 grid gap-4 md:grid-cols-2">
-            {businessKeys.map((key) => (
-              <label
-                key={key}
-                className={
-                  key.includes('address') || key.includes('footer')
-                    ? 'md:col-span-2'
-                    : ''
-                }
-              >
-                <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  {key.replaceAll('_', ' ')}
-                </span>
-                <Input
-                  value={values[key] || ''}
-                  onChange={(event) =>
-                    setValues((current) => ({
-                      ...current,
-                      [key]: event.target.value,
-                    }))
-                  }
-                />
-              </label>
-            ))}
-          </div>
-          {message && (
-            <p className="mt-4 text-sm text-emerald-700">{message}</p>
-          )}
-          {error && <p className="mt-4 text-sm text-red-700">{error}</p>}
-          <Button className="mt-5" disabled={saving}>
-            {saving ? 'Saving…' : 'Save settings'}
-          </Button>
-        </form>
-        <aside className="space-y-6">
+      <AdminPageHeader
+        eyebrow="Configuration"
+        title="Platform settings"
+        description="Maintain legal details, booking rules, and integration readiness from one place."
+      />
+      <form id="platform-settings-form" onSubmit={save}>
+        <div className="mt-5 grid gap-6 xl:grid-cols-[1fr_.7fr]">
           <section className="admin-card">
-            <h2 className="text-xl font-semibold">Integration readiness</h2>
+            <h2 className="text-xl font-semibold">Business and invoice data</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Provider credentials are deployment secrets. Image storage uses
-              Cloudflare R2 when configured and local disk only in development.
+              GST invoices remain unavailable until legal name, address, GSTIN,
+              and state code are complete.
             </p>
-            <div className="mt-4 space-y-3">
-              {readiness &&
-                Object.entries(readiness).map(([key, value]) => (
-                  <div
-                    key={key}
-                    className="flex items-center justify-between rounded-xl border p-3"
-                  >
-                    <span className="capitalize">
-                      {key.replaceAll(/([A-Z])/g, ' $1')}
-                    </span>
-                    <span
-                      className={
-                        value === true || value === 'configured-client-side'
-                          ? 'text-emerald-700'
-                          : value === 'deferred'
-                            ? 'text-muted-foreground'
-                            : 'text-amber-700'
-                      }
-                    >
-                      {value === true
-                        ? 'Configured'
-                        : value === false
-                          ? 'Not configured'
-                          : String(value)}
-                    </span>
-                  </div>
-                ))}
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+              {businessKeys.map((key) => (
+                <label
+                  key={key}
+                  className={
+                    key.includes('address') || key.includes('footer')
+                      ? 'md:col-span-2'
+                      : ''
+                  }
+                >
+                  <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {key.replaceAll('_', ' ')}
+                  </span>
+                  <Input
+                    value={values[key] || ''}
+                    onChange={(event) => updateValue(key, event.target.value)}
+                  />
+                </label>
+              ))}
             </div>
           </section>
-          <section className="admin-card">
-            <h2 className="text-xl font-semibold">Operational defaults</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              These values are read from the database by booking,
-              authentication, and payment flows.
+          <aside className="space-y-6">
+            <section className="admin-card">
+              <h2 className="text-xl font-semibold">Integration readiness</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Provider credentials are deployment secrets. Image storage uses
+                Cloudflare R2 when configured and local disk only in
+                development.
+              </p>
+              <div className="mt-4 space-y-3">
+                {readiness &&
+                  Object.entries(readiness).map(([key, value]) => (
+                    <div
+                      key={key}
+                      className="flex items-center justify-between rounded-xl border p-3"
+                    >
+                      <span className="capitalize">
+                        {key.replaceAll(/([A-Z])/g, ' $1')}
+                      </span>
+                      <span
+                        className={
+                          value === true || value === 'configured-client-side'
+                            ? 'text-emerald-700'
+                            : value === 'deferred'
+                              ? 'text-muted-foreground'
+                              : 'text-amber-700'
+                        }
+                      >
+                        {readinessLabel(value)}
+                      </span>
+                    </div>
+                  ))}
+              </div>
+            </section>
+            <section className="admin-card">
+              <h2 className="text-xl font-semibold">Operational defaults</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                These values are read from the database by booking,
+                authentication, and payment flows.
+              </p>
+              {operationalSettings.map((setting) => (
+                <label key={setting.key} className="mt-3 block">
+                  <span className="mb-1 block text-xs font-semibold uppercase text-muted-foreground">
+                    {setting.label}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type={setting.type}
+                      min={'min' in setting ? setting.min : undefined}
+                      value={values[setting.key] || ''}
+                      onChange={(event) =>
+                        updateValue(setting.key, event.target.value)
+                      }
+                    />
+                    {'suffix' in setting && (
+                      <span className="text-xs text-muted-foreground">
+                        {setting.suffix}
+                      </span>
+                    )}
+                  </div>
+                </label>
+              ))}
+            </section>
+          </aside>
+        </div>
+        <div
+          className="sticky bottom-3 z-20 mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-white/95 p-3 shadow-xl backdrop-blur"
+          aria-live="polite"
+        >
+          <div>
+            <p className="text-sm font-semibold">
+              {hasChanges ? 'Unsaved settings' : 'All settings saved'}
             </p>
-            {operationalSettings.map((setting) => (
-              <label key={setting.key} className="mt-3 block">
-                <span className="mb-1 block text-xs font-semibold uppercase text-muted-foreground">
-                  {setting.label}
-                </span>
-                <div className="flex items-center gap-2">
-                  <Input
-                    type={setting.type}
-                    min={'min' in setting ? setting.min : undefined}
-                    value={values[setting.key] || ''}
-                    onChange={(event) =>
-                      setValues((current) => ({
-                        ...current,
-                        [setting.key]: event.target.value,
-                      }))
-                    }
-                  />
-                  {'suffix' in setting && (
-                    <span className="text-xs text-muted-foreground">
-                      {setting.suffix}
-                    </span>
-                  )}
-                </div>
-              </label>
-            ))}
-          </section>
-        </aside>
-      </div>
+            {(message || error) && (
+              <p
+                className={`mt-0.5 text-xs ${error ? 'text-red-700' : 'text-emerald-700'}`}
+              >
+                {error || message}
+              </p>
+            )}
+          </div>
+          <Button disabled={saving || !hasChanges}>
+            {saving ? 'Saving…' : 'Save all settings'}
+          </Button>
+        </div>
+      </form>
     </main>
   );
 }

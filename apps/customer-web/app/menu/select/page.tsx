@@ -1309,19 +1309,27 @@ function SwapDrawer({
   const selected =
     alternatives.find((item) => item.id === pendingSwapId) ?? original;
   return (
-    <div className="fixed inset-0 z-[60] bg-slate-950/45 lg:grid lg:justify-items-end">
+    <div className="fixed inset-0 z-[80] bg-slate-950/45 lg:grid lg:justify-items-end">
       <button
         type="button"
         className="absolute inset-0"
         onClick={onCancel}
         aria-label="Close swap options"
       />
-      <section className="relative ml-auto flex h-[100dvh] min-h-0 w-full flex-col overflow-hidden bg-ivory shadow-2xl sm:max-w-[520px]">
+      <section
+        className="relative ml-auto flex h-[100dvh] min-h-0 w-full flex-col overflow-hidden bg-ivory shadow-2xl sm:max-w-[520px]"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="swap-drawer-title"
+      >
         <div className="shrink-0 border-b border-border/80 bg-white px-5 py-4">
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="eyebrow text-primary">Swap item</p>
-              <h2 className="mt-1 font-serif text-2xl font-semibold text-charcoal">
+              <h2
+                id="swap-drawer-title"
+                className="mt-1 font-serif text-2xl font-semibold text-charcoal"
+              >
                 Choose replacement
               </h2>
             </div>
@@ -1759,14 +1767,19 @@ function MobileSheet({
   children: ReactNode;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end bg-slate-950/50 lg:hidden">
+    <div className="fixed inset-0 z-[80] flex items-end bg-slate-950/50 lg:hidden">
       <button
         type="button"
         className="absolute inset-0"
         onClick={onClose}
         aria-label={`Dismiss ${title}`}
       />
-      <section className="relative max-h-[86vh] w-full overflow-y-auto rounded-t-3xl bg-ivory p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl sm:p-5">
+      <section
+        className="relative max-h-[86vh] w-full overflow-y-auto rounded-t-3xl bg-ivory p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl sm:p-5"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+      >
         <div className="flex items-center justify-between border-b pb-4">
           <h2 className="min-w-0 truncate font-serif text-2xl font-semibold">
             {title}
@@ -1800,14 +1813,19 @@ function ItemDetails({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 grid place-items-end bg-slate-950/55 p-0 backdrop-blur-sm sm:place-items-center sm:p-4">
+    <div className="fixed inset-0 z-[80] grid place-items-end bg-slate-950/55 p-0 backdrop-blur-sm sm:place-items-center sm:p-4">
       <button
         type="button"
         className="absolute inset-0"
         onClick={onClose}
         aria-label="Close dish details"
       />
-      <section className="relative max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-3xl bg-white shadow-2xl sm:grid sm:max-h-[90vh] sm:grid-cols-[.9fr_1.1fr] sm:rounded-2xl">
+      <section
+        className="relative max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-3xl bg-white shadow-2xl sm:grid sm:max-h-[90vh] sm:grid-cols-[.9fr_1.1fr] sm:rounded-2xl"
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${detail.item.name} details`}
+      >
         <div className="min-h-44 bg-muted sm:min-h-56">
           <DataImage
             src={detail.item.imageUrl}

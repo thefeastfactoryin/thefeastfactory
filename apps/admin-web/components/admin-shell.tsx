@@ -61,6 +61,20 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => setMobileNavOpen(false), [pathname]);
 
+  useEffect(() => {
+    if (!mobileNavOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMobileNavOpen(false);
+    };
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [mobileNavOpen]);
+
   if (isLogin) return <>{children}</>;
   if (!hasHydrated || !session) {
     return (
@@ -205,7 +219,12 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             className="absolute inset-0 bg-black/35"
             onClick={() => setMobileNavOpen(false)}
           />
-          <aside className="relative flex h-full w-[min(86vw,320px)] flex-col bg-white shadow-2xl">
+          <aside
+            className="relative flex h-full w-[min(86vw,320px)] flex-col bg-white shadow-2xl"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Admin navigation"
+          >
             <button
               type="button"
               onClick={() => setMobileNavOpen(false)}

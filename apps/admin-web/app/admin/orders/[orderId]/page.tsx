@@ -1,9 +1,9 @@
 'use client';
 import {
-  adminTransitionOptions,
   type OrderDocument,
   type OrderDetails,
   type OrderNote,
+  type OrderStatus,
 } from '@aranyam/shared-types';
 import { MapPin, MessageSquareText, Printer } from 'lucide-react';
 import { useParams } from 'next/navigation';
@@ -13,19 +13,33 @@ import { Button } from '../../../../components/ui/button';
 import { apiRequest, downloadAuthenticated } from '../../../../lib/api';
 import { useAdminSessionStore } from '../../../../store/session.store';
 
+const validTransitions: Record<OrderStatus, OrderStatus[]> = {
+  DRAFT: [],
+  PENDING_PAYMENT: [],
+  CONFIRMED: ['IN_PROGRESS', 'CANCELLED'],
+  IN_PROGRESS: ['READY_FOR_DELIVERY', 'CANCELLED'],
+  READY_FOR_DELIVERY: ['DELIVERED', 'CANCELLED'],
+  DELIVERED: [],
+  CANCELLED: [],
+};
+
 export default function AdminOrderDetail() {
   const { orderId } = useParams<{ orderId: string }>();
   const session = useAdminSessionStore((state) => state.session);
   const [order, setOrder] = useState<OrderDetails>();
   const [notes, setNotes] = useState<OrderNote[]>([]);
   const [documents, setDocuments] = useState<OrderDocument[]>([]);
-  const [status, setStatus] = useState('IN_PROGRESS');
+  const [status, setStatus] = useState<OrderStatus>('IN_PROGRESS');
   const [note, setNote] = useState('');
   const [message, setMessage] = useState('');
   const load = async () => {
     if (!session) return;
     const [nextOrder, nextNotes, nextDocuments] = await Promise.all([
-      apiRequest<OrderDetails>(`/admin/orders/${orderId}`, {}, session.accessToken),
+      apiRequest<OrderDetails>(
+        `/admin/orders/${orderId}`,
+        {},
+        session.accessToken,
+      ),
       apiRequest<OrderNote[]>(
         `/admin/orders/${orderId}/notes`,
         {},
@@ -38,6 +52,8 @@ export default function AdminOrderDetail() {
       ),
     ]);
     setOrder(nextOrder);
+    const nextStatuses = validTransitions[nextOrder.orderStatus];
+    if (nextStatuses.length) setStatus(nextStatuses[0]);
     setNotes(nextNotes);
     setDocuments(nextDocuments);
   };
@@ -45,6 +61,13 @@ export default function AdminOrderDetail() {
     load();
   }, [session, orderId]);
   async function update() {
+    if (
+      status === 'CANCELLED' &&
+      !window.confirm(
+        'Cancel this order? The customer order will stop progressing and this cannot be undone from the admin portal.',
+      )
+    )
+      return;
     setMessage('');
     try {
       await apiRequest(
@@ -86,6 +109,7 @@ export default function AdminOrderDetail() {
   ]
     .filter(Boolean)
     .join(', ');
+  const nextStatuses = validTransitions[order.orderStatus];
   return (
     <main className="admin-page">
       <section className="print-ticket" aria-label="Kitchen print ticket">
@@ -107,8 +131,12 @@ export default function AdminOrderDetail() {
           <strong>{eventTime}</strong>
         </div>
         <div className="print-ticket-row">
-          <span>{order.packageType === 'ORDER_BY_KG' ? 'Ordering' : 'Guests'}</span>
-          <strong>{order.packageType === 'ORDER_BY_KG' ? 'By KG' : order.guestCount}</strong>
+          <span>
+            {order.packageType === 'ORDER_BY_KG' ? 'Ordering' : 'Guests'}
+          </span>
+          <strong>
+            {order.packageType === 'ORDER_BY_KG' ? 'By KG' : order.guestCount}
+          </strong>
         </div>
         <div className="print-ticket-rule" />
         <p className="print-ticket-label">CUSTOMER</p>
@@ -121,7 +149,10 @@ export default function AdminOrderDetail() {
         {order.selectedItems.map((item) => (
           <div className="print-ticket-item" key={item.id}>
             <span>
-              {item.weightGrams != null ? `${item.weightGrams / 1000} kg` : `${item.quantity} x`} {item.menuItemName}
+              {item.weightGrams != null
+                ? `${item.weightGrams / 1000} kg`
+                : `${item.quantity} x`}{' '}
+              {item.menuItemName}
             </span>
             <span>{item.isVeg ? 'VEG' : 'NON-VEG'}</span>
           </div>
@@ -141,7 +172,8 @@ export default function AdminOrderDetail() {
           <h1 className="admin-title mt-2">{order.orderNumber}</h1>
           <p className="mt-2 text-muted-foreground">
             {order.user.name || order.contactNumber} · {order.packageName} ·{' '}
-            {order.packageType === 'ORDER_BY_KG' ? 'By KG' : order.guestCount}{order.packageType === 'ORDER_BY_KG' ? '' : ' guests'}
+            {order.packageType === 'ORDER_BY_KG' ? 'By KG' : order.guestCount}
+            {order.packageType === 'ORDER_BY_KG' ? '' : ' guests'}
           </p>
           {order.region && (
             <p className="mt-1 text-sm text-muted-foreground">
@@ -165,24 +197,48 @@ export default function AdminOrderDetail() {
         </div>
       </div>
       {message && (
-        <p className="mt-4 rounded-xl bg-muted p-3 text-sm">{message}</p>
+        <p className="mt-4 rounded-xl bg-muted p-3 text-sm" aria-live="polite">
+          {message}
+        </p>
       )}
       <div className="mt-7 grid gap-6 xl:grid-cols-[1.25fr_.75fr]">
         <div className="space-y-6">
           <section className="admin-card">
             <h2 className="text-xl font-semibold">Fulfilment</h2>
-            <div className="mt-4 flex flex-wrap gap-3">
-              <select
-                className="h-10 rounded-lg border bg-white px-3"
-                value={status}
-                onChange={(event) => setStatus(event.target.value)}
-              >
-                {adminTransitionOptions.map((value) => (
-                  <option key={value}>{value}</option>
-                ))}
-              </select>
-              <Button onClick={update}>Update status</Button>
-            </div>
+            {nextStatuses.length ? (
+              <div className="mt-4 flex flex-wrap items-end gap-3">
+                <label className="min-w-56 flex-1">
+                  <span className="mb-1.5 block text-sm font-semibold">
+                    Next order status
+                  </span>
+                  <select
+                    className="h-11 w-full rounded-xl border bg-white px-3"
+                    value={status}
+                    onChange={(event) =>
+                      setStatus(event.target.value as OrderStatus)
+                    }
+                  >
+                    {nextStatuses.map((value) => (
+                      <option key={value} value={value}>
+                        {value.replaceAll('_', ' ')}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <Button
+                  variant={status === 'CANCELLED' ? 'danger' : 'default'}
+                  onClick={update}
+                >
+                  {status === 'CANCELLED' ? 'Cancel order' : 'Update status'}
+                </Button>
+              </div>
+            ) : (
+              <p className="mt-3 rounded-xl bg-muted/60 p-3 text-sm text-muted-foreground">
+                This order is{' '}
+                {order.orderStatus.toLowerCase().replaceAll('_', ' ')} and has
+                no further status actions.
+              </p>
+            )}
           </section>
           <section className="admin-card border-amber-300 bg-amber-50/70">
             <div className="flex items-start gap-3">
@@ -212,7 +268,11 @@ export default function AdminOrderDetail() {
                       {item.isVeg ? 'Vegetarian' : 'Non-vegetarian'}
                     </p>
                   </div>
-                  <span>{item.weightGrams != null ? `${item.weightGrams / 1000} kg × ₹${item.pricePerKg}/kg = ₹${item.lineTotal}` : `+₹${item.adjustmentAmount}`}</span>
+                  <span>
+                    {item.weightGrams != null
+                      ? `${item.weightGrams / 1000} kg × ₹${item.pricePerKg}/kg = ₹${item.lineTotal}`
+                      : `+₹${item.adjustmentAmount}`}
+                  </span>
                 </div>
               ))}
             </div>
@@ -276,6 +336,7 @@ export default function AdminOrderDetail() {
             <h2 className="text-xl font-semibold">Internal notes</h2>
             <form onSubmit={addNote} className="mt-4">
               <textarea
+                aria-label="Private operations note"
                 className="min-h-24 w-full rounded-xl border p-3 text-sm"
                 value={note}
                 onChange={(event) => setNote(event.target.value)}

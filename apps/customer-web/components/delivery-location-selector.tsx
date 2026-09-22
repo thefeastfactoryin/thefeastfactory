@@ -309,7 +309,7 @@ export function DeliveryLocationSelector({
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="flex h-10 min-w-0 flex-1 items-center justify-start gap-2 rounded-xl border border-border bg-white px-2.5 text-left text-primary shadow-[0_2px_8px_rgba(45,31,20,0.04)] transition-colors hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 sm:h-11 sm:w-auto sm:flex-none sm:min-w-[280px] sm:max-w-[340px] sm:gap-2.5 sm:px-3"
+          className="flex h-9 w-[132px] min-w-0 flex-none items-center justify-start gap-1.5 rounded-xl border border-border bg-white px-2 text-left text-primary shadow-[0_2px_8px_rgba(45,31,20,0.04)] transition-colors hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 min-[375px]:w-[148px] sm:h-11 sm:w-auto sm:min-w-[260px] sm:max-w-[340px] sm:gap-2.5 sm:px-3"
           aria-label={
             location
               ? location.resolution.serviceable
@@ -325,7 +325,7 @@ export function DeliveryLocationSelector({
               : 'Set delivery location'
           }
         >
-          <span className="relative grid h-7 w-7 shrink-0 place-items-center rounded-full bg-primary/10 text-primary sm:h-auto sm:w-auto sm:rounded-none sm:bg-transparent">
+          <span className="relative grid h-6 w-6 shrink-0 place-items-center rounded-full bg-primary/10 text-primary sm:h-auto sm:w-auto sm:rounded-none sm:bg-transparent">
             {status === 'locating' || status === 'resolving' ? (
               <LoaderCircle className="h-4 w-4 animate-spin sm:h-[18px] sm:w-[18px]" />
             ) : (
@@ -335,28 +335,31 @@ export function DeliveryLocationSelector({
               <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white sm:-right-1 sm:-top-1 sm:bottom-auto sm:h-2 sm:w-2" />
             )}
           </span>
-          <span className="block min-w-0 flex-1">
+          <span className="flex min-w-0 flex-1 items-center gap-0.5 sm:hidden">
+            <span className="truncate text-[11px] font-bold leading-none text-foreground/75">
+              {location?.address?.addressLine1 ||
+                location?.label ||
+                (status === 'locating'
+                  ? 'Detecting…'
+                  : status === 'resolving'
+                    ? 'Checking…'
+                    : 'Set location')}
+            </span>
+            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          </span>
+          <span className="hidden min-w-0 flex-1 sm:block">
             <span
-              className={`flex min-w-0 items-center gap-1 whitespace-nowrap text-[10px] font-bold leading-none sm:text-[13px] ${
+              className={`flex min-w-0 items-center gap-1 whitespace-nowrap text-[13px] font-bold leading-none ${
                 location && !location.resolution.serviceable
                   ? 'text-red-700'
                   : 'text-primary'
               }`}
             >
               <Zap
-                className="hidden h-4 w-4 shrink-0 fill-current sm:block"
+                className="h-4 w-4 shrink-0 fill-current"
                 aria-hidden="true"
               />
-              <span className="truncate sm:hidden">
-                {!location
-                  ? 'Set location'
-                  : !location.resolution.serviceable
-                    ? 'Unavailable here'
-                    : deliveryEstimate
-                      ? `By ${deliveryEstimate}`
-                      : 'Calculating…'}
-              </span>
-              <span className="hidden truncate sm:inline">
+              <span className="truncate">
                 {!location
                   ? 'Set delivery location'
                   : !location.resolution.serviceable
@@ -366,7 +369,7 @@ export function DeliveryLocationSelector({
                       : 'Calculating delivery time…'}
               </span>
             </span>
-            <span className="mt-0.5 flex min-w-0 items-center gap-1 text-[10px] font-medium leading-none text-foreground/70 sm:mt-1 sm:text-[13px]">
+            <span className="mt-1 flex min-w-0 items-center gap-1 text-[13px] font-medium leading-none text-foreground/70">
               <span className="truncate">
                 {location?.address?.addressLine1 ||
                   location?.label ||
@@ -376,7 +379,7 @@ export function DeliveryLocationSelector({
                       ? 'Checking location…'
                       : 'Set location')}
               </span>
-              <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground sm:h-4 sm:w-4" />
+              <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
             </span>
           </span>
         </button>

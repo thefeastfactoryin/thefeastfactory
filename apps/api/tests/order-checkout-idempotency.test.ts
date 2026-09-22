@@ -79,3 +79,78 @@ test('a concurrent checkout uniqueness race returns the winning order', async ()
   assert.equal(result.id, 'order-1');
   assert.deepEqual(getCalls, ['order-1']);
 });
+
+test('batch checkout delivery override is persisted in the order total', async () => {
+  const stopAfterCreate = new Error('stop after create');
+  let orderData: Record<string, unknown> | undefined;
+  const cart = {
+    id: 'cart-1',
+    userId: 'user-1',
+    status: 'ACTIVE',
+    packageVersionId: 'version-1',
+    packageVersion: { package: { type: 'MEAL_BOX' } },
+    guestCount: 20,
+    addressId: 'address-1',
+    address: { latitude: 17.4, longitude: 78.4 },
+    eventDate: new Date('2027-08-10T00:00:00.000Z'),
+    eventTimeStart: new Date('1970-01-01T18:00:00.000Z'),
+    eventName: null,
+    specialNotes: null,
+    contactNumber: '9876543210',
+    deliveryServiceType: 'STANDARD',
+    helperCount: 0,
+    order: null,
+  };
+  const prisma = {
+    cart: { findFirst: async () => cart },
+    $transaction: async (callback: (tx: object) => Promise<unknown>) =>
+      callback({
+        order: {
+          create: async ({ data }: { data: Record<string, unknown> }) => {
+            orderData = data;
+            throw stopAfterCreate;
+          },
+        },
+      }),
+  };
+  const pricing = {
+    quote: async () => ({
+      packageType: 'MEAL_BOX',
+      guestCount: 20,
+      totalAmount: new Prisma.Decimal('1000.00'),
+      basePerPlatePrice: new Prisma.Decimal('50.00'),
+      totalCustomizationCharges: new Prisma.Decimal('0.00'),
+      finalPerPlatePrice: new Prisma.Decimal('50.00'),
+      packageName: 'Meal box',
+      packageVersionNo: 1,
+      items: [],
+    }),
+  };
+  const service = new OrdersService(
+    prisma as never,
+    pricing as never,
+    {
+      assign: async () => ({
+        region: { id: 'region-1' },
+        distanceKm: new Prisma.Decimal('5.00'),
+        deliveryFee: new Prisma.Decimal('220.00'),
+        deliveryServiceType: 'STANDARD',
+        helperCount: 0,
+      }),
+    } as never,
+  );
+
+  await assert.rejects(
+    service.create(
+      'user-1',
+      { selectedItems: [] },
+      'cart-1',
+      'batch-1',
+      new Prisma.Decimal(0),
+    ),
+    (error) => error === stopAfterCreate,
+  );
+
+  assert.equal((orderData?.deliveryFee as Prisma.Decimal).toFixed(2), '0.00');
+  assert.equal((orderData?.totalAmount as Prisma.Decimal).toFixed(2), '1000.00');
+});

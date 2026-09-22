@@ -8,15 +8,7 @@ import Radio from '@mui/material/Radio';
 import RadioGroup from '@mui/material/RadioGroup';
 import Switch from '@mui/material/Switch';
 import type { MenuCategory, MenuItem } from '@aranyam/shared-types';
-import {
-  ImagePlus,
-  Pencil,
-  Plus,
-  Save,
-  Search,
-  Trash2,
-  X,
-} from 'lucide-react';
+import { ImagePlus, Pencil, Plus, Save, Search, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '../../../../components/ui/button';
 import { MediaUploader } from '../../../../components/media-uploader';
@@ -149,7 +141,9 @@ export default function MenuItems() {
         description: form.description.trim() || undefined,
         boxPrice: formatMoney(form.boxPrice),
         generalPrice: formatMoney(form.generalPrice),
-        pricePerKg: form.pricePerKg.trim() ? formatMoney(form.pricePerKg) : null,
+        pricePerKg: form.pricePerKg.trim()
+          ? formatMoney(form.pricePerKg)
+          : null,
         isVeg: form.isVeg,
         isActive: form.isActive,
         imageUrl: form.imageUrl.trim() || undefined,
@@ -160,8 +154,14 @@ export default function MenuItems() {
       ) {
         throw new Error('Both menu prices must be valid amounts.');
       }
-      if (payload.pricePerKg !== null && (!Number.isFinite(Number(payload.pricePerKg)) || Number(payload.pricePerKg) <= 0)) {
-        throw new Error('Price per kg must be positive, or leave it blank to disable kg ordering.');
+      if (
+        payload.pricePerKg !== null &&
+        (!Number.isFinite(Number(payload.pricePerKg)) ||
+          Number(payload.pricePerKg) <= 0)
+      ) {
+        throw new Error(
+          'Price per kg must be positive, or leave it blank to disable kg ordering.',
+        );
       }
       await apiRequest(
         form.id ? `/admin/menu/items/${form.id}` : '/admin/menu/items',
@@ -205,9 +205,7 @@ export default function MenuItems() {
       <MenuTabs />
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="admin-eyebrow mt-7">
-            Menu
-          </p>
+          <p className="admin-eyebrow mt-7">Menu</p>
           <h1 className="admin-title mt-2">Menu manager</h1>
           <p className="mt-2 text-muted-foreground">
             Maintain the actual item price, image, category, and availability.
@@ -224,6 +222,7 @@ export default function MenuItems() {
         <div className="flex items-center gap-3 rounded-xl border bg-white px-3">
           <Search className="h-4 w-4 text-muted-foreground" />
           <Input
+            aria-label="Search menu items"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Search item, category, description"
@@ -231,6 +230,7 @@ export default function MenuItems() {
           />
         </div>
         <Select
+          aria-label="Filter menu items by category"
           value={categoryFilter}
           onChange={(event) => setCategoryFilter(event.target.value)}
         >
@@ -243,15 +243,22 @@ export default function MenuItems() {
         </Select>
       </section>
 
-      {message && (
-        <p className="mt-3 rounded-xl bg-primary/10 px-4 py-3 text-sm font-medium text-primary">
-          {message}
-        </p>
-      )}
-      {error && (
-        <p className="mt-3 rounded-xl bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-          {error}
-        </p>
+      {(message || error) && (
+        <div className="mt-3" aria-live="polite">
+          {message && (
+            <p className="rounded-xl bg-primary/10 px-4 py-3 text-sm font-medium text-primary">
+              {message}
+            </p>
+          )}
+          {error && (
+            <p
+              role="alert"
+              className="rounded-xl bg-red-50 px-4 py-3 text-sm font-medium text-red-700"
+            >
+              {error}
+            </p>
+          )}
+        </div>
       )}
 
       <section className="admin-card mt-5 hidden overflow-x-auto p-0 md:block">
@@ -295,7 +302,11 @@ export default function MenuItems() {
                 <td>{item.category.name}</td>
                 <td className="font-semibold">
                   ₹{item.boxPrice} / ₹{item.generalPrice}
-                  <span className="block text-xs text-muted-foreground">{item.pricePerKg ? `₹${item.pricePerKg} / kg` : 'KG not enabled'}</span>
+                  <span className="block text-xs text-muted-foreground">
+                    {item.pricePerKg
+                      ? `₹${item.pricePerKg} / kg`
+                      : 'KG not enabled'}
+                  </span>
                 </td>
                 <td>{item.isVeg ? 'Vegetarian' : 'Non-vegetarian'}</td>
                 <td>{item.isActive ? 'Active' : 'Hidden'}</td>
@@ -311,11 +322,11 @@ export default function MenuItems() {
                     </Button>
                     <Button
                       type="button"
-                      variant="outline"
+                      variant="danger"
                       onClick={() => remove(item)}
                     >
                       <Trash2 className="mr-2 h-4 w-4" />
-                      Remove
+                      Archive
                     </Button>
                   </div>
                 </td>
@@ -336,7 +347,11 @@ export default function MenuItems() {
             <div className="flex gap-3">
               <div className="grid h-20 w-24 shrink-0 place-items-center overflow-hidden rounded-xl bg-muted">
                 {item.imageUrl ? (
-                  <img src={item.imageUrl} alt="" className="h-full w-full object-cover" />
+                  <img
+                    src={item.imageUrl}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
                 ) : (
                   <ImagePlus className="h-6 w-6 text-muted-foreground" />
                 )}
@@ -345,30 +360,64 @@ export default function MenuItems() {
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <h2 className="font-semibold">{item.name}</h2>
-                    <p className="text-xs text-muted-foreground">{item.category.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {item.category.name}
+                    </p>
                   </div>
-                  <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${item.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-muted text-muted-foreground'}`}>
+                  <span
+                    className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${item.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-muted text-muted-foreground'}`}
+                  >
                     {item.isActive ? 'Active' : 'Hidden'}
                   </span>
                 </div>
                 <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                  <div><dt className="text-muted-foreground">Meal box</dt><dd className="font-semibold">₹{item.boxPrice}</dd></div>
-                  <div><dt className="text-muted-foreground">Package</dt><dd className="font-semibold">₹{item.generalPrice}</dd></div>
+                  <div>
+                    <dt className="text-muted-foreground">Meal box</dt>
+                    <dd className="font-semibold">₹{item.boxPrice}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Package</dt>
+                    <dd className="font-semibold">₹{item.generalPrice}</dd>
+                  </div>
+                  <div className="col-span-2 rounded-lg bg-muted/50 px-2.5 py-2">
+                    <dt className="text-muted-foreground">Order by KG</dt>
+                    <dd
+                      className={`font-semibold ${
+                        item.pricePerKg ? 'text-foreground' : 'text-amber-700'
+                      }`}
+                    >
+                      {item.pricePerKg
+                        ? `₹${item.pricePerKg} / kg · global`
+                        : 'Not enabled'}
+                    </dd>
+                  </div>
                 </dl>
               </div>
             </div>
             <div className="mt-4 flex gap-2 border-t pt-3">
-              <Button type="button" variant="outline" className="flex-1" onClick={() => openEdit(item)}>
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1"
+                onClick={() => openEdit(item)}
+              >
                 <Pencil className="mr-2 h-4 w-4" /> Edit
               </Button>
-              <Button type="button" variant="outline" className="flex-1" onClick={() => remove(item)}>
+              <Button
+                type="button"
+                variant="danger"
+                className="flex-1"
+                onClick={() => remove(item)}
+              >
                 <Trash2 className="mr-2 h-4 w-4" /> Archive
               </Button>
             </div>
           </article>
         ))}
         {!filtered.length && (
-          <div className="admin-card py-10 text-center text-muted-foreground">No menu items match the current filters.</div>
+          <div className="admin-card py-10 text-center text-muted-foreground">
+            No menu items match the current filters.
+          </div>
         )}
       </section>
 
@@ -397,7 +446,9 @@ export default function MenuItems() {
             <div>
               <MediaUploader
                 value={form.imageUrl}
-                onChange={(imageUrl) => setForm((current) => ({ ...current, imageUrl }))}
+                onChange={(imageUrl) =>
+                  setForm((current) => ({ ...current, imageUrl }))
+                }
                 accessToken={session.accessToken}
                 label="Menu item image"
               />
@@ -442,10 +493,24 @@ export default function MenuItems() {
                 </Field>
               </div>
               <div className="grid gap-4 md:grid-cols-2">
-                <Field label="Price per kg" optional>
-                  <Input type="number" min="0.01" max="99999999.99" step="0.01" inputMode="decimal" value={form.pricePerKg}
-                    onChange={(event) => setForm({ ...form, pricePerKg: event.target.value })} placeholder="Leave blank to disable" />
-                  <p className="mt-1 text-xs text-muted-foreground">Then add this dish to an Order by KG package.</p>
+                <Field label="Global price per kg" optional>
+                  <Input
+                    type="number"
+                    min="0.01"
+                    max="99999999.99"
+                    step="0.01"
+                    inputMode="decimal"
+                    value={form.pricePerKg}
+                    onChange={(event) =>
+                      setForm({ ...form, pricePerKg: event.target.value })
+                    }
+                    placeholder="Leave blank to disable"
+                  />
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Used at every kitchen. Leave blank to keep this dish
+                    unavailable for Order by KG, then add it to the package
+                    menu.
+                  </p>
                 </Field>
                 <Field label="Meal-box price">
                   <Input

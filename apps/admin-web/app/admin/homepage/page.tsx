@@ -116,19 +116,28 @@ export default function AdminHomepage() {
       </div>
 
       {(message || error) && (
-        <div className="mt-5 grid gap-3">
+        <div className="mt-5 grid gap-3" aria-live="polite">
           {message && (
             <p className="rounded-xl border-l-4 border-primary bg-primary/10 px-4 py-3 text-sm font-semibold text-primary shadow-sm">
               {message}
             </p>
           )}
           {error && (
-            <p className="rounded-xl border-l-4 border-red-600 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800 shadow-sm">
+            <p
+              role="alert"
+              className="rounded-xl border-l-4 border-red-600 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800 shadow-sm"
+            >
               {error}
             </p>
           )}
         </div>
       )}
+
+      <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50/80 p-4 text-sm text-amber-950">
+        <Save className="mr-2 inline h-4 w-4" />
+        Changes on this page save immediately. Closing a kitchen stops new
+        customer checkouts for that location.
+      </div>
 
       {isAdmin && (
         <section className="mt-7 grid gap-4 xl:grid-cols-3">
@@ -148,6 +157,7 @@ export default function AdminHomepage() {
                 </div>
                 <Switch
                   checked={offering.isActive}
+                  aria-label={`${offering.title} customer card visibility`}
                   onChange={(event) =>
                     updateOffering(offering, { isActive: event.target.checked })
                   }

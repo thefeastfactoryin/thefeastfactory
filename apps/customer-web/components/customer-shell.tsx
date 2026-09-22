@@ -6,6 +6,8 @@ import {
   Home,
   LogIn,
   Menu as MenuIcon,
+  MessageCircle,
+  MoreHorizontal,
   Package,
   ShoppingBag,
   User,
@@ -54,10 +56,11 @@ const navLinks = [
   { href: '/about', label: 'About Us', activeKey: '/about', icon: Home },
 ];
 
-const mobileLinks = [
+const mobilePrimaryLinks = [
   { href: '/', label: 'Home', icon: Home },
   { href: '/packages', label: 'Packages', icon: Package },
-  { href: '/packages/meal-boxes', label: 'Meal Boxes', icon: Package },
+  { href: '/order-by-kg', label: 'By KG', icon: Weight },
+  { href: '/cart', label: 'Cart', icon: ShoppingBag },
 ];
 
 const WhatsAppConcierge = dynamic(
@@ -106,6 +109,17 @@ export function CustomerShell({
       window.removeEventListener('cart-updated', refresh);
     };
   }, [pathname, session]);
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [pathname]);
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMobileMenuOpen(false);
+    };
+    document.addEventListener('keydown', closeOnEscape);
+    return () => document.removeEventListener('keydown', closeOnEscape);
+  }, [mobileMenuOpen]);
 
   const cartCount = mounted
     ? session
@@ -131,23 +145,23 @@ export function CustomerShell({
   ].some((route) => pathname.startsWith(route));
 
   return (
-    <div className="min-h-screen pb-16 md:pb-0">
+    <div className="min-h-screen pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">
       {/* ─── Desktop header ─── */}
       <header className="sticky top-0 z-40 border-b border-border bg-white/95 backdrop-blur-xl">
-        <div className="mx-auto flex h-[60px] max-w-[1536px] items-center justify-between gap-1.5 px-3 sm:h-[78px] sm:gap-3 sm:px-6 lg:px-10">
+        <div className="mx-auto flex h-14 max-w-[1536px] items-center justify-between gap-1.5 px-3 sm:h-[78px] sm:gap-3 sm:px-6 lg:px-10">
           <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2 md:flex-none">
             {/* Logo */}
             <Link
               href="/"
-              className="flex shrink-0 items-center gap-2.5 sm:gap-3"
+              className="flex min-h-11 min-w-11 shrink-0 items-center gap-2.5 sm:gap-3"
             >
               <img
                 src="/logo.png"
                 alt="The Feast Factory logo"
                 className="h-9 w-9 shrink-0 rounded-md object-cover shadow-[0_4px_12px_rgba(122,31,43,0.14)] sm:h-14 sm:w-14"
               />
-              <span className="hidden min-w-0 flex-col sm:flex">
-                <span className="block truncate whitespace-nowrap font-serif text-[13px] font-semibold leading-none tracking-normal text-primary sm:text-[22px]">
+              <span className="flex min-w-0 max-w-[108px] flex-col sm:max-w-none">
+                <span className="block truncate whitespace-nowrap font-serif text-[13px] font-semibold leading-tight tracking-normal text-primary sm:text-[18px] lg:text-[22px]">
                   The Feast Factory
                 </span>
               </span>
@@ -232,9 +246,9 @@ export function CustomerShell({
           <button
             type="button"
             onClick={() => setMobileMenuOpen((open) => !open)}
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-border bg-card text-primary transition-colors hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 xl:hidden"
+            className="hidden h-10 w-10 shrink-0 place-items-center rounded-full border border-border bg-card text-primary transition-colors hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 md:grid xl:hidden"
             aria-expanded={mobileMenuOpen}
-            aria-controls="mobile-header-menu"
+            aria-controls="tablet-header-menu"
             aria-label={
               mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'
             }
@@ -249,9 +263,9 @@ export function CustomerShell({
 
         {mobileMenuOpen && (
           <nav
-            id="mobile-header-menu"
-            className="grid grid-cols-2 gap-2 border-t border-border bg-white px-4 py-3 shadow-[0_12px_28px_rgba(45,31,20,0.08)] xl:hidden"
-            aria-label="Expanded mobile navigation"
+            id="tablet-header-menu"
+            className="hidden grid-cols-2 gap-2 border-t border-border bg-white px-4 py-3 shadow-[0_12px_28px_rgba(45,31,20,0.08)] md:grid xl:hidden"
+            aria-label="Expanded tablet navigation"
           >
             {desktopLinks.map(({ href, label, icon: Icon }) => (
               <Link
@@ -306,31 +320,103 @@ export function CustomerShell({
       </div>
       {conciergeReady && <WhatsAppConcierge />}
 
+      {mobileMenuOpen && (
+        <>
+          <button
+            type="button"
+            className="fixed inset-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 bg-black/35 md:hidden"
+            aria-label="Close more navigation"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+          <nav
+            id="mobile-more-menu"
+            className="fixed inset-x-3 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-50 max-h-[min(70vh,34rem)] overflow-y-auto rounded-3xl border border-border bg-card p-3 shadow-[0_24px_70px_rgba(32,20,14,0.28)] md:hidden"
+            aria-label="More navigation"
+          >
+            <div className="flex items-center justify-between px-2 pb-2 pt-1">
+              <div>
+                <p className="font-serif text-xl font-bold">Explore more</p>
+                <p className="text-xs text-muted-foreground">
+                  Menus, account and support
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen(false)}
+                className="grid h-11 w-11 place-items-center rounded-full bg-muted text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                aria-label="Close more navigation"
+              >
+                <X className="h-5 w-5" aria-hidden="true" />
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                {
+                  href: '/packages/meal-boxes',
+                  label: 'Meal Boxes',
+                  icon: Package,
+                },
+                { href: '/menu', label: 'Full Menu', icon: BookOpen },
+                ...(session
+                  ? [
+                      {
+                        href: '/orders',
+                        label: 'My Orders',
+                        icon: ClipboardList,
+                      },
+                      { href: '/profile', label: 'My Profile', icon: User },
+                    ]
+                  : [{ href: '/login', label: 'Sign in', icon: LogIn }]),
+                { href: '/about', label: 'About Us', icon: Home },
+                {
+                  href: '/contact',
+                  label: 'Contact us',
+                  icon: MessageCircle,
+                },
+              ].map(({ href, label, icon: Icon }) => (
+                <Link
+                  key={href}
+                  href={href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={cn(
+                    'flex min-h-14 items-center gap-3 rounded-2xl border px-3 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30',
+                    pathname === href ||
+                      (href !== '/' && pathname.startsWith(href))
+                      ? 'border-primary/20 bg-primary/[0.08] text-primary'
+                      : 'border-border bg-background text-foreground/80 hover:border-primary/20 hover:text-primary',
+                  )}
+                >
+                  <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
+                  {label}
+                </Link>
+              ))}
+            </div>
+          </nav>
+        </>
+      )}
+
       {/* ─── Mobile bottom nav ─── */}
       <nav
-        className={`fixed inset-x-0 bottom-0 z-50 grid ${session ? 'grid-cols-5' : 'grid-cols-4'} border-t border-border bg-card/97 backdrop-blur md:hidden`}
+        className="fixed inset-x-0 bottom-0 z-[60] grid min-h-16 grid-cols-5 border-t border-border bg-card/97 pb-[max(.25rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(45,31,20,0.06)] backdrop-blur md:hidden"
+        aria-label="Mobile navigation"
       >
-        {[
-          ...mobileLinks,
-          ...(session
-            ? [{ href: '/cart', label: 'Cart', icon: ShoppingBag }]
-            : []),
-          {
-            href: session ? '/profile' : '/login',
-            label: session ? 'Profile' : 'Login',
-            icon: session ? User : LogIn,
-          },
-        ].map(({ href, label, icon: Icon }) => {
+        {mobilePrimaryLinks.map(({ href, label, icon: Icon }) => {
           const active =
-            href === '/' ? pathname === '/' : pathname.startsWith(href);
+            href === '/'
+              ? pathname === '/'
+              : href === '/packages'
+                ? pathname.startsWith('/packages') &&
+                  !pathname.startsWith('/packages/meal-boxes')
+                : pathname.startsWith(href);
           return (
             <Link
               key={href + label}
               href={href}
               className={cn(
-                'relative flex flex-col items-center justify-center gap-1 py-3 text-[11px] font-semibold transition-colors',
+                'relative flex min-h-14 flex-col items-center justify-center gap-0.5 px-1 pt-1.5 text-[10px] font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/30',
                 active ? 'text-primary' : 'text-muted-foreground',
               )}
+              aria-current={active ? 'page' : undefined}
             >
               <Icon className="h-5 w-5" />
               {label}
@@ -342,6 +428,37 @@ export function CustomerShell({
             </Link>
           );
         })}
+        <button
+          type="button"
+          onClick={() => setMobileMenuOpen((open) => !open)}
+          className={cn(
+            'relative flex min-h-14 flex-col items-center justify-center gap-0.5 px-1 pt-1.5 text-[10px] font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/30',
+            mobileMenuOpen ||
+              [
+                '/packages/meal-boxes',
+                '/menu',
+                '/orders',
+                '/profile',
+                '/login',
+                '/about',
+                '/contact',
+              ].some((route) => pathname.startsWith(route))
+              ? 'text-primary'
+              : 'text-muted-foreground',
+          )}
+          aria-expanded={mobileMenuOpen}
+          aria-controls="mobile-more-menu"
+          aria-label={
+            mobileMenuOpen ? 'Close more navigation' : 'Open more navigation'
+          }
+        >
+          {mobileMenuOpen ? (
+            <X className="h-5 w-5" aria-hidden="true" />
+          ) : (
+            <MoreHorizontal className="h-5 w-5" aria-hidden="true" />
+          )}
+          More
+        </button>
       </nav>
     </div>
   );

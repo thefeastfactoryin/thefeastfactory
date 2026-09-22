@@ -8,8 +8,12 @@ import type {
 } from '@aranyam/shared-types';
 import {
   ArrowRight,
+  ChefHat,
+  Flame,
+  Leaf,
   Minus,
   Plus,
+  Scale,
   Search,
   Sparkles,
 } from 'lucide-react';
@@ -270,28 +274,31 @@ export function KgOrderBuilder() {
           className="absolute inset-0 -z-20 h-full w-full object-cover object-[62%_center] sm:object-center"
         />
         <div className="absolute inset-0 -z-10 bg-[linear-gradient(90deg,hsl(var(--hero-end)/0.99)_0%,hsl(var(--hero-start)/0.94)_40%,hsl(var(--hero-start)/0.30)_72%,rgba(0,0,0,0.08)_100%)]" />
-        <div className="container-pad flex min-h-[238px] items-center py-5 sm:min-h-[330px] sm:py-7 lg:min-h-[360px] lg:px-16 lg:py-9">
+        <div className="container-pad flex min-h-[210px] items-center py-4 sm:min-h-[330px] sm:py-7 lg:min-h-[360px] lg:px-16 lg:py-9">
           <div className="max-w-[620px]">
             <p className="flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[0.18em] text-accent sm:text-xs">
               <Sparkles className="h-4 w-4" aria-hidden="true" /> Flexible bulk
               catering
             </p>
-            <h1 className="mt-2 font-serif text-[36px] font-bold leading-[0.95] tracking-tight text-white sm:text-[54px] lg:text-[64px]">
-              Your favourites,{' '}
-              <span className="text-accent">by the kilo</span>
+            <h1 className="mt-2 max-w-[350px] font-serif text-[34px] font-bold leading-[0.95] tracking-tight text-white sm:max-w-none sm:text-[54px] lg:text-[64px]">
+              Your favourites, <span className="text-accent">by the kilo</span>
             </h1>
             <p className="mt-3 hidden max-w-[520px] text-base font-semibold leading-6 text-white/85 sm:block sm:text-lg">
               Choose your dishes and set the right quantity in easy 0.5 kg
               steps, with live itemised pricing.
             </p>
-            <div className="mt-4 grid max-w-[400px] grid-cols-2 gap-1.5 sm:mt-5 sm:gap-2">
-              {['0.5 kg minimum', 'Kitchen-specific menu'].map((label) => (
+            <div className="mt-4 flex max-w-[560px] flex-wrap gap-1.5 sm:mt-5 sm:gap-2">
+              {[
+                { label: 'Priced per kg', icon: Scale },
+                { label: '0.5 kg steps', icon: Plus },
+                { label: 'Made for groups', icon: ChefHat },
+              ].map(({ label, icon: Icon }) => (
                 <div
                   key={label}
-                  className="flex min-h-10 items-center rounded-xl border border-white/10 bg-black/15 px-2.5 py-1.5 text-[11px] font-extrabold text-white backdrop-blur-sm sm:min-h-11 sm:px-3"
+                  className="flex min-h-8 items-center rounded-full border border-white/15 bg-black/20 px-2.5 py-1 text-[10px] font-extrabold text-white backdrop-blur-sm sm:min-h-10 sm:px-3 sm:text-[11px]"
                 >
-                  <Sparkles
-                    className="mr-2 h-[18px] w-[18px] shrink-0 text-accent"
+                  <Icon
+                    className="mr-1.5 h-3.5 w-3.5 shrink-0 text-accent sm:h-4 sm:w-4"
                     aria-hidden="true"
                   />
                   {label}
@@ -301,7 +308,7 @@ export function KgOrderBuilder() {
           </div>
         </div>
       </section>
-      <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 sm:py-5 lg:px-10">
+      <div className="mx-auto max-w-7xl px-3 py-4 sm:px-6 sm:py-5 lg:px-10">
         {error && (
           <p
             role="alert"
@@ -353,7 +360,7 @@ export function KgOrderBuilder() {
                   </select>
                 </label>
               )}
-              <div className="mb-6 flex flex-wrap gap-3">
+              <div className="mb-5 grid grid-cols-[minmax(0,1fr)_136px] gap-2 sm:mb-6 sm:flex sm:flex-wrap sm:gap-3">
                 <div className="relative min-w-0 flex-1">
                   <Search
                     className="absolute left-3 top-3 h-4 w-4 text-muted-foreground"
@@ -385,34 +392,73 @@ export function KgOrderBuilder() {
               )}
               {groups.map((rule) => (
                 <section key={rule.id} className="mb-7">
-                  <h2 className="mb-4 font-serif text-2xl font-bold">
-                    {rule.category.name}
-                  </h2>
-                  <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="mb-3 flex items-baseline justify-between gap-3 sm:mb-4">
+                    <h2 className="font-serif text-xl font-bold sm:text-2xl">
+                      {rule.category.name}
+                    </h2>
+                    <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-[10px] font-bold text-muted-foreground">
+                      {rule.items.length}{' '}
+                      {rule.items.length === 1 ? 'dish' : 'dishes'}
+                    </span>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
                     {rule.items.map((item) => (
                       <article
                         key={item.id}
-                        className="flex flex-col overflow-hidden rounded-2xl border border-primary/10 bg-card"
+                        className="group grid min-h-[148px] grid-cols-[112px_minmax(0,1fr)] overflow-hidden rounded-2xl border border-border bg-card shadow-[0_4px_18px_rgba(0,0,0,0.06)] transition-all hover:border-primary/20 hover:shadow-[0_10px_28px_rgba(0,0,0,0.10)] sm:flex sm:flex-col"
                       >
-                        <DataImage
-                          src={item.imageUrl}
-                          alt={item.name}
-                          className="h-40 w-full object-cover"
-                        />
-                        <div className="flex flex-1 flex-col p-4">
-                          <p className="text-xs text-muted-foreground">
-                            {item.isVeg ? 'Vegetarian' : 'Non-vegetarian'}
-                          </p>
-                          <h3 className="mt-1 text-base font-bold">
+                        <div className="relative h-full min-h-[148px] overflow-hidden sm:h-40 sm:min-h-0">
+                          <DataImage
+                            src={item.imageUrl}
+                            alt={item.name}
+                            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+                          />
+                          <div className="absolute inset-x-0 top-0 h-14 bg-gradient-to-b from-black/35 to-transparent" />
+                          <span
+                            className={`absolute left-2 top-2 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[9px] font-extrabold text-white shadow-sm ${
+                              item.isVeg ? 'bg-emerald-600' : 'bg-orange-500'
+                            }`}
+                          >
+                            {item.isVeg ? (
+                              <Leaf
+                                className="h-2.5 w-2.5"
+                                aria-hidden="true"
+                              />
+                            ) : (
+                              <Flame
+                                className="h-2.5 w-2.5"
+                                aria-hidden="true"
+                              />
+                            )}
+                            {item.isVeg ? 'Veg' : 'Non-veg'}
+                          </span>
+                        </div>
+                        <div className="flex min-w-0 flex-1 flex-col p-3 sm:p-4">
+                          <h3 className="font-serif text-[15px] font-bold leading-snug sm:text-base">
                             {item.name}
                           </h3>
-                          <p className="mt-2 font-semibold text-primary">
-                            {formatCurrency(item.pricePerKg)}{' '}
-                            <span className="text-xs font-normal">/ kg</span>
-                          </p>
-                          <div className="mt-auto flex items-center justify-between gap-2 pt-4">
+                          <div className="mt-1.5 flex items-baseline justify-between gap-2 sm:mt-2">
+                            <p className="whitespace-nowrap text-lg font-extrabold leading-none text-primary">
+                              {formatCurrency(item.pricePerKg)}{' '}
+                              <span className="text-[11px] font-semibold text-muted-foreground">
+                                / kg
+                              </span>
+                            </p>
+                            {quoteById.get(item.id)?.lineTotal && (
+                              <span className="shrink-0 text-sm font-extrabold text-foreground">
+                                {formatCurrency(
+                                  quoteById.get(item.id)!.lineTotal,
+                                )}
+                              </span>
+                            )}
+                          </div>
+                          <span className="mt-2 inline-flex w-fit items-center gap-1 rounded-full bg-primary/[0.06] px-2 py-1 text-[9px] font-bold text-primary sm:text-[10px]">
+                            <Scale className="h-3 w-3" aria-hidden="true" />
+                            0.5 kg steps
+                          </span>
+                          <div className="mt-auto flex w-full flex-wrap items-center justify-between gap-2 pt-2.5 sm:pt-4">
                             {weights[item.id] ? (
-                              <div className="flex items-center rounded-lg border">
+                              <div className="flex items-center rounded-xl border bg-background">
                                 <button
                                   type="button"
                                   disabled={saving}
@@ -427,7 +473,7 @@ export function KgOrderBuilder() {
                                 >
                                   <Minus className="h-4 w-4" />
                                 </button>
-                                <span className="min-w-16 text-center text-sm font-bold">
+                                <span className="min-w-12 text-center text-xs font-bold sm:min-w-16 sm:text-sm">
                                   {weights[item.id] / 1000} kg
                                 </span>
                                 <button
@@ -450,18 +496,13 @@ export function KgOrderBuilder() {
                             ) : (
                               <Button
                                 variant="outline"
+                                size="sm"
                                 disabled={saving}
                                 onClick={() => changeWeight(item.id, 500)}
+                                className="h-11 px-3"
                               >
-                                Add 0.5 kg <Plus className="ml-2 h-4 w-4" />
+                                Add 0.5 kg <Plus className="ml-1.5 h-4 w-4" />
                               </Button>
-                            )}
-                            {quoteById.get(item.id)?.lineTotal && (
-                              <span className="text-sm font-bold">
-                                {formatCurrency(
-                                  quoteById.get(item.id)!.lineTotal,
-                                )}
-                              </span>
                             )}
                           </div>
                         </div>

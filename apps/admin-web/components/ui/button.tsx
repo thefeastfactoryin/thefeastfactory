@@ -8,9 +8,12 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: 'bg-primary text-primary-foreground shadow-sm hover:-translate-y-0.5 hover:bg-primary/90 hover:shadow-md',
+        default:
+          'bg-primary text-primary-foreground shadow-sm hover:-translate-y-0.5 hover:bg-primary/90 hover:shadow-md',
         secondary: 'bg-muted text-foreground hover:bg-muted/80',
         outline: 'border bg-white/70 hover:border-primary/40 hover:bg-white',
+        danger:
+          'bg-red-700 text-white shadow-sm hover:-translate-y-0.5 hover:bg-red-800 hover:shadow-md focus-visible:ring-red-700',
       },
     },
     defaultVariants: {

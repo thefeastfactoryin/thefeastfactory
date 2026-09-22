@@ -13,7 +13,9 @@ import type {
 import {
   BadgeIndianRupee,
   CheckCircle2,
+  CircleAlert,
   ClipboardList,
+  ExternalLink,
   ImagePlus,
   LayoutDashboard,
   MapPin,
@@ -199,6 +201,9 @@ export default function AdminPackages() {
   const selectedPackage = packages.find((pkg) => pkg.id === selectedPackageId);
   const selectedVersion = selectedPackage?.versions.find(
     (version) => version.id === selectedVersionId,
+  );
+  const selectedRegionAvailability = regionAvailability.find(
+    (row) => row.region.id === selectedRegionId,
   );
   const activeTypeInfo = packageTypeTabs.find(
     (tab) => tab.type === activeType,
@@ -812,7 +817,7 @@ export default function AdminPackages() {
             isAvailable: selected.isAvailable,
             items: selected.items.map((item) => ({
               packageMenuItemId: item.packageMenuItemId,
-              isAvailable: item.isAvailable,
+              isAvailable: Boolean(item.pricePerKg) && item.isAvailable,
             })),
           }),
         },
@@ -848,6 +853,16 @@ export default function AdminPackages() {
     );
   }
 
+  function setAllOrderableItems(isAvailable: boolean) {
+    updateSelectedRegion((current) => ({
+      ...current,
+      items: current.items.map((item) => ({
+        ...item,
+        isAvailable: Boolean(item.pricePerKg) && isAvailable,
+      })),
+    }));
+  }
+
   if (!session)
     return <main className="admin-page">Sign in to manage packages.</main>;
 
@@ -869,6 +884,7 @@ export default function AdminPackages() {
               Package type
             </span>
             <Select
+              aria-label="Package type"
               value={activeType}
               onChange={(event) =>
                 selectPackageType(event.target.value as AdminPackage['type'])
@@ -936,6 +952,7 @@ export default function AdminPackages() {
               <div className="mt-4 flex items-center gap-2 rounded-xl border bg-white px-3">
                 <Search className="h-4 w-4 text-muted-foreground" />
                 <Input
+                  aria-label="Search packages"
                   value={packageQuery}
                   onChange={(event) => setPackageQuery(event.target.value)}
                   placeholder="Search package names"
@@ -974,7 +991,9 @@ export default function AdminPackages() {
                           {pkg.versions.length} version
                           {pkg.versions.length === 1 ? '' : 's'} ·{' '}
                           {activeVersion
-                            ? pkg.type === 'ORDER_BY_KG' ? 'Priced per dish / kg' : `₹${activeVersion.basePricePerPlate}`
+                            ? pkg.type === 'ORDER_BY_KG'
+                              ? 'Priced per dish / kg'
+                              : `₹${activeVersion.basePricePerPlate}`
                             : 'No active price'}
                         </span>
                       </span>
@@ -1292,10 +1311,28 @@ export default function AdminPackages() {
                           </Field>
                         </>
                       ) : (
-                        <p className="text-sm text-muted-foreground">
-                          Prices come from Menu items. Customers select 0.5–100
-                          kg per dish in 0.5 kg increments.
-                        </p>
+                        <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 md:col-span-2 xl:col-span-3">
+                          <div className="flex items-start gap-3">
+                            <BadgeIndianRupee className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+                            <div>
+                              <p className="text-sm font-semibold text-foreground">
+                                KG prices are global
+                              </p>
+                              <p className="mt-1 text-sm text-muted-foreground">
+                                Set each dish’s price once in Menu items.
+                                Kitchen settings only control availability and
+                                never change the price.
+                              </p>
+                              <a
+                                href="/admin/menu/items"
+                                className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
+                              >
+                                Manage global KG prices
+                                <ExternalLink className="h-3.5 w-3.5" />
+                              </a>
+                            </div>
+                          </div>
+                        </div>
                       )}
                       <Field label="Publish status">
                         <Select
@@ -1450,6 +1487,7 @@ export default function AdminPackages() {
                         <div className="flex min-h-11 items-center gap-3 rounded-lg border bg-white px-3">
                           <Search className="h-4 w-4 text-muted-foreground" />
                           <Input
+                            aria-label="Search menu items"
                             value={query}
                             onChange={(event) => setQuery(event.target.value)}
                             placeholder="Search menu items"
@@ -1656,8 +1694,26 @@ export default function AdminPackages() {
                           }
                         >
                           <Save className="mr-2 h-4 w-4" />
-                          {saving ? 'Saving...' : 'Save availability'}
+                          {saving
+                            ? 'Saving...'
+                            : selectedRegionAvailability
+                              ? `Save ${selectedRegionAvailability.region.name}`
+                              : 'Save availability'}
                         </Button>
+                      </div>
+
+                      <div className="mt-4 flex items-start gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4">
+                        <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+                        <div>
+                          <p className="text-sm font-semibold">
+                            Only availability changes by kitchen
+                          </p>
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            Package and dish switches are saved separately for
+                            each kitchen. KG prices remain global and are
+                            managed in Menu items.
+                          </p>
+                        </div>
                       </div>
 
                       {!regionAvailability.length ? (
@@ -1665,62 +1721,103 @@ export default function AdminPackages() {
                           No kitchen locations are configured.
                         </p>
                       ) : (
-                        <div className="mt-4 grid gap-5 lg:grid-cols-[240px_1fr]">
-                          <div className="space-y-2" role="list">
-                            {regionAvailability.map((row) => (
-                              <button
-                                key={row.region.id}
-                                type="button"
-                                onClick={() => {
-                                  if (
-                                    locationAvailabilityDirty &&
-                                    !window.confirm(
-                                      'Discard unsaved location availability changes?',
+                        <div className="mt-4 grid gap-5 lg:grid-cols-[240px_minmax(0,1fr)]">
+                          <div
+                            className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:block lg:space-y-2"
+                            role="list"
+                            aria-label="Kitchen locations"
+                          >
+                            {regionAvailability.map((row) => {
+                              const orderableItems = row.items.filter((item) =>
+                                Boolean(item.pricePerKg),
+                              );
+                              const availableItems = orderableItems.filter(
+                                (item) => item.isAvailable,
+                              );
+                              const needsPrice =
+                                row.items.length - orderableItems.length;
+                              return (
+                                <button
+                                  key={row.region.id}
+                                  type="button"
+                                  onClick={() => {
+                                    if (
+                                      locationAvailabilityDirty &&
+                                      !window.confirm(
+                                        'Discard unsaved location availability changes?',
+                                      )
                                     )
-                                  )
-                                    return;
-                                  const saved = savedRegionAvailability.find(
-                                    (candidate) =>
-                                      candidate.region.id === selectedRegionId,
-                                  );
-                                  if (saved) {
-                                    setRegionAvailability((current) =>
-                                      current.map((candidate) =>
+                                      return;
+                                    const saved = savedRegionAvailability.find(
+                                      (candidate) =>
                                         candidate.region.id ===
-                                        selectedRegionId
-                                          ? saved
-                                          : candidate,
-                                      ),
+                                        selectedRegionId,
                                     );
+                                    if (saved) {
+                                      setRegionAvailability((current) =>
+                                        current.map((candidate) =>
+                                          candidate.region.id ===
+                                          selectedRegionId
+                                            ? saved
+                                            : candidate,
+                                        ),
+                                      );
+                                    }
+                                    setSelectedRegionId(row.region.id);
+                                    setLocationAvailabilityDirty(false);
+                                  }}
+                                  className={`w-full rounded-xl border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${
+                                    selectedRegionId === row.region.id
+                                      ? 'border-primary bg-primary/5'
+                                      : 'bg-white hover:border-primary/40'
+                                  }`}
+                                  aria-pressed={
+                                    selectedRegionId === row.region.id
                                   }
-                                  setSelectedRegionId(row.region.id);
-                                  setLocationAvailabilityDirty(false);
-                                }}
-                                className={`w-full rounded-xl border p-3 text-left transition ${
-                                  selectedRegionId === row.region.id
-                                    ? 'border-primary bg-primary/5'
-                                    : 'bg-white hover:border-primary/40'
-                                }`}
-                              >
-                                <span className="block font-semibold">
-                                  {row.region.name}
-                                </span>
-                                <span className="mt-1 block text-xs text-muted-foreground">
-                                  {row.isAvailable
-                                    ? `${row.items.filter((item) => item.isAvailable).length} of ${row.items.length} dishes available`
-                                    : 'KG ordering turned off'}
-                                </span>
-                              </button>
-                            ))}
+                                >
+                                  <span className="flex items-center justify-between gap-2">
+                                    <span className="font-semibold">
+                                      {row.region.name}
+                                    </span>
+                                    <span
+                                      className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+                                        row.isAvailable
+                                          ? 'bg-emerald-500'
+                                          : 'bg-muted-foreground/40'
+                                      }`}
+                                      aria-hidden="true"
+                                    />
+                                  </span>
+                                  <span className="mt-1 block text-xs text-muted-foreground">
+                                    {row.isAvailable
+                                      ? `${availableItems.length} of ${orderableItems.length} orderable`
+                                      : 'KG ordering turned off'}
+                                  </span>
+                                  {needsPrice > 0 && (
+                                    <span className="mt-1 block text-[11px] font-medium text-amber-700">
+                                      {needsPrice} need
+                                      {needsPrice === 1 ? 's' : ''} a global
+                                      price
+                                    </span>
+                                  )}
+                                  {(!row.region.isActive ||
+                                    !row.region.isAcceptingOrders) && (
+                                    <span className="mt-1 block text-[11px] font-semibold text-red-700">
+                                      {!row.region.isActive
+                                        ? 'Kitchen inactive'
+                                        : 'Not accepting orders'}
+                                    </span>
+                                  )}
+                                </button>
+                              );
+                            })}
                           </div>
 
                           {regionAvailability
-                            .filter(
-                              (row) => row.region.id === selectedRegionId,
-                            )
+                            .filter((row) => row.region.id === selectedRegionId)
                             .map((row) => (
                               <section key={row.region.id}>
-                                <div className="flex items-center justify-between gap-4 rounded-xl border bg-muted/20 p-4">
+                                <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border bg-muted/20 p-4">
                                   <div>
                                     <h4 className="font-semibold">
                                       Order by KG in {row.region.name}
@@ -1729,8 +1826,20 @@ export default function AdminPackages() {
                                       Turning this off removes the option for
                                       customers assigned to this kitchen.
                                     </p>
+                                    {(!row.region.isActive ||
+                                      !row.region.isAcceptingOrders) && (
+                                      <p className="mt-2 text-xs font-semibold text-red-700">
+                                        This kitchen is currently{' '}
+                                        {!row.region.isActive
+                                          ? 'inactive'
+                                          : 'not accepting orders'}
+                                        . Package availability is saved here,
+                                        but customers cannot order until the
+                                        kitchen is reopened in Settings.
+                                      </p>
+                                    )}
                                   </div>
-                                  <label className="flex items-center gap-2 text-sm font-semibold">
+                                  <label className="flex min-h-11 items-center gap-2 text-sm font-semibold">
                                     <Switch
                                       checked={row.isAvailable}
                                       onChange={(event) =>
@@ -1745,54 +1854,108 @@ export default function AdminPackages() {
                                 </div>
 
                                 <div className="mt-4 overflow-hidden rounded-xl border bg-white">
-                                  <div className="border-b px-4 py-3">
-                                    <h4 className="font-semibold">
-                                      Dishes available from this kitchen
-                                    </h4>
+                                  <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
+                                    <div>
+                                      <h4 className="font-semibold">
+                                        Dishes available from this kitchen
+                                      </h4>
+                                      <p className="mt-1 text-xs text-muted-foreground">
+                                        Items without a global KG price stay
+                                        unavailable to customers.
+                                      </p>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() =>
+                                          setAllOrderableItems(true)
+                                        }
+                                        disabled={!row.isAvailable || saving}
+                                      >
+                                        Enable orderable
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() =>
+                                          setAllOrderableItems(false)
+                                        }
+                                        disabled={!row.isAvailable || saving}
+                                      >
+                                        Disable all
+                                      </Button>
+                                    </div>
                                   </div>
                                   <div className="divide-y">
-                                    {row.items.map((item) => (
-                                      <label
-                                        key={item.packageMenuItemId}
-                                        className={`flex items-center justify-between gap-4 px-4 py-3 ${
-                                          row.isAvailable
-                                            ? ''
-                                            : 'opacity-50'
-                                        }`}
-                                      >
-                                        <span>
-                                          <span className="block text-sm font-semibold">
-                                            {item.menuItemName}
+                                    {row.items.map((item) => {
+                                      const hasGlobalPrice = Boolean(
+                                        item.pricePerKg,
+                                      );
+                                      return (
+                                        <label
+                                          key={item.packageMenuItemId}
+                                          className={`flex min-h-16 items-center justify-between gap-4 px-4 py-3 ${
+                                            row.isAvailable && hasGlobalPrice
+                                              ? ''
+                                              : 'opacity-50'
+                                          }`}
+                                        >
+                                          <span className="min-w-0">
+                                            <span className="block text-sm font-semibold">
+                                              {item.menuItemName}
+                                            </span>
+                                            <span className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                                              <span>{item.categoryName}</span>
+                                              {hasGlobalPrice ? (
+                                                <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700">
+                                                  Global price configured
+                                                </span>
+                                              ) : (
+                                                <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-800">
+                                                  <CircleAlert className="h-3 w-3" />
+                                                  Needs global KG price
+                                                </span>
+                                              )}
+                                            </span>
                                           </span>
-                                          <span className="mt-0.5 block text-xs text-muted-foreground">
-                                            {item.categoryName} ·{' '}
-                                            {item.pricePerKg
-                                              ? `₹${item.pricePerKg} / kg`
-                                              : 'No KG price'}
-                                          </span>
-                                        </span>
-                                        <Switch
-                                          checked={item.isAvailable}
-                                          disabled={!row.isAvailable}
-                                          onChange={(event) =>
-                                            updateSelectedRegion((current) => ({
-                                              ...current,
-                                              items: current.items.map(
-                                                (candidate) =>
-                                                  candidate.packageMenuItemId ===
-                                                  item.packageMenuItemId
-                                                    ? {
-                                                        ...candidate,
-                                                        isAvailable:
-                                                          event.target.checked,
-                                                      }
-                                                    : candidate,
-                                              ),
-                                            }))
-                                          }
-                                        />
-                                      </label>
-                                    ))}
+                                          <Switch
+                                            checked={
+                                              hasGlobalPrice && item.isAvailable
+                                            }
+                                            disabled={
+                                              !row.isAvailable ||
+                                              !hasGlobalPrice ||
+                                              saving
+                                            }
+                                            slotProps={{
+                                              input: {
+                                                'aria-label': `${item.menuItemName} availability in ${row.region.name}`,
+                                              },
+                                            }}
+                                            onChange={(event) =>
+                                              updateSelectedRegion(
+                                                (current) => ({
+                                                  ...current,
+                                                  items: current.items.map(
+                                                    (candidate) =>
+                                                      candidate.packageMenuItemId ===
+                                                      item.packageMenuItemId
+                                                        ? {
+                                                            ...candidate,
+                                                            isAvailable:
+                                                              event.target
+                                                                .checked,
+                                                          }
+                                                        : candidate,
+                                                  ),
+                                                }),
+                                              )
+                                            }
+                                          />
+                                        </label>
+                                      );
+                                    })}
                                   </div>
                                 </div>
                               </section>
@@ -1879,6 +2042,7 @@ export default function AdminPackages() {
                     }
                     required
                     maxLength={100}
+                    placeholder="e.g. Celebration bulk menu"
                   />
                 </Field>
                 <Field label="Description" optional>
@@ -1891,6 +2055,7 @@ export default function AdminPackages() {
                       })
                     }
                     maxLength={1000}
+                    placeholder="Explain what customers can order and when this package is useful."
                   />
                 </Field>
                 <MediaUploader
@@ -1941,6 +2106,7 @@ export default function AdminPackages() {
                       })
                     }
                     required
+                    inputMode="numeric"
                   />
                 </Field>
                 <Field label="Product type">
@@ -2037,6 +2203,9 @@ export default function AdminPackages() {
                     <>
                       <Field label="Package price">
                         <Input
+                          type="number"
+                          min="0.01"
+                          step="0.01"
                           value={versionForm.basePricePerPlate}
                           inputMode="decimal"
                           placeholder="499.00"
@@ -2087,10 +2256,15 @@ export default function AdminPackages() {
                       </Field>
                     </>
                   ) : (
-                    <p className="text-sm text-muted-foreground">
-                      Prices come from Menu items. Customers select 0.5–100 kg
-                      per dish in 0.5 kg increments.
-                    </p>
+                    <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 md:col-span-2">
+                      <p className="text-sm font-semibold">
+                        No regional price is required here
+                      </p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Set global KG prices in Menu items, then choose
+                        availability for each kitchen in Location availability.
+                      </p>
+                    </div>
                   )}
                 </div>
                 <label className="flex items-center justify-between rounded-xl border px-3 py-2">

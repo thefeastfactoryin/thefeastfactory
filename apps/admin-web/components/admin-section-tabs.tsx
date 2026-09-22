@@ -26,7 +26,10 @@ export function AdminSectionTabs<Value extends string>({
 }) {
   return (
     <div
-      className={cn('flex gap-1 overflow-x-auto border-b', className)}
+      className={cn(
+        'flex snap-x gap-1 overflow-x-auto border-b [scrollbar-width:thin]',
+        className,
+      )}
       role="tablist"
       aria-label={label}
     >
@@ -43,7 +46,7 @@ export function AdminSectionTabs<Value extends string>({
             aria-controls={`${label.toLowerCase().replaceAll(' ', '-')}-${tab.value}-panel`}
             onClick={() => onChange(tab.value)}
             className={cn(
-              'relative flex min-h-11 min-w-fit items-center gap-2 px-4 py-2 text-sm font-semibold transition-colors',
+              'relative flex min-h-11 min-w-fit snap-start items-center gap-2 px-4 py-2 text-sm font-semibold transition-colors',
               active
                 ? 'text-primary after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-primary'
                 : 'text-muted-foreground hover:text-foreground',
