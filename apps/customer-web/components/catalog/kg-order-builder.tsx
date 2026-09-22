@@ -35,6 +35,14 @@ type KgQuote = PackageSelectionPrice & {
   items: Array<PackageSelectionPrice['items'][number]>;
 };
 
+const FALLBACK_DEFAULT_WEIGHT_GRAMS = 1000;
+const FALLBACK_WEIGHT_INCREMENT_GRAMS = 500;
+const MAX_WEIGHT_GRAMS = 100000;
+
+function formatWeightKg(grams: number) {
+  return Number((grams / 1000).toFixed(1));
+}
+
 export function KgOrderBuilder() {
   const router = useRouter();
   const params = useSearchParams();
@@ -56,6 +64,16 @@ export function KgOrderBuilder() {
   const [quoting, setQuoting] = useState(false);
   const [saving, setSaving] = useState(false);
   const savedCartId = useRef<string | null>(requestedCart);
+  const defaultWeightGrams =
+    config?.kgDefaultWeightGrams ?? FALLBACK_DEFAULT_WEIGHT_GRAMS;
+  const weightIncrementGrams =
+    config?.kgWeightIncrementGrams ?? FALLBACK_WEIGHT_INCREMENT_GRAMS;
+  const maximumWeightGrams =
+    defaultWeightGrams +
+    Math.floor(
+      (MAX_WEIGHT_GRAMS - defaultWeightGrams) / weightIncrementGrams,
+    ) *
+      weightIncrementGrams;
 
   useEffect(() => {
     let current = true;
@@ -101,10 +119,17 @@ export function KgOrderBuilder() {
         throw new Error('Choose an Order by KG menu.');
       if (!current) return;
       setConfig(next);
+      const nextDefaultWeightGrams =
+        next.kgDefaultWeightGrams ?? FALLBACK_DEFAULT_WEIGHT_GRAMS;
+      const nextWeightIncrementGrams =
+        next.kgWeightIncrementGrams ?? FALLBACK_WEIGHT_INCREMENT_GRAMS;
       let initial: Weights = {};
       if (cart) {
         initial = Object.fromEntries(
-          cart.items.map((item) => [item.menuItemId, item.weightGrams ?? 500]),
+          cart.items.map((item) => [
+            item.menuItemId,
+            item.weightGrams ?? nextDefaultWeightGrams,
+          ]),
         );
       } else {
         try {
@@ -124,9 +149,9 @@ export function KgOrderBuilder() {
             ([id, grams]) =>
               allowed.has(id) &&
               Number.isInteger(grams) &&
-              grams >= 500 &&
-              grams <= 100000 &&
-              grams % 500 === 0,
+              grams >= nextDefaultWeightGrams &&
+              grams <= MAX_WEIGHT_GRAMS &&
+              (grams - nextDefaultWeightGrams) % nextWeightIncrementGrams === 0,
           ),
         ),
       );
@@ -199,8 +224,12 @@ export function KgOrderBuilder() {
     setQuote(undefined);
     setWeights((current) => {
       const next = { ...current };
-      if (grams <= 0) delete next[id];
-      else next[id] = Math.min(100000, Math.max(500, grams));
+      if (grams < defaultWeightGrams) delete next[id];
+      else
+        next[id] = Math.min(
+          maximumWeightGrams,
+          Math.max(defaultWeightGrams, grams),
+        );
       return next;
     });
   }
@@ -284,13 +313,17 @@ export function KgOrderBuilder() {
               Your favourites, <span className="text-accent">by the kilo</span>
             </h1>
             <p className="mt-3 hidden max-w-[520px] text-base font-semibold leading-6 text-white/85 sm:block sm:text-lg">
-              Choose your dishes and set the right quantity in easy 0.5 kg
-              steps, with live itemised pricing.
+              Choose your dishes and set the right quantity in easy{' '}
+              {formatWeightKg(weightIncrementGrams)} kg steps, with live
+              itemised pricing.
             </p>
             <div className="mt-4 flex max-w-[560px] flex-wrap gap-1.5 sm:mt-5 sm:gap-2">
               {[
                 { label: 'Priced per kg', icon: Scale },
-                { label: '0.5 kg steps', icon: Plus },
+                {
+                  label: `${formatWeightKg(weightIncrementGrams)} kg steps`,
+                  icon: Plus,
+                },
                 { label: 'Made for groups', icon: ChefHat },
               ].map(({ label, icon: Icon }) => (
                 <div
@@ -454,7 +487,8 @@ export function KgOrderBuilder() {
                           </div>
                           <span className="mt-2 inline-flex w-fit items-center gap-1 rounded-full bg-primary/[0.06] px-2 py-1 text-[9px] font-bold text-primary sm:text-[10px]">
                             <Scale className="h-3 w-3" aria-hidden="true" />
-                            0.5 kg steps
+                            Starts at {formatWeightKg(defaultWeightGrams)} kg ·{' '}
+                            {formatWeightKg(weightIncrementGrams)} kg steps
                           </span>
                           <div className="mt-auto flex w-full flex-wrap items-center justify-between gap-2 pt-2.5 sm:pt-4">
                             {weights[item.id] ? (
@@ -465,10 +499,10 @@ export function KgOrderBuilder() {
                                   onClick={() =>
                                     changeWeight(
                                       item.id,
-                                      weights[item.id] - 500,
+                                      weights[item.id] - weightIncrementGrams,
                                     )
                                   }
-                                  aria-label={`Decrease ${item.name} weight`}
+                                  aria-label={`Decrease ${item.name} weight by ${formatWeightKg(weightIncrementGrams)} kilograms`}
                                   className="grid h-11 w-11 place-items-center text-primary disabled:opacity-40"
                                 >
                                   <Minus className="h-4 w-4" />
@@ -479,15 +513,16 @@ export function KgOrderBuilder() {
                                 <button
                                   type="button"
                                   disabled={
-                                    saving || weights[item.id] >= 100000
+                                    saving ||
+                                    weights[item.id] >= maximumWeightGrams
                                   }
                                   onClick={() =>
                                     changeWeight(
                                       item.id,
-                                      weights[item.id] + 500,
+                                      weights[item.id] + weightIncrementGrams,
                                     )
                                   }
-                                  aria-label={`Increase ${item.name} weight`}
+                                  aria-label={`Increase ${item.name} weight by ${formatWeightKg(weightIncrementGrams)} kilograms`}
                                   className="grid h-11 w-11 place-items-center text-primary disabled:opacity-40"
                                 >
                                   <Plus className="h-4 w-4" />
@@ -498,10 +533,13 @@ export function KgOrderBuilder() {
                                 variant="outline"
                                 size="sm"
                                 disabled={saving}
-                                onClick={() => changeWeight(item.id, 500)}
+                                onClick={() =>
+                                  changeWeight(item.id, defaultWeightGrams)
+                                }
                                 className="h-11 px-3"
                               >
-                                Add 0.5 kg <Plus className="ml-1.5 h-4 w-4" />
+                                Add {formatWeightKg(defaultWeightGrams)} kg{' '}
+                                <Plus className="ml-1.5 h-4 w-4" />
                               </Button>
                             )}
                           </div>

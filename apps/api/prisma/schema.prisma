@@ -249,16 +249,18 @@ model OrderingOffering {
 }
 
 model PackageVersion {
-  id                String    @id @default(uuid())
-  packageId         String    @map("package_id")
-  versionNo         Int       @map("version_no")
-  basePricePerPlate Decimal   @map("base_price_per_plate") @db.Decimal(10, 2)
-  minGuestCount     Int       @default(10) @map("min_guest_count")
-  maxGuestCount     Int?      @map("max_guest_count")
-  isActive          Boolean   @default(true) @map("is_active")
-  publishedAt       DateTime? @map("published_at")
-  createdAt         DateTime  @default(now()) @map("created_at")
-  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at")
+  id                     String    @id @default(uuid())
+  packageId              String    @map("package_id")
+  versionNo              Int       @map("version_no")
+  basePricePerPlate      Decimal   @map("base_price_per_plate") @db.Decimal(10, 2)
+  minGuestCount          Int       @default(10) @map("min_guest_count")
+  maxGuestCount          Int?      @map("max_guest_count")
+  kgDefaultWeightGrams   Int       @default(1000) @map("kg_default_weight_grams")
+  kgWeightIncrementGrams Int       @default(500) @map("kg_weight_increment_grams")
+  isActive               Boolean   @default(true) @map("is_active")
+  publishedAt            DateTime? @map("published_at")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @default(now()) @updatedAt @map("updated_at")
 
   package          Package           @relation(fields: [packageId], references: [id])
   packageMenuItems PackageMenuItem[]
@@ -281,9 +283,9 @@ model PackageMenuItem {
   createdAt        DateTime            @default(now()) @map("created_at")
   updatedAt        DateTime            @default(now()) @updatedAt @map("updated_at")
 
-  packageVersion      PackageVersion                      @relation(fields: [packageVersionId], references: [id])
-  category            MenuCategory                        @relation(fields: [categoryId], references: [id])
-  menuItem            MenuItem                            @relation(fields: [menuItemId], references: [id])
+  packageVersion       PackageVersion                      @relation(fields: [packageVersionId], references: [id])
+  category             MenuCategory                        @relation(fields: [categoryId], references: [id])
+  menuItem             MenuItem                            @relation(fields: [menuItemId], references: [id])
   regionAvailabilities PackageMenuItemRegionAvailability[]
 
   @@unique([packageVersionId, menuItemId, role])

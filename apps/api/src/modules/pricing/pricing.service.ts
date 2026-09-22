@@ -72,9 +72,7 @@ export class PricingService {
       include: {
         package: {
           include: {
-            regionAvailabilities: regionId
-              ? { where: { regionId } }
-              : false,
+            regionAvailabilities: regionId ? { where: { regionId } } : false,
           },
         },
         packageMenuItems: {
@@ -85,9 +83,7 @@ export class PricingService {
           include: {
             menuItem: true,
             category: true,
-            regionAvailabilities: regionId
-              ? { where: { regionId } }
-              : false,
+            regionAvailabilities: regionId ? { where: { regionId } } : false,
           },
           orderBy: [{ displayOrder: 'asc' }, { menuItem: { name: 'asc' } }],
         },
@@ -106,13 +102,25 @@ export class PricingService {
         );
       }
       const items = this.kgItems(version, selectedItems, regionId);
-      const totalAmount = items.reduce((sum, item) => sum.plus(item.lineTotal!), new Prisma.Decimal(0));
-      if (totalAmount.greaterThan('99999999.99')) throw new BadRequestException('Order total exceeds the supported amount');
+      const totalAmount = items.reduce(
+        (sum, item) => sum.plus(item.lineTotal!),
+        new Prisma.Decimal(0),
+      );
+      if (totalAmount.greaterThan('99999999.99'))
+        throw new BadRequestException(
+          'Order total exceeds the supported amount',
+        );
       return {
-        packageVersionId: version.id, packageName: version.package.name,
-        packageVersionNo: version.versionNo, packageType: version.package.type,
-        guestCount: null, basePerPlatePrice: null, totalCustomizationCharges: null,
-        finalPerPlatePrice: null, totalAmount, items,
+        packageVersionId: version.id,
+        packageName: version.package.name,
+        packageVersionNo: version.versionNo,
+        packageType: version.package.type,
+        guestCount: null,
+        basePerPlatePrice: null,
+        totalCustomizationCharges: null,
+        finalPerPlatePrice: null,
+        totalAmount,
+        items,
       };
     }
     if (selectedItems.some((item) => item.weightGrams != null)) {
@@ -150,43 +158,84 @@ export class PricingService {
     selections: SelectedItemInput[],
     regionId?: string,
   ): QuoteItem[] {
-    if (!selections.length) throw new BadRequestException('Choose at least one dish');
-    const allowed = new Map(version.packageMenuItems
-      .filter((row) =>
-        row.role === PackageMenuItemRole.CUSTOM_SELECTABLE &&
-        row.isAvailable &&
-        row.category.isActive &&
-        row.menuItem.isActive &&
-        !row.menuItem.deletedAt &&
-        (!regionId ||
-          !row.regionAvailabilities?.some(
-            (availability) => !availability.isAvailable,
-          )))
-      .map((row) => [row.menuItemId, row]));
+    if (!selections.length)
+      throw new BadRequestException('Choose at least one dish');
+    const allowed = new Map(
+      version.packageMenuItems
+        .filter(
+          (row) =>
+            row.role === PackageMenuItemRole.CUSTOM_SELECTABLE &&
+            row.isAvailable &&
+            row.category.isActive &&
+            row.menuItem.isActive &&
+            !row.menuItem.deletedAt &&
+            (!regionId ||
+              !row.regionAvailabilities?.some(
+                (availability) => !availability.isAvailable,
+              )),
+        )
+        .map((row) => [row.menuItemId, row]),
+    );
     const seen = new Set<string>();
     return selections.map((selection) => {
       const row = allowed.get(selection.menuItemId);
-      if (!row || row.categoryId !== selection.categoryId || !row.menuItem.pricePerKg?.greaterThan(0)) {
-        throw new BadRequestException('Selected dish is not available for kg ordering');
+      if (
+        !row ||
+        row.categoryId !== selection.categoryId ||
+        !row.menuItem.pricePerKg?.greaterThan(0)
+      ) {
+        throw new BadRequestException(
+          'Selected dish is not available for kg ordering',
+        );
       }
-      if (seen.has(selection.menuItemId)) throw new BadRequestException('Duplicate dishes are not allowed');
+      if (seen.has(selection.menuItemId))
+        throw new BadRequestException('Duplicate dishes are not allowed');
       seen.add(selection.menuItemId);
-      if (selection.replacedMenuItemId || (selection.role && selection.role !== SelectedItemRole.CUSTOM) || (selection.quantity != null && selection.quantity !== 1)) {
-        throw new BadRequestException('Kg orders use dish weights, without swaps or portion quantities');
+      if (
+        selection.replacedMenuItemId ||
+        (selection.role && selection.role !== SelectedItemRole.CUSTOM) ||
+        (selection.quantity != null && selection.quantity !== 1)
+      ) {
+        throw new BadRequestException(
+          'Kg orders use dish weights, without swaps or portion quantities',
+        );
       }
       const grams = selection.weightGrams;
-      if (!Number.isInteger(grams) || grams! < 500 || grams! > 100000 || grams! % 500 !== 0) {
-        throw new BadRequestException('Choose 0.5–100 kg per dish in 0.5 kg increments');
+      const minimumGrams = version.kgDefaultWeightGrams;
+      const incrementGrams = version.kgWeightIncrementGrams;
+      if (
+        !Number.isInteger(grams) ||
+        grams! < minimumGrams ||
+        grams! > 100000 ||
+        (grams! - minimumGrams) % incrementGrams !== 0
+      ) {
+        throw new BadRequestException(
+          `Choose ${this.formatKg(minimumGrams)}–100 kg per dish in ${this.formatKg(incrementGrams)} kg increments`,
+        );
       }
-      const lineTotal = row.menuItem.pricePerKg.mul(grams!).div(1000).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
-      if (lineTotal.greaterThan('99999999.99')) throw new BadRequestException('Dish total exceeds the supported amount');
+      const lineTotal = row.menuItem.pricePerKg
+        .mul(grams!)
+        .div(1000)
+        .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+      if (lineTotal.greaterThan('99999999.99'))
+        throw new BadRequestException(
+          'Dish total exceeds the supported amount',
+        );
       return {
-        categoryId: row.categoryId, categoryName: row.category.name,
-        menuItemId: row.menuItemId, menuItemName: row.menuItem.name,
-        role: SelectedItemRole.CUSTOM, isVeg: row.menuItem.isVeg,
-        quantity: 1, weightGrams: grams!, pricePerKg: row.menuItem.pricePerKg,
-        lineTotal, itemPrice: row.menuItem.pricePerKg, includedValue: new Prisma.Decimal(0),
-        adjustmentAmount: new Prisma.Decimal(0), totalAdjustmentAmount: lineTotal,
+        categoryId: row.categoryId,
+        categoryName: row.category.name,
+        menuItemId: row.menuItemId,
+        menuItemName: row.menuItem.name,
+        role: SelectedItemRole.CUSTOM,
+        isVeg: row.menuItem.isVeg,
+        quantity: 1,
+        weightGrams: grams!,
+        pricePerKg: row.menuItem.pricePerKg,
+        lineTotal,
+        itemPrice: row.menuItem.pricePerKg,
+        includedValue: new Prisma.Decimal(0),
+        adjustmentAmount: new Prisma.Decimal(0),
+        totalAdjustmentAmount: lineTotal,
       };
     });
   }
@@ -203,6 +252,10 @@ export class PricingService {
       return this.mealBoxItems(version, selectedItems);
     }
     return this.fixedPackageItems(version, selectedItems, guestCount);
+  }
+
+  private formatKg(grams: number) {
+    return Number((grams / 1000).toFixed(1));
   }
 
   private async customItems(
@@ -509,7 +562,8 @@ export class PricingService {
     return {
       ...quote,
       basePerPlatePrice: quote.basePerPlatePrice?.toFixed(2) ?? null,
-      totalCustomizationCharges: quote.totalCustomizationCharges?.toFixed(2) ?? null,
+      totalCustomizationCharges:
+        quote.totalCustomizationCharges?.toFixed(2) ?? null,
       finalPerPlatePrice: quote.finalPerPlatePrice?.toFixed(2) ?? null,
       totalAmount: quote.totalAmount.toFixed(2),
       items: quote.items.map((item) => ({

@@ -154,6 +154,8 @@ export type PackageSummary = {
     basePricePerPlate: string;
     minGuestCount: number;
     maxGuestCount?: number | null;
+    kgDefaultWeightGrams: number;
+    kgWeightIncrementGrams: number;
     publishedAt?: string | null;
   } | null;
 };
@@ -187,6 +189,8 @@ export type PackageConfiguration = {
   basePricePerPlate: string;
   minGuestCount: number;
   maxGuestCount?: number | null;
+  kgDefaultWeightGrams: number;
+  kgWeightIncrementGrams: number;
   categoryRules: Array<{
     id: string;
     category: MenuCategory;

@@ -1,6 +1,10 @@
 'use client';
 
-import type { CartSummary, PackageConfiguration } from '@aranyam/shared-types';
+import type {
+  CartSummary,
+  PackageConfiguration,
+  PackageSummary,
+} from '@aranyam/shared-types';
 import {
   ArrowRight,
   Check,
@@ -493,20 +497,20 @@ function BuildPackageContent() {
   const hydratedCartVersion = useRef<string | undefined>(undefined);
 
   useEffect(() => {
-    if (requestedVersionId || !packageId) return;
+    if (requestedVersionId) return;
     let active = true;
-    apiRequest<Array<{ id: string; activeVersion?: { id: string } | null }>>(
-      '/packages',
-    )
+    apiRequest<PackageSummary[]>('/packages')
       .then((packages) => {
-        const latestVersion = packages.find((pkg) => pkg.id === packageId)
-          ?.activeVersion?.id;
+        const selectedPackage = packageId
+          ? packages.find((pkg) => pkg.id === packageId)
+          : packages.find((pkg) => pkg.type === 'CUSTOM_PACKAGE');
+        const latestVersion = selectedPackage?.activeVersion?.id;
         if (active && latestVersion) setPackageVersionId(latestVersion);
         if (active && !latestVersion)
-          setMessage('Package is currently unavailable.');
+          setMessage('Custom menu is currently unavailable.');
       })
       .catch(() => {
-        if (active) setMessage('Package is currently unavailable.');
+        if (active) setMessage('Custom menu is currently unavailable.');
       });
     return () => {
       active = false;

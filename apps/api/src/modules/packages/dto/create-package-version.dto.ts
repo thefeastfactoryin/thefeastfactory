@@ -2,7 +2,9 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsBoolean,
   IsDateString,
+  IsDivisibleBy,
   IsInt,
+  Max,
   IsOptional,
   Matches,
   Min,
@@ -30,6 +32,32 @@ export class CreatePackageVersionDto {
   @IsInt()
   @Min(1)
   maxGuestCount?: number | null;
+
+  @ApiPropertyOptional({
+    default: 1000,
+    minimum: 500,
+    maximum: 100000,
+    multipleOf: 500,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(500)
+  @Max(100000)
+  @IsDivisibleBy(500)
+  kgDefaultWeightGrams?: number;
+
+  @ApiPropertyOptional({
+    default: 500,
+    minimum: 500,
+    maximum: 100000,
+    multipleOf: 500,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(500)
+  @Max(100000)
+  @IsDivisibleBy(500)
+  kgWeightIncrementGrams?: number;
 
   @ApiPropertyOptional({ default: true })
   @IsOptional()

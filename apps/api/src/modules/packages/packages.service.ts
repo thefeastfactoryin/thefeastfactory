@@ -69,19 +69,19 @@ export class PackagesService {
           !(pkg.regionAvailabilities?.some((row) => !row.isAvailable) ?? false),
       )
       .map((pkg) => ({
-      id: pkg.id,
-      name: pkg.name,
-      description: pkg.description,
-      imageUrl: pkg.imageUrl,
-      badgeLabel: pkg.badgeLabel,
-      displayOrder: pkg.displayOrder,
-      isFeatured: pkg.isFeatured,
-      featuredOrder: pkg.featuredOrder,
-      type: pkg.type,
-      isCustom: pkg.type === PackageType.CUSTOM_PACKAGE,
-      activeVersion: pkg.versions[0]
-        ? this.serializeVersion(pkg.versions[0])
-        : null,
+        id: pkg.id,
+        name: pkg.name,
+        description: pkg.description,
+        imageUrl: pkg.imageUrl,
+        badgeLabel: pkg.badgeLabel,
+        displayOrder: pkg.displayOrder,
+        isFeatured: pkg.isFeatured,
+        featuredOrder: pkg.featuredOrder,
+        type: pkg.type,
+        isCustom: pkg.type === PackageType.CUSTOM_PACKAGE,
+        activeVersion: pkg.versions[0]
+          ? this.serializeVersion(pkg.versions[0])
+          : null,
       }));
   }
 
@@ -149,9 +149,10 @@ export class PackagesService {
     const itemRows = version.packageMenuItems.filter(
       (row) => row.role === PackageMenuItemRole.CUSTOM_SELECTABLE,
     );
-    const overrides = await this.prisma.packageMenuItemRegionAvailability.findMany(
-      { where: { packageMenuItemId: { in: itemRows.map((row) => row.id) } } },
-    );
+    const overrides =
+      await this.prisma.packageMenuItemRegionAvailability.findMany({
+        where: { packageMenuItemId: { in: itemRows.map((row) => row.id) } },
+      });
     const availabilityByKey = new Map(
       overrides.map((row) => [
         `${row.regionId}:${row.packageMenuItemId}`,
@@ -173,8 +174,7 @@ export class PackagesService {
         menuItemName: row.menuItem.name,
         categoryName: row.category.name,
         pricePerKg: row.menuItem.pricePerKg?.toFixed(2) ?? null,
-        isAvailable:
-          availabilityByKey.get(`${region.id}:${row.id}`) ?? true,
+        isAvailable: availabilityByKey.get(`${region.id}:${row.id}`) ?? true,
       })),
     }));
   }
@@ -292,8 +292,15 @@ export class PackagesService {
 
   async updatePackage(id: string, dto: UpdatePackageDto) {
     const current = await this.assertPackage(id);
-    if (dto.type && dto.type !== current.type && (dto.type === PackageType.ORDER_BY_KG || current.type === PackageType.ORDER_BY_KG)) {
-      throw new BadRequestException('Create a new package to change between kg and per-person ordering');
+    if (
+      dto.type &&
+      dto.type !== current.type &&
+      (dto.type === PackageType.ORDER_BY_KG ||
+        current.type === PackageType.ORDER_BY_KG)
+    ) {
+      throw new BadRequestException(
+        'Create a new package to change between kg and per-person ordering',
+      );
     }
     return this.prisma.package.update({
       where: { id },
@@ -323,7 +330,22 @@ export class PackagesService {
 
   async createVersion(packageId: string, dto: CreatePackageVersionDto) {
     const pkg = await this.assertPackage(packageId);
-    if (pkg.type === PackageType.ORDER_BY_KG) dto = { ...dto, basePricePerPlate: '0', minGuestCount: 1, maxGuestCount: null };
+    if (pkg.type === PackageType.ORDER_BY_KG) {
+      const kgDefaultWeightGrams = dto.kgDefaultWeightGrams ?? 1000;
+      const kgWeightIncrementGrams = dto.kgWeightIncrementGrams ?? 500;
+      dto = {
+        ...dto,
+        basePricePerPlate: '0',
+        minGuestCount: 1,
+        maxGuestCount: null,
+        kgDefaultWeightGrams,
+        kgWeightIncrementGrams,
+      };
+      this.assertKgWeightSettings(
+        kgDefaultWeightGrams,
+        kgWeightIncrementGrams,
+      );
+    }
     this.assertGuestRange(dto.minGuestCount ?? 10, dto.maxGuestCount);
     const version = await this.prisma.packageVersion.create({
       data: {
@@ -332,6 +354,8 @@ export class PackagesService {
         basePricePerPlate: new Prisma.Decimal(dto.basePricePerPlate),
         minGuestCount: dto.minGuestCount ?? 10,
         maxGuestCount: dto.maxGuestCount,
+        kgDefaultWeightGrams: dto.kgDefaultWeightGrams ?? 1000,
+        kgWeightIncrementGrams: dto.kgWeightIncrementGrams ?? 500,
         isActive: dto.isActive ?? true,
         publishedAt: null,
       },
@@ -347,7 +371,18 @@ export class PackagesService {
   async updateVersion(id: string, dto: UpdatePackageVersionDto) {
     const current = await this.assertVersion(id);
     const pkg = await this.assertPackage(current.packageId);
-    if (pkg.type === PackageType.ORDER_BY_KG) dto = { ...dto, basePricePerPlate: '0', minGuestCount: 1, maxGuestCount: null };
+    if (pkg.type === PackageType.ORDER_BY_KG) {
+      dto = {
+        ...dto,
+        basePricePerPlate: '0',
+        minGuestCount: 1,
+        maxGuestCount: null,
+      };
+      this.assertKgWeightSettings(
+        dto.kgDefaultWeightGrams ?? current.kgDefaultWeightGrams,
+        dto.kgWeightIncrementGrams ?? current.kgWeightIncrementGrams,
+      );
+    }
     this.assertGuestRange(
       dto.minGuestCount ?? current.minGuestCount,
       dto.maxGuestCount === undefined
@@ -375,6 +410,12 @@ export class PackagesService {
         ...(dto.maxGuestCount !== undefined
           ? { maxGuestCount: dto.maxGuestCount }
           : {}),
+        ...(dto.kgDefaultWeightGrams !== undefined
+          ? { kgDefaultWeightGrams: dto.kgDefaultWeightGrams }
+          : {}),
+        ...(dto.kgWeightIncrementGrams !== undefined
+          ? { kgWeightIncrementGrams: dto.kgWeightIncrementGrams }
+          : {}),
         ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
         ...(dto.publishedAt !== undefined
           ? { publishedAt: dto.publishedAt ? new Date(dto.publishedAt) : null }
@@ -386,8 +427,13 @@ export class PackagesService {
   async upsertMenuItem(versionId: string, dto: UpsertPackageMenuItemDto) {
     const version = await this.assertVersion(versionId);
     const pkg = await this.assertPackage(version.packageId);
-    if (pkg.type === PackageType.ORDER_BY_KG && (dto.role !== PackageMenuItemRole.CUSTOM_SELECTABLE || dto.isSwappable)) {
-      throw new BadRequestException('Kg dishes must be selectable without swaps');
+    if (
+      pkg.type === PackageType.ORDER_BY_KG &&
+      (dto.role !== PackageMenuItemRole.CUSTOM_SELECTABLE || dto.isSwappable)
+    ) {
+      throw new BadRequestException(
+        'Kg dishes must be selectable without swaps',
+      );
     }
     const item = await this.prisma.menuItem.findFirst({
       where: {
@@ -525,9 +571,7 @@ export class PackagesService {
       include: {
         package: {
           include: {
-            regionAvailabilities: regionId
-              ? { where: { regionId } }
-              : false,
+            regionAvailabilities: regionId ? { where: { regionId } } : false,
           },
         },
         packageMenuItems: {
@@ -540,9 +584,7 @@ export class PackagesService {
           include: {
             menuItem: true,
             category: true,
-            regionAvailabilities: regionId
-              ? { where: { regionId } }
-              : false,
+            regionAvailabilities: regionId ? { where: { regionId } } : false,
           },
           orderBy: [{ displayOrder: 'asc' }, { menuItem: { name: 'asc' } }],
         },
@@ -588,15 +630,25 @@ export class PackagesService {
       basePricePerPlate: version.basePricePerPlate.toFixed(2),
       minGuestCount: version.minGuestCount,
       maxGuestCount: version.maxGuestCount,
-      categoryRules: publicOnly && version.package.type === PackageType.ORDER_BY_KG
-        ? this.configuredCategoryRules({ ...availableVersion, packageMenuItems: availableVersion.packageMenuItems.filter((row) => row.category.isActive && row.menuItem.pricePerKg?.greaterThan(0)) })
-        : !publicOnly
-        ? this.configuredCategoryRules(version)
-        : version.package.type === PackageType.CUSTOM_PACKAGE
-          ? await this.customCategoryRules(version, publicOnly)
-          : version.package.type === PackageType.MEAL_BOX
-            ? await this.mealBoxCategoryRules(version)
-            : await this.fixedPackageCategoryRules(version),
+      kgDefaultWeightGrams: version.kgDefaultWeightGrams,
+      kgWeightIncrementGrams: version.kgWeightIncrementGrams,
+      categoryRules:
+        publicOnly && version.package.type === PackageType.ORDER_BY_KG
+          ? this.configuredCategoryRules({
+              ...availableVersion,
+              packageMenuItems: availableVersion.packageMenuItems.filter(
+                (row) =>
+                  row.category.isActive &&
+                  row.menuItem.pricePerKg?.greaterThan(0),
+              ),
+            })
+          : !publicOnly
+            ? this.configuredCategoryRules(version)
+            : version.package.type === PackageType.CUSTOM_PACKAGE
+              ? await this.customCategoryRules(version, publicOnly)
+              : version.package.type === PackageType.MEAL_BOX
+                ? await this.mealBoxCategoryRules(version)
+                : await this.fixedPackageCategoryRules(version),
     };
   }
 
@@ -614,7 +666,8 @@ export class PackagesService {
             PackageMenuItemRole.INCLUDED,
             PackageMenuItemRole.EXTRA,
           ])
-        : (version.package.type === PackageType.CUSTOM_PACKAGE || version.package.type === PackageType.ORDER_BY_KG)
+        : version.package.type === PackageType.CUSTOM_PACKAGE ||
+            version.package.type === PackageType.ORDER_BY_KG
           ? new Set<PackageMenuItemRole>([
               PackageMenuItemRole.CUSTOM_SELECTABLE,
             ])
@@ -1126,6 +1179,22 @@ export class PackagesService {
     };
   }
 
+  private assertKgWeightSettings(
+    defaultWeightGrams: number,
+    incrementGrams: number,
+  ) {
+    const valid = (value: number) =>
+      Number.isInteger(value) &&
+      value >= 500 &&
+      value <= 100000 &&
+      value % 500 === 0;
+    if (!valid(defaultWeightGrams) || !valid(incrementGrams)) {
+      throw new BadRequestException(
+        'KG starting weight and increment must be between 0.5 and 100 kg in 0.5 kg units',
+      );
+    }
+  }
+
   private serializeVersion<
     T extends { basePricePerPlate: Prisma.Decimal; publishedAt: Date | null },
   >(version: T) {
@@ -1157,15 +1226,31 @@ export class PackagesService {
       where: { id },
       include: {
         package: true,
-        packageMenuItems: { where: { isAvailable: true }, include: { menuItem: true, category: true } },
+        packageMenuItems: {
+          where: { isAvailable: true },
+          include: { menuItem: true, category: true },
+        },
       },
     });
     if (!version) throw new NotFoundException('Package version not found');
     if (version.package.type === PackageType.ORDER_BY_KG) {
-      if (!basePrice.isZero()) throw new BadRequestException('Kg packages have no base price');
+      if (!basePrice.isZero())
+        throw new BadRequestException('Kg packages have no base price');
       const rows = version.packageMenuItems;
-      if (!rows.length || rows.some((row) => row.role !== PackageMenuItemRole.CUSTOM_SELECTABLE || !row.category.isActive || !row.menuItem.isActive || row.menuItem.deletedAt || !row.menuItem.pricePerKg?.greaterThan(0))) {
-        throw new BadRequestException('Kg packages require active selectable dishes with a positive price per kg');
+      if (
+        !rows.length ||
+        rows.some(
+          (row) =>
+            row.role !== PackageMenuItemRole.CUSTOM_SELECTABLE ||
+            !row.category.isActive ||
+            !row.menuItem.isActive ||
+            row.menuItem.deletedAt ||
+            !row.menuItem.pricePerKg?.greaterThan(0),
+        )
+      ) {
+        throw new BadRequestException(
+          'Kg packages require active selectable dishes with a positive price per kg',
+        );
       }
     }
     const roles = new Set(version.packageMenuItems.map((row) => row.role));

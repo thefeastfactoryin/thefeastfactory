@@ -25,13 +25,6 @@ import { KitchenLocationsSection } from '../../components/home/kitchen-locations
 import { usePublicSettings } from '../../components/public-settings-provider';
 import { apiRequest } from '../../lib/api';
 
-const stats = [
-  { Icon: Calendar, value: '2015', label: 'F&B journey began' },
-  { Icon: Award, value: '10+', label: 'Years of experience' },
-  { Icon: MapPin, value: '4', label: 'Major cities' },
-  { Icon: Users, value: '2,500+', label: 'Guest capability' },
-];
-
 const promises = [
   {
     Icon: Building2,
@@ -110,12 +103,36 @@ const eventTypes = [
 export default function AboutPage() {
   const settings = usePublicSettings();
   const [kitchens, setKitchens] = useState<OperatingRegion[]>([]);
+  const [kitchensLoaded, setKitchensLoaded] = useState(false);
 
   useEffect(() => {
+    let current = true;
     apiRequest<OperatingRegion[]>('/operating-regions')
-      .then(setKitchens)
-      .catch(() => setKitchens([]));
+      .then((regions) => {
+        if (!current) return;
+        setKitchens(regions.filter((region) => region.isActive));
+        setKitchensLoaded(true);
+      })
+      .catch(() => {
+        if (!current) return;
+        setKitchens([]);
+        setKitchensLoaded(false);
+      });
+    return () => {
+      current = false;
+    };
   }, []);
+
+  const stats = [
+    { Icon: Calendar, value: '2015', label: 'F&B journey began' },
+    { Icon: Award, value: '10+', label: 'Years of experience' },
+    {
+      Icon: MapPin,
+      value: kitchensLoaded ? String(kitchens.length) : '—',
+      label: 'Enabled kitchens',
+    },
+    { Icon: Users, value: '2,500+', label: 'Guest capability' },
+  ];
 
   return (
     <main className="about-page min-h-screen bg-background">

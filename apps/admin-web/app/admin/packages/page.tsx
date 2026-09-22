@@ -42,6 +42,8 @@ type Version = {
   basePricePerPlate: string;
   minGuestCount: number;
   maxGuestCount?: number | null;
+  kgDefaultWeightGrams: number;
+  kgWeightIncrementGrams: number;
   isActive: boolean;
   publishedAt?: string | null;
 };
@@ -92,6 +94,8 @@ type VersionForm = {
   basePricePerPlate: string;
   minGuestCount: string;
   maxGuestCount: string;
+  kgDefaultWeightKg: string;
+  kgWeightIncrementKg: string;
   isActive: boolean;
   published: boolean;
 };
@@ -142,6 +146,8 @@ const emptyVersion: VersionForm = {
   basePricePerPlate: '',
   minGuestCount: '10',
   maxGuestCount: '',
+  kgDefaultWeightKg: '1',
+  kgWeightIncrementKg: '0.5',
   isActive: true,
   published: false,
 };
@@ -395,6 +401,10 @@ export default function AdminPackages() {
       maxGuestCount: selectedVersion.maxGuestCount
         ? String(selectedVersion.maxGuestCount)
         : '',
+      kgDefaultWeightKg: String(selectedVersion.kgDefaultWeightGrams / 1000),
+      kgWeightIncrementKg: String(
+        selectedVersion.kgWeightIncrementGrams / 1000,
+      ),
       isActive: selectedVersion.isActive,
       published: Boolean(selectedVersion.publishedAt),
     });
@@ -503,11 +513,29 @@ export default function AdminPackages() {
         'Package price must be a valid amount, like 499 or 499.00.',
       );
     }
+    const kgDefaultWeightGrams = Number(form.kgDefaultWeightKg) * 1000;
+    const kgWeightIncrementGrams = Number(form.kgWeightIncrementKg) * 1000;
+    if (
+      !Number.isInteger(kgDefaultWeightGrams) ||
+      kgDefaultWeightGrams < 500 ||
+      kgDefaultWeightGrams > 100000 ||
+      kgDefaultWeightGrams % 500 !== 0 ||
+      !Number.isInteger(kgWeightIncrementGrams) ||
+      kgWeightIncrementGrams < 500 ||
+      kgWeightIncrementGrams > 100000 ||
+      kgWeightIncrementGrams % 500 !== 0
+    ) {
+      throw new Error(
+        'KG starting weight and increment must use 0.5 kg units between 0.5 and 100 kg.',
+      );
+    }
     const payload: {
       versionNo: number;
       basePricePerPlate: string;
       minGuestCount: number;
       maxGuestCount: number | null;
+      kgDefaultWeightGrams: number;
+      kgWeightIncrementGrams: number;
       isActive: boolean;
       publishedAt: string | null;
     } = {
@@ -515,6 +543,8 @@ export default function AdminPackages() {
       basePricePerPlate,
       minGuestCount: Number(form.minGuestCount || 10),
       maxGuestCount: form.maxGuestCount ? Number(form.maxGuestCount) : null,
+      kgDefaultWeightGrams,
+      kgWeightIncrementGrams,
       isActive: form.isActive,
       publishedAt: form.published ? new Date().toISOString() : null,
     };
@@ -530,6 +560,9 @@ export default function AdminPackages() {
       payload.minGuestCount !== selectedVersion.minGuestCount ||
       (payload.maxGuestCount ?? null) !==
         (selectedVersion.maxGuestCount ?? null) ||
+      payload.kgDefaultWeightGrams !== selectedVersion.kgDefaultWeightGrams ||
+      payload.kgWeightIncrementGrams !==
+        selectedVersion.kgWeightIncrementGrams ||
       payload.isActive !== selectedVersion.isActive ||
       Boolean(payload.publishedAt) !== Boolean(selectedVersion.publishedAt)
     );
@@ -1311,28 +1344,67 @@ export default function AdminPackages() {
                           </Field>
                         </>
                       ) : (
-                        <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 md:col-span-2 xl:col-span-3">
-                          <div className="flex items-start gap-3">
-                            <BadgeIndianRupee className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-                            <div>
-                              <p className="text-sm font-semibold text-foreground">
-                                KG prices are global
-                              </p>
-                              <p className="mt-1 text-sm text-muted-foreground">
-                                Set each dish’s price once in Menu items.
-                                Kitchen settings only control availability and
-                                never change the price.
-                              </p>
-                              <a
-                                href="/admin/menu/items"
-                                className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
-                              >
-                                Manage global KG prices
-                                <ExternalLink className="h-3.5 w-3.5" />
-                              </a>
+                        <>
+                          <Field label="Starting weight (kg)">
+                            <Input
+                              type="number"
+                              min="0.5"
+                              max="100"
+                              step="0.5"
+                              inputMode="decimal"
+                              value={priceForm.kgDefaultWeightKg}
+                              onChange={(event) =>
+                                setPriceForm({
+                                  ...priceForm,
+                                  kgDefaultWeightKg: event.target.value,
+                                })
+                              }
+                              required
+                              disabled={!selectedVersionId}
+                            />
+                          </Field>
+                          <Field label="Increment step (kg)">
+                            <Input
+                              type="number"
+                              min="0.5"
+                              max="100"
+                              step="0.5"
+                              inputMode="decimal"
+                              value={priceForm.kgWeightIncrementKg}
+                              onChange={(event) =>
+                                setPriceForm({
+                                  ...priceForm,
+                                  kgWeightIncrementKg: event.target.value,
+                                })
+                              }
+                              required
+                              disabled={!selectedVersionId}
+                            />
+                          </Field>
+                          <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 md:col-span-2 xl:col-span-3">
+                            <div className="flex items-start gap-3">
+                              <BadgeIndianRupee className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+                              <div>
+                                <p className="text-sm font-semibold text-foreground">
+                                  One weight rule for all kitchens
+                                </p>
+                                <p className="mt-1 text-sm text-muted-foreground">
+                                  Starting weight and increment apply globally.
+                                  Use 0.5 kg units. Dish prices are managed once
+                                  in Menu items; kitchen settings only control
+                                  availability.
+                                </p>
+                                <a
+                                  href="/admin/menu/items"
+                                  className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
+                                >
+                                  Manage global KG prices
+                                  <ExternalLink className="h-3.5 w-3.5" />
+                                </a>
+                              </div>
                             </div>
                           </div>
-                        </div>
+                        </>
                       )}
                       <Field label="Publish status">
                         <Select
@@ -2256,15 +2328,52 @@ export default function AdminPackages() {
                       </Field>
                     </>
                   ) : (
-                    <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 md:col-span-2">
-                      <p className="text-sm font-semibold">
-                        No regional price is required here
-                      </p>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Set global KG prices in Menu items, then choose
-                        availability for each kitchen in Location availability.
-                      </p>
-                    </div>
+                    <>
+                      <Field label="Starting weight (kg)">
+                        <Input
+                          type="number"
+                          min="0.5"
+                          max="100"
+                          step="0.5"
+                          inputMode="decimal"
+                          value={versionForm.kgDefaultWeightKg}
+                          onChange={(event) =>
+                            setVersionForm({
+                              ...versionForm,
+                              kgDefaultWeightKg: event.target.value,
+                            })
+                          }
+                          required
+                        />
+                      </Field>
+                      <Field label="Increment step (kg)">
+                        <Input
+                          type="number"
+                          min="0.5"
+                          max="100"
+                          step="0.5"
+                          inputMode="decimal"
+                          value={versionForm.kgWeightIncrementKg}
+                          onChange={(event) =>
+                            setVersionForm({
+                              ...versionForm,
+                              kgWeightIncrementKg: event.target.value,
+                            })
+                          }
+                          required
+                        />
+                      </Field>
+                      <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 md:col-span-2">
+                        <p className="text-sm font-semibold">
+                          Global Order-by-KG settings
+                        </p>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          These weights apply to every kitchen. Values must use
+                          0.5 kg units. Manage dish prices separately in Menu
+                          items.
+                        </p>
+                      </div>
+                    </>
                   )}
                 </div>
                 <label className="flex items-center justify-between rounded-xl border px-3 py-2">

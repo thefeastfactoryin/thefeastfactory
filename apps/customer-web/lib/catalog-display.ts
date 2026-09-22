@@ -11,9 +11,7 @@ export const offeringDisplay: Record<
   MEAL_BOX: { href: '/packages/meal-boxes' },
   PACKAGES: { href: '/packages' },
   ORDER_BY_KG: { href: '/order-by-kg' },
-  // The builder needs a selected package version, so establish that context
-  // in the catalog before entering the builder.
-  CUSTOM_MENU: { href: '/packages?type=CUSTOM_PACKAGE' },
+  CUSTOM_MENU: { href: '/packages/build' },
 };
 
 export const catalogCopy = {

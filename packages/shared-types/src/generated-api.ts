@@ -1425,6 +1425,10 @@ export interface components {
             readonly basePricePerPlate: string;
             /** @default true */
             readonly isActive: boolean;
+            /** @default 1000 */
+            readonly kgDefaultWeightGrams: number;
+            /** @default 500 */
+            readonly kgWeightIncrementGrams: number;
             readonly maxGuestCount?: number | null;
             /** @default 10 */
             readonly minGuestCount: number;
@@ -1654,6 +1658,10 @@ export interface components {
             readonly basePricePerPlate?: string;
             /** @default true */
             readonly isActive: boolean;
+            /** @default 1000 */
+            readonly kgDefaultWeightGrams: number;
+            /** @default 500 */
+            readonly kgWeightIncrementGrams: number;
             readonly maxGuestCount?: number | null;
             /** @default 10 */
             readonly minGuestCount: number;
