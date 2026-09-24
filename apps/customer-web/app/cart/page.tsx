@@ -1321,10 +1321,7 @@ export default function CartPage() {
                       rows={3}
                       className="mt-2 w-full resize-y rounded-xl border border-border bg-white p-3 text-sm leading-6 outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15"
                     />
-                    <div className="mt-1.5 flex items-start justify-between gap-3 text-xs text-muted-foreground">
-                      <span>
-                        One note applies to every package in this order.
-                      </span>
+                    <div className="mt-1.5 flex items-start justify-end gap-3 text-xs text-muted-foreground">
                       <span className="shrink-0">
                         {specialNotes.length}/1000
                       </span>
@@ -1758,7 +1755,7 @@ function MultiCartPriceSummary({
                   className="h-3.5 w-3.5 text-primary"
                   aria-hidden="true"
                 />
-                Assisted service
+                Delivery & Serving Team
               </span>
               <span className="font-semibold text-foreground">
                 {assistedPeople}{' '}
@@ -1827,8 +1824,9 @@ function DeliveryServiceOptions({
     },
     {
       type: 'ASSISTED',
-      title: 'Assisted Service',
-      description: 'Delivery and service support for your gathering.',
+      title: 'Delivery & Serving Team',
+      description:
+        'Serving team will help you unpack and do service for 3-4 hours.',
       addon: helperCount * 999,
       icon: UserRound,
     },

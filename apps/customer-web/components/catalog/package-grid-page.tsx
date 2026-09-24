@@ -500,11 +500,6 @@ export function PackageGridPage({
                     <div>
                       <div className="mb-2 flex items-center justify-between gap-3 text-[12px] font-extrabold text-charcoal">
                         <p>Highlights</p>
-                        <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10.5px] font-extrabold text-gold-text">
-                          {pkg.isCustom
-                            ? 'Custom menu selection'
-                            : `${Math.max(included.length, visibleIncluded.length)} menu highlights`}
-                        </span>
                       </div>
                       {categoryHighlights.length ? (
                         <div className="mb-4 flex flex-wrap gap-2">

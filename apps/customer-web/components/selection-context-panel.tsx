@@ -533,9 +533,7 @@ export function SelectionContextPanel({
       setMessage('Choose a delivery venue.');
       return;
     }
-    const completeEvent = Boolean(
-      eventDate && eventTimeStart && validGuests,
-    );
+    const completeEvent = Boolean(eventDate && eventTimeStart && validGuests);
     const saveKey = [
       cartId,
       packageVersionId,
@@ -667,17 +665,14 @@ export function SelectionContextPanel({
               : 'md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_224px]',
         )}
       >
-        <Field label="Delivery date" hint="Choose the event day.">
+        <Field label="Delivery date">
           <ThemedDatePicker
             min={firstEventDate}
             value={eventDate}
             onChange={setEventDate}
           />
         </Field>
-        <Field
-          label="Delivery time"
-          hint={`Available every ${publicSettings?.eventTimeIntervalMinutes ?? 30} minutes.`}
-        >
+        <Field label="Delivery time">
           <ThemedTimePicker
             value={eventTimeStart}
             onChange={setEventTimeStart}

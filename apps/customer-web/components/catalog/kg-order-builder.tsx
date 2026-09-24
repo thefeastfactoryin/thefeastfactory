@@ -308,17 +308,12 @@ export function KgOrderBuilder() {
               Order <span className="text-accent">by KG</span>
             </h1>
             <p className="mt-3 hidden max-w-[520px] text-base font-semibold leading-6 text-white/85 sm:block sm:text-lg">
-              Choose your dishes and set the right quantity in easy{' '}
-              {formatWeightKg(weightIncrementGrams)} kg steps, with live
-              itemised pricing.
+              Choose your dishes by weight with clear, itemised pricing.
             </p>
             <div className="mt-4 grid max-w-[600px] grid-cols-2 gap-1.5 sm:mt-5 sm:grid-cols-4 sm:gap-2">
               {[
                 { label: 'Priced per kg', icon: Scale },
-                {
-                  label: `${formatWeightKg(weightIncrementGrams)} kg steps`,
-                  icon: Plus,
-                },
+                { label: 'Bulk portions', icon: Plus },
                 { label: 'Made for groups', icon: ChefHat },
                 { label: 'Freshly prepared', icon: Leaf },
               ].map(({ label, icon: Icon }) => (
@@ -483,8 +478,7 @@ export function KgOrderBuilder() {
                           </div>
                           <span className="mt-2 inline-flex w-fit items-center gap-1 rounded-full bg-primary/[0.06] px-2 py-1 text-[9px] font-bold text-primary sm:text-[10px]">
                             <Scale className="h-3 w-3" aria-hidden="true" />
-                            Starts at {formatWeightKg(defaultWeightGrams)} kg ·{' '}
-                            {formatWeightKg(weightIncrementGrams)} kg steps
+                            Bulk portions
                           </span>
                           <div className="mt-auto flex w-full flex-wrap items-center justify-between gap-2 pt-2.5 sm:pt-4">
                             {weights[item.id] ? (
@@ -548,11 +542,6 @@ export function KgOrderBuilder() {
             </div>
             <aside className="rounded-2xl border bg-card p-5 lg:sticky lg:top-24">
               <h2 className="font-serif text-2xl font-bold">Your selection</h2>
-              {!selectedItems.length && (
-                <p className="mt-3 text-sm text-muted-foreground">
-                  Add a dish to get started.
-                </p>
-              )}
               <div className="mt-4 space-y-3" aria-live="polite">
                 {quote?.items.map((item) => (
                   <div key={item.menuItemId} className="border-b pb-3 text-sm">
@@ -582,8 +571,7 @@ export function KgOrderBuilder() {
                 <span>{quote ? formatCurrency(quote.totalAmount) : '—'}</span>
               </div>
               <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                Delivery is calculated once you select your venue. Prices are
-                checked again at checkout.
+                Excluding delivery.
               </p>
               <Button
                 className="mt-5 w-full"
