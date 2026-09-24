@@ -663,8 +663,8 @@ export default function AdminPackages() {
         ? [
             {
               filter: 'SWAPPABLE' as CompositionFilter,
-              label: 'Swappable',
-              helper: 'Swap within category',
+              label: 'Replaceable',
+              helper: 'Replace within category',
             },
           ]
         : []),
@@ -1504,9 +1504,9 @@ export default function AdminPackages() {
                           Menu composition
                         </h3>
                         <p className="mt-1 text-sm text-muted-foreground">
-                          Swaps are category-based: mark an included meal-box or
-                          package item as swappable and customers can swap
-                          within that item’s category.
+                          Replacements are category-based: mark an included
+                          meal-box or package item as replaceable and customers
+                          can replace within that item’s category.
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-2">
@@ -1617,7 +1617,7 @@ export default function AdminPackages() {
                             <th>Category</th>
                             <th>Menu price</th>
                             <th>Package role</th>
-                            <th>Category swap rule</th>
+                            <th>Category replacement rule</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1703,10 +1703,10 @@ export default function AdminPackages() {
                                           }))
                                         }
                                       />
-                                      Swap within {item.category.name}
+                                      Replace within {item.category.name}
                                     </label>
                                   ) : role === 'INCLUDED' ? (
-                                    'Locked inclusion'
+                                    'Fixed item'
                                   ) : role === 'EXTRA' ? (
                                     `+₹${item.generalPrice} per pax`
                                   ) : role === 'CUSTOM_SELECTABLE' ? (

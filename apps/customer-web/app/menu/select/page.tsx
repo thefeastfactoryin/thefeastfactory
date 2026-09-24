@@ -485,7 +485,7 @@ function MenuSelectContent() {
           icon={ShoppingBag}
           eyebrow="Menu builder"
           title="Choose a package before building a menu"
-          description="Packages define the included dishes, swaps, and optional extras."
+          description="Packages define the included dishes, replacements, and optional extras."
           actionHref="/packages"
           actionLabel="Browse packages"
           secondaryHref="/menu"
@@ -613,8 +613,8 @@ function MenuSelectContent() {
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-5 text-muted-foreground">
                 {isMealBox
-                  ? 'Everything shown is included. Swap only where available.'
-                  : 'Everything in the included menu is part of the package. Swap where available, or add optional extras.'}
+                  ? 'Everything shown is included. Replace only where available.'
+                  : 'Everything in the included menu is part of the package. Replace where available, or add optional extras.'}
               </p>
             </div>
             <span className="mt-5 inline-flex min-h-11 max-w-full items-center rounded-full border border-accent/35 bg-accent/[0.10] px-4 text-xs font-bold text-gold-text">
@@ -679,7 +679,7 @@ function MenuSelectContent() {
               </div>
               <p className="mt-2 max-w-2xl text-sm leading-5 text-muted-foreground">
                 {isMealBox
-                  ? 'Review the dishes included in your meal box and customise available swaps.'
+                  ? 'Review the dishes included in your meal box and customise available replacements.'
                   : 'A complete traditional spread for your special occasion.'}
               </p>
             </div>
@@ -1187,7 +1187,7 @@ function MenuSections({
     <div className="mt-4 space-y-3">
       <div className="flex items-center justify-end">
         <label className="inline-flex min-h-11 items-center gap-2 text-xs font-semibold text-muted-foreground">
-          <span>Show only swappable</span>
+          <span>Show only replaceable</span>
           <button
             type="button"
             onClick={() => setSwappableOnly((value) => !value)}
@@ -1304,8 +1304,8 @@ function DishRow({
           )}
           aria-label={
             swappable
-              ? `${swapped ? 'Change swap for' : 'Swap'} ${original.name}`
-              : `${original.name} cannot be swapped`
+              ? `${swapped ? 'Change replacement for' : 'Replace'} ${original.name}`
+              : `${original.name} is a fixed item`
           }
         >
           {swappable ? (
@@ -1313,7 +1313,11 @@ function DishRow({
           ) : (
             <Lock className="h-3.5 w-3.5" />
           )}
-          {swappable ? (swapped ? 'Change swap' : 'Swap item') : 'Locked'}
+          {swappable
+            ? swapped
+              ? 'Change replacement'
+              : 'Replace item'
+            : 'Fixed item'}
         </button>
       </div>
     </article>
@@ -1344,20 +1348,20 @@ function SwapDrawer({
         type="button"
         className="absolute inset-0"
         onClick={onCancel}
-        aria-label="Close swap options"
+        aria-label="Close replacement options"
       />
       <section
         className="relative ml-auto flex h-[100dvh] min-h-0 w-full flex-col overflow-hidden bg-ivory shadow-2xl sm:max-w-[520px]"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="swap-drawer-title"
+        aria-labelledby="replacement-drawer-title"
       >
         <div className="shrink-0 border-b border-border/80 bg-white px-5 py-4">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="eyebrow text-primary">Swap item</p>
+              <p className="eyebrow text-primary">Replace item</p>
               <h2
-                id="swap-drawer-title"
+                id="replacement-drawer-title"
                 className="mt-1 font-serif text-2xl font-semibold text-charcoal"
               >
                 Choose replacement
@@ -1367,7 +1371,7 @@ function SwapDrawer({
               type="button"
               onClick={onCancel}
               className="grid h-10 w-10 shrink-0 place-items-center rounded-full border bg-white"
-              aria-label="Close swap options"
+              aria-label="Close replacement options"
             >
               <X className="h-4 w-4" />
             </button>
@@ -1401,8 +1405,8 @@ function SwapDrawer({
             Eligible replacements
           </p>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Options are limited to the same category and configured package swap
-            rules.
+            Options are limited to the same category and configured package
+            replacement rules.
           </p>
           <div className="mt-4 grid gap-2" role="radiogroup">
             <SwapChoice
@@ -1432,7 +1436,7 @@ function SwapDrawer({
               Cancel
             </Button>
             <Button type="button" onClick={onConfirm}>
-              Confirm swap
+              Confirm replacement
             </Button>
           </div>
         </div>
@@ -1472,7 +1476,12 @@ function SwapChoice({
       </span>
       <span className="min-w-0">
         <strong className="block truncate text-sm">{item.name}</strong>
-        <span className="mt-1 block text-[11px] text-muted-foreground">
+        <span
+          className={cn(
+            'mt-1 block text-[11px] text-muted-foreground',
+            Number(item.adjustmentAmount) > 0 && 'money-text',
+          )}
+        >
           {label ??
             (Number(item.adjustmentAmount) > 0
               ? `+₹${item.adjustmentAmount} per person`
@@ -1538,7 +1547,7 @@ function ExtraRow({
           {row.rule.category.name}
         </span>
       </button>
-      <span className="hidden text-right text-xs font-bold text-primary sm:block">
+      <span className="money-text hidden text-right text-xs font-bold text-primary sm:block">
         +₹{row.item.itemPrice}
         <small className="block font-normal text-muted-foreground">
           per portion
@@ -1546,7 +1555,7 @@ function ExtraRow({
       </span>
       {selected && (
         <div className="col-span-2 flex items-center justify-between gap-3 rounded-lg bg-muted/50 px-2 py-2 sm:col-span-1 sm:w-40 sm:bg-transparent sm:p-0">
-          <span className="text-[11px] font-semibold text-muted-foreground sm:hidden">
+          <span className="money-text text-[11px] font-semibold text-muted-foreground sm:hidden">
             {formatCurrency(lineTotal)}
           </span>
           <div className="ml-auto inline-flex h-9 items-center rounded-lg border bg-white">
@@ -1701,7 +1710,7 @@ function MenuSummary({
                   Extra · {quantity} portion{quantity === 1 ? '' : 's'}
                 </span>
               </span>
-              <span className="text-[10px] font-bold text-primary">
+              <span className="money-text text-[10px] font-bold text-primary">
                 +{formatCurrency(lineTotal)}
               </span>
             </div>
@@ -1712,21 +1721,21 @@ function MenuSummary({
         <div className="space-y-2 text-sm">
           <div className="flex items-center justify-between gap-4">
             <span className="text-muted-foreground">Base package</span>
-            <span className="numeric-text text-right font-semibold text-charcoal">
+            <span className="money-text text-right font-semibold text-charcoal">
               {formatCurrency(basePerPerson)} per {isMealBox ? 'box' : 'guest'}
             </span>
           </div>
           {extrasTotal > 0 && (
             <div className="flex items-center justify-between gap-4">
               <span className="text-muted-foreground">Additional items</span>
-              <span className="numeric-text font-semibold text-charcoal">
+              <span className="money-text font-semibold text-charcoal">
                 {formatCurrency(extrasTotal)}
               </span>
             </div>
           )}
           {swaps > 0 && (
             <div className="flex items-center justify-between gap-4 text-muted-foreground">
-              <span>Menu substitutions</span>
+              <span>Replacements</span>
               <span className="numeric-text">{swaps}</span>
             </div>
           )}
@@ -1745,7 +1754,7 @@ function MenuSummary({
           <span className="text-xs text-muted-foreground">
             Estimated menu total
           </span>
-          <strong className="numeric-text text-2xl font-bold text-charcoal">
+          <strong className="money-text text-2xl font-extrabold text-charcoal">
             {formatCurrency(menuSubtotal)}
           </strong>
         </div>

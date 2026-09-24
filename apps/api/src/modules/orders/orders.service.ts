@@ -52,10 +52,16 @@ export class OrdersService {
     cartId: string,
     checkoutBatchId?: string,
     deliveryFeeOverride?: Prisma.Decimal,
+    cutleryExtraCountOverride?: number,
   ) {
     const cart = await this.prisma.cart.findFirst({
       where: { id: cartId, userId, status: CartStatus.ACTIVE },
-      include: { address: true, region: true, order: true, packageVersion: { include: { package: true } } },
+      include: {
+        address: true,
+        region: true,
+        order: true,
+        packageVersion: { include: { package: true } },
+      },
     });
     if (
       !cart ||
@@ -63,7 +69,8 @@ export class OrdersService {
       !cart.eventDate ||
       !cart.eventTimeStart ||
       !cart.contactNumber ||
-      (!cart.guestCount && cart.packageVersion.package.type !== PackageType.ORDER_BY_KG)
+      (!cart.guestCount &&
+        cart.packageVersion.package.type !== PackageType.ORDER_BY_KG)
     ) {
       throw new BadRequestException(
         'Complete event and venue details before checkout',
@@ -88,7 +95,20 @@ export class OrdersService {
       assignment.region.id,
     );
     const deliveryFee = deliveryFeeOverride ?? assignment.deliveryFee;
-    const totalAmount = menuQuote.totalAmount.plus(deliveryFee);
+    const cutleryExtraCount = Math.max(
+      0,
+      cutleryExtraCountOverride ?? cart.cutleryExtraCount ?? 0,
+    );
+    const cutleryUnitPrice =
+      cart.cutleryUnitPrice ?? new Prisma.Decimal('5.00');
+    const cutleryTotal = cutleryUnitPrice.mul(cutleryExtraCount);
+    const cutleryIncludedCount =
+      cart.packageVersion?.package?.type === PackageType.ORDER_BY_KG
+        ? 0
+        : Math.max(0, cart.guestCount ?? 0);
+    const totalAmount = menuQuote.totalAmount
+      .plus(cutleryTotal)
+      .plus(deliveryFee);
     const eventDate = cart.eventDate;
     const addressId = cart.addressId!;
     const eventInstant = storedEventInstant(eventDate, cart.eventTimeStart);
@@ -98,65 +118,69 @@ export class OrdersService {
     try {
       return await this.prisma.$transaction(async (tx) => {
         const order = await tx.order.create({
-        data: {
-          orderNumber: this.orderNumber(),
-          userId,
-          cartId,
-          checkoutBatchId,
-          regionId: assignment.region.id,
-          addressId,
-          eventName: cart.eventName,
-          eventDate,
-          eventTimeStart: cart.eventTimeStart,
-          specialNotes: cart.specialNotes,
-          contactNumber: cart.contactNumber,
-          packageType: menuQuote.packageType,
-          guestCount: menuQuote.guestCount,
-          basePerPlatePrice: menuQuote.basePerPlatePrice,
-          totalCustomizationCharges: menuQuote.totalCustomizationCharges,
-          finalPerPlatePrice: menuQuote.finalPerPlatePrice,
-          totalAmount,
-          distanceKm: assignment.distanceKm,
-          deliveryServiceType: assignment.deliveryServiceType,
-          helperCount: assignment.helperCount,
-          deliveryFee,
-          packageName: menuQuote.packageName,
-          packageVersionNo: menuQuote.packageVersionNo,
-          orderStatus: OrderStatus.PENDING_PAYMENT,
-          bookingLeadHours: leadHours,
-          selectedItems: {
-            create: menuQuote.items.map((item) => ({
-              categoryId: item.categoryId,
-              menuItemId: item.menuItemId,
-              replacedMenuItemId: item.replacedMenuItemId ?? null,
-              role: item.role,
-              quantity: item.quantity,
-              weightGrams: item.weightGrams ?? null,
-              pricePerKg: item.pricePerKg ?? null,
-              lineTotal: item.lineTotal ?? null,
-              menuItemName: item.menuItemName,
-              categoryName: item.categoryName,
-              replacedMenuItemName: item.replacedMenuItemName ?? null,
-              isVeg: item.isVeg,
-              itemPrice: item.itemPrice,
-              includedValue: item.includedValue,
-              adjustmentAmount: item.adjustmentAmount,
-            })),
-          },
-          statusHistory: {
-            create: {
-              toStatus: OrderStatus.PENDING_PAYMENT,
-              notes: 'Order created',
+          data: {
+            orderNumber: this.orderNumber(),
+            userId,
+            cartId,
+            checkoutBatchId,
+            regionId: assignment.region.id,
+            addressId,
+            eventName: cart.eventName,
+            eventDate,
+            eventTimeStart: cart.eventTimeStart,
+            specialNotes: cart.specialNotes,
+            contactNumber: cart.contactNumber,
+            packageType: menuQuote.packageType,
+            guestCount: menuQuote.guestCount,
+            basePerPlatePrice: menuQuote.basePerPlatePrice,
+            totalCustomizationCharges: menuQuote.totalCustomizationCharges,
+            finalPerPlatePrice: menuQuote.finalPerPlatePrice,
+            totalAmount,
+            distanceKm: assignment.distanceKm,
+            deliveryServiceType: assignment.deliveryServiceType,
+            helperCount: assignment.helperCount,
+            deliveryFee,
+            cutleryIncludedCount,
+            cutleryExtraCount,
+            cutleryUnitPrice,
+            cutleryTotal,
+            packageName: menuQuote.packageName,
+            packageVersionNo: menuQuote.packageVersionNo,
+            orderStatus: OrderStatus.PENDING_PAYMENT,
+            bookingLeadHours: leadHours,
+            selectedItems: {
+              create: menuQuote.items.map((item) => ({
+                categoryId: item.categoryId,
+                menuItemId: item.menuItemId,
+                replacedMenuItemId: item.replacedMenuItemId ?? null,
+                role: item.role,
+                quantity: item.quantity,
+                weightGrams: item.weightGrams ?? null,
+                pricePerKg: item.pricePerKg ?? null,
+                lineTotal: item.lineTotal ?? null,
+                menuItemName: item.menuItemName,
+                categoryName: item.categoryName,
+                replacedMenuItemName: item.replacedMenuItemName ?? null,
+                isVeg: item.isVeg,
+                itemPrice: item.itemPrice,
+                includedValue: item.includedValue,
+                adjustmentAmount: item.adjustmentAmount,
+              })),
+            },
+            statusHistory: {
+              create: {
+                toStatus: OrderStatus.PENDING_PAYMENT,
+                notes: 'Order created',
+              },
             },
           },
-        },
-        include: {
-          selectedItems: true,
-          statusHistory: true,
-          region: true,
-          address: true,
-        },
-      });
+          include: {
+            selectedItems: true,
+            statusHistory: true,
+            region: true,
+            address: true,
+          },
+        });
         return this.serializeOrder(order);
       });
     } catch (error) {
@@ -308,7 +332,9 @@ export class OrdersService {
       adjustmentAmount: item.adjustmentAmount.toFixed(2),
       pricePerKg: item.pricePerKg?.toFixed(2) ?? null,
       lineTotal: item.lineTotal?.toFixed(2) ?? null,
-      totalAdjustmentAmount: item.lineTotal?.toFixed(2) ?? item.adjustmentAmount.mul(order.guestCount ?? 1).toFixed(2),
+      totalAdjustmentAmount:
+        item.lineTotal?.toFixed(2) ??
+        item.adjustmentAmount.mul(order.guestCount ?? 1).toFixed(2),
     }));
     const payments = order.payments?.map((payment) => ({
       ...payment,
@@ -324,10 +350,15 @@ export class OrdersService {
       ...order,
       contactNumber: order.contactNumber,
       basePerPlatePrice: order.basePerPlatePrice?.toFixed(2) ?? null,
-      totalCustomizationCharges: order.totalCustomizationCharges?.toFixed(2) ?? null,
+      totalCustomizationCharges:
+        order.totalCustomizationCharges?.toFixed(2) ?? null,
       finalPerPlatePrice: order.finalPerPlatePrice?.toFixed(2) ?? null,
       distanceKm,
       deliveryFee,
+      cutleryIncludedCount: order.cutleryIncludedCount,
+      cutleryExtraCount: order.cutleryExtraCount,
+      cutleryUnitPrice: order.cutleryUnitPrice.toFixed(2),
+      cutleryTotal: order.cutleryTotal.toFixed(2),
       totalAmount: order.totalAmount.toFixed(2),
       selectedItems,
       payments,

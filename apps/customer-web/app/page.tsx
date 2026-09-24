@@ -127,7 +127,10 @@ export default function HomePage() {
           ),
         );
         const featured = rows
-          .filter((row) => row.isFeatured && row.activeVersion && row.type !== 'ORDER_BY_KG')
+          .filter(
+            (row) =>
+              row.isFeatured && row.activeVersion && row.type !== 'ORDER_BY_KG',
+          )
           .sort((a, b) => (a.featuredOrder ?? 999) - (b.featuredOrder ?? 999))
           .slice(0, 4);
         setPackages(featured);
@@ -430,7 +433,7 @@ export default function HomePage() {
                           </p>
                         ))}
                       </div>
-                      <p className="mt-4 text-lg font-extrabold tracking-tight text-primary">
+                      <p className="money-text mt-4 text-lg font-extrabold tracking-tight text-primary">
                         From ₹{version.basePricePerPlate}
                         <span className="text-xs font-normal text-muted-foreground">
                           {' '}

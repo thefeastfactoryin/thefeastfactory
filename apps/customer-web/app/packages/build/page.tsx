@@ -298,7 +298,7 @@ function DishCatalogue({
                     </h3>
                   </div>
                   <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <span className="text-[11px] font-extrabold text-foreground sm:text-[13px]">
+                    <span className="money-text text-[11px] font-extrabold text-foreground sm:text-[13px]">
                       {formatCurrency(dish.price)} / plate
                     </span>
                   </div>
@@ -405,19 +405,19 @@ function SummaryPanel({
         </div>
         <div className="flex justify-between gap-4">
           <span className="text-muted-foreground">Per guest estimate</span>
-          <strong>
+          <strong className="money-text">
             {subtotalPerPlate ? formatCurrency(subtotalPerPlate) : '-'}
           </strong>
         </div>
         <div className="flex justify-between gap-4">
           <span className="font-bold text-primary">Estimated subtotal</span>
-          <strong className="text-primary">
+          <strong className="money-text text-primary">
             {estimatedSubtotal ? formatCurrency(estimatedSubtotal) : '-'}
           </strong>
         </div>
         <div className="flex justify-between gap-4 rounded-xl bg-primary/[0.055] p-2.5">
           <span className="font-extrabold text-primary">Estimated total</span>
-          <strong className="text-primary">
+          <strong className="money-text text-primary">
             {estimatedSubtotal ? formatCurrency(estimatedSubtotal) : '-'}
           </strong>
         </div>
@@ -934,7 +934,7 @@ function BuildPackageContent() {
                           {dish.categoryName}
                         </p>
                       </div>
-                      <span className="numeric-text shrink-0 text-sm font-semibold">
+                      <span className="money-text shrink-0 text-sm font-semibold">
                         {formatCurrency(dish.price)} / guest
                       </span>
                     </div>
@@ -947,7 +947,7 @@ function BuildPackageContent() {
                 <span className="text-sm text-muted-foreground">
                   Estimated total
                 </span>
-                <strong className="numeric-text text-2xl">
+                <strong className="money-text text-2xl font-extrabold text-primary">
                   {formatCurrency(estimatedSubtotal)}
                 </strong>
               </div>

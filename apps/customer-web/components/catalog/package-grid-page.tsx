@@ -452,7 +452,7 @@ export function PackageGridPage({
                           <p className="text-[10.5px] font-extrabold uppercase tracking-[0.12em] text-muted-foreground">
                             From
                           </p>
-                          <strong className="mt-0.5 block text-[18px] font-bold leading-none text-primary [font-family:Manrope,serif]">
+                          <strong className="money-text mt-0.5 block text-[18px] font-extrabold leading-none text-primary">
                             &#8377;{version.basePricePerPlate}
                           </strong>
                           <p className="mt-0.5 text-[10.5px] font-semibold text-muted-foreground">
@@ -476,7 +476,7 @@ export function PackageGridPage({
                         Includes packaging
                       </span>
                       <div className="hidden">
-                        <strong className="text-xl text-primary">
+                        <strong className="money-text text-xl font-extrabold text-primary">
                           ₹{version.basePricePerPlate}
                           <span className="text-xs font-normal text-muted-foreground">
                             {' '}

@@ -17,7 +17,10 @@ import { StatePanel } from '../../components/ui/state-panel';
 import { usePublicSettings } from '../../components/public-settings-provider';
 import { DataImage } from '../../components/data-image';
 import { apiRequest } from '../../lib/api';
-import { generateWhatsAppLink, whatsappMessages } from '../../lib/generate-whatsapp-link';
+import {
+  generateWhatsAppLink,
+  whatsappMessages,
+} from '../../lib/generate-whatsapp-link';
 import { cn } from '../../lib/utils';
 
 type DietaryFilter = 'all' | 'veg' | 'non-veg';
@@ -121,14 +124,19 @@ function MenuSidebar({
             ))}
           </div>
 
-          <label className="mt-5 block text-xs font-medium text-muted-foreground" htmlFor="menu-sort">
+          <label
+            className="mt-5 block text-xs font-medium text-muted-foreground"
+            htmlFor="menu-sort"
+          >
             Sort by
           </label>
           <div className="relative mt-2">
             <select
               id="menu-sort"
               value={sort}
-              onChange={(event) => onSortChange(event.target.value as SortFilter)}
+              onChange={(event) =>
+                onSortChange(event.target.value as SortFilter)
+              }
               className="h-12 w-full appearance-none rounded-lg border border-border bg-white px-4 pr-10 text-sm font-semibold text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10"
             >
               <option value="popular">Popular</option>
@@ -206,8 +214,8 @@ function FilterBar({
       <div className="flex items-center gap-1.5">
         {(
           [
-            { value: 'all',     label: 'All dishes' },
-            { value: 'veg',     label: 'Veg' },
+            { value: 'all', label: 'All dishes' },
+            { value: 'veg', label: 'Veg' },
             { value: 'non-veg', label: 'Non-Veg' },
           ] as const
         ).map(({ value, label }) => (
@@ -230,7 +238,6 @@ function FilterBar({
           </span>
         )}
       </div>
-
     </div>
   );
 }
@@ -241,7 +248,6 @@ function FilterBar({
 function MenuCard({ item }: { item: MenuItem }) {
   return (
     <article className="group grid min-h-[132px] grid-cols-[112px_minmax(0,1fr)] overflow-hidden rounded-xl border border-border bg-white shadow-[0_4px_18px_rgba(0,0,0,0.07)] transition-all duration-300 hover:-translate-y-1 hover:border-primary/25 hover:shadow-[0_14px_38px_rgba(0,0,0,0.14)] sm:flex sm:flex-col sm:rounded-2xl">
-
       {/* Food image — 3:2 aspect (slightly shorter than 4:3, fits more cards) */}
       <div className="relative h-full min-h-[132px] overflow-hidden sm:aspect-[4/2.5] sm:h-auto sm:min-h-0">
         <DataImage
@@ -258,10 +264,16 @@ function MenuCard({ item }: { item: MenuItem }) {
         <span
           className={cn(
             'absolute right-2 top-2 flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold shadow-sm sm:right-3 sm:top-3 sm:text-[10px]',
-            item.isVeg ? 'bg-emerald-600 text-white' : 'bg-orange-500 text-white',
+            item.isVeg
+              ? 'bg-emerald-600 text-white'
+              : 'bg-orange-500 text-white',
           )}
         >
-          {item.isVeg ? <Leaf className="h-2.5 w-2.5" /> : <Flame className="h-2.5 w-2.5" />}
+          {item.isVeg ? (
+            <Leaf className="h-2.5 w-2.5" />
+          ) : (
+            <Flame className="h-2.5 w-2.5" />
+          )}
           {item.isVeg ? 'Veg' : 'Non-Veg'}
         </span>
 
@@ -292,18 +304,17 @@ function MenuCard({ item }: { item: MenuItem }) {
 
         {/* Price — high visual weight */}
         <div className="mt-2 flex items-baseline gap-0.5 sm:mt-4">
-          <span className="text-xl font-extrabold tracking-tight text-foreground sm:text-2xl">
+          <span className="money-text text-xl font-extrabold tracking-tight text-foreground sm:text-2xl">
             ₹{item.generalPrice}
           </span>
-          <span className="ml-1 text-xs font-medium text-muted-foreground">/ portion</span>
+          <span className="ml-1 text-xs font-medium text-muted-foreground">
+            / portion
+          </span>
         </div>
-
-        <p className="mt-3 hidden text-xs text-muted-foreground sm:block">Available in eligible packages</p>
       </div>
     </article>
   );
 }
-
 
 /* ═══════════════════════════════════════════════════════
    Skeleton
@@ -312,7 +323,10 @@ function MenuSkeleton() {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {Array.from({ length: 6 }).map((_, i) => (
-        <div key={i} className="overflow-hidden rounded-2xl bg-white shadow-md ring-1 ring-black/5">
+        <div
+          key={i}
+          className="overflow-hidden rounded-2xl bg-white shadow-md ring-1 ring-black/5"
+        >
           <div className="aspect-[3/2] animate-pulse bg-muted" />
           <div className="space-y-3 p-4">
             <div className="h-5 w-40 animate-pulse rounded bg-muted" />
@@ -339,22 +353,24 @@ function MenuSkeleton() {
 ══════════════════════════════════════════════════════════ */
 export default function PublicMenuPage() {
   const settings = usePublicSettings();
-  const [categories, setCategories]             = useState<MenuCategory[]>([]);
-  const [items, setItems]                       = useState<MenuItem[]>([]);
-  const [countItems, setCountItems]             = useState<MenuItem[]>([]);
-  const [categoryId, setCategoryId]             = useState('');
-  const [dietary, setDietary]                   = useState<DietaryFilter>('all');
-  const [sort, setSort]                         = useState<SortFilter>('popular');
-  const [search, setSearch]                     = useState('');
-  const [debouncedSearch, setDebouncedSearch]   = useState('');
-  const [loading, setLoading]                   = useState(true);
-  const [error, setError]                       = useState('');
+  const [categories, setCategories] = useState<MenuCategory[]>([]);
+  const [items, setItems] = useState<MenuItem[]>([]);
+  const [countItems, setCountItems] = useState<MenuItem[]>([]);
+  const [categoryId, setCategoryId] = useState('');
+  const [dietary, setDietary] = useState<DietaryFilter>('all');
+  const [sort, setSort] = useState<SortFilter>('popular');
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const mobileInitialCategorySet = useRef(false);
 
   const sortedItems = useMemo(() => {
     return [...items].sort((a, b) => {
-      if (sort === 'price-low') return Number(a.generalPrice ?? 0) - Number(b.generalPrice ?? 0);
-      if (sort === 'price-high') return Number(b.generalPrice ?? 0) - Number(a.generalPrice ?? 0);
+      if (sort === 'price-low')
+        return Number(a.generalPrice ?? 0) - Number(b.generalPrice ?? 0);
+      if (sort === 'price-high')
+        return Number(b.generalPrice ?? 0) - Number(a.generalPrice ?? 0);
       if (sort === 'name') return a.name.localeCompare(b.name);
       return 0;
     });
@@ -413,19 +429,25 @@ export default function PublicMenuPage() {
   }, [categories]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    const timer = window.setTimeout(
+      () => setDebouncedSearch(search.trim()),
+      300,
+    );
     return () => window.clearTimeout(timer);
   }, [search]);
 
   useEffect(() => {
     const params = new URLSearchParams();
     if (categoryId) params.set('categoryId', categoryId);
-    if (dietary !== 'all') params.set('isVeg', dietary === 'veg' ? 'true' : 'false');
+    if (dietary !== 'all')
+      params.set('isVeg', dietary === 'veg' ? 'true' : 'false');
     if (debouncedSearch) params.set('search', debouncedSearch);
 
     setLoading(true);
     setError('');
-    apiRequest<MenuItem[]>(`/menu/items${params.size ? `?${params.toString()}` : ''}`)
+    apiRequest<MenuItem[]>(
+      `/menu/items${params.size ? `?${params.toString()}` : ''}`,
+    )
       .then(setItems)
       .catch((reason) => setError(reason.message))
       .finally(() => setLoading(false));
@@ -433,10 +455,13 @@ export default function PublicMenuPage() {
 
   useEffect(() => {
     const params = new URLSearchParams();
-    if (dietary !== 'all') params.set('isVeg', dietary === 'veg' ? 'true' : 'false');
+    if (dietary !== 'all')
+      params.set('isVeg', dietary === 'veg' ? 'true' : 'false');
     if (debouncedSearch) params.set('search', debouncedSearch);
 
-    apiRequest<MenuItem[]>(`/menu/items${params.size ? `?${params.toString()}` : ''}`)
+    apiRequest<MenuItem[]>(
+      `/menu/items${params.size ? `?${params.toString()}` : ''}`,
+    )
       .then(setCountItems)
       .catch(() => setCountItems([]));
   }, [dietary, debouncedSearch]);
@@ -457,7 +482,7 @@ export default function PublicMenuPage() {
           onSortChange={setSort}
         />
 
-      {/* ② Filters, cart context, and compact food grid */}
+        {/* ② Filters, cart context, and compact food grid */}
         <main className="min-w-0 flex-1 px-4 pb-24 pt-5 sm:px-6 lg:px-8 lg:pb-12 lg:pt-8">
           <div className="mx-auto max-w-6xl">
             <div className="relative mb-5">
@@ -486,7 +511,10 @@ export default function PublicMenuPage() {
                 itemCount={items.length}
                 loading={loading}
               />
-              <div className="mb-5 flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+              <div
+                className="mb-5 flex gap-2 overflow-x-auto pb-1"
+                style={{ scrollbarWidth: 'none' }}
+              >
                 {categories.map((cat) => {
                   const Icon = getCatIcon(cat.name);
                   return (
@@ -512,7 +540,9 @@ export default function PublicMenuPage() {
             {!categoryId && (
               <div className="mb-5 flex flex-wrap items-end justify-between gap-3 border-b border-border pb-4">
                 <div className="flex items-end gap-4">
-                  <h1 className="font-serif text-3xl font-bold text-foreground">All Dishes</h1>
+                  <h1 className="font-serif text-3xl font-bold text-foreground">
+                    All Dishes
+                  </h1>
                   <span className="mb-1 border-l border-border pl-4 text-sm text-muted-foreground">
                     {items.length} {items.length === 1 ? 'dish' : 'dishes'}
                   </span>
@@ -534,40 +564,46 @@ export default function PublicMenuPage() {
 
             {!loading && !error && items.length > 0 && (
               <div className="space-y-8 pb-4 lg:space-y-14 lg:pb-8">
-                {menuSections.map(({ category, items: categoryItems }, index) => (
-                  <section
-                    key={category.id}
-                    className={cn(
-                      'scroll-mt-36',
-                      index > 0 && 'border-t-2 border-primary/10 pt-7 lg:pt-10',
-                    )}
-                    aria-labelledby={`menu-category-${category.id}`}
-                  >
-                    <div className="mb-3 flex flex-wrap items-end justify-between gap-3 sm:mb-6">
-                      <div>
-                        <h2
-                          id={`menu-category-${category.id}`}
-                          className="font-serif text-2xl font-bold text-foreground lg:text-[1.7rem]"
-                        >
-                          {category.name}
-                        </h2>
-                        <div className="mt-2 h-0.5 w-7 bg-amber-500" />
+                {menuSections.map(
+                  ({ category, items: categoryItems }, index) => (
+                    <section
+                      key={category.id}
+                      className={cn(
+                        'scroll-mt-36',
+                        index > 0 &&
+                          'border-t-2 border-primary/10 pt-7 lg:pt-10',
+                      )}
+                      aria-labelledby={`menu-category-${category.id}`}
+                    >
+                      <div className="mb-3 flex flex-wrap items-end justify-between gap-3 sm:mb-6">
+                        <div>
+                          <h2
+                            id={`menu-category-${category.id}`}
+                            className="font-serif text-2xl font-bold text-foreground lg:text-[1.7rem]"
+                          >
+                            {category.name}
+                          </h2>
+                          <div className="mt-2 h-0.5 w-7 bg-amber-500" />
+                        </div>
+                        <span className="rounded-full border bg-white px-3 py-1.5 text-xs font-bold text-muted-foreground shadow-sm">
+                          {categoryItems.length}{' '}
+                          {categoryItems.length === 1 ? 'dish' : 'dishes'}
+                        </span>
                       </div>
-                      <span className="rounded-full border bg-white px-3 py-1.5 text-xs font-bold text-muted-foreground shadow-sm">
-                        {categoryItems.length}{' '}
-                        {categoryItems.length === 1 ? 'dish' : 'dishes'}
-                      </span>
-                    </div>
-                    <div className="grid gap-3 sm:grid-cols-2 sm:gap-5 xl:grid-cols-3 2xl:grid-cols-4">
-                      {categoryItems.map((item) => (
-                        <MenuCard key={item.id} item={item} />
-                      ))}
-                    </div>
-                  </section>
-                ))}
+                      <div className="grid gap-3 sm:grid-cols-2 sm:gap-5 xl:grid-cols-3 2xl:grid-cols-4">
+                        {categoryItems.map((item) => (
+                          <MenuCard key={item.id} item={item} />
+                        ))}
+                      </div>
+                    </section>
+                  ),
+                )}
                 <div className="hidden justify-center border-t border-border pt-8 sm:flex">
                   <a
-                    href={generateWhatsAppLink(whatsappMessages.recommendation, settings?.business.supportPhone)}
+                    href={generateWhatsAppLink(
+                      whatsappMessages.recommendation,
+                      settings?.business.supportPhone,
+                    )}
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex h-11 items-center justify-center rounded-full border border-primary/35 px-5 text-sm font-bold text-primary transition-colors hover:bg-primary/5"
@@ -581,7 +617,9 @@ export default function PublicMenuPage() {
             {!loading && !error && items.length === 0 && (
               <div className="flex flex-col items-center py-24 text-center">
                 <Search className="h-9 w-9 text-muted-foreground/40" />
-                <h2 className="mt-3 font-serif text-xl font-bold text-foreground">No dishes found</h2>
+                <h2 className="mt-3 font-serif text-xl font-bold text-foreground">
+                  No dishes found
+                </h2>
                 <p className="mt-1 text-sm text-muted-foreground">
                   Try a different category or clear your search.
                 </p>

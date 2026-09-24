@@ -29,6 +29,7 @@ import {
   ShieldCheck,
   ShoppingBag,
   Truck,
+  Utensils,
   UserRound,
   Trash2,
   Users,
@@ -85,6 +86,7 @@ type MultiCartQuote = {
   valid: boolean;
   carts: Array<{ cartId: string; quote: PackageSelectionPrice }>;
   subtotalAmount: string;
+  cutleryTotal?: string;
   deliveryFee: string;
   totalAmount: string;
 };
@@ -104,12 +106,17 @@ function withoutCartQuote(
     0,
     ...carts.map((entry) => Number(entry.quote.deliveryFee)),
   );
+  const cutlery = Math.max(
+    0,
+    ...carts.map((entry) => Number(entry.quote.cutleryTotal ?? 0)),
+  );
   return {
     ...aggregate,
     carts,
     subtotalAmount: subtotal.toFixed(2),
+    cutleryTotal: cutlery.toFixed(2),
     deliveryFee: delivery.toFixed(2),
-    totalAmount: (subtotal + delivery).toFixed(2),
+    totalAmount: (subtotal + cutlery + delivery).toFixed(2),
   };
 }
 
@@ -257,13 +264,10 @@ export default function CartPage() {
       );
       hydrate(updated);
       const event = updated.event;
-      if (
-        !event?.address?.id ||
-        !event.region?.id ||
-        !event.eventDate ||
-        !event.eventTimeStart
-      )
-        return;
+      const addressId = event?.address?.id ?? updated.address?.id;
+      const regionId = event?.region?.id ?? updated.region?.id;
+      if (!addressId || !regionId) return;
+      const completeEvent = Boolean(event?.eventDate && event.eventTimeStart);
       void Promise.all(
         activeCarts.map((packageCart) => {
           if (packageCart.id === updated.id) return Promise.resolve(updated);
@@ -273,12 +277,18 @@ export default function CartPage() {
               method: 'PUT',
               body: JSON.stringify({
                 packageVersionId: packageCart.packageVersionId,
-                addressId: event.address!.id,
-                eventName: packageCart.package.name,
-                eventDate: event.eventDate,
-                eventTimeStart: event.eventTimeStart,
-                guestCount:
-                  packageCart.guestCount ?? packageCart.package.minGuestCount,
+                addressId,
+                regionId,
+                ...(completeEvent
+                  ? {
+                      eventName: packageCart.package.name,
+                      eventDate: event!.eventDate,
+                      eventTimeStart: event!.eventTimeStart,
+                      guestCount:
+                        packageCart.guestCount ??
+                        packageCart.package.minGuestCount,
+                    }
+                  : {}),
               }),
             },
             session.accessToken,
@@ -353,6 +363,41 @@ export default function CartPage() {
                 packageVersionId: packageCart.packageVersionId,
                 deliveryServiceType,
                 helperCount,
+              }),
+            },
+            session.accessToken,
+          ),
+        ),
+      );
+      setActiveCarts(updatedCarts);
+      const updated = updatedCarts.find((entry) => entry.id === cart.id);
+      if (updated) {
+        setCart(updated);
+        hydrate(updated);
+      }
+      await loadQuote(cart.id);
+    } catch (reason) {
+      setError((reason as Error).message);
+    } finally {
+      setUpdatingDelivery(false);
+    }
+  }
+
+  async function updateCutleryExtraCount(nextCount: number) {
+    if (!session || !cart || updatingDelivery || pendingOrder) return;
+    const cutleryExtraCount = Math.max(0, Math.round(nextCount));
+    setUpdatingDelivery(true);
+    setError('');
+    try {
+      const updatedCarts = await Promise.all(
+        activeCarts.map((packageCart) =>
+          apiRequest<CartSummary>(
+            `/cart/${packageCart.id}`,
+            {
+              method: 'PUT',
+              body: JSON.stringify({
+                packageVersionId: packageCart.packageVersionId,
+                cutleryExtraCount,
               }),
             },
             session.accessToken,
@@ -870,8 +915,8 @@ export default function CartPage() {
                   Packages in your cart ({activeCarts.length})
                 </h2>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Each package keeps its own count and menu. Payment is
-                  combined.
+                  Delivery details, service choice, cutlery, and contact stay
+                  common. Select a package to review only its menu.
                 </p>
               </div>
               <Link
@@ -1046,27 +1091,55 @@ export default function CartPage() {
 
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_392px] lg:items-start">
           <div className="min-w-0 space-y-4">
-            {!isMultiCart &&
-              (pendingOrder ? (
-                <EventSummary cart={cart} />
-              ) : (
-                <SelectionContextPanel
-                  cartId={cart.id}
-                  packageVersionId={cart.packageVersionId}
-                  minPax={cart.package.minGuestCount}
-                  maxPax={cart.package.maxGuestCount}
-                  hideQuantity
-                  deliveryService={
+            {isMultiCart && !pendingOrder && (
+              <section className="rounded-2xl border border-primary/15 bg-primary/[0.045] p-4 sm:p-5">
+                <div className="flex items-start gap-3">
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-primary shadow-sm">
+                    <Truck className="h-5 w-5" aria-hidden="true" />
+                  </span>
+                  <div>
+                    <p className="eyebrow">Shared delivery setup</p>
+                    <h2 className="mt-1 font-serif text-xl font-semibold text-foreground">
+                      One delivery plan for all packages
+                    </h2>
+                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                      Venue, delivery time, serving option, cutlery, contact
+                      number, and kitchen note apply to every package in this
+                      cart. Only the menu section below changes when you switch
+                      packages.
+                    </p>
+                  </div>
+                </div>
+              </section>
+            )}
+            {pendingOrder ? (
+              <EventSummary cart={cart} />
+            ) : (
+              <SelectionContextPanel
+                cartId={cart.id}
+                packageVersionId={cart.packageVersionId}
+                minPax={cart.package.minGuestCount}
+                maxPax={cart.package.maxGuestCount}
+                hideQuantity
+                deliveryService={
+                  <>
                     <DeliveryServiceOptions
                       cart={cart}
                       quote={quote}
                       disabled={updatingDelivery}
                       onChange={updateDeliveryService}
                     />
-                  }
-                  onSaved={onEventSaved}
-                />
-              ))}
+                    <CutleryOptions
+                      cart={cart}
+                      quote={quote}
+                      disabled={updatingDelivery}
+                      onChange={updateCutleryExtraCount}
+                    />
+                  </>
+                }
+                onSaved={onEventSaved}
+              />
+            )}
 
             <section className="overflow-hidden rounded-2xl border border-border bg-white shadow-[0_14px_36px_-30px_rgba(75,12,23,.55)]">
               <div className="flex flex-wrap items-center justify-between gap-4 p-5 pb-3 sm:p-6 sm:pb-4">
@@ -1076,10 +1149,12 @@ export default function CartPage() {
                   </span>
                   <div className="min-w-0">
                     <h2 className="font-serif text-2xl font-semibold">
-                      Your menu
+                      {isMultiCart ? `${cart.package.name} menu` : 'Your menu'}
                     </h2>
                     <p className="mt-0.5 text-sm text-muted-foreground">
-                      Review and customise your selected dishes.
+                      {isMultiCart
+                        ? 'Switch packages above to review or edit each menu. Delivery details stay shared.'
+                        : 'Review and customise your selected dishes.'}
                     </p>
                   </div>
                 </div>
@@ -1163,29 +1238,6 @@ export default function CartPage() {
                 </div>
               )}
             </section>
-
-            {isMultiCart &&
-              (pendingOrder ? (
-                <EventSummary cart={cart} />
-              ) : (
-                <SelectionContextPanel
-                  key={cart.id}
-                  cartId={cart.id}
-                  packageVersionId={cart.packageVersionId}
-                  minPax={cart.package.minGuestCount}
-                  maxPax={cart.package.maxGuestCount}
-                  hideQuantity
-                  deliveryService={
-                    <DeliveryServiceOptions
-                      cart={cart}
-                      quote={quote}
-                      disabled={updatingDelivery}
-                      onChange={updateDeliveryService}
-                    />
-                  }
-                  onSaved={onEventSaved}
-                />
-              ))}
           </div>
 
           <aside className="h-fit lg:sticky lg:top-24">
@@ -1205,7 +1257,7 @@ export default function CartPage() {
                 <div className="p-4 sm:p-6">
                   <div className="flex items-end justify-between border-b pb-5">
                     <span className="font-semibold">Total</span>
-                    <strong className="font-serif text-3xl">
+                    <strong className="money-text text-3xl font-extrabold text-primary">
                       ₹{pendingBatch?.totalAmount ?? pendingOrder.totalAmount}
                     </strong>
                   </div>
@@ -1507,6 +1559,24 @@ function formatCartDate(value?: string) {
   }).format(date);
 }
 
+function formatVenueAddress(
+  address?: CartSummary['address'] | null,
+  maxLines = 4,
+) {
+  if (!address) return 'Not set';
+  const lines = [
+    address.label,
+    address.addressLine1,
+    address.addressLine2,
+    address.landmark ? `Landmark: ${address.landmark}` : undefined,
+    [address.city, address.pincode].filter(Boolean).join(' '),
+  ]
+    .filter(Boolean)
+    .map((line) => String(line).trim())
+    .filter(Boolean);
+  return lines.length ? lines.slice(0, maxLines).join(', ') : 'Not set';
+}
+
 function EventSummary({ cart }: { cart: CartSummary }) {
   const address = cart.event?.address ?? cart.address;
   return (
@@ -1537,15 +1607,7 @@ function EventSummary({ cart }: { cart: CartSummary }) {
               : String(cart.event?.guestCount ?? cart.guestCount ?? 'Not set')
           }
         />
-        <Info
-          icon={MapPin}
-          label="Venue"
-          value={
-            address
-              ? `${address.label || address.addressLine1}, ${address.city}`
-              : 'Not set'
-          }
-        />
+        <Info icon={MapPin} label="Venue" value={formatVenueAddress(address)} />
       </div>
     </section>
   );
@@ -1580,7 +1642,9 @@ function ReviewDishCard({ row }: { row: ReviewRow }) {
               <Leaf className="h-3 w-3" /> {row.isVeg ? 'Veg' : 'Non-veg'}
             </span>
             {row.role !== 'CUSTOM' && adjustment > 0 && (
-              <span>{formatCurrency(adjustment)} / plate</span>
+              <span className="money-text">
+                {formatCurrency(adjustment)} / plate
+              </span>
             )}
           </span>
           {row.replacedName && (
@@ -1589,7 +1653,7 @@ function ReviewDishCard({ row }: { row: ReviewRow }) {
             </span>
           )}
           {row.weightGrams != null && (
-            <span className="mt-1 block text-xs font-semibold text-primary">
+            <span className="money-text mt-1 block text-xs font-semibold text-primary">
               {row.weightGrams / 1000} kg · {formatCurrency(row.pricePerKg)} /
               kg
               {row.lineTotal && ` · ${formatCurrency(row.lineTotal)}`}
@@ -1633,12 +1697,7 @@ function OrderFacts({ cart }: { cart: CartSummary }) {
   const facts = [
     ['Delivery date', formatCartDate(cart.event?.eventDate)],
     ['Delivery time', cart.event?.eventTimeStart || 'Not set'],
-    [
-      'Delivery venue',
-      address
-        ? `${address.label || address.addressLine1}, ${address.city}`
-        : 'Not set',
-    ],
+    ['Delivery venue', formatVenueAddress(address, 2)],
   ];
 
   return (
@@ -1715,6 +1774,11 @@ function MultiCartPriceSummary({
     ({ quote }) => quote.deliveryServiceType === 'ASSISTED',
   )?.quote;
   const assistedPeople = assistedQuote?.helperCount ?? 0;
+  const extraCutleryCount = Math.max(
+    0,
+    ...aggregate.carts.map((entry) => entry.quote.cutleryExtraCount ?? 0),
+  );
+  const cutleryTotal = Number(aggregate.cutleryTotal ?? 0);
   return (
     <>
       <div className="space-y-3 text-sm">
@@ -1743,6 +1807,12 @@ function MultiCartPriceSummary({
           label="Packages subtotal"
           value={formatCurrency(aggregate.subtotalAmount)}
         />
+        {extraCutleryCount > 0 && (
+          <PriceLine
+            label={`Extra cutlery (${extraCutleryCount} × ₹5)`}
+            value={formatCurrency(cutleryTotal)}
+          />
+        )}
         <div className="rounded-xl bg-muted/50 p-3">
           <PriceLine
             label="Delivery"
@@ -1774,11 +1844,136 @@ function MultiCartPriceSummary({
       <div className="my-5 h-px bg-border" />
       <div className="flex items-end justify-between gap-4">
         <span className="font-semibold">Total</span>
-        <strong className="font-serif text-4xl">
+        <strong className="money-text text-4xl font-extrabold text-primary">
           {formatCurrency(aggregate.totalAmount)}
         </strong>
       </div>
     </>
+  );
+}
+
+function CutleryOptions({
+  cart,
+  quote,
+  disabled,
+  onChange,
+}: {
+  cart: CartSummary;
+  quote?: PackageSelectionPrice;
+  disabled: boolean;
+  onChange: (count: number) => void;
+}) {
+  const includedCount =
+    quote?.cutleryIncludedCount ?? cart.cutleryIncludedCount ?? 0;
+  const extraCount = quote?.cutleryExtraCount ?? cart.cutleryExtraCount ?? 0;
+  const unitPrice = quote?.cutleryUnitPrice ?? cart.cutleryUnitPrice ?? '5.00';
+  const total = Number(quote?.cutleryTotal ?? 0);
+
+  return (
+    <section className="mt-4 rounded-xl border border-border bg-white p-3 shadow-sm">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 gap-2.5">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-accent/15 text-primary">
+            <Utensils className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <h3 className="text-sm font-extrabold text-foreground">
+                Cutlery
+              </h3>
+              <span className="money-text text-xs font-bold text-primary">
+                {formatCurrency(unitPrice)} per extra set
+              </span>
+            </div>
+            <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
+              {includedCount} set{includedCount === 1 ? '' : 's'} included with
+              this package.
+            </p>
+          </div>
+        </div>
+        {extraCount === 0 ? (
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => onChange(1)}
+            className="inline-flex h-10 shrink-0 items-center justify-center rounded-full border border-primary/30 px-4 text-xs font-extrabold text-primary transition hover:bg-primary/[0.04] disabled:opacity-50"
+          >
+            Add additional
+          </button>
+        ) : (
+          <div className="w-full shrink-0 rounded-xl border border-border bg-background p-2 sm:w-auto">
+            <div className="mb-1 flex items-center justify-end px-1">
+              <span
+                id="additional-cutlery-help"
+                className="money-text text-xs font-bold text-primary"
+              >
+                {formatCurrency(total)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <button
+                type="button"
+                disabled={disabled || extraCount <= 0}
+                onClick={() => onChange(extraCount - 1)}
+                className="grid h-9 w-9 place-items-center rounded-lg bg-primary text-white disabled:bg-muted disabled:text-muted-foreground"
+                aria-label="Remove additional cutlery set"
+              >
+                <Minus className="h-4 w-4" />
+              </button>
+              <label
+                htmlFor="extra-cutlery-count"
+                className="flex h-9 min-w-28 items-center justify-center gap-1.5 rounded-lg border border-border bg-white px-3 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15"
+              >
+                <input
+                  id="extra-cutlery-count"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  disabled={disabled}
+                  defaultValue={extraCount}
+                  key={extraCount}
+                  onFocus={(event) => event.currentTarget.select()}
+                  onBlur={(event) => {
+                    const next = Math.max(
+                      0,
+                      Math.min(
+                        10000,
+                        Math.round(Number(event.target.value) || 0),
+                      ),
+                    );
+                    event.currentTarget.value = String(next);
+                    if (next !== extraCount) onChange(next);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') event.currentTarget.blur();
+                  }}
+                  onChange={(event) => {
+                    event.currentTarget.value = event.currentTarget.value
+                      .replace(/\D/g, '')
+                      .slice(0, 5);
+                  }}
+                  className="money-text w-10 bg-transparent text-center text-sm font-extrabold text-foreground outline-none disabled:opacity-60"
+                  aria-describedby="additional-cutlery-help"
+                  aria-label="Additional cutlery sets"
+                />
+                <span className="text-xs font-bold text-muted-foreground">
+                  additional
+                </span>
+              </label>
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() => onChange(extraCount + 1)}
+                className="grid h-9 w-9 place-items-center rounded-lg bg-primary text-white disabled:opacity-50"
+                aria-label="Add additional cutlery set"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -1860,13 +2055,19 @@ function DeliveryServiceOptions({
             <div
               key={type}
               className={cn(
-                'min-w-[220px] flex-1 overflow-hidden rounded-2xl border transition',
+                'relative min-w-[220px] flex-1 overflow-hidden rounded-2xl border transition',
                 isSelected
-                  ? 'border-primary bg-primary/[0.04] shadow-[0_12px_28px_-24px_rgba(75,12,23,.8)]'
+                  ? 'border-primary bg-primary/[0.075] shadow-[0_14px_34px_-22px_rgba(75,12,23,.95)] ring-2 ring-primary/25'
                   : 'border-border bg-white hover:border-primary/40',
                 disabled && 'cursor-wait opacity-70',
               )}
             >
+              {isSelected && (
+                <span
+                  className="absolute inset-y-0 left-0 w-1.5 bg-primary"
+                  aria-hidden="true"
+                />
+              )}
               <button
                 type="button"
                 role="radio"
@@ -1882,7 +2083,7 @@ function DeliveryServiceOptions({
                     className={cn(
                       'grid h-12 w-12 place-items-center rounded-full',
                       isSelected
-                        ? 'bg-primary/10 text-primary'
+                        ? 'bg-primary text-white shadow-[0_8px_18px_rgba(122,31,43,0.24)]'
                         : 'bg-muted text-primary',
                     )}
                   >
@@ -1890,34 +2091,34 @@ function DeliveryServiceOptions({
                   </span>
                   <span
                     className={cn(
-                      'grid h-5 w-5 place-items-center rounded-full border',
+                      'grid h-6 w-6 place-items-center rounded-full border-2',
                       isSelected
                         ? 'border-primary bg-primary text-white'
                         : 'border-foreground/50',
                     )}
                     aria-hidden="true"
                   >
-                    {isSelected && (
-                      <span className="h-2 w-2 rounded-full bg-white" />
-                    )}
+                    {isSelected && <Check className="h-3.5 w-3.5" />}
                   </span>
                 </span>
-                <strong className="mt-5 font-serif text-xl leading-tight text-primary">
-                  {title}
-                </strong>
+                <span className="mt-5 flex flex-wrap items-center gap-2">
+                  <strong className="font-serif text-xl leading-tight text-primary">
+                    {title}
+                  </strong>
+                </span>
                 <span className="mt-2 max-w-[28ch] text-sm leading-5 text-muted-foreground">
                   {description}
                 </span>
-                <span className="mt-auto pt-5 text-base font-semibold text-primary">
+                <span className="money-text mt-auto pt-5 text-base font-bold text-primary">
                   {addon === 0
                     ? `Base ${formatCurrency(baseDelivery)}`
                     : `+ ${formatCurrency(addon)}`}
                 </span>
                 <span
                   className={cn(
-                    'mt-1 text-xs',
+                    'money-text mt-1 text-xs',
                     isSelected
-                      ? 'font-semibold text-primary'
+                      ? 'font-extrabold text-primary'
                       : 'text-muted-foreground',
                   )}
                 >
@@ -1964,7 +2165,7 @@ function PriceLine({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-4">
       <span className="text-muted-foreground">{label}</span>
-      <span className="font-semibold">{value}</span>
+      <span className="money-text font-bold text-foreground">{value}</span>
     </div>
   );
 }

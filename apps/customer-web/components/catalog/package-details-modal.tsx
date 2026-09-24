@@ -166,7 +166,9 @@ export function PackageDetailsModal({
                               />
                             </div>
                             <div className="min-w-0 py-1">
-                              <p className="font-semibold leading-5">{item.name}</p>
+                              <p className="font-semibold leading-5">
+                                {item.name}
+                              </p>
                               <span
                                 className={cn(
                                   'mt-2 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold uppercase',
@@ -189,7 +191,7 @@ export function PackageDetailsModal({
                 <div className="mt-7 rounded-2xl border bg-muted/40 p-5">
                   <p className="font-bold">Build this menu your way</p>
                   <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                    No dishes are locked in. Choose from the available categories
+                    No dishes are fixed. Choose from the available categories
                     and see item-level pricing while you build.
                   </p>
                 </div>
@@ -200,7 +202,7 @@ export function PackageDetailsModal({
               <p className="text-xs font-bold uppercase tracking-[.14em] text-muted-foreground">
                 Package essentials
               </p>
-              <p className="mt-3 text-3xl font-extrabold text-primary">
+              <p className="money-text mt-3 text-3xl font-extrabold text-primary">
                 {version ? `₹${version.basePricePerPlate}` : '—'}
               </p>
               <p className="text-xs text-muted-foreground">per person</p>
@@ -230,7 +232,7 @@ export function PackageDetailsModal({
                   {swapCount > 0 && (
                     <div className="flex items-start gap-2">
                       <ArrowRightLeft className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                      <span>{swapCount} eligible swap options</span>
+                      <span>{swapCount} eligible replacement options</span>
                     </div>
                   )}
                   {extraCount > 0 && (
@@ -312,7 +314,10 @@ export function PackageChangeDialog({
         <span className="grid h-11 w-11 place-items-center rounded-full bg-primary/10 text-primary">
           <PackageIcon className="h-5 w-5" />
         </span>
-        <h2 id="change-package-title" className="mt-4 font-serif text-2xl font-bold">
+        <h2
+          id="change-package-title"
+          className="mt-4 font-serif text-2xl font-bold"
+        >
           Add another package?
         </h2>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">
@@ -320,10 +325,6 @@ export function PackageChangeDialog({
           your cart and configure{' '}
           <strong className="text-foreground">{nextName}</strong> separately.
         </p>
-        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
-          The current package stays in your cart. The editor will switch to the
-          new package so it can have its own count and menu selections.
-        </div>
         <div className="mt-6 grid gap-3 sm:grid-cols-2">
           <button
             type="button"

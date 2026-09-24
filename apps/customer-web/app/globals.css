@@ -52,8 +52,25 @@ body {
 
 .numeric-text,
 .numeric-text input {
-  font-family: Arial, Helvetica, sans-serif;
+  font-family:
+    var(--font-sans), Inter, Arial, Helvetica, ui-sans-serif, system-ui,
+    sans-serif;
+  font-feature-settings:
+    'tnum' 1,
+    'lnum' 1;
   font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+.money-text {
+  font-family:
+    var(--font-sans), Inter, Arial, Helvetica, ui-sans-serif, system-ui,
+    sans-serif;
+  font-feature-settings:
+    'tnum' 1,
+    'lnum' 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
 }
 
 @layer components {
@@ -349,6 +366,12 @@ body {
   color: #1a1a1a !important;
   font-size: 0.875rem;
   outline: none;
+}
+
+@media (max-width: 767px) {
+  .address-map-picker .map-place-autocomplete::part(input) {
+    font-size: 16px;
+  }
 }
 
 .address-map-picker .map-place-search {

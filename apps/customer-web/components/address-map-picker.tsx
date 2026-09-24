@@ -351,7 +351,15 @@ export function AddressMapPicker({
               map.current?.panTo(position);
               map.current?.setZoom(17);
             }
-            const address = parsePlaceAddress(place, position);
+            let address = parsePlaceAddress(place, position);
+            if (!address.pincode && geocoder.current) {
+              const response = await geocoder.current.geocode({
+                location: position,
+              });
+              if (response.results[0]) {
+                address = parseAddress(response.results[0], position);
+              }
+            }
             onAddress(address);
             placeAutocomplete?.blur();
             setStatus('ready');

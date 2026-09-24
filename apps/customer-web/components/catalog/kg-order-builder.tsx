@@ -462,14 +462,14 @@ export function KgOrderBuilder() {
                             {item.name}
                           </h3>
                           <div className="mt-1.5 flex items-baseline justify-between gap-2 sm:mt-2">
-                            <p className="whitespace-nowrap text-lg font-extrabold leading-none text-primary">
+                            <p className="money-text whitespace-nowrap text-lg font-extrabold leading-none text-primary">
                               {formatCurrency(item.pricePerKg)}{' '}
                               <span className="text-[11px] font-semibold text-muted-foreground">
                                 / kg
                               </span>
                             </p>
                             {quoteById.get(item.id)?.lineTotal && (
-                              <span className="shrink-0 text-sm font-extrabold text-foreground">
+                              <span className="money-text shrink-0 text-sm font-extrabold text-foreground">
                                 {formatCurrency(
                                   quoteById.get(item.id)!.lineTotal,
                                 )}
@@ -547,9 +547,11 @@ export function KgOrderBuilder() {
                   <div key={item.menuItemId} className="border-b pb-3 text-sm">
                     <div className="flex justify-between gap-3">
                       <span>{item.menuItemName}</span>
-                      <strong>{formatCurrency(item.lineTotal)}</strong>
+                      <strong className="money-text">
+                        {formatCurrency(item.lineTotal)}
+                      </strong>
                     </div>
-                    <p className="mt-1 text-xs text-muted-foreground">
+                    <p className="money-text mt-1 text-xs text-muted-foreground">
                       {(item.weightGrams ?? 0) / 1000} kg ×{' '}
                       {formatCurrency(item.pricePerKg)} / kg
                     </p>
@@ -568,7 +570,9 @@ export function KgOrderBuilder() {
               </div>
               <div className="mt-5 flex justify-between font-bold">
                 <span>Food subtotal</span>
-                <span>{quote ? formatCurrency(quote.totalAmount) : '—'}</span>
+                <span className="money-text">
+                  {quote ? formatCurrency(quote.totalAmount) : '—'}
+                </span>
               </div>
               <p className="mt-2 text-xs leading-5 text-muted-foreground">
                 Excluding delivery.

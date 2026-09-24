@@ -118,7 +118,11 @@ export default function OrdersPage() {
                   />
                   <TableValue
                     label="Count"
-                    value={order.packageType === 'ORDER_BY_KG' ? 'By KG' : String(order.guestCount)}
+                    value={
+                      order.packageType === 'ORDER_BY_KG'
+                        ? 'By KG'
+                        : String(order.guestCount)
+                    }
                     numeric
                   />
                   <div className="mt-3 md:mt-0">
@@ -137,7 +141,7 @@ export default function OrdersPage() {
                     <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground md:hidden">
                       Total
                     </p>
-                    <strong className="numeric-text mt-1 block text-lg text-primary md:mt-0 md:text-base">
+                    <strong className="money-text mt-1 block text-lg font-extrabold text-primary md:mt-0 md:text-base">
                       {formatCurrency(order.totalAmount)}
                     </strong>
                   </div>

@@ -250,6 +250,77 @@ test('cart quote combines menu subtotal and delivery fee', async () => {
   assert.equal(quote.billableDistanceKm, 22);
 });
 
+test('cart quote includes additional cutlery sets in final total', async () => {
+  const region = {
+    id: 'region-1',
+    name: 'Hyderabad',
+    deliveryFeePerKm: new Prisma.Decimal('10.00'),
+  };
+  const prisma = {
+    cart: {
+      findFirst: async () => ({
+        id: 'cart-1',
+        userId: 'user-1',
+        packageVersionId: 'version-1',
+        guestCount: 10,
+        cutleryExtraCount: 3,
+        cutleryUnitPrice: new Prisma.Decimal('5.00'),
+        distanceKm: new Prisma.Decimal('1.00'),
+        deliveryFee: new Prisma.Decimal('100.00'),
+        region,
+        packageVersion: {
+          minGuestCount: 10,
+          package: { type: 'FIXED_PACKAGE' },
+        },
+        items: [],
+      }),
+      update: async () => ({}),
+    },
+  };
+  const menuQuote = {
+    packageVersionId: 'version-1',
+    packageName: 'Pooja Package',
+    packageVersionNo: 1,
+    guestCount: 10,
+    basePerPlatePrice: new Prisma.Decimal('295.00'),
+    totalCustomizationCharges: new Prisma.Decimal('0.00'),
+    finalPerPlatePrice: new Prisma.Decimal('295.00'),
+    totalAmount: new Prisma.Decimal('2950.00'),
+    items: [],
+  };
+  const pricing = {
+    quote: async () => menuQuote,
+    serialize: () => ({
+      packageVersionId: 'version-1',
+      packageName: 'Pooja Package',
+      packageVersionNo: 1,
+      guestCount: 10,
+      basePerPlatePrice: '295.00',
+      totalCustomizationCharges: '0.00',
+      finalPerPlatePrice: '295.00',
+      totalAmount: '2950.00',
+      items: [],
+    }),
+  };
+  const regions = {
+    serialize: () => ({ id: region.id, name: region.name }),
+  };
+  const service = new CartService(
+    prisma as never,
+    pricing as never,
+    {} as never,
+    regions as never,
+  );
+
+  const quote = await service.quote('user-1', 'cart-1');
+
+  assert.equal(quote.cutleryIncludedCount, 10);
+  assert.equal(quote.cutleryExtraCount, 3);
+  assert.equal(quote.cutleryUnitPrice, '5.00');
+  assert.equal(quote.cutleryTotal, '15.00');
+  assert.equal(quote.totalAmount, '3065.00');
+});
+
 test('multi-package quote charges the highest delivery fee only once', async () => {
   const carts = [{ id: 'cart-1' }, { id: 'cart-2' }];
   const prisma = {
@@ -261,16 +332,19 @@ test('multi-package quote charges the highest delivery fee only once', async () 
     {} as never,
     {} as never,
   );
-  service.quote = async (_userId, cartId) => ({
-    subtotalAmount: cartId === 'cart-1' ? '1000.00' : '1500.00',
-    deliveryFee: cartId === 'cart-1' ? '220.00' : '200.00',
-  }) as never;
+  service.quote = async (_userId, cartId) =>
+    ({
+      subtotalAmount: cartId === 'cart-1' ? '1000.00' : '1500.00',
+      deliveryFee: cartId === 'cart-1' ? '220.00' : '200.00',
+      cutleryTotal: cartId === 'cart-1' ? '10.00' : '15.00',
+    }) as never;
 
   const quote = await service.quoteAll('user-1');
 
   assert.equal(quote.subtotalAmount, '2500.00');
+  assert.equal(quote.cutleryTotal, '15.00');
   assert.equal(quote.deliveryFee, '220.00');
-  assert.equal(quote.totalAmount, '2720.00');
+  assert.equal(quote.totalAmount, '2735.00');
 });
 
 test('removing an active package cart leaves other deliveries unchanged', async () => {
@@ -313,7 +387,11 @@ test('package quantities update independently within package limits', async () =
     id: 'cart-1',
     userId: 'user-1',
     packageVersionId: 'version-1',
-    packageVersion: { minGuestCount: 10, maxGuestCount: 50, package: { type: 'MEAL_BOX' } },
+    packageVersion: {
+      minGuestCount: 10,
+      maxGuestCount: 50,
+      package: { type: 'MEAL_BOX' },
+    },
     items: [],
   };
   const prisma = {
@@ -412,6 +490,7 @@ test('batch checkout validates every cart before creating any order', async () =
     eventTimeStart: new Date('1970-01-01T18:00:00.000Z'),
     guestCount: 20,
     contactNumber: '9876543210',
+    cutleryExtraCount: id === 'cart-1' ? 2 : 4,
     items: [],
   }));
   const prisma = {
@@ -462,6 +541,7 @@ test('batch checkout applies one trimmed kitchen instruction to every cart', asy
     eventTimeStart: new Date('1970-01-01T18:00:00.000Z'),
     guestCount: 20,
     contactNumber: '9876543210',
+    cutleryExtraCount: id === 'cart-1' ? 2 : 4,
     items: [],
   }));
   let savedUpdate:
@@ -473,6 +553,7 @@ test('batch checkout applies one trimmed kitchen instruction to every cart', asy
   const checkedOutCarts: Array<{
     cartId: string;
     deliveryFee: string | undefined;
+    cutleryExtraCount: number | undefined;
   }> = [];
   const prisma = {
     cart: {
@@ -489,14 +570,23 @@ test('batch checkout applies one trimmed kitchen instruction to every cart', asy
     {} as never,
     {} as never,
   );
-  service.quote = async (_userId, cartId) => ({
-    valid: true,
-    deliveryFee: cartId === 'cart-1' ? '220.00' : '200.00',
-  }) as never;
-  service.checkout = async (_userId, cartId, _batchId, deliveryFee) => {
+  service.quote = async (_userId, cartId) =>
+    ({
+      valid: true,
+      deliveryFee: cartId === 'cart-1' ? '220.00' : '200.00',
+      cutleryTotal: cartId === 'cart-1' ? '10.00' : '20.00',
+    }) as never;
+  service.checkout = async (
+    _userId,
+    cartId,
+    _batchId,
+    deliveryFee,
+    cutleryExtraCount,
+  ) => {
     checkedOutCarts.push({
       cartId,
       deliveryFee: deliveryFee?.toFixed(2),
+      cutleryExtraCount,
     });
     return { id: `order-${cartId}` } as never;
   };
@@ -512,8 +602,8 @@ test('batch checkout applies one trimmed kitchen instruction to every cart', asy
     data: { specialNotes: 'Keep the food mildly spiced.' },
   });
   assert.deepEqual(checkedOutCarts, [
-    { cartId: 'cart-1', deliveryFee: '220.00' },
-    { cartId: 'cart-2', deliveryFee: '0.00' },
+    { cartId: 'cart-1', deliveryFee: '220.00', cutleryExtraCount: 4 },
+    { cartId: 'cart-2', deliveryFee: '0.00', cutleryExtraCount: 0 },
   ]);
 });
 

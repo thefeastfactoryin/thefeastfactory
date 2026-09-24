@@ -255,6 +255,10 @@ export type PackageSelectionPrice = {
   baseDeliveryFee?: string;
   serviceAddon?: string;
   subtotalAmount: string;
+  cutleryIncludedCount?: number;
+  cutleryExtraCount?: number;
+  cutleryUnitPrice?: string;
+  cutleryTotal?: string;
   totalAmount: string;
   items: Array<{
     categoryId: string;
@@ -290,6 +294,9 @@ export type CartSummary = {
   contactNumber: string;
   deliveryServiceType: DeliveryServiceType;
   helperCount: number;
+  cutleryIncludedCount: number;
+  cutleryExtraCount: number;
+  cutleryUnitPrice: string;
   address?: UserAddress | null;
   package: {
     id: string;
@@ -310,6 +317,9 @@ export type CartSummary = {
     region?: OperatingRegion | null;
     distanceKm?: string | null;
     deliveryFee?: string | null;
+    cutleryIncludedCount?: number;
+    cutleryExtraCount?: number;
+    cutleryUnitPrice?: string;
   } | null;
   items: Array<{
     id: string;
@@ -379,6 +389,10 @@ export type OrderSummary = {
   deliveryFee?: string;
   deliveryServiceType?: DeliveryServiceType;
   helperCount?: number;
+  cutleryIncludedCount?: number;
+  cutleryExtraCount?: number;
+  cutleryUnitPrice?: string;
+  cutleryTotal?: string;
   totalAmount: string;
   createdAt: string;
   specialNotes?: string | null;

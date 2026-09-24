@@ -725,16 +725,6 @@ export function SelectionContextPanel({
         )}
       </div>
 
-      <div className="mt-4 rounded-2xl border border-border bg-muted/50 p-4 text-muted-foreground">
-        <p className="text-xs font-bold uppercase tracking-[0.14em]">
-          Kitchen location
-        </p>
-        <p className="mt-2 text-sm font-bold text-foreground/60">
-          {kitchenName}
-        </p>
-        <p className="mt-1 text-xs leading-5">{kitchenAddress}</p>
-      </div>
-
       {deliveryService}
 
       <div className="mt-6 flex items-center justify-between gap-4">
@@ -844,6 +834,16 @@ export function SelectionContextPanel({
           </span>
         </Link>
       )}
+
+      <div className="mt-4 rounded-2xl border border-border bg-muted/50 p-4 text-muted-foreground">
+        <p className="text-xs font-bold uppercase tracking-[0.14em]">
+          Kitchen location
+        </p>
+        <p className="mt-2 text-sm font-bold text-foreground/60">
+          {kitchenName}
+        </p>
+        <p className="mt-1 text-xs leading-5">{kitchenAddress}</p>
+      </div>
 
       <div className="mt-4 border-t pt-4">
         <p

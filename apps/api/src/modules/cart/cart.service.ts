@@ -43,6 +43,7 @@ const cartInclude = Prisma.validator<Prisma.CartInclude>()({
   order: { select: { id: true, orderStatus: true, paymentStatus: true } },
 });
 type CartWithDetails = Prisma.CartGetPayload<{ include: typeof cartInclude }>;
+const CUTLERY_UNIT_PRICE = new Prisma.Decimal('5.00');
 
 @Injectable()
 export class CartService {
@@ -54,7 +55,8 @@ export class CartService {
   ) {}
 
   async upsert(userId: string, dto: UpdateCartDto) {
-    const isKg = (await this.assertPackageVersion(dto.packageVersionId)).package.type === PackageType.ORDER_BY_KG;
+    const version = await this.assertPackageVersion(dto.packageVersionId);
+    const isKg = version.package.type === PackageType.ORDER_BY_KG;
     if (isKg) dto = { ...dto, guestCount: undefined };
     const cart = await this.createOrFetch(userId, {
       packageVersionId: dto.packageVersionId,
@@ -87,6 +89,10 @@ export class CartService {
           eventDate: event.eventDate,
           eventTimeStart: event.eventTime,
           guestCount: isKg ? null : dto.guestCount,
+          cutleryIncludedCount: this.includedCutleryCount(
+            version.package.type,
+            isKg ? null : dto.guestCount,
+          ),
           distanceKm: event.distanceKm,
           deliveryFee: event.deliveryFee,
           deliveryServiceType: event.deliveryServiceType,
@@ -104,7 +110,6 @@ export class CartService {
       return this.updateAddress(userId, cart.id, dto.addressId, dto.regionId);
     }
     if (dto.guestCount !== undefined) {
-      const version = await this.assertPackageVersion(dto.packageVersionId);
       if (
         dto.guestCount < version.minGuestCount ||
         (version.maxGuestCount && dto.guestCount > version.maxGuestCount)
@@ -115,6 +120,10 @@ export class CartService {
         where: { id: cart.id },
         data: {
           guestCount: isKg ? null : dto.guestCount,
+          cutleryIncludedCount: this.includedCutleryCount(
+            version.package.type,
+            isKg ? null : dto.guestCount,
+          ),
           lastQuotedAt: null,
           expiresAt: this.expiryDate(),
         },
@@ -125,6 +134,9 @@ export class CartService {
     if (dto.regionId !== undefined) {
       const updated = await this.updateRegion(userId, cart.id, dto.regionId);
       return updated;
+    }
+    if (dto.cutleryExtraCount !== undefined) {
+      return this.updateCutlery(userId, cart.id, dto.cutleryExtraCount);
     }
     if (dto.contactNumber !== undefined) {
       return this.updateContactNumber(userId, cart.id, dto.contactNumber);
@@ -138,10 +150,11 @@ export class CartService {
     if (isKg && dto.regionId) {
       await this.assertKgRegionAvailability(version.package.id, dto.regionId);
     }
-    const guestCount = isKg ? null : dto.guestCount ?? version.minGuestCount;
+    const guestCount = isKg ? null : (dto.guestCount ?? version.minGuestCount);
     if (
-      !isKg && (guestCount! < version.minGuestCount ||
-      (version.maxGuestCount && guestCount! > version.maxGuestCount))
+      !isKg &&
+      (guestCount! < version.minGuestCount ||
+        (version.maxGuestCount && guestCount! > version.maxGuestCount))
     ) {
       throw new BadRequestException('Guest count is outside package limits');
     }
@@ -155,6 +168,11 @@ export class CartService {
         packageVersionId: dto.packageVersionId,
         regionId: await this.validRegionId(dto.regionId),
         guestCount,
+        cutleryIncludedCount: this.includedCutleryCount(
+          version.package.type,
+          guestCount,
+        ),
+        cutleryUnitPrice: CUTLERY_UNIT_PRICE,
         contactNumber: user.mobileNumber,
         expiresAt: this.expiryDate(),
       },
@@ -197,6 +215,10 @@ export class CartService {
           eventDate: event.eventDate,
           eventTimeStart: event.eventTime,
           guestCount: isKg ? null : dto.guestCount,
+          cutleryIncludedCount: this.includedCutleryCount(
+            cart.packageVersion.package.type,
+            isKg ? null : dto.guestCount,
+          ),
           distanceKm: event.distanceKm,
           deliveryFee: event.deliveryFee,
           deliveryServiceType: event.deliveryServiceType,
@@ -236,6 +258,9 @@ export class CartService {
         dto.deliveryServiceType ?? cart.deliveryServiceType,
         dto.helperCount ?? cart.helperCount,
       );
+    }
+    if (dto.cutleryExtraCount !== undefined) {
+      return this.updateCutlery(userId, id, dto.cutleryExtraCount);
     }
     if (dto.contactNumber !== undefined) {
       return this.updateContactNumber(userId, id, dto.contactNumber);
@@ -319,7 +344,8 @@ export class CartService {
 
   async updateQuantity(userId: string, id: string, guestCount: number) {
     const cart = await this.assertActiveCart(userId, id);
-    if (cart.packageVersion.package.type === PackageType.ORDER_BY_KG) throw new BadRequestException('Edit dish weights for kg orders');
+    if (cart.packageVersion.package.type === PackageType.ORDER_BY_KG)
+      throw new BadRequestException('Edit dish weights for kg orders');
     const minimum = cart.packageVersion.minGuestCount;
     const maximum = cart.packageVersion.maxGuestCount;
     if (guestCount < minimum || (maximum && guestCount > maximum)) {
@@ -329,6 +355,10 @@ export class CartService {
       where: { id },
       data: {
         guestCount,
+        cutleryIncludedCount: this.includedCutleryCount(
+          cart.packageVersion.package.type,
+          guestCount,
+        ),
         lastQuotedAt: null,
         expiresAt: this.expiryDate(),
       },
@@ -372,6 +402,7 @@ export class CartService {
       (sum, quote) => sum.plus(quote.subtotalAmount),
       new Prisma.Decimal(0),
     );
+    const cutleryTotal = this.batchCutleryTotal(quotes);
     const deliveryFee = this.batchDeliveryFee(quotes);
     return {
       valid: true,
@@ -380,8 +411,12 @@ export class CartService {
         quote: quotes[index],
       })),
       subtotalAmount: subtotalAmount.toFixed(2),
+      cutleryTotal: cutleryTotal.toFixed(2),
       deliveryFee: deliveryFee.toFixed(2),
-      totalAmount: subtotalAmount.plus(deliveryFee).toFixed(2),
+      totalAmount: subtotalAmount
+        .plus(cutleryTotal)
+        .plus(deliveryFee)
+        .toFixed(2),
     };
   }
 
@@ -403,7 +438,8 @@ export class CartService {
         !cart.eventDate ||
         !cart.eventTimeStart ||
         !cart.contactNumber ||
-        (!cart.guestCount && cart.packageVersion.package.type !== PackageType.ORDER_BY_KG),
+        (!cart.guestCount &&
+          cart.packageVersion.package.type !== PackageType.ORDER_BY_KG),
     );
     if (incomplete) {
       throw new BadRequestException(
@@ -423,6 +459,10 @@ export class CartService {
     );
     const checkoutBatchId = randomUUID();
     const deliveryFee = this.batchDeliveryFee(quotes);
+    const sharedCutleryExtraCount = Math.max(
+      0,
+      ...carts.map((cart) => cart.cutleryExtraCount ?? 0),
+    );
     const orders = [];
     for (const [index, cart] of carts.entries()) {
       orders.push(
@@ -431,6 +471,7 @@ export class CartService {
           cart.id,
           checkoutBatchId,
           index === 0 ? deliveryFee : new Prisma.Decimal(0),
+          index === 0 ? sharedCutleryExtraCount : 0,
         ),
       );
     }
@@ -441,6 +482,13 @@ export class CartService {
     return quotes.reduce((highest, quote) => {
       const fee = new Prisma.Decimal(quote.deliveryFee);
       return fee.greaterThan(highest) ? fee : highest;
+    }, new Prisma.Decimal(0));
+  }
+
+  private batchCutleryTotal(quotes: Array<{ cutleryTotal?: string }>) {
+    return quotes.reduce((highest, quote) => {
+      const total = new Prisma.Decimal(quote.cutleryTotal ?? '0.00');
+      return total.greaterThan(highest) ? total : highest;
     }, new Prisma.Decimal(0));
   }
 
@@ -488,6 +536,13 @@ export class CartService {
         userId,
         packageVersionId: dto.packageVersionId,
         regionId: await this.validRegionId(dto.regionId),
+        cutleryIncludedCount: this.includedCutleryCount(
+          version.package.type,
+          version.package.type === PackageType.ORDER_BY_KG
+            ? null
+            : version.minGuestCount,
+        ),
+        cutleryUnitPrice: CUTLERY_UNIT_PRICE,
         contactNumber: user.mobileNumber,
         expiresAt: this.expiryDate(),
       },
@@ -540,6 +595,7 @@ export class CartService {
         )
       : null;
     const guestCount = cart.guestCount ?? cart.packageVersion.minGuestCount;
+    const cutlery = this.cutleryForCart(cart, guestCount);
     const quote = await this.pricing.quote(
       cart.packageVersionId,
       guestCount,
@@ -566,14 +622,14 @@ export class CartService {
               deliveryFee: assignment.deliveryFee,
             }
           : {}),
+        cutleryIncludedCount: cutlery.includedCount,
       },
     });
     const serialized = this.pricing.serialize(quote);
     const region = assignment?.region ?? cart.region;
     const distanceKm = assignment?.distanceKm ?? cart.distanceKm;
     const deliveryFeeValue = assignment?.deliveryFee ?? cart.deliveryFee;
-    const baseDeliveryFee =
-      assignment?.baseDeliveryFee ?? deliveryFeeValue;
+    const baseDeliveryFee = assignment?.baseDeliveryFee ?? deliveryFeeValue;
     const serviceAddon = assignment?.serviceAddon ?? new Prisma.Decimal(0);
     const deliveryFee = deliveryFeeValue.toFixed(2);
     return {
@@ -592,7 +648,14 @@ export class CartService {
       baseDeliveryFee: baseDeliveryFee.toFixed(2),
       serviceAddon: serviceAddon.toFixed(2),
       subtotalAmount: serialized.totalAmount,
-      totalAmount: quote.totalAmount.plus(deliveryFeeValue).toFixed(2),
+      cutleryIncludedCount: cutlery.includedCount,
+      cutleryExtraCount: cutlery.extraCount,
+      cutleryUnitPrice: cutlery.unitPrice.toFixed(2),
+      cutleryTotal: cutlery.total.toFixed(2),
+      totalAmount: quote.totalAmount
+        .plus(cutlery.total)
+        .plus(deliveryFeeValue)
+        .toFixed(2),
     };
   }
 
@@ -601,6 +664,7 @@ export class CartService {
     id: string,
     checkoutBatchId?: string,
     deliveryFeeOverride?: Prisma.Decimal,
+    cutleryExtraCountOverride?: number,
   ) {
     const cart = await this.assertActiveCart(userId, id);
     if (
@@ -608,7 +672,8 @@ export class CartService {
       !cart.eventDate ||
       !cart.eventTimeStart ||
       !cart.contactNumber ||
-      (!cart.guestCount && cart.packageVersion.package.type !== PackageType.ORDER_BY_KG)
+      (!cart.guestCount &&
+        cart.packageVersion.package.type !== PackageType.ORDER_BY_KG)
     ) {
       throw new BadRequestException(
         'Add event and venue details before checkout',
@@ -623,12 +688,13 @@ export class CartService {
           replacedMenuItemId: item.replacedMenuItemId,
           role: item.role,
           quantity: item.quantity,
-        weightGrams: item.weightGrams,
+          weightGrams: item.weightGrams,
         })),
       },
       cart.id,
       checkoutBatchId,
       deliveryFeeOverride,
+      cutleryExtraCountOverride,
     );
     await this.prisma.cart.update({
       where: { id },
@@ -715,6 +781,16 @@ export class CartService {
       contactNumber: cart.contactNumber,
       deliveryServiceType: cart.deliveryServiceType,
       helperCount: cart.helperCount,
+      cutleryIncludedCount:
+        cart.cutleryIncludedCount ??
+        this.includedCutleryCount(
+          cart.packageVersion.package.type,
+          cart.guestCount,
+        ),
+      cutleryExtraCount: cart.cutleryExtraCount ?? 0,
+      cutleryUnitPrice: (cart.cutleryUnitPrice ?? CUTLERY_UNIT_PRICE).toFixed(
+        2,
+      ),
       address: cart.address,
       package: cart.packageVersion
         ? {
@@ -742,6 +818,16 @@ export class CartService {
             region: cart.region ? this.regions.serialize(cart.region) : null,
             distanceKm: cart.distanceKm?.toFixed?.(2) ?? null,
             deliveryFee: cart.deliveryFee?.toFixed?.(2) ?? '0.00',
+            cutleryIncludedCount:
+              cart.cutleryIncludedCount ??
+              this.includedCutleryCount(
+                cart.packageVersion.package.type,
+                cart.guestCount,
+              ),
+            cutleryExtraCount: cart.cutleryExtraCount ?? 0,
+            cutleryUnitPrice: (
+              cart.cutleryUnitPrice ?? CUTLERY_UNIT_PRICE
+            ).toFixed(2),
           }
         : null,
       items: cart.items.map((item) => ({
@@ -809,8 +895,9 @@ export class CartService {
     if (!version)
       throw new BadRequestException('Package version is not available');
     if (
-      version.package.type !== PackageType.ORDER_BY_KG && (dto.guestCount! < version.minGuestCount ||
-      (version.maxGuestCount && dto.guestCount! > version.maxGuestCount))
+      version.package.type !== PackageType.ORDER_BY_KG &&
+      (dto.guestCount! < version.minGuestCount ||
+        (version.maxGuestCount && dto.guestCount! > version.maxGuestCount))
     ) {
       throw new BadRequestException('Guest count is outside package limits');
     }
@@ -975,6 +1062,51 @@ export class CartService {
       include: this.cartInclude(),
     });
     return this.serializeCart(updated);
+  }
+
+  private async updateCutlery(
+    userId: string,
+    id: string,
+    cutleryExtraCount: number,
+  ) {
+    if (cutleryExtraCount > 10000) {
+      throw new BadRequestException('Cutlery count is too high');
+    }
+    await this.assertActiveCart(userId, id);
+    const updated = await this.prisma.cart.update({
+      where: { id },
+      data: {
+        cutleryExtraCount,
+        cutleryUnitPrice: CUTLERY_UNIT_PRICE,
+        lastQuotedAt: null,
+        expiresAt: this.expiryDate(),
+      },
+      include: this.cartInclude(),
+    });
+    return this.serializeCart(updated);
+  }
+
+  private includedCutleryCount(
+    packageType: PackageType,
+    guestCount?: number | null,
+  ) {
+    if (packageType === PackageType.ORDER_BY_KG) return 0;
+    return Math.max(0, guestCount ?? 0);
+  }
+
+  private cutleryForCart(cart: CartWithDetails, guestCount: number) {
+    const includedCount = this.includedCutleryCount(
+      cart.packageVersion.package?.type ?? PackageType.FIXED_PACKAGE,
+      guestCount,
+    );
+    const extraCount = Math.max(0, cart.cutleryExtraCount ?? 0);
+    const unitPrice = cart.cutleryUnitPrice ?? CUTLERY_UNIT_PRICE;
+    return {
+      includedCount,
+      extraCount,
+      unitPrice,
+      total: unitPrice.mul(extraCount),
+    };
   }
 
   private async updateContactNumber(
