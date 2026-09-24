@@ -1871,38 +1871,45 @@ function CutleryOptions({
 
   return (
     <section className="mt-4 rounded-xl border border-border bg-white p-3 shadow-sm">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 gap-2.5">
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+        <div className="flex min-w-0 items-center gap-2.5">
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-accent/15 text-primary">
             <Utensils className="h-5 w-5" aria-hidden="true" />
           </span>
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <h3 className="text-sm font-extrabold text-foreground">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="text-base font-extrabold text-foreground">
                 Cutlery
               </h3>
-              <span className="money-text text-xs font-bold text-primary">
-                {formatCurrency(unitPrice)} per extra set
-              </span>
+              <p className="inline-flex w-fit items-center rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-xs font-bold leading-5 text-emerald-800">
+                <span className="money-text mr-1 text-sm font-extrabold text-emerald-950">
+                  {includedCount}
+                </span>
+                included
+              </p>
             </div>
-            <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
-              {includedCount} set{includedCount === 1 ? '' : 's'} included with
-              this package.
-            </p>
           </div>
         </div>
         {extraCount === 0 ? (
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={() => onChange(1)}
-            className="inline-flex h-10 shrink-0 items-center justify-center rounded-full border border-primary/30 px-4 text-xs font-extrabold text-primary transition hover:bg-primary/[0.04] disabled:opacity-50"
-          >
-            Add additional
-          </button>
+          <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto sm:flex-nowrap sm:justify-end">
+            <span className="money-text rounded-full bg-primary/[0.06] px-3 py-1.5 text-xs font-bold text-primary">
+              {formatCurrency(unitPrice)} per set
+            </span>
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => onChange(1)}
+              className="inline-flex h-10 items-center justify-center rounded-full border border-primary/30 px-4 text-xs font-extrabold text-primary transition hover:bg-primary/[0.04] disabled:opacity-50"
+            >
+              Add additional
+            </button>
+          </div>
         ) : (
-          <div className="w-full shrink-0 rounded-xl border border-border bg-background p-2 sm:w-auto">
-            <div className="mb-1 flex items-center justify-end px-1">
+          <div className="w-full shrink-0 rounded-xl border border-border bg-background p-2 sm:w-[286px]">
+            <div className="mb-1 flex items-center justify-between gap-3 px-1">
+              <span className="money-text text-xs font-bold text-muted-foreground">
+                {formatCurrency(unitPrice)} per set
+              </span>
               <span
                 id="additional-cutlery-help"
                 className="money-text text-xs font-bold text-primary"
