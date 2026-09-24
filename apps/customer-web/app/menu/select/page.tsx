@@ -1,4 +1,5 @@
 'use client';
+import { MobileOrderBar } from '../../../components/mobile-order-bar';
 
 import type { CartSummary, PackageConfiguration } from '@aranyam/shared-types';
 import {
@@ -40,6 +41,28 @@ type MenuSelectionItem = CategoryRule['items'][number] & {
 };
 type MenuRow = { rule: CategoryRule; item: MenuSelectionItem };
 type DetailItem = { item: MenuSelectionItem; categoryName: string };
+
+const MENU_CATEGORY_ORDER = [
+  'starters',
+  'breads',
+  'curries',
+  'rice items',
+  'desserts',
+  'accompaniments',
+] as const;
+
+function menuCategoryRank(categoryName: string) {
+  const normalized = categoryName.trim().toLowerCase();
+
+  if (normalized.includes('starter')) return 0;
+  if (normalized.includes('bread')) return 1;
+  if (normalized.includes('curry') || normalized.includes('curries')) return 2;
+  if (normalized.includes('rice') || normalized.includes('biryani')) return 3;
+  if (normalized.includes('dessert') || normalized.includes('sweet')) return 4;
+  if (normalized.includes('accompaniment')) return 5;
+
+  return MENU_CATEGORY_ORDER.length;
+}
 
 export default function MenuSelectPage() {
   return (
@@ -96,11 +119,7 @@ function MenuSelectContent() {
 
   useEffect(() => {
     if (!session || !requestedCartId) return;
-    apiRequest<CartSummary>(
-      `/cart/${requestedCartId}`,
-      {},
-      session.accessToken,
-    )
+    apiRequest<CartSummary>(`/cart/${requestedCartId}`, {}, session.accessToken)
       .then((savedCart) => hydrateFromCart(savedCart))
       .catch((reason) => setError((reason as Error).message));
   }, [hydrateFromCart, requestedCartId, session]);
@@ -156,22 +175,34 @@ function MenuSelectContent() {
 
   const isMealBox = config?.packageType === 'MEAL_BOX';
   const supportsSwaps = config?.packageType !== 'CUSTOM_PACKAGE';
-  const includedRows = useMemo<MenuRow[]>(() => {
+  const orderedCategoryRules = useMemo(() => {
     if (!config) return [];
-    return config.categoryRules.flatMap((rule) =>
+
+    return config.categoryRules
+      .map((rule, index) => ({ rule, index }))
+      .sort(
+        (left, right) =>
+          menuCategoryRank(left.rule.category.name) -
+            menuCategoryRank(right.rule.category.name) ||
+          left.index - right.index,
+      )
+      .map(({ rule }) => rule);
+  }, [config]);
+  const includedRows = useMemo<MenuRow[]>(() => {
+    return orderedCategoryRules.flatMap((rule) =>
       rule.items
         .filter((item) => item.role === 'INCLUDED' && !item.swapForMenuItemId)
         .map((item) => ({ rule, item })),
     );
-  }, [config]);
+  }, [orderedCategoryRules]);
   const extraRows = useMemo<MenuRow[]>(() => {
     if (!config || config.packageType === 'MEAL_BOX') return [];
-    return config.categoryRules.flatMap((rule) =>
+    return orderedCategoryRules.flatMap((rule) =>
       rule.items
         .filter((item) => item.role !== 'INCLUDED')
         .map((item) => ({ rule, item })),
     );
-  }, [config]);
+  }, [config, orderedCategoryRules]);
   const itemById = useMemo(() => {
     const entries =
       config?.categoryRules.flatMap((rule) =>
@@ -193,8 +224,7 @@ function MenuSelectContent() {
   );
 
   const categories = useMemo(() => {
-    if (!config) return [];
-    return config.categoryRules
+    return orderedCategoryRules
       .map((rule) => ({
         id: rule.category.id,
         name: rule.category.name,
@@ -206,7 +236,7 @@ function MenuSelectContent() {
         (category, index, rows) =>
           rows.findIndex((row) => row.id === category.id) === index,
       );
-  }, [config, includedRows]);
+  }, [includedRows, orderedCategoryRules]);
 
   const matchesFilters = useCallback(
     ({ rule, item }: MenuRow) => {
@@ -822,23 +852,22 @@ function MenuSelectContent() {
         </aside>
       </div>
 
-      <div className="fixed inset-x-0 bottom-16 z-40 border-t border-border/80 bg-white/95 px-3 py-2 shadow-[0_-14px_28px_-22px_rgba(75,12,23,.55)] backdrop-blur md:bottom-0 lg:hidden">
-        <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
+      <MobileOrderBar label="Menu summary and continue">
+        <div className="mobile-order-bar-row">
           <button
             type="button"
             onClick={() => setMobileSummaryOpen(true)}
-            className="min-h-11 min-w-0 flex-1 rounded-xl border border-border/80 bg-ivory px-3 py-2 text-left"
+            className="mobile-order-bar-summary"
           >
-            <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-              View summary
+            <span className="mobile-order-bar-label">
+              View summary · {summaryRows.length} dishes
             </span>
-            <span className="block truncate font-bold text-primary">
-              {summaryRows.length} included · {formatCurrency(menuSubtotal)}{' '}
-              total
+            <span className="mobile-order-bar-total">
+              {formatCurrency(menuSubtotal)}
             </span>
           </button>
           <Button
-            className="min-h-11 shrink-0 px-4 sm:px-5"
+            className="mobile-order-bar-action"
             onClick={
               !isMealBox && !extrasExpanded
                 ? () => setExtrasExpanded(true)
@@ -850,7 +879,7 @@ function MenuSelectContent() {
             <ChevronRight className="ml-1 h-4 w-4" />
           </Button>
         </div>
-      </div>
+      </MobileOrderBar>
 
       {mobileFiltersOpen && (
         <MobileSheet
@@ -1257,7 +1286,8 @@ function DishRow({
         {(item.description || swapped) && (
           <span className="mt-1 line-clamp-2 block text-xs leading-5 text-muted-foreground">
             {item.description}
-            {swapped && `${item.description ? ' · ' : ''}replaces ${original.name}`}
+            {swapped &&
+              `${item.description ? ' · ' : ''}replaces ${original.name}`}
           </span>
         )}
       </button>

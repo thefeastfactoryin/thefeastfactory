@@ -74,15 +74,17 @@ export function PackageGridPage({
     ])
       .then(async ([rows, categoryRows]) => {
         const requestedType = searchParams.get('type');
-        const visible = rows.filter((row) => row.type !== 'ORDER_BY_KG').filter(
-          (row) =>
-            row.activeVersion &&
-            (type === 'PACKAGES'
-              ? requestedType === 'CUSTOM_PACKAGE'
-                ? row.type === 'CUSTOM_PACKAGE'
-                : row.type !== 'MEAL_BOX'
-              : row.type === type),
-        );
+        const visible = rows
+          .filter((row) => row.type !== 'ORDER_BY_KG')
+          .filter(
+            (row) =>
+              row.activeVersion &&
+              (type === 'PACKAGES'
+                ? requestedType === 'CUSTOM_PACKAGE'
+                  ? row.type === 'CUSTOM_PACKAGE'
+                  : row.type !== 'MEAL_BOX'
+                : row.type === type),
+          );
         setPackages(visible);
         setCategories(categoryRows);
         const pairs = await Promise.all(
@@ -261,7 +263,7 @@ export function PackageGridPage({
         ]),
   ];
   return (
-    <main className="min-h-screen overflow-x-clip bg-background [font-family:var(--font-package-sans),sans-serif]">
+    <main className="min-h-screen overflow-x-clip bg-background sm:[font-family:var(--font-package-sans),sans-serif]">
       <section className="relative isolate overflow-hidden border-b bg-hero-end text-white">
         <img
           src={isMealBox ? '/order-mealbox.png' : '/packages-hero-plated.png'}

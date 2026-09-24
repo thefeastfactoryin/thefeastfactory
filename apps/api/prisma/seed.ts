@@ -221,9 +221,6 @@ async function seedRegions() {
         publicDisplayOrder: region.publicDisplayOrder,
         centerLatitude: new Prisma.Decimal(region.latitude),
         centerLongitude: new Prisma.Decimal(region.longitude),
-        serviceRadiusKm: new Prisma.Decimal('50.00'),
-        deliveryFeePerKm: new Prisma.Decimal('10.00'),
-        isActive: true,
       },
       create: {
         code: region.code,

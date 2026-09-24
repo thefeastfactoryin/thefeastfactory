@@ -1,4 +1,5 @@
 'use client';
+import { MobileOrderBar } from '../mobile-order-bar';
 
 import type {
   CartSummary,
@@ -15,7 +16,6 @@ import {
   Plus,
   Scale,
   Search,
-  Sparkles,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -70,9 +70,7 @@ export function KgOrderBuilder() {
     config?.kgWeightIncrementGrams ?? FALLBACK_WEIGHT_INCREMENT_GRAMS;
   const maximumWeightGrams =
     defaultWeightGrams +
-    Math.floor(
-      (MAX_WEIGHT_GRAMS - defaultWeightGrams) / weightIncrementGrams,
-    ) *
+    Math.floor((MAX_WEIGHT_GRAMS - defaultWeightGrams) / weightIncrementGrams) *
       weightIncrementGrams;
 
   useEffect(() => {
@@ -295,7 +293,7 @@ export function KgOrderBuilder() {
     quote?.items.map((item) => [item.menuItemId, item]) ?? [],
   );
   return (
-    <main className="min-h-screen overflow-x-clip bg-background pb-10 [font-family:var(--font-package-sans),sans-serif]">
+    <main className="min-h-screen overflow-x-clip bg-background pb-28 lg:pb-10 sm:[font-family:var(--font-package-sans),sans-serif]">
       <section className="relative isolate overflow-hidden border-b bg-hero-end text-white">
         <img
           src={orderByKgImage}
@@ -303,21 +301,18 @@ export function KgOrderBuilder() {
           className="absolute inset-0 -z-20 h-full w-full object-cover object-[62%_center] sm:object-center"
         />
         <div className="absolute inset-0 -z-10 bg-[linear-gradient(90deg,hsl(var(--hero-end)/0.99)_0%,hsl(var(--hero-start)/0.94)_40%,hsl(var(--hero-start)/0.30)_72%,rgba(0,0,0,0.08)_100%)]" />
-        <div className="container-pad flex min-h-[210px] items-center py-4 sm:min-h-[330px] sm:py-7 lg:min-h-[360px] lg:px-16 lg:py-9">
+        <div className="container-pad flex min-h-[238px] items-center py-5 sm:min-h-[330px] sm:py-7 lg:min-h-[360px] lg:px-16 lg:py-9">
           <div className="max-w-[620px]">
-            <p className="flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[0.18em] text-accent sm:text-xs">
-              <Sparkles className="h-4 w-4" aria-hidden="true" /> Flexible bulk
-              catering
-            </p>
-            <h1 className="mt-2 max-w-[350px] font-serif text-[34px] font-bold leading-[0.95] tracking-tight text-white sm:max-w-none sm:text-[54px] lg:text-[64px]">
-              Your favourites, <span className="text-accent">by the kilo</span>
+            <p className="eyebrow">Flexible bulk catering</p>
+            <h1 className="mt-2 font-serif text-[36px] font-bold leading-[0.95] tracking-tight text-white sm:text-[54px] lg:text-[64px]">
+              Order <span className="text-accent">by KG</span>
             </h1>
             <p className="mt-3 hidden max-w-[520px] text-base font-semibold leading-6 text-white/85 sm:block sm:text-lg">
               Choose your dishes and set the right quantity in easy{' '}
               {formatWeightKg(weightIncrementGrams)} kg steps, with live
               itemised pricing.
             </p>
-            <div className="mt-4 flex max-w-[560px] flex-wrap gap-1.5 sm:mt-5 sm:gap-2">
+            <div className="mt-4 grid max-w-[600px] grid-cols-2 gap-1.5 sm:mt-5 sm:grid-cols-4 sm:gap-2">
               {[
                 { label: 'Priced per kg', icon: Scale },
                 {
@@ -325,13 +320,14 @@ export function KgOrderBuilder() {
                   icon: Plus,
                 },
                 { label: 'Made for groups', icon: ChefHat },
+                { label: 'Freshly prepared', icon: Leaf },
               ].map(({ label, icon: Icon }) => (
                 <div
                   key={label}
-                  className="flex min-h-8 items-center rounded-full border border-white/15 bg-black/20 px-2.5 py-1 text-[10px] font-extrabold text-white backdrop-blur-sm sm:min-h-10 sm:px-3 sm:text-[11px]"
+                  className="flex min-h-10 items-center gap-2 rounded-xl border border-white/10 bg-black/15 px-2.5 py-1.5 text-[11px] font-extrabold leading-tight text-white backdrop-blur-sm sm:min-h-11 sm:py-2"
                 >
                   <Icon
-                    className="mr-1.5 h-3.5 w-3.5 shrink-0 text-accent sm:h-4 sm:w-4"
+                    className="h-[18px] w-[18px] shrink-0 text-accent"
                     aria-hidden="true"
                   />
                   {label}
@@ -467,7 +463,7 @@ export function KgOrderBuilder() {
                           </span>
                         </div>
                         <div className="flex min-w-0 flex-1 flex-col p-3 sm:p-4">
-                          <h3 className="font-serif text-[15px] font-bold leading-snug sm:text-base">
+                          <h3 className="text-[20px] font-bold leading-[1.12] text-foreground [font-family:var(--font-package-heading),serif]">
                             {item.name}
                           </h3>
                           <div className="mt-1.5 flex items-baseline justify-between gap-2 sm:mt-2">
@@ -607,6 +603,45 @@ export function KgOrderBuilder() {
           </div>
         )}
       </div>
+      {config && (
+        <MobileOrderBar label="Order by KG total and cart">
+          <div className="mobile-order-bar-row">
+            <div className="mobile-order-bar-summary">
+              <span className="mobile-order-bar-label">
+                {selectedItems.length}{' '}
+                {selectedItems.length === 1 ? 'dish' : 'dishes'} selected
+              </span>
+              <span className="mobile-order-bar-total">
+                {quoting
+                  ? 'Updating…'
+                  : quote
+                    ? formatCurrency(quote.totalAmount)
+                    : 'Select dishes'}
+              </span>
+            </div>
+            <Button
+              className="mobile-order-bar-action"
+              disabled={!quote || quoting || saving || !selectedItems.length}
+              onClick={() => void save()}
+            >
+              {saving
+                ? 'Saving…'
+                : requestedCart
+                  ? 'Update cart'
+                  : 'Add to cart'}
+              <ArrowRight className="ml-1 h-4 w-4" aria-hidden="true" />
+            </Button>
+          </div>
+          {quoteError && (
+            <p
+              role="alert"
+              className="mx-auto mt-1 max-w-2xl text-xs text-red-700"
+            >
+              {quoteError}
+            </p>
+          )}
+        </MobileOrderBar>
+      )}
     </main>
   );
 }

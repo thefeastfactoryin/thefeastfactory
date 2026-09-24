@@ -29,6 +29,14 @@ type GatewayPayment = {
   method?: string;
   error_description?: string;
 };
+type GatewayOrderDetails = {
+  id: string;
+  amount: number;
+  amount_due?: number;
+  amount_paid?: number;
+  currency: string;
+  status: string;
+};
 export type RazorpayWebhookPayload = {
   event?: string;
   payload?: {
@@ -78,21 +86,33 @@ export class PaymentsService {
         new Prisma.Decimal(0),
       );
       const amount = this.paymentAmountInSubunits(linkedAmount);
-      return {
-        paymentId: existing.id,
-        keyId: this.keyId() || 'local',
-        id: existing.razorpayOrderId,
-        amount,
-        currency,
-        localMode: !this.isConfigured(),
-        reused: true,
-      };
+      if (
+        !this.isConfigured() ||
+        (await this.canReuseGatewayOrder(
+          existing.razorpayOrderId!,
+          amount,
+          currency,
+        ))
+      ) {
+        return {
+          paymentId: existing.id,
+          keyId: this.keyId() || 'local',
+          id: existing.razorpayOrderId,
+          amount,
+          currency,
+          localMode: !this.isConfigured(),
+          reused: true,
+        };
+      }
+      await this.retireGatewayOrder(existing.razorpayOrderId!);
     }
 
     const amount = this.paymentAmountInSubunits(order.totalAmount);
     const gatewayOrder = this.isConfigured()
       ? await this.createRazorpayOrder(
-          order.orderNumber,
+          existing
+            ? this.replacementReceipt(order.orderNumber)
+            : order.orderNumber,
           amount,
           currency,
         )
@@ -180,7 +200,9 @@ export class PaymentsService {
     if (orders.length !== uniqueIds.length) {
       throw new NotFoundException('One or more orders were not found');
     }
-    if (orders.some((order) => order.orderStatus !== OrderStatus.PENDING_PAYMENT)) {
+    if (
+      orders.some((order) => order.orderStatus !== OrderStatus.PENDING_PAYMENT)
+    ) {
       throw new BadRequestException('Every order must be awaiting payment');
     }
     const total = orders.reduce(
@@ -201,7 +223,11 @@ export class PaymentsService {
           ),
         ),
     )?.razorpayOrderId;
-    if (reusableGatewayId) {
+    if (
+      reusableGatewayId &&
+      (!this.isConfigured() ||
+        (await this.canReuseGatewayOrder(reusableGatewayId, amount, currency)))
+    ) {
       return {
         keyId: this.keyId() || 'local',
         id: reusableGatewayId,
@@ -212,9 +238,14 @@ export class PaymentsService {
         reused: true,
       };
     }
+    if (reusableGatewayId) {
+      await this.retireGatewayOrder(reusableGatewayId);
+    }
     const gatewayOrder = this.isConfigured()
       ? await this.createRazorpayOrder(
-          `batch-${orders[0].orderNumber}`,
+          reusableGatewayId
+            ? this.replacementReceipt(`batch-${orders[0].orderNumber}`)
+            : `batch-${orders[0].orderNumber}`,
           amount,
           currency,
         )
@@ -695,6 +726,74 @@ export class PaymentsService {
         'Payment provider is temporarily unavailable',
       );
     }
+  }
+
+  private async canReuseGatewayOrder(
+    orderId: string,
+    expectedAmount: number,
+    expectedCurrency: string,
+  ) {
+    let order: GatewayOrderDetails;
+    try {
+      order = (await this.client().orders.fetch(
+        orderId,
+      )) as GatewayOrderDetails;
+    } catch (error) {
+      const description = this.gatewayError(error).toLowerCase();
+      const statusCode = (error as { statusCode?: number })?.statusCode;
+      if (
+        statusCode === 401 ||
+        description.includes('authentication failed') ||
+        description.includes('api key') ||
+        description.includes('credentials')
+      ) {
+        throw new UnauthorizedException(
+          'Payment provider authentication failed',
+        );
+      }
+      if (
+        statusCode === 400 &&
+        (description.includes('does not exist') ||
+          description.includes('does not belong') ||
+          description.includes('not a valid id') ||
+          description.includes('invalid id'))
+      ) {
+        return false;
+      }
+      throw new BadGatewayException(
+        'Payment provider is temporarily unavailable',
+      );
+    }
+
+    if (order.status === 'paid' || Number(order.amount_paid ?? 0) > 0) {
+      throw new BadRequestException(
+        'Payment is already completed and awaiting confirmation',
+      );
+    }
+    return (
+      (order.status === 'created' || order.status === 'attempted') &&
+      Number(order.amount) === expectedAmount &&
+      String(order.currency).toUpperCase() === expectedCurrency.toUpperCase() &&
+      Number(order.amount_due ?? order.amount) === expectedAmount
+    );
+  }
+
+  private async retireGatewayOrder(orderId: string) {
+    await this.prisma.payment.updateMany({
+      where: {
+        razorpayOrderId: orderId,
+        paymentStatus: PaymentStatus.PENDING,
+      },
+      data: {
+        paymentStatus: PaymentStatus.FAILED,
+        failureReason:
+          'Gateway order replaced because it is not valid for the active payment account',
+      },
+    });
+  }
+
+  private replacementReceipt(receipt: string) {
+    return `${receipt.slice(0, 20)}-retry-${Date.now()}`;
   }
 
   private client() {

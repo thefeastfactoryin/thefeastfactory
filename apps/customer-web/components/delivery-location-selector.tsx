@@ -289,6 +289,15 @@ export function DeliveryLocationSelector({
     if (!active) setOpen(false);
   }, [active]);
 
+  useEffect(() => {
+    if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [open]);
+
   if (!active) return null;
 
   const serviceMessage = location
@@ -437,7 +446,7 @@ export function DeliveryLocationSelector({
         typeof document !== 'undefined' &&
         createPortal(
           <div
-            className="fixed inset-0 z-[100] bg-slate-950/60 p-3 backdrop-blur-sm sm:grid sm:place-items-center"
+            className="fixed inset-0 z-[100] bg-slate-950/60 backdrop-blur-sm sm:grid sm:place-items-center sm:p-3"
             role="dialog"
             aria-modal="true"
             aria-labelledby="delivery-location-title"
@@ -448,8 +457,8 @@ export function DeliveryLocationSelector({
               aria-label="Close location selector"
               onClick={() => setOpen(false)}
             />
-            <section className="relative ml-auto flex max-h-[calc(100dvh-1.5rem)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl sm:ml-0">
-              <header className="flex items-start justify-between gap-4 border-b px-5 py-4 sm:px-6">
+            <section className="relative ml-auto flex h-[100dvh] max-h-[100dvh] w-full max-w-3xl flex-col overflow-hidden bg-white shadow-2xl sm:ml-0 sm:h-auto sm:max-h-[calc(100dvh-1.5rem)] sm:rounded-2xl">
+              <header className="flex shrink-0 items-start justify-between gap-4 border-b px-4 py-3 sm:px-6 sm:py-4">
                 <div>
                   <h2
                     id="delivery-location-title"
@@ -472,7 +481,7 @@ export function DeliveryLocationSelector({
                 </button>
               </header>
 
-              <div className="overflow-y-auto p-5 sm:p-6">
+              <div className="overscroll-contain overflow-y-auto px-3 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4 sm:p-6">
                 <Button
                   type="button"
                   variant="outline"

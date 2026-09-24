@@ -1,4 +1,5 @@
 'use client';
+import { MobileOrderBar } from '../../../components/mobile-order-bar';
 
 import type {
   CartSummary,
@@ -966,13 +967,13 @@ function BuildPackageContent() {
         </div>
       )}
 
-      <div className="fixed inset-x-0 bottom-16 z-40 border-t border-border bg-white p-3 shadow-[0_-8px_24px_rgba(45,31,20,0.10)] lg:hidden">
-        <div className="mx-auto flex max-w-[720px] items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-xs font-bold text-muted-foreground">
+      <MobileOrderBar label="Custom menu total and cart">
+        <div className="mobile-order-bar-row">
+          <div className="mobile-order-bar-summary">
+            <p className="mobile-order-bar-label">
               {order.length} selected for {guestCount} guests
             </p>
-            <p className="truncate font-serif text-xl font-bold text-primary">
+            <p className="mobile-order-bar-total">
               {estimatedSubtotal
                 ? formatCurrency(estimatedSubtotal)
                 : 'Select dishes'}
@@ -982,13 +983,13 @@ function BuildPackageContent() {
             type="button"
             disabled={order.length === 0 || saving}
             onClick={addToCart}
-            className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-full bg-primary px-5 text-sm font-extrabold text-white disabled:bg-primary/35"
+            className="mobile-order-bar-action gap-2"
           >
             {saving ? 'Adding...' : 'Add to Cart'}{' '}
             <ArrowRight className="h-4 w-4" />
           </button>
         </div>
-      </div>
+      </MobileOrderBar>
     </main>
   );
 }

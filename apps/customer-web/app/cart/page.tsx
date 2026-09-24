@@ -1,4 +1,5 @@
 'use client';
+import { MobileOrderBar } from '../../components/mobile-order-bar';
 
 import type {
   CartSummary,
@@ -1241,7 +1242,10 @@ export default function CartPage() {
                           htmlFor="cart-contact-number"
                           className="flex items-center gap-2 text-xs font-bold text-muted-foreground"
                         >
-                          <Phone className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+                          <Phone
+                            className="h-3.5 w-3.5 text-primary"
+                            aria-hidden="true"
+                          />
                           Contact number
                         </label>
                         {!editingContact && (
@@ -1287,7 +1291,9 @@ export default function CartPage() {
                           value={contactNumber}
                           onChange={(event) =>
                             setContactNumber(
-                              event.target.value.replace(/\D/g, '').slice(0, 10),
+                              event.target.value
+                                .replace(/\D/g, '')
+                                .slice(0, 10),
                             )
                           }
                           maxLength={10}
@@ -1431,21 +1437,18 @@ export default function CartPage() {
         </div>
       </div>
 
-      <section
-        className="fixed inset-x-0 bottom-16 z-40 border-t border-border bg-white/98 px-4 py-3 shadow-[0_-10px_28px_rgba(42,19,22,0.12)] backdrop-blur lg:hidden"
-        aria-label="Cart total and payment"
-      >
+      <MobileOrderBar label="Cart total and payment">
         {error && (
           <p role="alert" className="mb-2 text-xs font-semibold text-red-700">
             {error}
           </p>
         )}
-        <div className="mx-auto flex max-w-xl items-center gap-3">
-          <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-muted-foreground">
+        <div className="mobile-order-bar-row">
+          <div className="mobile-order-bar-summary">
+            <p className="mobile-order-bar-label">
               {pendingOrder ? 'Payment pending' : 'Order total'}
             </p>
-            <strong className="mt-0.5 block truncate font-serif text-xl leading-none text-foreground">
+            <strong className="mobile-order-bar-total">
               {mobileTotal != null
                 ? formatCurrency(mobileTotal)
                 : quoteLoading
@@ -1457,11 +1460,11 @@ export default function CartPage() {
             <RetryPaymentButton
               order={pendingOrder}
               orderIds={pendingBatch?.orderIds}
-              className="h-11 min-w-[148px]"
+              className="mobile-order-bar-action"
             />
           ) : (
             <Button
-              className="h-11 min-w-[132px] px-3 text-xs sm:min-w-[148px] sm:px-5 sm:text-sm"
+              className="mobile-order-bar-action"
               onClick={pay}
               disabled={
                 !ready ||
@@ -1481,7 +1484,7 @@ export default function CartPage() {
             Add venue, date, time, and contact details to continue.
           </p>
         )}
-      </section>
+      </MobileOrderBar>
     </main>
   );
 }
@@ -1751,7 +1754,10 @@ function MultiCartPriceSummary({
           {assistedPeople > 0 && (
             <div className="mt-2 flex items-center justify-between gap-4 border-t border-border/70 pt-2 text-xs">
               <span className="flex items-center gap-1.5 font-medium text-muted-foreground">
-                <UserRound className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+                <UserRound
+                  className="h-3.5 w-3.5 text-primary"
+                  aria-hidden="true"
+                />
                 Assisted service
               </span>
               <span className="font-semibold text-foreground">
@@ -1795,7 +1801,9 @@ function DeliveryServiceOptions({
 }) {
   const selected = cart.deliveryServiceType ?? 'STANDARD';
   const helperCount = cart.helperCount || 1;
-  const baseDelivery = Number(quote?.baseDeliveryFee ?? quote?.deliveryFee ?? 0);
+  const baseDelivery = Number(
+    quote?.baseDeliveryFee ?? quote?.deliveryFee ?? 0,
+  );
   const options: Array<{
     type: DeliveryServiceType;
     title: string;

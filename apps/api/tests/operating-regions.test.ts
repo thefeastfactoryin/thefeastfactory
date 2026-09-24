@@ -1,8 +1,14 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { ForbiddenException } from '@nestjs/common';
 import { AdminRole, DeliveryServiceType, Prisma } from '@prisma/client';
 import { OperatingRegionsService } from '../src/modules/operating-regions/operating-regions.service';
+
+const khammamMigrationPath = new URL(
+  '../prisma/migrations/20260923020000_add_khammam_operating_region/migration.sql',
+  import.meta.url,
+);
 
 function region(
   id: string,
@@ -29,6 +35,17 @@ function region(
     updatedAt: new Date(),
   };
 }
+
+test('deployment migration idempotently adds the enabled Khammam kitchen', async () => {
+  const sql = await readFile(khammamMigrationPath, 'utf8');
+
+  assert.match(sql, /INSERT INTO "operating_regions"/);
+  assert.match(sql, /'KHAMMAM'/);
+  assert.match(sql, /17\.24730000/);
+  assert.match(sql, /80\.15140000/);
+  assert.match(sql, /TRUE,\s*TRUE,/);
+  assert.match(sql, /ON CONFLICT \("code"\) DO NOTHING/);
+});
 
 test('location resolution uses an available overlapping kitchen', async () => {
   const closed = region('nearest-closed', '17.3850', '78.4867', false);

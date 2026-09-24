@@ -37,6 +37,21 @@ function service(prisma: object, generated: string[] = []) {
   );
 }
 
+function configuredService(prisma: object) {
+  return new PaymentsService(
+    prisma as never,
+    {
+      get: (key: string, fallback?: string) =>
+        ({
+          RAZORPAY_KEY_ID: 'rzp_live_current',
+          RAZORPAY_KEY_SECRET: 'current-secret',
+          RAZORPAY_CURRENCY: 'INR',
+        })[key] ?? fallback,
+    } as never,
+    {} as never,
+  );
+}
+
 test('Razorpay currency prefers the managed database setting', async () => {
   const payments = new PaymentsService(
     {
@@ -71,6 +86,110 @@ test('gateway orders reject amounts below one rupee', async () => {
     payments.createGatewayOrder('user-1', 'order-1'),
     BadRequestException,
   );
+});
+
+test('a pending gateway order is reused only after provider validation', async () => {
+  let fetchedId = '';
+  const payments = configuredService({
+    order: {
+      findFirst: async () => ({
+        id: 'order-1',
+        orderNumber: 'TFF-1',
+        orderStatus: OrderStatus.PENDING_PAYMENT,
+        totalAmount: new Prisma.Decimal('1000.00'),
+        payments: [
+          {
+            id: 'payment-1',
+            paymentStatus: PaymentStatus.PENDING,
+            razorpayOrderId: 'gateway-current',
+          },
+        ],
+      }),
+    },
+    payment: {
+      findMany: async () => [
+        { id: 'payment-1', amount: new Prisma.Decimal('1000.00') },
+      ],
+    },
+    platformSetting: { findUnique: async () => null },
+  });
+  (payments as unknown as { client: () => object }).client = () => ({
+    orders: {
+      fetch: async (id: string) => {
+        fetchedId = id;
+        return {
+          id,
+          amount: 100000,
+          amount_due: 100000,
+          amount_paid: 0,
+          currency: 'INR',
+          status: 'created',
+        };
+      },
+    },
+  });
+
+  const result = await payments.createGatewayOrder('user-1', 'order-1');
+  assert.equal(fetchedId, 'gateway-current');
+  assert.equal(result.id, 'gateway-current');
+  assert.equal(result.reused, true);
+});
+
+test('a gateway order from previous credentials is retired and replaced', async () => {
+  let retiredId = '';
+  let createdPaymentOrderId = '';
+  const payments = configuredService({
+    order: {
+      findFirst: async () => ({
+        id: 'order-1',
+        orderNumber: 'TFF-1',
+        orderStatus: OrderStatus.PENDING_PAYMENT,
+        totalAmount: new Prisma.Decimal('1000.00'),
+        payments: [
+          {
+            id: 'payment-old',
+            paymentStatus: PaymentStatus.PENDING,
+            razorpayOrderId: 'gateway-previous-account',
+          },
+        ],
+      }),
+    },
+    payment: {
+      findMany: async () => [
+        { id: 'payment-old', amount: new Prisma.Decimal('1000.00') },
+      ],
+      updateMany: async ({ where }: { where: { razorpayOrderId: string } }) => {
+        retiredId = where.razorpayOrderId;
+        return { count: 1 };
+      },
+      create: async ({ data }: { data: { razorpayOrderId: string } }) => {
+        createdPaymentOrderId = data.razorpayOrderId;
+        return { id: 'payment-new' };
+      },
+    },
+    platformSetting: { findUnique: async () => null },
+  });
+  (payments as unknown as { client: () => object }).client = () => ({
+    orders: {
+      fetch: async () => {
+        throw {
+          statusCode: 400,
+          error: { description: 'The id provided does not exist' },
+        };
+      },
+      create: async () => ({
+        id: 'gateway-current-account',
+        amount: 100000,
+        currency: 'INR',
+      }),
+    },
+  });
+
+  const result = await payments.createGatewayOrder('user-1', 'order-1');
+  assert.equal(retiredId, 'gateway-previous-account');
+  assert.equal(createdPaymentOrderId, 'gateway-current-account');
+  assert.equal(result.id, 'gateway-current-account');
+  assert.equal(result.reused, false);
 });
 
 test('batch checkout creates one gateway charge with one payment ledger per order', async () => {

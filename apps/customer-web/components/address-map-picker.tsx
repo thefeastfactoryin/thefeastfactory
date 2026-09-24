@@ -27,6 +27,7 @@ type PickerStatus =
   | 'error';
 
 const INDIA_CENTER = { lat: 22.9734, lng: 78.6569 };
+const MOBILE_MAP_QUERY = '(max-width: 767px), (pointer: coarse)';
 
 const MAP_STYLES: google.maps.MapTypeStyle[] = [
   { elementType: 'geometry', stylers: [{ color: '#f5f0e8' }] },
@@ -261,8 +262,26 @@ export function AddressMapPicker({
   useEffect(() => {
     if (!apiKey || !mapElement.current || !searchElement.current) return;
     let active = true;
+    let resizeFrame = 0;
     let placeAutocomplete: google.maps.places.PlaceAutocompleteElement | null =
       null;
+    const mobileMap = window.matchMedia(MOBILE_MAP_QUERY);
+    const mapGestureHandling = () =>
+      mobileMap.matches ? ('greedy' as const) : ('cooperative' as const);
+    const resizeMap = () => {
+      window.cancelAnimationFrame(resizeFrame);
+      resizeFrame = window.requestAnimationFrame(() => {
+        const activeMap = map.current;
+        if (!activeMap) return;
+        const center = marker.current?.getPosition() ?? activeMap.getCenter();
+        activeMap.setOptions({
+          controlSize: mobileMap.matches ? 32 : 36,
+          gestureHandling: mapGestureHandling(),
+        });
+        google.maps.event.trigger(activeMap, 'resize');
+        if (center) activeMap.setCenter(center);
+      });
+    };
     setStatus('loading-map');
     setMessage('Loading Google Maps…');
 
@@ -280,8 +299,10 @@ export function AddressMapPicker({
           zoom: 5,
           styles: MAP_STYLES,
           backgroundColor: '#f5f0e8',
-          controlSize: 36,
-          gestureHandling: 'cooperative',
+          controlSize: mobileMap.matches ? 32 : 36,
+          // A single-finger drag is the expected interaction inside the mobile
+          // location sheet. Desktop keeps cooperative scrolling behaviour.
+          gestureHandling: mapGestureHandling(),
           streetViewControl: false,
           mapTypeControl: false,
           fullscreenControl: false,
@@ -332,6 +353,7 @@ export function AddressMapPicker({
             }
             const address = parsePlaceAddress(place, position);
             onAddress(address);
+            placeAutocomplete?.blur();
             setStatus('ready');
             setMessage(
               address.pincode
@@ -368,7 +390,7 @@ export function AddressMapPicker({
         });
         setStatus('idle');
         setMessage(
-          'Search, click the map, drag the pin, or use your current location.',
+          'Search, choose a point on the map, drag the pin, or use your current location.',
         );
         const initial = initialPositionRef.current;
         if (initial) {
@@ -378,6 +400,9 @@ export function AddressMapPicker({
             void selectPosition({ lat: latitude, lng: longitude }, 17);
           }
         }
+        window.addEventListener('resize', resizeMap);
+        window.addEventListener('orientationchange', resizeMap);
+        mobileMap.addEventListener('change', resizeMap);
       })
       .catch(() => {
         if (!active) return;
@@ -389,6 +414,13 @@ export function AddressMapPicker({
 
     return () => {
       active = false;
+      window.cancelAnimationFrame(resizeFrame);
+      window.removeEventListener('resize', resizeMap);
+      window.removeEventListener('orientationchange', resizeMap);
+      mobileMap.removeEventListener('change', resizeMap);
+      if (map.current) google.maps.event.clearInstanceListeners(map.current);
+      if (marker.current)
+        google.maps.event.clearInstanceListeners(marker.current);
       placeAutocomplete?.remove();
     };
   }, [apiKey]);
@@ -403,28 +435,40 @@ export function AddressMapPicker({
     }
     setStatus('locating');
     setMessage('Getting your accurate location…');
+    const selectCurrentPosition: PositionCallback = ({ coords }) =>
+      void selectPosition({ lat: coords.latitude, lng: coords.longitude }, 18);
+    const showLocationError = (error: GeolocationPositionError) => {
+      setStatus('error');
+      if (error.code === error.PERMISSION_DENIED)
+        setMessage(
+          'Location permission was denied. Allow it in browser settings or choose a point on the map.',
+        );
+      else if (error.code === error.TIMEOUT)
+        setMessage(
+          'Location request timed out. Search for the venue or choose a point on the map.',
+        );
+      else
+        setMessage(
+          'Your current location is unavailable. Search or choose a point on the map instead.',
+        );
+    };
     navigator.geolocation.getCurrentPosition(
-      ({ coords }) =>
-        void selectPosition(
-          { lat: coords.latitude, lng: coords.longitude },
-          18,
-        ),
+      selectCurrentPosition,
       (error) => {
-        setStatus('error');
-        if (error.code === error.PERMISSION_DENIED)
-          setMessage(
-            'Location permission was denied. Allow it in Chrome settings or choose a point on the map.',
-          );
-        else if (error.code === error.TIMEOUT)
-          setMessage(
-            'Location request timed out. Try again or choose a point on the map.',
-          );
-        else
-          setMessage(
-            'Your current location is unavailable. Search or choose a point on the map instead.',
-          );
+        if (error.code === error.PERMISSION_DENIED) {
+          showLocationError(error);
+          return;
+        }
+        setMessage(
+          'Precise location is taking longer. Trying a quicker check…',
+        );
+        navigator.geolocation.getCurrentPosition(
+          selectCurrentPosition,
+          showLocationError,
+          { enableHighAccuracy: false, timeout: 10_000, maximumAge: 300_000 },
+        );
       },
-      { enableHighAccuracy: true, timeout: 15_000, maximumAge: 0 },
+      { enableHighAccuracy: true, timeout: 12_000, maximumAge: 30_000 },
     );
   }
 
@@ -452,10 +496,10 @@ export function AddressMapPicker({
         : 'border-border bg-white text-muted-foreground';
 
   return (
-    <div className="address-map-picker rounded-2xl border border-border bg-[hsl(var(--ivory))] p-3 shadow-sm sm:p-4">
+    <div className="address-map-picker min-w-0 rounded-2xl border border-border bg-[hsl(var(--ivory))] p-2.5 shadow-sm sm:p-4">
       <div className="flex flex-col gap-3 sm:flex-row">
         <div className="map-search-shell relative z-20 flex min-h-12 min-w-0 flex-1 items-center overflow-visible rounded-xl border border-border bg-white shadow-sm transition focus-within:border-primary/50 focus-within:ring-4 focus-within:ring-primary/10">
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center border-r border-border bg-muted/40 text-primary">
+          <span className="hidden h-12 w-12 shrink-0 items-center justify-center border-r border-border bg-muted/40 text-primary sm:flex">
             <Search className="h-4 w-4" />
           </span>
           <div
@@ -479,15 +523,18 @@ export function AddressMapPicker({
           Use my location
         </Button>
       </div>
-      <div className="relative mt-3 overflow-hidden rounded-2xl border-4 border-white bg-muted shadow-[0_16px_40px_rgba(74,43,35,0.14)] ring-1 ring-border">
+      <div className="relative mt-3 overflow-hidden rounded-2xl border-2 border-white bg-muted shadow-[0_16px_40px_rgba(74,43,35,0.14)] ring-1 ring-border sm:border-4">
         <div
           ref={mapElement}
-          className="h-[320px] w-full sm:h-[420px]"
+          className="address-map-canvas h-[280px] w-full min-[390px]:h-[300px] sm:h-[420px]"
           aria-label="Choose address on Google Map"
         />
-        <div className="pointer-events-none absolute left-3 top-3 flex items-center gap-2 rounded-full border border-white/80 bg-white/95 px-3 py-2 text-xs font-semibold text-foreground shadow-md backdrop-blur">
+        <div className="pointer-events-none absolute left-2 top-2 flex max-w-[calc(100%-1rem)] items-center gap-2 rounded-full border border-white/80 bg-white/95 px-2.5 py-1.5 text-[11px] font-semibold text-foreground shadow-md backdrop-blur sm:left-3 sm:top-3 sm:px-3 sm:py-2 sm:text-xs">
           <MapPin className="h-3.5 w-3.5 text-primary" />
-          Click the map or drag the pin
+          <span className="sm:hidden">Tap the map or drag the pin</span>
+          <span className="hidden sm:inline">
+            Click the map or drag the pin
+          </span>
         </div>
       </div>
       <div
