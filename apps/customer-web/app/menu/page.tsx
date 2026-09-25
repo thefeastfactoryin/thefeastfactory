@@ -209,7 +209,7 @@ function FilterBar({
   loading,
 }: FilterBarProps) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 py-3">
+    <div className="flex flex-wrap items-center justify-between gap-3 py-2">
       {/* Dietary */}
       <div className="flex items-center gap-1.5">
         {(
@@ -225,8 +225,8 @@ function FilterBar({
             className={cn(
               'rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors',
               dietary === value
-                ? 'border-foreground bg-foreground text-background'
-                : 'border-border bg-white text-muted-foreground hover:border-foreground/40 hover:text-foreground',
+                ? 'border-primary bg-primary text-white shadow-sm'
+                : 'border-border bg-white text-muted-foreground hover:border-primary/40 hover:text-primary',
             )}
           >
             {label}
@@ -247,23 +247,21 @@ function FilterBar({
 ══════════════════════════════════════════════════════════ */
 function MenuCard({ item }: { item: MenuItem }) {
   return (
-    <article className="group grid min-h-[132px] grid-cols-[112px_minmax(0,1fr)] overflow-hidden rounded-xl border border-border bg-white shadow-[0_4px_18px_rgba(0,0,0,0.07)] transition-all duration-300 hover:-translate-y-1 hover:border-primary/25 hover:shadow-[0_14px_38px_rgba(0,0,0,0.14)] sm:flex sm:flex-col sm:rounded-2xl">
-      {/* Food image — 3:2 aspect (slightly shorter than 4:3, fits more cards) */}
-      <div className="relative h-full min-h-[132px] overflow-hidden sm:aspect-[4/2.5] sm:h-auto sm:min-h-0">
+    <article className="group grid min-h-[68px] grid-cols-[32%_minmax(0,1fr)] overflow-hidden rounded-xl border border-border/70 bg-white shadow-[0_2px_12px_rgba(88,64,48,0.05)] transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-[0_8px_22px_rgba(88,64,48,0.08)] sm:flex sm:min-h-[160px] sm:flex-col sm:rounded-2xl">
+      {/* Food image */}
+      <div className="relative h-full min-h-[68px] overflow-hidden sm:aspect-[4/2] sm:h-auto sm:min-h-0">
         <DataImage
           src={item.imageUrl}
           alt={item.name}
           className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.05]"
         />
 
-        {/* Gradient for badge legibility */}
         <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/60 to-transparent" />
         <div className="absolute inset-x-0 top-0 h-10 bg-gradient-to-b from-black/30 to-transparent" />
 
-        {/* Diet badge — top-right */}
         <span
           className={cn(
-            'absolute right-2 top-2 flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold shadow-sm sm:right-3 sm:top-3 sm:text-[10px]',
+            'absolute right-2 top-2 flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[8px] font-bold shadow-sm sm:right-3 sm:top-3 sm:px-2 sm:py-0.5 sm:text-[10px]',
             item.isVeg
               ? 'bg-emerald-600 text-white'
               : 'bg-orange-500 text-white',
@@ -277,38 +275,32 @@ function MenuCard({ item }: { item: MenuItem }) {
           {item.isVeg ? 'Veg' : 'Non-Veg'}
         </span>
 
-        {/* Category — bottom-left over gradient */}
-        <div className="absolute bottom-2.5 left-3 hidden items-center gap-1.5 sm:flex">
+        <div className="absolute bottom-2 left-2 hidden items-center gap-1.5 sm:flex">
           <span className="text-[10px] font-bold uppercase tracking-widest text-white/75">
             {item.category?.name ?? 'Menu'}
           </span>
         </div>
       </div>
 
-      {/* Card body */}
-      <div className="flex min-w-0 flex-1 flex-col p-3 sm:p-4">
-        {/* Dish name — primary hierarchy */}
-        <h2 className="font-serif text-base font-bold leading-snug text-foreground sm:text-[1.15rem]">
-          {item.name}
-        </h2>
+      <div className="flex min-w-0 flex-1 items-center justify-between gap-2 py-2 pl-1.5 pr-2 sm:p-3">
+        <div className="min-w-0 flex-1">
+          <h2 className="min-w-0 flex-1 font-sans text-[14px] font-medium leading-[1.2] tracking-[-0.01em] text-foreground line-clamp-2 sm:text-[17px]">
+            {item.name}
+          </h2>
 
-        {/* Description — 1 line, secondary */}
-        {item.description && (
-          <p className="mt-1 hidden line-clamp-1 text-xs leading-5 text-muted-foreground sm:block">
-            {item.description}
-          </p>
-        )}
+          {item.description && (
+            <p className="mt-0.5 hidden line-clamp-1 text-[11px] leading-4 text-muted-foreground sm:block">
+              {item.description}
+            </p>
+          )}
+        </div>
 
-        {/* Push price + controls to bottom */}
-        <div className="flex-1" />
-
-        {/* Price — high visual weight */}
-        <div className="mt-2 flex items-baseline gap-0.5 sm:mt-4">
-          <span className="money-text text-xl font-extrabold tracking-tight text-foreground sm:text-2xl">
+        <div className="ml-2 flex shrink-0 items-baseline gap-1 text-right">
+          <span className="money-text text-[15px] font-semibold text-primary sm:text-[18px]">
             ₹{item.generalPrice}
           </span>
-          <span className="ml-1 text-xs font-medium text-muted-foreground">
-            / portion
+          <span className="text-[10px] font-normal text-muted-foreground">
+            /pc
           </span>
         </div>
       </div>
@@ -483,9 +475,9 @@ export default function PublicMenuPage() {
         />
 
         {/* ② Filters, cart context, and compact food grid */}
-        <main className="min-w-0 flex-1 px-4 pb-24 pt-5 sm:px-6 lg:px-8 lg:pb-12 lg:pt-8">
+        <main className="min-w-0 flex-1 px-4 pb-24 pt-4 sm:px-6 lg:px-8 lg:pb-12 lg:pt-8">
           <div className="mx-auto max-w-6xl">
-            <div className="relative mb-5">
+            <div className="relative mb-3">
               <Search className="absolute left-5 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
               <input
                 type="text"
@@ -512,7 +504,7 @@ export default function PublicMenuPage() {
                 loading={loading}
               />
               <div
-                className="mb-5 flex gap-2 overflow-x-auto pb-1"
+                className="mb-0 flex gap-1.5 overflow-x-auto pb-1"
                 style={{ scrollbarWidth: 'none' }}
               >
                 {categories.map((cat) => {
@@ -523,7 +515,7 @@ export default function PublicMenuPage() {
                       type="button"
                       onClick={() => setCategoryId(cat.id)}
                       className={cn(
-                        'flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold',
+                        'flex h-10 shrink-0 items-center gap-1.5 rounded-full px-3 text-[14px] font-semibold',
                         categoryId === cat.id
                           ? 'bg-primary text-white shadow-sm'
                           : 'border border-border bg-white text-muted-foreground',
@@ -538,7 +530,7 @@ export default function PublicMenuPage() {
             </div>
 
             {!categoryId && (
-              <div className="mb-5 flex flex-wrap items-end justify-between gap-3 border-b border-border pb-4">
+              <div className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b border-border pb-3">
                 <div className="flex items-end gap-4">
                   <h1 className="font-serif text-3xl font-bold text-foreground">
                     All Dishes
@@ -563,7 +555,7 @@ export default function PublicMenuPage() {
             {loading && <MenuSkeleton />}
 
             {!loading && !error && items.length > 0 && (
-              <div className="space-y-8 pb-4 lg:space-y-14 lg:pb-8">
+              <div className="space-y-6 pb-4 lg:space-y-14 lg:pb-8">
                 {menuSections.map(
                   ({ category, items: categoryItems }, index) => (
                     <section
@@ -575,22 +567,18 @@ export default function PublicMenuPage() {
                       )}
                       aria-labelledby={`menu-category-${category.id}`}
                     >
-                      <div className="mb-3 flex flex-wrap items-end justify-between gap-3 sm:mb-6">
+                      <div className="mb-1 flex flex-wrap items-end gap-3 sm:mb-5">
                         <div>
                           <h2
                             id={`menu-category-${category.id}`}
-                            className="font-serif text-2xl font-bold text-foreground lg:text-[1.7rem]"
+                            className="font-serif text-[1.4rem] font-bold text-foreground lg:text-[1.55rem]"
                           >
                             {category.name}
                           </h2>
-                          <div className="mt-2 h-0.5 w-7 bg-amber-500" />
+                          <div className="mt-2 h-[3px] w-12 bg-amber-500" />
                         </div>
-                        <span className="rounded-full border bg-white px-3 py-1.5 text-xs font-bold text-muted-foreground shadow-sm">
-                          {categoryItems.length}{' '}
-                          {categoryItems.length === 1 ? 'dish' : 'dishes'}
-                        </span>
                       </div>
-                      <div className="grid gap-3 sm:grid-cols-2 sm:gap-5 xl:grid-cols-3 2xl:grid-cols-4">
+                      <div className="grid gap-2 sm:grid-cols-2 sm:gap-5 xl:grid-cols-3 2xl:grid-cols-4">
                         {categoryItems.map((item) => (
                           <MenuCard key={item.id} item={item} />
                         ))}

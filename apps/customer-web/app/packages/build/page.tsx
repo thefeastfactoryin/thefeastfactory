@@ -808,7 +808,7 @@ function BuildPackageContent() {
           <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-accent">
             Build your menu
           </p>
-          <h1 className="mt-1 font-serif text-[25px] font-bold leading-[1.05] text-white sm:text-[34px]">
+          <h1 className="mt-1 font-serif text-[22px] font-bold leading-[1.05] text-white sm:text-[30px]">
             Build Your Own Package
           </h1>
           <p className="mt-1.5 hidden text-sm font-semibold leading-5 text-white/75 sm:block">

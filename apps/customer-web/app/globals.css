@@ -263,9 +263,10 @@ body {
     letter-spacing: 0.24em;
   }
   .display-heading {
-    @apply font-serif font-bold tracking-tight;
-    line-height: 1.04;
-  }
+    @apply font-serif font-medium;
+    letter-spacing: -0.015em;
+    line-height: 1.06;
+}
   .divider-accent {
     @apply h-px w-12 shrink-0 rounded-full bg-accent/40;
   }

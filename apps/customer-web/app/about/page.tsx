@@ -140,7 +140,7 @@ export default function AboutPage() {
         <div className="container-pad grid min-w-0 gap-5 py-6 lg:grid-cols-[0.86fr_1fr] lg:gap-x-8 lg:gap-y-0 lg:py-9">
           <div className="min-w-0 lg:col-start-1 lg:row-start-1 lg:self-end">
             <p className="eyebrow text-primary">About us</p>
-            <h1 className="mt-3 max-w-[560px] break-words font-serif text-[34px] font-bold leading-[1.03] text-foreground sm:text-[44px]">
+            <h1 className="mt-3 max-w-[560px] break-words font-serif text-[28px] font-bold leading-[1.05] text-foreground sm:text-[36px]">
               A Decade of Food Experience.{' '}
               <span className="text-primary">Now Delivered in Bulk.</span>
             </h1>
@@ -165,7 +165,7 @@ export default function AboutPage() {
               className="h-[210px] w-full object-cover sm:h-[320px] lg:h-[380px]"
             />
             <div className="absolute inset-x-0 bottom-0 hidden bg-gradient-to-t from-black/75 via-black/35 to-transparent px-6 pb-5 pt-14 lg:block">
-              <h2 className="font-serif text-2xl font-bold leading-tight text-white">
+              <h2 className="font-serif text-2xl font-bold leading-[1.12] tracking-[-0.015em] text-white">
                 Built on Experience. Driven by Trust.
               </h2>
             </div>
@@ -192,7 +192,7 @@ export default function AboutPage() {
       <section className="container-pad grid gap-4 py-6 sm:gap-5 sm:py-8 lg:grid-cols-[0.82fr_1.18fr]">
         <div className="about-panel">
           <p className="eyebrow text-primary">Our journey</p>
-          <h2 className="mt-3 font-serif text-[26px] font-bold leading-tight sm:text-3xl">
+          <h2 className="mt-3 font-serif text-[22px] font-bold leading-[1.12] tracking-[-0.015em] sm:text-[28px]">
             From Restaurants and Banquets to Bulk Food
           </h2>
           <p className="mt-3 text-[13px] leading-6 text-muted-foreground sm:mt-4 sm:text-sm sm:leading-7">
@@ -218,7 +218,7 @@ export default function AboutPage() {
 
         <div className="about-panel">
           <p className="eyebrow text-primary">Why customers trust us</p>
-          <h2 className="mt-3 font-serif text-[26px] font-bold leading-tight sm:text-3xl">
+          <h2 className="mt-3 font-serif text-[22px] font-bold leading-[1.12] tracking-[-0.015em] sm:text-[28px]">
             Our Promise to You
           </h2>
           <div className="mt-5 grid grid-cols-2 gap-3 sm:mt-6 sm:gap-5">
@@ -256,7 +256,7 @@ export default function AboutPage() {
       <section className="container-pad grid items-stretch gap-4 py-6 sm:gap-5 sm:py-7 lg:grid-cols-[0.72fr_1.78fr]">
         <div className="about-panel flex flex-col justify-between lg:min-h-[330px]">
           <p className="eyebrow text-primary">Our corporate office</p>
-          <h2 className="mt-2 font-serif text-2xl font-bold leading-tight">
+          <h2 className="mt-2 font-serif text-2xl font-bold leading-[1.12] tracking-[-0.015em]">
             A Business You Can Reach
           </h2>
           <p className="mt-3 text-xs leading-5 text-muted-foreground">
@@ -346,7 +346,7 @@ export default function AboutPage() {
       <section className="container-pad pb-10">
         <div className="about-help-panel">
           <div>
-            <p className="font-serif text-[22px] font-bold leading-tight text-foreground sm:text-2xl">
+            <p className="font-serif text-[22px] font-bold leading-[1.12] tracking-[-0.015em] text-foreground sm:text-2xl">
               Need help with your bulk order?
             </p>
             <p className="mt-1 text-[13px] leading-5 text-muted-foreground sm:text-sm">

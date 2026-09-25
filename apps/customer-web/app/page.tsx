@@ -252,7 +252,7 @@ export default function HomePage() {
           <div className="grid min-w-0 items-center gap-5 py-5 sm:gap-8 sm:py-8 lg:min-h-[430px] lg:grid-cols-[0.94fr_1.2fr] lg:gap-12 lg:py-5">
             <div className="min-w-0 max-w-[590px]">
               <p className="eyebrow">Premium bulk catering</p>
-              <h1 className="mt-3 max-w-[570px] font-serif text-[38px] font-bold leading-[1.02] tracking-[-0.03em] sm:text-[48px] lg:text-[58px] lg:leading-[0.98]">
+              <h1 className="mt-3 max-w-[570px] font-serif text-[32px] font-bold leading-[1.04] tracking-[-0.03em] sm:text-[40px] lg:text-[48px] lg:leading-[0.98]">
                 Premium food for every{' '}
                 <span className="italic text-accent">occasion</span>
               </h1>
@@ -354,7 +354,7 @@ export default function HomePage() {
                   <span className="absolute -top-5 left-5 grid h-11 w-11 place-items-center rounded-full border border-border bg-ivory text-primary shadow-sm lg:left-6">
                     <Icon className="h-5 w-5" aria-hidden="true" />
                   </span>
-                  <h3 className="font-serif text-[26px] font-bold leading-tight tracking-tight text-foreground lg:text-[30px]">
+                  <h3 className="font-serif text-[22px] font-bold leading-[1.12] tracking-[-0.015em] text-foreground lg:text-[26px]">
                     {isCustomPackage ? 'Custom Package' : offering.title}
                   </h3>
                   <p className="mt-1 text-sm leading-6 text-muted-foreground">
@@ -378,7 +378,7 @@ export default function HomePage() {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="eyebrow">Curated for every event</p>
-              <h2 className="mt-2 font-serif text-[28px] font-bold tracking-tight sm:text-3xl">
+              <h2 className="mt-2 font-serif text-[24px] font-bold leading-[1.12] tracking-[-0.015em] sm:text-[28px]">
                 Popular occasion packages
               </h2>
             </div>
@@ -418,7 +418,7 @@ export default function HomePage() {
                       )}
                     </div>
                     <div className="p-4 pb-2">
-                      <h3 className="font-serif text-xl font-bold leading-tight">
+                      <h3 className="font-serif text-xl font-bold leading-[1.12] tracking-[-0.015em]">
                         {pkg.name}
                       </h3>
                       <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">

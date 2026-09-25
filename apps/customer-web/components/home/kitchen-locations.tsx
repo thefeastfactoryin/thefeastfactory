@@ -135,7 +135,7 @@ export function KitchenLocationsSection({
           <div className="flex flex-col lg:min-h-[128px] lg:flex-row">
             <div className="flex flex-col justify-center px-5 py-5 sm:px-7 lg:w-[30%] lg:px-8 lg:py-5">
               <p className="eyebrow">Our kitchens across Telangana</p>
-              <h2 className="mt-2 max-w-[380px] font-serif text-[21px] font-bold leading-tight tracking-tight text-foreground sm:text-2xl">
+              <h2 className="mt-2 max-w-[380px] font-serif text-[20px] font-bold leading-[1.12] tracking-[-0.015em] text-foreground sm:text-[24px]">
                 Freshly prepared across{' '}
                 <span className="text-gold-text">
                   {locations.length} cities.
@@ -238,7 +238,7 @@ export function KitchenLocationsSection({
           {variant !== 'about' && (
             <div className="shrink-0 lg:w-[35%] lg:border-r lg:border-border lg:pr-8">
               <p className="eyebrow">Our kitchens across Telangana</p>
-              <h2 className="mt-2 max-w-sm font-serif text-2xl font-bold leading-tight tracking-tight text-foreground sm:text-3xl">
+              <h2 className="mt-2 max-w-sm font-serif text-2xl font-bold leading-[1.12] tracking-[-0.015em] text-foreground sm:text-3xl">
                 Prepared in our own kitchens, across{' '}
                 <span className="text-gold-text">{locations.length}</span> major
                 cities.

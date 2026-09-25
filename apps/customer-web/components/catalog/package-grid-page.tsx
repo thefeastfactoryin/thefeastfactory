@@ -284,7 +284,7 @@ export function PackageGridPage({
             <p className="eyebrow">
               {isMealBox ? 'Packed meals for groups' : 'Premium Bulk Catering'}
             </p>
-            <h1 className="mt-2 font-serif text-[36px] font-bold leading-[0.95] tracking-tight text-white sm:text-[54px] lg:text-[64px]">
+            <h1 className="mt-2 font-serif text-[30px] font-bold leading-[1.12] tracking-[-0.015em] text-white sm:text-[42px] lg:text-[48px]">
               {heroTitleLead && <span>{heroTitleLead} </span>}
               <span className="text-accent">{heroTitleAccent}</span>
             </h1>

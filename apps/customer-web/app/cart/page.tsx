@@ -896,7 +896,7 @@ export default function CartPage() {
           <div className="mt-2 flex flex-wrap items-end justify-between gap-4 sm:mt-5 md:mt-7">
             <div>
               <p className="eyebrow hidden sm:block">Event, review & payment</p>
-              <h1 className="font-serif text-[26px] font-semibold leading-tight sm:mt-2 sm:text-4xl">
+              <h1 className="font-serif text-[24px] font-semibold leading-[1.12] tracking-[-0.015em] sm:mt-2 sm:text-[32px]">
                 Complete your order.
               </h1>
               <p className="mt-2 hidden max-w-2xl text-sm font-medium leading-6 text-white/82 sm:block">
@@ -2047,7 +2047,7 @@ function DeliveryServiceOptions({
         </span>
         <div>
           <p className="eyebrow">Delivery & service</p>
-          <h3 className="mt-1 font-serif text-2xl font-semibold leading-tight sm:text-[28px]">
+          <h3 className="mt-1 font-serif text-2xl font-semibold leading-[1.12] tracking-[-0.015em] sm:text-[28px]">
             Choose how we serve you
           </h3>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -2114,7 +2114,7 @@ function DeliveryServiceOptions({
                   </span>
                 </span>
                 <span className="mt-5 flex flex-wrap items-center gap-2">
-                  <strong className="font-serif text-xl leading-tight text-primary">
+                  <strong className="font-serif text-xl leading-[1.12] tracking-[-0.015em] text-primary">
                     {title}
                   </strong>
                 </span>

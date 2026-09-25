@@ -646,7 +646,7 @@ function MenuSelectContent() {
               <p className="eyebrow">
                 {isMealBox ? 'Your meal box' : 'Your package menu'}
               </p>
-              <h1 className="mt-2 max-w-3xl font-serif text-3xl font-semibold leading-tight tracking-tight text-charcoal sm:text-4xl">
+              <h1 className="mt-2 max-w-3xl font-serif text-3xl font-semibold leading-[1.12] tracking-[-0.015em] text-charcoal sm:text-4xl">
                 {isMealBox ? 'Review your ' : 'Review your '}
                 {config.packageName}
               </h1>
@@ -675,7 +675,7 @@ function MenuSelectContent() {
             </div>
             <div className="min-w-0">
               <div className="flex flex-wrap items-start gap-2 sm:items-center sm:gap-3">
-                <h1 className="min-w-0 flex-1 font-serif text-[25px] font-semibold leading-[1.08] tracking-tight text-charcoal sm:text-[34px]">
+                <h1 className="min-w-0 flex-1 font-serif text-[22px] font-semibold leading-[1.12] tracking-[-0.015em] text-charcoal sm:text-[30px]">
                   {config.packageName}
                 </h1>
                 <div className="numeric-text inline-flex h-10 shrink-0 items-center overflow-hidden rounded-lg border border-border bg-white">
@@ -1317,7 +1317,7 @@ function DishRow({
         className="min-h-11 min-w-0 text-left"
       >
         <span className="flex flex-wrap items-center gap-2">
-          <strong className="min-w-0 break-words font-serif text-[16px] leading-tight text-charcoal sm:text-[17px]">
+          <strong className="min-w-0 break-words font-serif text-[16px] leading-[1.12] tracking-[-0.015em] text-charcoal sm:text-[17px]">
             {item.name}
           </strong>
           <DietBadge isVeg={item.isVeg} />
@@ -1577,7 +1577,7 @@ function ExtraRow({
         className="min-h-11 min-w-0 text-left"
       >
         <span className="flex flex-wrap items-center gap-2">
-          <strong className="min-w-0 break-words font-serif text-base leading-tight text-charcoal sm:text-lg">
+          <strong className="min-w-0 break-words font-serif text-base leading-[1.12] tracking-[-0.015em] text-charcoal sm:text-lg">
             {row.item.name}
           </strong>
           <DietBadge isVeg={row.item.isVeg} />
@@ -1915,7 +1915,7 @@ function ItemDetails({
           <div className="flex items-start justify-between gap-4">
             <div>
               <DietBadge isVeg={detail.item.isVeg} />
-              <h2 className="mt-3 font-serif text-2xl font-semibold leading-tight sm:text-3xl">
+              <h2 className="mt-3 font-serif text-2xl font-semibold leading-[1.12] tracking-[-0.015em] sm:text-3xl">
                 {detail.item.name}
               </h2>
               <p className="mt-1 text-sm font-semibold text-primary">

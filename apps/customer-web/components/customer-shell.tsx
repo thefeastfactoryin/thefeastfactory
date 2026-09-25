@@ -195,8 +195,8 @@ export function CustomerShell({
                 alt="The Feast Factory logo"
                 className="h-9 w-9 shrink-0 rounded-md object-cover shadow-[0_4px_12px_rgba(122,31,43,0.14)] sm:h-14 sm:w-14"
               />
-              <span className="flex min-w-0 max-w-[108px] flex-col sm:max-w-none">
-                <span className="block truncate whitespace-nowrap font-serif text-[13px] font-semibold leading-tight tracking-normal text-primary sm:text-[18px] lg:text-[22px]">
+              <span className="flex min-w-0 max-w-[140px] flex-col sm:max-w-none">
+                <span className="block truncate whitespace-nowrap font-serif text-[15px] font-semibold leading-[1.12] tracking-[-0.015em] text-primary sm:text-[18px] lg:text-[22px]">
                   The Feast Factory
                 </span>
               </span>
