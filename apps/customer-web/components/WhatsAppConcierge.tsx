@@ -90,7 +90,7 @@ export function WhatsAppConcierge() {
         <section className="fixed inset-x-0 bottom-16 w-full rounded-t-xl border border-border bg-ivory p-5 shadow-md motion-safe:animate-[concierge-sheet_200ms_ease-out] md:absolute md:inset-x-auto md:bottom-16 md:right-0 md:w-80 md:origin-bottom-right md:rounded-xl md:p-4 md:motion-safe:animate-[concierge-enter_200ms_ease-out]" aria-label="WhatsApp concierge options">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="font-serif text-lg font-bold text-foreground">Need help planning?</p>
+              <p className="font-sans text-lg font-semibold text-foreground">Need help planning?</p>
               <p className="mt-1 text-sm leading-5 text-muted-foreground">No pressure. Just helpful suggestions.</p>
             </div>
             <button type="button" onClick={dismissConcierge} aria-label="Close concierge" className="grid h-7 w-7 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"><X className="h-4 w-4" /></button>

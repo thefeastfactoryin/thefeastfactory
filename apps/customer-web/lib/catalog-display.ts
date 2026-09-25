@@ -16,10 +16,10 @@ export const offeringDisplay: Record<
 
 export const catalogCopy = {
   trust: [
-    ['Minimum order', 'Shown per package'],
-    ['Advance booking', 'Configured from operations'],
-    ['Clear pricing', 'No hidden additions'],
-    ['Fresh preparation', 'Prepared for your event'],
+    ['Clear pricing', 'Transparent rates for packages and dishes'],
+    ['Flexible menus', 'Choose packages, meal boxes or your own menu'],
+    ['Planned delivery', 'Match the delivery date and timing to your event'],
+    ['Helpful support', 'Get guidance before you place your order'],
   ],
   packageBenefits: [
     ['Expertly curated menus', 'Balanced choices for groups'],

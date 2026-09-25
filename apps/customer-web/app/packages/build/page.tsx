@@ -376,7 +376,7 @@ function SummaryPanel({
   return (
     <aside className="rounded-2xl border border-border bg-white p-4 shadow-[0_8px_22px_rgba(45,31,20,0.045)] lg:sticky lg:top-20">
       <p className="eyebrow text-primary">Live Summary</p>
-      <h2 className="mt-1 font-serif text-xl font-bold">Your package</h2>
+      <h2 className="mt-1 font-sans text-xl font-semibold">Your package</h2>
       {order.length === 0 && (
         <div className="mt-3 rounded-xl border border-border bg-[#fbf8f2] p-3 text-sm">
           <ShoppingBag className="mb-2 h-4 w-4 text-primary" />
@@ -396,7 +396,7 @@ function SummaryPanel({
             <p className="text-[11px] font-extrabold uppercase text-muted-foreground">
               {label}
             </p>
-            <p className="mt-0.5 font-serif text-xl font-bold text-foreground">
+            <p className="mt-0.5 font-sans text-xl font-semibold text-foreground">
               {value}
             </p>
           </div>
@@ -850,7 +850,7 @@ function BuildPackageContent() {
     return (
       <main className="grid min-h-[60vh] place-items-center bg-background p-6">
         <section className="max-w-md rounded-2xl border border-border bg-white p-8 text-center shadow-sm">
-          <h1 className="font-serif text-2xl font-bold text-foreground">
+          <h1 className="font-sans text-2xl font-semibold text-foreground">
             Menu currently unavailable
           </h1>
           <p className="mt-3 text-sm leading-6 text-muted-foreground">
@@ -926,7 +926,7 @@ function BuildPackageContent() {
                 />
                 <div className="min-w-0">
                   <p className="eyebrow text-primary">Custom menu</p>
-                  <h2 className="mt-1 font-serif text-2xl font-bold">
+                  <h2 className="mt-1 font-sans text-2xl font-semibold">
                     Order summary
                   </h2>
                   <p className="numeric-text mt-1 text-sm text-muted-foreground">

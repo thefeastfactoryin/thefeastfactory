@@ -265,7 +265,7 @@ export function PackageGridPage({
         ]),
   ];
   return (
-    <main className="min-h-screen overflow-x-clip bg-background sm:[font-family:var(--font-package-sans),sans-serif]">
+    <main className="min-h-screen overflow-x-clip bg-background">
       <section className="relative isolate overflow-hidden border-b bg-hero-end text-white">
         <img
           src={isMealBox ? '/order-mealbox.png' : '/packages-hero-plated.png'}
@@ -315,7 +315,7 @@ export function PackageGridPage({
         <div className="mb-5 hidden text-center sm:block">
           <div className="flex items-center justify-center gap-3">
             <span className="h-px w-8 rounded-full bg-accent/45" />
-            <h2 className="text-2xl font-bold leading-tight text-foreground [font-family:var(--font-package-heading),serif] sm:text-3xl">
+            <h2 className="font-serif text-2xl font-bold leading-tight text-foreground sm:text-3xl">
               {isMealBox
                 ? 'Choose the right box for your group'
                 : 'Find the right menu for your celebration'}
@@ -441,7 +441,7 @@ export function PackageGridPage({
                     <div className="flex flex-col bg-white px-4 pb-3 pt-4">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <h2 className="text-[20px] font-bold leading-[1.12] text-foreground [font-family:var(--font-package-heading),serif]">
+                          <h2 className="text-[20px] font-semibold leading-[1.12] text-foreground">
                             {pkg.name}
                           </h2>
                           <p className="mt-1.5 hidden line-clamp-2 min-h-[38px] text-[13px] leading-[1.42] text-muted-foreground sm:block">

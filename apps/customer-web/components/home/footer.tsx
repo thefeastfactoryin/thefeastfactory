@@ -31,9 +31,26 @@ const services = [
 export function Footer() {
   const settings = usePublicSettings();
   const socialIcons = { Instagram, Facebook } as const;
+  const contactItems = [
+    {
+      icon: Phone,
+      label: 'Phone',
+      value: settings?.business.supportPhone,
+    },
+    {
+      icon: Mail,
+      label: 'Email',
+      value: settings?.business.supportEmail,
+    },
+    {
+      icon: MapPin,
+      label: 'Address',
+      value: settings?.business.address,
+    },
+  ].filter((item) => Boolean(item.value));
   return (
     <footer className="bg-foreground text-white">
-      <div className="mx-auto w-full max-w-7xl px-4 py-7 sm:px-6 md:py-14 lg:px-8">
+      <div className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 md:py-8 lg:px-8">
         <div className="md:hidden">
           <div className="flex items-center justify-between gap-4 pb-5">
             <div className="flex min-w-0 items-center gap-3">
@@ -102,29 +119,22 @@ export function Footer() {
             </ul>
           </details>
 
-          <details className="group border-y border-white/10">
-            <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between text-sm font-semibold text-white [&::-webkit-details-marker]:hidden">
-              Contact
-              <ChevronDown className="h-4 w-4 text-white/50 transition-transform group-open:rotate-180" />
-            </summary>
-            <ul className="space-y-3 pb-5 text-sm text-white/65">
-              <li className="flex items-start gap-2.5">
-                <Phone className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
-                {settings?.business.supportPhone ||
-                  'Contact details being updated'}
-              </li>
-              <li className="flex items-start gap-2.5">
-                <Mail className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
-                {settings?.business.supportEmail ||
-                  'Support email being updated'}
-              </li>
-              <li className="flex items-start gap-2.5">
-                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
-                {settings?.business.address ||
-                  'Service address being updated'}
-              </li>
-            </ul>
-          </details>
+          {contactItems.length > 0 && (
+            <details className="group border-y border-white/10">
+              <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between text-sm font-semibold text-white [&::-webkit-details-marker]:hidden">
+                Contact
+                <ChevronDown className="h-4 w-4 text-white/50 transition-transform group-open:rotate-180" />
+              </summary>
+              <ul className="space-y-3 pb-5 text-sm text-white/65">
+                {contactItems.map(({ icon: Icon, label, value }) => (
+                  <li key={label} className="flex items-start gap-2.5">
+                    <Icon className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+                    {value}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
         </div>
 
         <div className="hidden gap-10 md:grid md:grid-cols-2 lg:grid-cols-4">
@@ -204,25 +214,21 @@ export function Footer() {
           </div>
 
           {/* Contact */}
-          <div>
-            <p className="mb-5 text-[11px] font-bold uppercase tracking-widest text-white/50">
-              Contact
-            </p>
-            <ul className="space-y-3 text-sm text-white/70">
-              <li className="flex items-start gap-2.5">
-                <Phone className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
-                {settings?.business.supportPhone || 'Contact details being updated'}
-              </li>
-              <li className="flex items-start gap-2.5">
-                <Mail className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
-                {settings?.business.supportEmail || 'Support email being updated'}
-              </li>
-              <li className="flex items-start gap-2.5">
-                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
-                {settings?.business.address || 'Service address being updated'}
-              </li>
-            </ul>
-          </div>
+          {contactItems.length > 0 && (
+            <div>
+              <p className="mb-5 text-[11px] font-bold uppercase tracking-widest text-white/50">
+                Contact
+              </p>
+              <ul className="space-y-3 text-sm text-white/70">
+                {contactItems.map(({ icon: Icon, label, value }) => (
+                  <li key={label} className="flex items-start gap-2.5">
+                    <Icon className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+                    {value}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
 
         {/* Divider + copyright */}

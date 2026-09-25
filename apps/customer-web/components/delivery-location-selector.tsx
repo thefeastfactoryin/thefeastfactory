@@ -475,7 +475,7 @@ export function DeliveryLocationSelector({
                 <div>
                   <h2
                     id="delivery-location-title"
-                    className="font-serif text-2xl font-bold"
+                    className="font-sans text-2xl font-semibold"
                   >
                     Choose delivery location
                   </h2>

@@ -65,7 +65,7 @@ export function StatePanel({
         />
       </span>
       {eyebrow && <p className="eyebrow mt-4 sm:mt-6">{eyebrow}</p>}
-      <Heading className="mt-2 font-serif text-2xl font-semibold sm:mt-3 sm:text-4xl">
+      <Heading className="mt-2 font-sans text-2xl font-semibold sm:mt-3 sm:text-4xl">
         {title}
       </Heading>
       {description && (

@@ -102,6 +102,7 @@ function parseAddress(
   );
   const locality = componentValue(
     components,
+    'sublocality_level_2',
     'sublocality_level_1',
     'sublocality',
     'neighborhood',
@@ -169,6 +170,7 @@ function parsePlaceAddress(
   const subpremise = placeComponentValue(components, 'subpremise');
   const locality = placeComponentValue(
     components,
+    'sublocality_level_2',
     'sublocality_level_1',
     'sublocality',
     'neighborhood',

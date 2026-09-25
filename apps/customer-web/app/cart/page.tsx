@@ -913,7 +913,7 @@ export default function CartPage() {
           <section className="mb-5 rounded-2xl border border-border bg-white p-4 shadow-sm sm:p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 className="font-serif text-xl font-semibold">
+                <h2 className="font-sans text-xl font-semibold">
                   Packages in your cart ({activeCarts.length})
                 </h2>
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -1101,7 +1101,7 @@ export default function CartPage() {
                   </span>
                   <div>
                     <p className="eyebrow">Shared delivery setup</p>
-                    <h2 className="mt-1 font-serif text-xl font-semibold text-foreground">
+                    <h2 className="mt-1 font-sans text-xl font-semibold text-foreground">
                       One delivery plan for all packages
                     </h2>
                     <p className="mt-1 text-sm leading-6 text-muted-foreground">
@@ -1150,7 +1150,7 @@ export default function CartPage() {
                     <ReceiptText className="h-5 w-5" />
                   </span>
                   <div className="min-w-0">
-                    <h2 className="font-serif text-2xl font-semibold">
+                    <h2 className="font-sans text-2xl font-semibold">
                       {isMultiCart ? `${cart.package.name} menu` : 'Your menu'}
                     </h2>
                     <p className="mt-0.5 text-sm text-muted-foreground">
@@ -1248,7 +1248,7 @@ export default function CartPage() {
                 <p className="eyebrow">
                   {pendingOrder ? 'Payment pending' : 'Order summary'}
                 </p>
-                <h2 className="mt-2 font-serif text-2xl font-semibold">
+                <h2 className="mt-2 font-sans text-2xl font-semibold">
                   {activeCarts.length > 1
                     ? `${activeCarts.length} packages`
                     : cart.package.name}
@@ -1452,7 +1452,7 @@ export default function CartPage() {
               </span>
               <h2
                 id="clear-cart-title"
-                className="mt-4 font-serif text-2xl font-bold"
+                className="mt-4 font-sans text-2xl font-semibold"
               >
                 Clear your entire cart?
               </h2>
@@ -2047,7 +2047,7 @@ function DeliveryServiceOptions({
         </span>
         <div>
           <p className="eyebrow">Delivery & service</p>
-          <h3 className="mt-1 font-serif text-2xl font-semibold leading-[1.12] tracking-[-0.015em] sm:text-[28px]">
+          <h3 className="mt-1 font-sans text-2xl font-semibold leading-[1.12] tracking-[-0.015em] sm:text-[28px]">
             Choose how we serve you
           </h3>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -2114,7 +2114,7 @@ function DeliveryServiceOptions({
                   </span>
                 </span>
                 <span className="mt-5 flex flex-wrap items-center gap-2">
-                  <strong className="font-serif text-xl leading-[1.12] tracking-[-0.015em] text-primary">
+                  <strong className="font-sans text-xl font-semibold leading-[1.12] tracking-[-0.015em] text-primary">
                     {title}
                   </strong>
                 </span>

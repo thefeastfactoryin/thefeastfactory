@@ -101,7 +101,7 @@ export default function OrdersPage() {
                     <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground md:hidden">
                       Package
                     </p>
-                    <h2 className="mt-1 truncate font-serif text-lg font-semibold md:mt-0">
+                    <h2 className="mt-1 truncate font-sans text-lg font-semibold md:mt-0">
                       {order.packageName}
                     </h2>
                   </div>

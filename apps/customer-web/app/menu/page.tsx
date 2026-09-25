@@ -571,7 +571,7 @@ export default function PublicMenuPage() {
                         <div>
                           <h2
                             id={`menu-category-${category.id}`}
-                            className="font-serif text-[1.4rem] font-bold text-foreground lg:text-[1.55rem]"
+                            className="font-sans text-[1.4rem] font-semibold text-foreground lg:text-[1.55rem]"
                           >
                             {category.name}
                           </h2>
@@ -605,7 +605,7 @@ export default function PublicMenuPage() {
             {!loading && !error && items.length === 0 && (
               <div className="flex flex-col items-center py-24 text-center">
                 <Search className="h-9 w-9 text-muted-foreground/40" />
-                <h2 className="mt-3 font-serif text-xl font-bold text-foreground">
+                <h2 className="mt-3 font-sans text-xl font-semibold text-foreground">
                   No dishes found
                 </h2>
                 <p className="mt-1 text-sm text-muted-foreground">

@@ -230,7 +230,7 @@ body {
   }
 
   .about-years-badge strong {
-    @apply block font-serif text-xl leading-5;
+    @apply block font-sans text-xl font-semibold leading-5;
   }
 
   .about-years-badge span {

@@ -443,7 +443,7 @@ export function CustomerShell({
             className="absolute right-3 top-16 max-h-[calc(100dvh-6rem)] w-72 max-w-[calc(100vw-1.5rem)] overflow-y-auto rounded-2xl border border-border bg-card p-3 shadow-xl"
           >
             <div className="flex items-center justify-between pl-3">
-              <p className="font-serif text-lg font-bold">Account & help</p>
+              <p className="font-sans text-lg font-semibold">Account & help</p>
               <button
                 aria-label="Close account menu"
                 className="grid h-11 w-11 place-items-center"
@@ -502,7 +502,7 @@ export function CustomerShell({
           >
             <div className="flex items-center justify-between px-2 pb-2 pt-1">
               <div>
-                <p className="font-serif text-xl font-bold">Explore more</p>
+                <p className="font-sans text-xl font-semibold">Explore more</p>
                 <p className="text-xs text-muted-foreground">
                   Find your food and build your order
                 </p>

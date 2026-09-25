@@ -188,7 +188,7 @@ function ThemedDatePicker({
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
-            <strong className="font-serif text-lg">{monthLabel}</strong>
+            <strong className="font-sans text-lg font-semibold">{monthLabel}</strong>
             <button
               type="button"
               aria-label="Next month"
@@ -610,7 +610,7 @@ export function SelectionContextPanel({
   if (!session) {
     return (
       <section className="surface-card p-5">
-        <p className="font-serif text-xl font-semibold">Sign in to continue</p>
+        <p className="font-sans text-xl font-semibold">Sign in to continue</p>
         <p className="mt-2 text-sm text-muted-foreground">
           Your selection stays on this device while you verify your mobile
           number.
@@ -704,7 +704,7 @@ export function SelectionContextPanel({
                     setGuestInput(event.target.value.replace(/\D/g, ''))
                   }
                   onBlur={() => commitGuestCount(guestInput)}
-                  className="w-16 bg-transparent text-center font-serif text-xl font-semibold outline-none"
+                  className="w-16 bg-transparent text-center font-sans text-xl font-semibold outline-none"
                   required
                 />
               </label>
@@ -880,7 +880,7 @@ export function SelectionContextPanel({
           <span
             id="event-context-title"
             className={cn(
-              'block font-serif font-semibold',
+              'block font-sans font-semibold',
               sidebar ? 'text-xl' : 'text-2xl',
             )}
           >

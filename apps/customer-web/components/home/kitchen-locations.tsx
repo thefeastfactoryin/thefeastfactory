@@ -296,7 +296,7 @@ export function KitchenLocationsSection({
                       />
                     )}
                   </span>
-                  <h3 className="mt-1 font-serif text-base font-bold text-foreground">
+                  <h3 className="mt-1 font-sans text-base font-semibold text-foreground">
                     {location.name}
                   </h3>
                   <p className="mt-1 whitespace-nowrap text-[10px] leading-4 text-muted-foreground">

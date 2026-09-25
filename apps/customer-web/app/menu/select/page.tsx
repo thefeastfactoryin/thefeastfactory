@@ -675,7 +675,7 @@ function MenuSelectContent() {
             </div>
             <div className="min-w-0">
               <div className="flex flex-wrap items-start gap-2 sm:items-center sm:gap-3">
-                <h1 className="min-w-0 flex-1 font-serif text-[22px] font-semibold leading-[1.12] tracking-[-0.015em] text-charcoal sm:text-[30px]">
+                <h1 className="min-w-0 flex-1 font-sans text-[22px] font-semibold leading-[1.12] tracking-[-0.015em] text-charcoal sm:text-[30px]">
                   {config.packageName}
                 </h1>
                 <div className="numeric-text inline-flex h-10 shrink-0 items-center overflow-hidden rounded-lg border border-border bg-white">
@@ -802,7 +802,7 @@ function MenuSelectContent() {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="eyebrow">Optional extras</p>
-                  <h2 className="mt-1 font-serif text-xl font-semibold text-charcoal">
+                  <h2 className="mt-1 font-sans text-xl font-semibold text-charcoal">
                     Add something more
                   </h2>
                 </div>
@@ -1317,7 +1317,7 @@ function DishRow({
         className="min-h-11 min-w-0 text-left"
       >
         <span className="flex flex-wrap items-center gap-2">
-          <strong className="min-w-0 break-words font-serif text-[16px] leading-[1.12] tracking-[-0.015em] text-charcoal sm:text-[17px]">
+          <strong className="min-w-0 break-words font-sans text-[16px] font-semibold leading-[1.12] tracking-[-0.015em] text-charcoal sm:text-[17px]">
             {item.name}
           </strong>
           <DietBadge isVeg={item.isVeg} />
@@ -1401,7 +1401,7 @@ function SwapDrawer({
               <p className="eyebrow text-primary">Replace item</p>
               <h2
                 id="replacement-drawer-title"
-                className="mt-1 font-serif text-2xl font-semibold text-charcoal"
+                className="mt-1 font-sans text-2xl font-semibold text-charcoal"
               >
                 Choose replacement
               </h2>
@@ -1577,7 +1577,7 @@ function ExtraRow({
         className="min-h-11 min-w-0 text-left"
       >
         <span className="flex flex-wrap items-center gap-2">
-          <strong className="min-w-0 break-words font-serif text-base leading-[1.12] tracking-[-0.015em] text-charcoal sm:text-lg">
+          <strong className="min-w-0 break-words font-sans text-base font-semibold leading-[1.12] tracking-[-0.015em] text-charcoal sm:text-lg">
             {row.item.name}
           </strong>
           <DietBadge isVeg={row.item.isVeg} />
@@ -1859,7 +1859,7 @@ function MobileSheet({
         aria-label={title}
       >
         <div className="flex items-center justify-between border-b pb-4">
-          <h2 className="min-w-0 truncate font-serif text-2xl font-semibold">
+          <h2 className="min-w-0 truncate font-sans text-2xl font-semibold">
             {title}
           </h2>
           <button
@@ -1915,7 +1915,7 @@ function ItemDetails({
           <div className="flex items-start justify-between gap-4">
             <div>
               <DietBadge isVeg={detail.item.isVeg} />
-              <h2 className="mt-3 font-serif text-2xl font-semibold leading-[1.12] tracking-[-0.015em] sm:text-3xl">
+              <h2 className="mt-3 font-sans text-2xl font-semibold leading-[1.12] tracking-[-0.015em] sm:text-3xl">
                 {detail.item.name}
               </h2>
               <p className="mt-1 text-sm font-semibold text-primary">

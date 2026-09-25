@@ -112,7 +112,7 @@ export function PackageDetailsModal({
               </span>
               <h2
                 id="package-details-title"
-                className="mt-3 font-serif text-3xl font-bold sm:text-4xl"
+                className="mt-3 font-sans text-3xl font-semibold sm:text-4xl"
               >
                 {pkg.name}
               </h2>
@@ -140,7 +140,7 @@ export function PackageDetailsModal({
                 <div className="mt-7 space-y-7">
                   <div>
                     <p className="eyebrow">What is included</p>
-                    <h3 className="mt-2 font-serif text-2xl font-bold">
+                    <h3 className="mt-2 font-sans text-2xl font-semibold">
                       Your package menu
                     </h3>
                   </div>
@@ -316,7 +316,7 @@ export function PackageChangeDialog({
         </span>
         <h2
           id="change-package-title"
-          className="mt-4 font-serif text-2xl font-bold"
+          className="mt-4 font-sans text-2xl font-semibold"
         >
           Add another package?
         </h2>

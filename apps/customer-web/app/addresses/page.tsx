@@ -240,7 +240,7 @@ export default function AddressesPage() {
         >
           <section className="surface-card p-4 sm:p-5">
             <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
-              <h2 className="font-serif text-2xl font-semibold">
+              <h2 className="font-sans text-2xl font-semibold">
                 Find the exact location
               </h2>
               <p className="hidden text-xs text-muted-foreground sm:block">
@@ -269,7 +269,7 @@ export default function AddressesPage() {
                 <Plus className="h-5 w-5" />
               </span>
               <div>
-                <h2 className="font-serif text-2xl font-semibold">
+                <h2 className="font-sans text-2xl font-semibold">
                   Address details
                 </h2>
                 <p className="hidden text-xs text-muted-foreground sm:block">
@@ -428,7 +428,7 @@ export default function AddressesPage() {
       {activeTab === 'saved' && (
         <section className="mt-5" role="tabpanel">
           <div className="flex items-center justify-between">
-            <h2 className="font-serif text-2xl font-semibold">
+            <h2 className="font-sans text-2xl font-semibold">
               Your saved places
             </h2>
             <span className="text-sm text-muted-foreground">
@@ -459,7 +459,7 @@ export default function AddressesPage() {
                       </span>
                     )}
                   </div>
-                  <h3 className="mt-5 font-serif text-2xl font-semibold">
+                  <h3 className="mt-5 font-sans text-2xl font-semibold">
                     {address.label || address.addressType}
                   </h3>
                   <p className="mt-2 text-sm leading-6 text-muted-foreground">

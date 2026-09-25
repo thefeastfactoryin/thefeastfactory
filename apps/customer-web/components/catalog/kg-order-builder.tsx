@@ -341,7 +341,7 @@ export function KgOrderBuilder() {
     quote?.items.map((item) => [item.menuItemId, item]) ?? [],
   );
   return (
-    <main className="min-h-screen overflow-x-clip bg-background pb-28 lg:pb-10 sm:[font-family:var(--font-package-sans),sans-serif]">
+    <main className="min-h-screen overflow-x-clip bg-background pb-28 lg:pb-10">
       <section className="relative isolate overflow-hidden border-b bg-hero-end text-white">
         <img
           src={orderByKgImage}
@@ -394,7 +394,7 @@ export function KgOrderBuilder() {
         ) : !config ||
           !config.categoryRules.some((rule) => rule.items.length) ? (
           <section className="rounded-2xl border bg-card p-8">
-            <h2 className="font-serif text-2xl font-bold">
+            <h2 className="font-sans text-2xl font-semibold">
               {error
                 ? 'Unable to load this menu'
                 : 'No dishes available by kg right now'}
@@ -465,7 +465,7 @@ export function KgOrderBuilder() {
               {groups.map((rule) => (
                 <section key={rule.id} className="mb-7">
                   <div className="mb-3 flex items-baseline justify-between gap-3 sm:mb-4">
-                    <h2 className="font-serif text-xl font-bold sm:text-2xl">
+                    <h2 className="font-sans text-xl font-semibold sm:text-2xl">
                       {rule.category.name}
                     </h2>
                     <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-[10px] font-bold text-muted-foreground">
@@ -506,7 +506,7 @@ export function KgOrderBuilder() {
                           </span>
                         </div>
                         <div className="flex min-w-0 flex-1 flex-col p-3 sm:p-4">
-                          <h3 className="text-[20px] font-bold leading-[1.12] text-foreground [font-family:var(--font-package-heading),serif]">
+                          <h3 className="text-[20px] font-semibold leading-[1.12] text-foreground">
                             {item.name}
                           </h3>
                           <div className="mt-1.5 flex items-baseline justify-between gap-2 sm:mt-2">
@@ -589,7 +589,7 @@ export function KgOrderBuilder() {
               ))}
             </div>
             <aside className="rounded-2xl border bg-card p-5 lg:sticky lg:top-24">
-              <h2 className="font-serif text-2xl font-bold">Your selection</h2>
+              <h2 className="font-sans text-2xl font-semibold">Your selection</h2>
               <div className="mt-4 space-y-3" aria-live="polite">
                 {quote?.items.map((item) => (
                   <div key={item.menuItemId} className="border-b pb-3 text-sm">

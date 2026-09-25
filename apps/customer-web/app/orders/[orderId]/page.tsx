@@ -174,7 +174,7 @@ export default function OrderPage() {
             <div className="flex items-start justify-between gap-4 border-b border-border p-5 sm:p-6">
               <div>
                 <p className="eyebrow text-primary">Complete menu</p>
-                <h2 className="mt-1 font-serif text-2xl font-semibold">
+                <h2 className="mt-1 font-sans text-2xl font-semibold">
                   All ordered items
                 </h2>
                 <p className="mt-1 text-sm text-muted-foreground">
@@ -218,7 +218,7 @@ export default function OrderPage() {
             {order.paymentStatus === 'PENDING' && (
               <section className="rounded-2xl border border-accent/35 bg-accent/[0.08] p-5">
                 <div className="flex items-center gap-3">
-                  <h2 className="font-serif text-xl font-semibold">
+                  <h2 className="font-sans text-xl font-semibold">
                     Payment pending
                   </h2>
                 </div>
@@ -257,7 +257,7 @@ export default function OrderPage() {
               <section className="rounded-2xl border border-border bg-white p-5 shadow-card">
                 <div className="flex items-center gap-3">
                   <MapPin className="h-5 w-5 text-primary" />
-                  <h2 className="font-serif text-xl font-semibold">
+                  <h2 className="font-sans text-xl font-semibold">
                     Event and venue
                   </h2>
                 </div>
@@ -283,7 +283,7 @@ export default function OrderPage() {
             )}
 
             <section className="rounded-2xl border border-border bg-white p-5 shadow-card">
-              <h2 className="font-serif text-xl font-semibold">
+              <h2 className="font-sans text-xl font-semibold">
                 Order progress
               </h2>
               <div className="mt-5 space-y-0">
@@ -312,7 +312,7 @@ export default function OrderPage() {
             </section>
 
             <section className="rounded-2xl border border-border bg-white p-5 shadow-card">
-              <h2 className="font-serif text-xl font-semibold">
+              <h2 className="font-sans text-xl font-semibold">
                 Receipts and invoices
               </h2>
               <div className="mt-4 space-y-2">
