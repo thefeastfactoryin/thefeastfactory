@@ -46,6 +46,14 @@ function formatDeliveryEstimate(date: Date) {
   }).format(date);
 }
 
+function getLocationArea(location?: DeliveryLocation) {
+  return (
+    location?.address?.addressLine2 ||
+    location?.address?.city ||
+    location?.label
+  );
+}
+
 export function DeliveryLocationSelector({
   active,
   variant = 'bar',
@@ -345,14 +353,20 @@ export function DeliveryLocationSelector({
             )}
           </span>
           <span className="flex min-w-0 flex-1 items-center gap-0.5 sm:hidden">
-            <span className="truncate text-[11px] font-bold leading-none text-foreground/75">
-              {location?.address?.addressLine1 ||
-                location?.label ||
-                (status === 'locating'
-                  ? 'Detecting…'
-                  : status === 'resolving'
-                    ? 'Checking…'
-                    : 'Set location')}
+            <span className="min-w-0 flex-1 leading-none">
+              <span className="block truncate text-[11px] font-bold text-foreground/75">
+                {getLocationArea(location) ||
+                  (status === 'locating'
+                    ? 'Detecting…'
+                    : status === 'resolving'
+                      ? 'Checking…'
+                      : 'Set location')}
+              </span>
+              {location?.resolution.serviceable && deliveryEstimate && (
+                <span className="mt-1 block truncate text-[9px] font-bold text-primary/75">
+                  By {deliveryEstimate}
+                </span>
+              )}
             </span>
             <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           </span>
@@ -380,8 +394,7 @@ export function DeliveryLocationSelector({
             </span>
             <span className="mt-1 flex min-w-0 items-center gap-1 text-[13px] font-medium leading-none text-foreground/70">
               <span className="truncate">
-                {location?.address?.addressLine1 ||
-                  location?.label ||
+                {getLocationArea(location) ||
                   (status === 'locating'
                     ? 'Detecting location…'
                     : status === 'resolving'
