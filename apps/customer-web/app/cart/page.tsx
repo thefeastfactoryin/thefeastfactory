@@ -1890,6 +1890,9 @@ function CutleryOptions({
                 included
               </p>
             </div>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              Plate + Spoon per set
+            </p>
           </div>
         </div>
         {extraCount === 0 ? (
