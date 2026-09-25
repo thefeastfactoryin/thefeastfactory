@@ -13,6 +13,16 @@ export type ApiRequesterOptions<Session> = {
   auth: AuthAdapter<Session>;
 };
 
+export class ApiRequestError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+  ) {
+    super(message);
+    this.name = 'ApiRequestError';
+  }
+}
+
 async function parseError(response: Response) {
   const contentType = response.headers.get('content-type') || '';
   if (!contentType.includes('application/json')) {
@@ -87,7 +97,8 @@ export function createApiRequester<Session>({
     token?: string,
   ): Promise<T> {
     const response = await authenticatedFetch(path, init, token);
-    if (!response.ok) throw new Error(await parseError(response));
+    if (!response.ok)
+      throw new ApiRequestError(await parseError(response), response.status);
     if (response.status === 204) return undefined as T;
     const body = await response.text();
     if (!body) return undefined as T;

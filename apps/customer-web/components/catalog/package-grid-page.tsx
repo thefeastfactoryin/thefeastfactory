@@ -20,6 +20,7 @@ import {
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { apiRequest } from '../../lib/api';
+import { notifyCartCleared } from '../../lib/cart-state';
 import { useDeliveryLocationStore } from '../../store/delivery-location.store';
 import { useOrderBuilderStore } from '../../store/order-builder.store';
 import { useSessionStore } from '../../store/session.store';
@@ -234,6 +235,7 @@ export function PackageGridPage({
       await apiRequest('/cart', { method: 'DELETE' }, session.accessToken);
     }
     reset();
+    notifyCartCleared();
     setActiveCartCount(0);
     await choose(pkg, intent, true);
   }

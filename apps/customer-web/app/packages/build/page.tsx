@@ -17,8 +17,12 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { apiRequest } from '../../../lib/api';
+import {
+  isClearedCartError,
+  subscribeToCartCleared,
+} from '../../../lib/cart-state';
 import { cn } from '../../../lib/utils';
 import { useDeliveryLocationStore } from '../../../store/delivery-location.store';
 import { useOrderBuilderStore } from '../../../store/order-builder.store';
@@ -497,6 +501,15 @@ function BuildPackageContent() {
   const [summaryOpen, setSummaryOpen] = useState(false);
   const hydratedCartVersion = useRef<string | undefined>(undefined);
 
+  const discardStaleCart = useCallback(() => {
+    setDbCartId(undefined);
+    setOrder([]);
+    const next = new URLSearchParams(searchParams.toString());
+    next.delete('cartId');
+    const query = next.toString();
+    router.replace(query ? `/packages/build?${query}` : '/packages/build');
+  }, [router, searchParams, setDbCartId]);
+
   useEffect(() => {
     if (requestedVersionId) return;
     let active = true;
@@ -583,13 +596,23 @@ function BuildPackageContent() {
         setDbCartId(cart.id);
       })
       .catch((reason) => {
-        if (active) setMessage((reason as Error).message);
+        if (!active) return;
+        if (isClearedCartError(reason)) {
+          discardStaleCart();
+          return;
+        }
+        setMessage((reason as Error).message);
       });
 
     return () => {
       active = false;
     };
-  }, [cartId, dishes, packageVersionId, session, setDbCartId]);
+  }, [cartId, discardStaleCart, dishes, packageVersionId, session, setDbCartId]);
+
+  useEffect(
+    () => subscribeToCartCleared(discardStaleCart),
+    [discardStaleCart],
+  );
 
   const visible = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -689,25 +712,37 @@ function BuildPackageContent() {
     setSaving(true);
     setMessage('');
     try {
-      const cart = await apiRequest<CartSummary>(
-        cartId ? `/cart/${cartId}/quantity` : '/cart',
-        {
-          method: cartId ? 'PUT' : 'POST',
-          body: JSON.stringify({
-            ...(cartId
-              ? {}
-              : {
-                  packageVersionId,
-                  ...(deliveryLocation?.resolution.serviceable &&
-                  deliveryLocation.resolution.region
-                    ? { regionId: deliveryLocation.resolution.region.id }
-                    : {}),
-                }),
-            guestCount,
-          }),
-        },
-        session.accessToken,
-      );
+      const createCart = () =>
+        apiRequest<CartSummary>(
+          '/cart',
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              packageVersionId,
+              ...(deliveryLocation?.resolution.serviceable &&
+              deliveryLocation.resolution.region
+                ? { regionId: deliveryLocation.resolution.region.id }
+                : {}),
+              guestCount,
+            }),
+          },
+          session.accessToken,
+        );
+      let cart: CartSummary;
+      if (!cartId) cart = await createCart();
+      else {
+        try {
+          cart = await apiRequest<CartSummary>(
+            `/cart/${cartId}/quantity`,
+            { method: 'PUT', body: JSON.stringify({ guestCount }) },
+            session.accessToken,
+          );
+        } catch (reason) {
+          if (!isClearedCartError(reason)) throw reason;
+          discardStaleCart();
+          cart = await createCart();
+        }
+      }
       setDbCartId(cart.id);
       await apiRequest(
         `/cart/${cart.id}/items`,

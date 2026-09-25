@@ -49,12 +49,6 @@ const navLinks = [
     activeKey: '/order-by-kg',
     icon: Weight,
   },
-  {
-    href: '/orders',
-    label: 'Orders',
-    activeKey: '/orders',
-    icon: ClipboardList,
-  },
   { href: '/menu', label: 'Menu', activeKey: '/menu', icon: BookOpen },
   { href: '/about', label: 'About Us', activeKey: '/about', icon: Home },
 ];
@@ -115,6 +109,7 @@ export function CustomerShell({
   const [activeCartCount, setActiveCartCount] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [desktopAccountOpen, setDesktopAccountOpen] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -148,18 +143,20 @@ export function CustomerShell({
   useEffect(() => {
     setMobileMenuOpen(false);
     setAccountOpen(false);
+    setDesktopAccountOpen(false);
   }, [pathname]);
   useEffect(() => {
-    if (!mobileMenuOpen && !accountOpen) return;
+    if (!mobileMenuOpen && !accountOpen && !desktopAccountOpen) return;
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setMobileMenuOpen(false);
         setAccountOpen(false);
+        setDesktopAccountOpen(false);
       }
     };
     document.addEventListener('keydown', closeOnEscape);
     return () => document.removeEventListener('keydown', closeOnEscape);
-  }, [mobileMenuOpen, accountOpen]);
+  }, [mobileMenuOpen, accountOpen, desktopAccountOpen]);
 
   const cartCount = mounted
     ? session
@@ -169,9 +166,7 @@ export function CustomerShell({
         : 0
     : 0;
   const cartActive = mounted && (cartCount > 0 || pathname === '/cart');
-  const desktopLinks = session
-    ? navLinks
-    : navLinks.filter((link) => link.href !== '/orders');
+  const desktopLinks = navLinks;
   const isFocusedFlow = [
     '/packages/build',
     '/menu/select',
@@ -250,7 +245,7 @@ export function CustomerShell({
           </nav>
 
           {/* Right actions */}
-          <div className="hidden shrink-0 items-center gap-1.5 md:flex md:gap-2">
+          <div className="relative hidden shrink-0 items-center gap-1.5 md:flex md:gap-2">
             {/* Cart */}
             <Link
               href="/cart"
@@ -272,17 +267,58 @@ export function CustomerShell({
             </Link>
 
             {/* Login / Profile */}
-            <Link
-              href={session ? '/profile' : '/login'}
-              aria-label={session ? 'Profile' : 'Sign in'}
-              className="grid h-11 w-11 place-items-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
-            >
-              {session ? (
+            {session ? (
+              <button
+                type="button"
+                aria-label="Profile menu"
+                aria-expanded={desktopAccountOpen}
+                aria-controls="desktop-account-menu"
+                onClick={() => setDesktopAccountOpen((open) => !open)}
+                className="grid h-11 w-11 place-items-center rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/30"
+              >
                 <User className="h-5 w-5" />
-              ) : (
+              </button>
+            ) : (
+              <Link
+                href="/login"
+                aria-label="Sign in"
+                className="grid h-11 w-11 place-items-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
+              >
                 <LogIn className="h-5 w-5" />
-              )}
-            </Link>
+              </Link>
+            )}
+            {session && desktopAccountOpen && (
+              <nav
+                id="desktop-account-menu"
+                aria-label="Profile menu"
+                className="absolute right-0 top-[calc(100%+0.5rem)] z-50 w-56 rounded-2xl border border-border bg-card p-2 shadow-xl"
+              >
+                {[
+                  { href: '/profile', label: 'My Profile', icon: User },
+                  {
+                    href: '/orders',
+                    label: 'My Orders',
+                    icon: ClipboardList,
+                  },
+                  {
+                    href: '/addresses',
+                    label: 'Saved addresses',
+                    icon: MapPin,
+                  },
+                ].map(({ href, label, icon: Icon }) => (
+                  <Link
+                    key={href}
+                    href={href}
+                    onClick={() => setDesktopAccountOpen(false)}
+                    aria-current={pathname === href ? 'page' : undefined}
+                    className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-semibold text-foreground/80 hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/30"
+                  >
+                    <Icon className="h-4 w-4" aria-hidden="true" />
+                    {label}
+                  </Link>
+                ))}
+              </nav>
+            )}
           </div>
 
           <div className="flex shrink-0 items-center md:hidden">

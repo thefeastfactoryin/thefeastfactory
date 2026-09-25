@@ -19,8 +19,12 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { apiRequest } from '../../lib/api';
+import {
+  isClearedCartError,
+  subscribeToCartCleared,
+} from '../../lib/cart-state';
 import { formatCurrency } from '../../lib/format';
 import { orderByKgImage } from '../../lib/catalog-display';
 import { useSessionStore } from '../../store/session.store';
@@ -52,6 +56,10 @@ export function KgOrderBuilder() {
   const location = useDeliveryLocationStore((state) => state.location);
   const regionId = location?.resolution.region?.id;
   const hydrate = useOrderBuilderStore((state) => state.hydrateFromCart);
+  const setDbCartId = useOrderBuilderStore((state) => state.setDbCartId);
+  const clearSelections = useOrderBuilderStore(
+    (state) => state.clearSelections,
+  );
   const [packages, setPackages] = useState<PackageSummary[]>([]);
   const [config, setConfig] = useState<PackageConfiguration>();
   const [weights, setWeights] = useState<Weights>({});
@@ -64,6 +72,15 @@ export function KgOrderBuilder() {
   const [quoting, setQuoting] = useState(false);
   const [saving, setSaving] = useState(false);
   const savedCartId = useRef<string | null>(requestedCart);
+  const discardStaleCart = useCallback(() => {
+    savedCartId.current = null;
+    setDbCartId(undefined);
+    clearSelections();
+    const next = new URLSearchParams(params.toString());
+    next.delete('cartId');
+    const query = next.toString();
+    router.replace(query ? `/order-by-kg?${query}` : '/order-by-kg');
+  }, [clearSelections, params, router, setDbCartId]);
   const defaultWeightGrams =
     config?.kgDefaultWeightGrams ?? FALLBACK_DEFAULT_WEIGHT_GRAMS;
   const weightIncrementGrams =
@@ -155,7 +172,12 @@ export function KgOrderBuilder() {
       );
     })()
       .catch((reason: Error) => {
-        if (current) setError(reason.message);
+        if (!current) return;
+        if (isClearedCartError(reason)) {
+          discardStaleCart();
+          return;
+        }
+        setError(reason.message);
       })
       .finally(() => {
         if (current) setLoading(false);
@@ -163,7 +185,18 @@ export function KgOrderBuilder() {
     return () => {
       current = false;
     };
-  }, [requestedVersion, requestedCart, session?.accessToken, regionId]);
+  }, [
+    discardStaleCart,
+    regionId,
+    requestedCart,
+    requestedVersion,
+    session?.accessToken,
+  ]);
+
+  useEffect(
+    () => subscribeToCartCleared(discardStaleCart),
+    [discardStaleCart],
+  );
 
   const selectedItems = useMemo(
     () =>
@@ -244,8 +277,8 @@ export function KgOrderBuilder() {
     setSaving(true);
     setError('');
     try {
-      if (!savedCartId.current) {
-        const created = await apiRequest<CartSummary>(
+      const createCart = () =>
+        apiRequest<CartSummary>(
           '/cart',
           {
             method: 'POST',
@@ -258,13 +291,28 @@ export function KgOrderBuilder() {
           },
           session.accessToken,
         );
+      if (!savedCartId.current) {
+        const created = await createCart();
         savedCartId.current = created.id;
       }
-      const cart = await apiRequest<CartSummary>(
-        `/cart/${savedCartId.current}/items`,
-        { method: 'PUT', body: JSON.stringify({ items: selectedItems }) },
-        session.accessToken,
-      );
+      let cart: CartSummary;
+      try {
+        cart = await apiRequest<CartSummary>(
+          `/cart/${savedCartId.current}/items`,
+          { method: 'PUT', body: JSON.stringify({ items: selectedItems }) },
+          session.accessToken,
+        );
+      } catch (reason) {
+        if (!isClearedCartError(reason)) throw reason;
+        discardStaleCart();
+        const created = await createCart();
+        savedCartId.current = created.id;
+        cart = await apiRequest<CartSummary>(
+          `/cart/${created.id}/items`,
+          { method: 'PUT', body: JSON.stringify({ items: selectedItems }) },
+          session.accessToken,
+        );
+      }
       hydrate(cart);
       sessionStorage.removeItem(`kg-draft:${config.id}`);
       window.dispatchEvent(new Event('cart-updated'));

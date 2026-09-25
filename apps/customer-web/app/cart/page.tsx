@@ -47,6 +47,7 @@ import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { AuthRequiredPanel, StatePanel } from '../../components/ui/state-panel';
 import { apiRequest } from '../../lib/api';
+import { notifyCartCleared } from '../../lib/cart-state';
 import { formatCurrency } from '../../lib/format';
 import { formatMenuCalculation } from '../../lib/menu-price-calculation';
 import { cn } from '../../lib/utils';
@@ -521,6 +522,7 @@ export default function CartPage() {
       setQuote(undefined);
       setMultiCartQuote(undefined);
       setClearCartOpen(false);
+      notifyCartCleared();
       window.dispatchEvent(new Event('cart-updated'));
     } catch (reason) {
       setError((reason as Error).message);
@@ -2028,7 +2030,7 @@ function DeliveryServiceOptions({
       type: 'ASSISTED',
       title: 'Delivery & Serving Team',
       description:
-        'Serving team will help you unpack and do service for 3-4 hours.',
+        'Serving team will help you unpack and do service for 3 hours.',
       addon: helperCount * 999,
       icon: UserRound,
     },

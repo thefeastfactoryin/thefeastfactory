@@ -33,6 +33,7 @@ import {
   orderByKgImage,
 } from '../lib/catalog-display';
 import { apiRequest } from '../lib/api';
+import { notifyCartCleared } from '../lib/cart-state';
 import { DataImage } from '../components/data-image';
 import {
   PackageChangeDialog,
@@ -222,6 +223,7 @@ export default function HomePage() {
       await apiRequest('/cart', { method: 'DELETE' }, session.accessToken);
     }
     reset();
+    notifyCartCleared();
     setActiveCartCount(0);
     await selectPackage(pkg, true);
   }

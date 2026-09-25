@@ -25,6 +25,10 @@ import { DataImage } from '../../../components/data-image';
 import { Button } from '../../../components/ui/button';
 import { StatePanel } from '../../../components/ui/state-panel';
 import { apiRequest } from '../../../lib/api';
+import {
+  isClearedCartError,
+  subscribeToCartCleared,
+} from '../../../lib/cart-state';
 import { formatCurrency } from '../../../lib/format';
 import { usePackagePreviewQuote } from '../../../lib/use-package-preview-quote';
 import { cn } from '../../../lib/utils';
@@ -97,6 +101,9 @@ function MenuSelectContent() {
     (state) => state.updateItemQuantity,
   );
   const removeSwap = useOrderBuilderStore((state) => state.removeSwap);
+  const clearSelections = useOrderBuilderStore(
+    (state) => state.clearSelections,
+  );
   const session = useSessionStore((state) => state.session);
   const deliveryLocation = useDeliveryLocationStore((state) => state.location);
 
@@ -117,12 +124,32 @@ function MenuSelectContent() {
   const [boxCountInput, setBoxCountInput] = useState(String(guestCount));
   const requestedCartId = searchParams.get('cartId');
 
+  const discardStaleCart = useCallback(() => {
+    setDbCartId(undefined);
+    clearSelections();
+    const next = new URLSearchParams(searchParams.toString());
+    next.delete('cartId');
+    const query = next.toString();
+    router.replace(query ? `/menu/select?${query}` : '/menu/select');
+  }, [clearSelections, router, searchParams, setDbCartId]);
+
   useEffect(() => {
     if (!session || !requestedCartId) return;
     apiRequest<CartSummary>(`/cart/${requestedCartId}`, {}, session.accessToken)
       .then((savedCart) => hydrateFromCart(savedCart))
-      .catch((reason) => setError((reason as Error).message));
-  }, [hydrateFromCart, requestedCartId, session]);
+      .catch((reason) => {
+        if (isClearedCartError(reason)) {
+          discardStaleCart();
+          return;
+        }
+        setError((reason as Error).message);
+      });
+  }, [discardStaleCart, hydrateFromCart, requestedCartId, session]);
+
+  useEffect(
+    () => subscribeToCartCleared(discardStaleCart),
+    [discardStaleCart],
+  );
 
   useEffect(() => setBoxCountInput(String(guestCount)), [guestCount]);
 
@@ -414,25 +441,37 @@ function MenuSelectContent() {
     setMessage('');
     try {
       const requestedCartId = searchParams.get('cartId') || dbCartId;
-      const cart = await apiRequest<{ id: string }>(
-        requestedCartId ? `/cart/${requestedCartId}/quantity` : '/cart',
-        {
-          method: requestedCartId ? 'PUT' : 'POST',
-          body: JSON.stringify({
-            ...(requestedCartId
-              ? {}
-              : {
-                  packageVersionId: cartPackage.packageVersionId,
-                  ...(deliveryLocation?.resolution.serviceable &&
-                  deliveryLocation.resolution.region
-                    ? { regionId: deliveryLocation.resolution.region.id }
-                    : {}),
-                }),
-            guestCount,
-          }),
-        },
-        session.accessToken,
-      );
+      const createCart = () =>
+        apiRequest<{ id: string }>(
+          '/cart',
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              packageVersionId: cartPackage.packageVersionId,
+              ...(deliveryLocation?.resolution.serviceable &&
+              deliveryLocation.resolution.region
+                ? { regionId: deliveryLocation.resolution.region.id }
+                : {}),
+              guestCount,
+            }),
+          },
+          session.accessToken,
+        );
+      let cart: { id: string };
+      if (!requestedCartId) cart = await createCart();
+      else {
+        try {
+          cart = await apiRequest<{ id: string }>(
+            `/cart/${requestedCartId}/quantity`,
+            { method: 'PUT', body: JSON.stringify({ guestCount }) },
+            session.accessToken,
+          );
+        } catch (reason) {
+          if (!isClearedCartError(reason)) throw reason;
+          discardStaleCart();
+          cart = await createCart();
+        }
+      }
       setDbCartId(cart.id);
       await apiRequest(
         `/cart/${cart.id}/items`,
