@@ -34,6 +34,25 @@ import {
 
 type SelectionIntent = 'select' | 'extras';
 
+function formatCatalogPrice(value: string) {
+  const amount = Number(value);
+  return Number.isFinite(amount)
+    ? new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(amount)
+    : value;
+}
+
+function formatCategorySummary(count: number, categoryName: string) {
+  const displayName =
+    categoryName === 'Indian Breads'
+      ? 'Bread'
+      : categoryName === 'Rice Items'
+        ? 'Rice'
+        : categoryName === 'Desserts'
+          ? 'Dessert'
+        : categoryName;
+  return count > 1 ? `${count} ${displayName}` : displayName;
+}
+
 export function PackageGridPage({
   type,
   title,
@@ -244,6 +263,7 @@ export function PackageGridPage({
   const titleAccent = titleParts.pop() ?? title;
   const titleLead = titleParts.join(' ');
   const isMealBox = type === 'MEAL_BOX';
+  const isOccasionPackages = type === 'PACKAGES';
   const heroTitleLead = isMealBox ? titleLead : 'Occasion';
   const heroTitleAccent = isMealBox ? titleAccent : 'Packages';
   const heroDescription = isMealBox
@@ -266,7 +286,7 @@ export function PackageGridPage({
   ];
   return (
     <main className="min-h-screen overflow-x-clip bg-background">
-      <section className="relative isolate overflow-hidden border-b bg-hero-end text-white">
+      <section className="relative isolate hidden overflow-hidden border-b bg-hero-end text-white sm:block">
         <img
           src={isMealBox ? '/order-mealbox.png' : '/packages-hero-plated.png'}
           alt={
@@ -311,7 +331,16 @@ export function PackageGridPage({
           </div>
         </div>
       </section>
-      <div className="mx-auto w-full max-w-7xl px-4 pb-2 pt-4 sm:px-6 sm:pt-6 lg:px-8 lg:pt-7">
+      <section className="border-b border-border bg-background px-4 pb-2 pt-2 sm:hidden">
+        <p className="eyebrow text-gold-text">Curated event menus</p>
+        <h1 className="mt-0.5 font-serif text-[28px] font-bold leading-[1.08] text-foreground">
+          Occasion Packages
+        </h1>
+        <p className="mt-0.5 max-w-[34rem] text-sm leading-[1.35] text-muted-foreground">
+          Choose a complete menu for your gathering and see exactly what's included.
+        </p>
+      </section>
+      <div className="mx-auto w-full max-w-7xl px-4 pb-3 pt-2 sm:px-6 sm:pb-4 sm:pt-6 lg:px-8 lg:pt-7">
         <div className="mb-5 hidden text-center sm:block">
           <div className="flex items-center justify-center gap-3">
             <span className="h-px w-8 rounded-full bg-accent/45" />
@@ -362,7 +391,7 @@ export function PackageGridPage({
             {(isMealBox ? [1, 2, 3] : [1, 2, 3, 4]).map((item) => (
               <div
                 key={item}
-                className="h-[520px] animate-pulse rounded-2xl bg-white"
+                className="h-[360px] animate-pulse rounded-2xl bg-white sm:h-[520px]"
               />
             ))}
           </div>
@@ -423,7 +452,11 @@ export function PackageGridPage({
                     className="block w-full text-left"
                     aria-label={`View details for ${pkg.name}`}
                   >
-                    <div className="relative h-[160px] shrink-0 overflow-hidden bg-muted/50 sm:h-[168px]">
+                    <div
+                      className={`relative w-full shrink-0 overflow-hidden rounded-t-[18px] bg-muted/50 sm:aspect-auto sm:h-[168px] ${
+                        isOccasionPackages ? 'aspect-[2.65/1]' : 'aspect-[2.2/1]'
+                      }`}
+                    >
                       <DataImage
                         src={pkg.imageUrl}
                         alt={`${pkg.name} presentation`}
@@ -438,10 +471,12 @@ export function PackageGridPage({
                         </span>
                       )}
                     </div>
-                    <div className="flex flex-col bg-white px-4 pb-3 pt-4">
+                    <div className="flex min-w-0 flex-col bg-white px-4 pb-2 pt-2 sm:px-4 sm:pb-3 sm:pt-4">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <h2 className="text-[20px] font-semibold leading-[1.12] text-foreground">
+                          <h2
+                            className={`${isOccasionPackages ? 'text-[17px]' : 'text-[18px]'} font-semibold leading-[1.18] text-foreground sm:text-[20px]`}
+                          >
                             {pkg.name}
                           </h2>
                           <p className="mt-1.5 hidden line-clamp-2 min-h-[38px] text-[13px] leading-[1.42] text-muted-foreground sm:block">
@@ -449,23 +484,61 @@ export function PackageGridPage({
                           </p>
                         </div>
                       </div>
-                      <div className="mt-3 grid grid-cols-2 overflow-hidden rounded-[14px] border border-border bg-ivory">
+                      {isOccasionPackages ? (
+                        <div className="mt-1.5 flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 text-[12px] leading-5 sm:hidden">
+                          <p className="flex min-w-0 items-baseline gap-x-1 whitespace-nowrap text-muted-foreground">
+                            <span>From</span>
+                            <strong className="money-text text-[15px] font-extrabold text-primary">
+                              &#8377;{formatCatalogPrice(version.basePricePerPlate)}
+                            </strong>
+                            <span>per guest</span>
+                          </p>
+                          <p className="ml-auto whitespace-nowrap font-semibold text-foreground/85">
+                            {version.minGuestCount}
+                            {version.maxGuestCount
+                              ? `–${version.maxGuestCount}`
+                              : '+'}{' '}
+                            guests
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="mt-1.5 border-b border-border pb-2 sm:hidden">
+                          <p className="flex flex-wrap items-baseline gap-x-1.5 text-[12px] leading-5 text-muted-foreground">
+                            <strong className="money-text text-[16px] font-extrabold text-primary">
+                              &#8377;{formatCatalogPrice(version.basePricePerPlate)}
+                            </strong>
+                            <span>/ guest</span>
+                            <span aria-hidden="true">·</span>
+                            <strong className="text-[14px] font-extrabold text-foreground">
+                              {version.minGuestCount}
+                              {version.maxGuestCount
+                                ? `–${version.maxGuestCount}`
+                                : '+'}
+                            </strong>
+                            <span>guests</span>
+                          </p>
+                          <span className="mt-0.5 block text-[10px] font-semibold leading-4 text-muted-foreground">
+                            Starting price
+                          </span>
+                        </div>
+                      )}
+                      <div className="mt-3 hidden grid-cols-2 overflow-hidden rounded-[14px] border border-border bg-ivory sm:grid">
                         <div className="border-r border-border px-3 py-2">
-                          <p className="text-[10.5px] font-extrabold uppercase tracking-[0.12em] text-muted-foreground">
+                          <p className="hidden text-[10.5px] font-extrabold uppercase tracking-[0.12em] text-muted-foreground sm:block">
                             From
                           </p>
-                          <strong className="money-text mt-0.5 block text-[18px] font-extrabold leading-none text-primary">
-                            &#8377;{version.basePricePerPlate}
+                          <strong className="money-text mt-0.5 hidden text-[18px] font-extrabold leading-none text-primary sm:block">
+                            &#8377;{formatCatalogPrice(version.basePricePerPlate)}
                           </strong>
-                          <p className="mt-0.5 text-[10.5px] font-semibold text-muted-foreground">
+                          <p className="mt-0.5 hidden text-[10.5px] font-semibold text-muted-foreground sm:block">
                             per guest
                           </p>
                         </div>
                         <div className="px-3 py-2">
-                          <p className="text-[10.5px] font-extrabold uppercase tracking-[0.12em] text-muted-foreground">
+                          <p className="hidden text-[10.5px] font-extrabold uppercase tracking-[0.12em] text-muted-foreground sm:block">
                             Serves
                           </p>
-                          <span className="mt-0.5 block text-[13px] font-extrabold leading-snug text-foreground">
+                          <span className="mt-0.5 hidden text-[13px] font-extrabold leading-snug text-foreground sm:block">
                             {version.minGuestCount}
                             {version.maxGuestCount
                               ? `-${version.maxGuestCount}`
@@ -498,13 +571,33 @@ export function PackageGridPage({
                       </span>
                     </div>
                   </button>
-                  <div className="mt-auto px-4 pb-4">
+                    <div className="mt-auto px-4 pt-0 pb-3 sm:pt-1 sm:pb-4">
                     <div>
-                      <div className="mb-2 flex items-center justify-between gap-3 text-[12px] font-extrabold text-charcoal">
-                        <p>Highlights</p>
+                      <div className="mb-0.5 flex items-center justify-between gap-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                        <p>INCLUDES</p>
                       </div>
                       {categoryHighlights.length ? (
-                        <div className="mb-4 flex flex-wrap gap-2">
+                        <p className="mb-1 text-[13px] leading-[1.45] text-foreground/85 sm:hidden">
+                          {categoryHighlights
+                            .map(({ categoryName, count }) =>
+                              formatCategorySummary(count, categoryName),
+                            )
+                            .join(' · ')}
+                        </p>
+                      ) : visibleIncluded.length ? (
+                        <p className="mb-1 text-[13px] leading-[1.45] text-foreground/85 sm:hidden">
+                          {visibleIncluded
+                            .slice(0, 6)
+                            .map((item) => item.name)
+                            .join(' · ')}
+                        </p>
+                      ) : pkg.type === 'CUSTOM_PACKAGE' ? (
+                        <p className="mb-1 text-[13px] leading-[1.45] text-foreground/85 sm:hidden">
+                          Choose dishes and create your menu.
+                        </p>
+                      ) : null}
+                      {categoryHighlights.length ? (
+                        <div className="mb-4 hidden flex-wrap gap-2 sm:flex">
                           {categoryHighlights.map(({ categoryName, count }) => (
                             <span
                               key={categoryName}
@@ -520,7 +613,7 @@ export function PackageGridPage({
                           ))}
                         </div>
                       ) : visibleIncluded.length ? (
-                        <ul className="mb-4 space-y-1.5">
+                        <ul className="mb-4 hidden space-y-1.5 sm:block">
                           {visibleIncluded.slice(0, 4).map((item) => (
                             <li
                               key={`${item.categoryId}-${item.id}`}
@@ -530,40 +623,11 @@ export function PackageGridPage({
                                 className="h-[15px] w-[15px] shrink-0 text-primary"
                                 strokeWidth={2.6}
                               />
-                              <span className="min-w-0 truncate">
-                                <strong className="font-normal">
-                                  {item.name}
-                                </strong>
-                                <span className="hidden">
-                                  {' '}
-                                  · {item.categoryName} ·{' '}
-                                  {item.isVeg ? 'Veg' : 'Non-Veg'}
-                                </span>
-                              </span>
+                              <span className="min-w-0 truncate">{item.name}</span>
                             </li>
                           ))}
                         </ul>
-                      ) : (
-                        <ul className="mb-4 space-y-1.5">
-                          {[
-                            'Choose any items',
-                            'Customise portions',
-                            'Add / remove items',
-                            'Perfect for any occasion',
-                          ].map((item) => (
-                            <li
-                              key={item}
-                              className="flex min-w-0 items-center gap-2.5 text-[13px] leading-[1.25] text-foreground/85"
-                            >
-                              <Check
-                                className="h-[15px] w-[15px] shrink-0 text-primary"
-                                strokeWidth={2.6}
-                              />
-                              <span className="min-w-0 truncate">{item}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
+                      ) : null}
                       {isMealBox &&
                         categoryHighlights.length === 0 &&
                         remainingIncluded.length > 0 && (
@@ -620,29 +684,31 @@ export function PackageGridPage({
                           </button>
                         </div>
                       )}
-                    <button
-                      type="button"
-                      onClick={() => updateDetails(pkg.id)}
-                      className="mt-4 flex h-10 w-full items-center justify-center gap-2 rounded-full border border-primary/45 bg-white px-4 text-[13px] font-extrabold text-primary shadow-[0_7px_15px_rgba(116,28,42,0.06)] transition-all hover:-translate-y-0.5 hover:border-primary hover:bg-primary/[0.035]"
-                    >
-                      View menu
-                      <ArrowRight className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => choose(pkg)}
-                      disabled={Boolean(selecting)}
-                      className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-full bg-primary px-4 text-[13.5px] font-extrabold text-white shadow-[0_7px_15px_rgba(116,28,42,0.12)] transition-all hover:-translate-y-0.5 hover:bg-primary/90 disabled:opacity-60"
-                    >
-                      {selecting === pkg.id
-                        ? 'Selecting...'
-                        : pkg.type === 'CUSTOM_PACKAGE'
-                          ? 'Build menu'
-                          : pkg.type === 'MEAL_BOX'
-                            ? 'Select Meal Box'
-                            : 'Select Package'}
-                      <ArrowRight className="h-4 w-4" />
-                    </button>
+                    <div className="mt-1.5 flex items-center justify-between gap-2 border-t border-border/70 pt-1.5 sm:mt-3 sm:block sm:border-0 sm:pt-0">
+                      <button
+                        type="button"
+                        onClick={() => updateDetails(pkg.id)}
+                        className="inline-flex min-h-10 items-center gap-1 text-xs font-bold text-primary underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:mt-4 sm:flex sm:h-10 sm:w-full sm:justify-center sm:rounded-full sm:border sm:border-primary/45 sm:bg-white sm:px-4 sm:no-underline sm:shadow-[0_7px_15px_rgba(116,28,42,0.06)]"
+                      >
+                        View menu
+                        <ArrowRight className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => choose(pkg)}
+                        disabled={Boolean(selecting)}
+                        className="flex min-h-10 shrink-0 items-center justify-center gap-1.5 rounded-md bg-primary px-2.5 text-xs font-extrabold text-white transition-all hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60 sm:mt-2 sm:h-11 sm:w-full sm:rounded-full sm:px-4 sm:text-[13.5px] sm:shadow-[0_7px_15px_rgba(116,28,42,0.12)]"
+                      >
+                        {selecting === pkg.id
+                          ? 'Selecting...'
+                          : pkg.type === 'CUSTOM_PACKAGE'
+                            ? 'Build menu'
+                            : pkg.type === 'MEAL_BOX'
+                              ? 'Select Meal Box'
+                              : 'Select Package'}
+                        <ArrowRight className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </div>
                 </article>
               );
@@ -650,7 +716,7 @@ export function PackageGridPage({
           </div>
         )}
       </div>
-      <Advantages />
+      <Advantages compact={type === 'PACKAGES'} />
       {!loading && detailsId && !detailsPackage && (
         <div className="fixed inset-x-4 bottom-20 z-50 mx-auto max-w-lg rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 shadow-lg">
           This package is unavailable in this catalog.{' '}

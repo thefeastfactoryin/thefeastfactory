@@ -132,10 +132,10 @@ export function KitchenLocationsSection({
     return (
       <section id="kitchens" className={className}>
         <div className="mx-auto w-full max-w-[1440px] overflow-hidden rounded-2xl border border-accent/30 bg-[#fffdfa] shadow-[0_8px_24px_rgba(74,43,35,0.03)]">
-          <div className="flex flex-col lg:min-h-[128px] lg:flex-row">
-            <div className="flex flex-col justify-center px-5 py-5 sm:px-7 lg:w-[30%] lg:px-8 lg:py-5">
+          <div className="flex flex-col lg:min-h-[112px] lg:flex-row">
+            <div className="flex flex-col justify-center px-5 py-4 sm:px-7 lg:w-[25%] lg:px-5 lg:py-3">
               <p className="eyebrow">Our kitchens across Telangana</p>
-              <h2 className="mt-2 max-w-[380px] font-serif text-[20px] font-bold leading-[1.12] tracking-[-0.015em] text-foreground sm:text-[24px]">
+              <h2 className="mt-1 max-w-[380px] font-serif text-[19px] font-bold leading-[1.12] tracking-[-0.015em] text-foreground sm:text-[22px]">
                 Freshly prepared across{' '}
                 <span className="text-gold-text">
                   {locations.length} cities.
@@ -143,7 +143,7 @@ export function KitchenLocationsSection({
               </h2>
             </div>
 
-            <div className="flex snap-x snap-mandatory overflow-x-auto border-t border-border [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:min-w-0 lg:flex-1 lg:overflow-visible lg:border-l lg:border-t-0">
+            <div className="grid grid-cols-2 border-t border-border lg:min-w-0 lg:flex-1 lg:grid-cols-4 lg:border-l lg:border-t-0">
               {visibleLocations.map((location) => {
                 const cityName = location.name.replace(/\s+Kitchen$/i, '');
                 const iconSrc = landmarkIconFor(location);
@@ -154,15 +154,15 @@ export function KitchenLocationsSection({
                     href={mapHref(location)}
                     target="_blank"
                     rel="noreferrer"
-                    className="flex min-w-[138px] flex-1 snap-start flex-col items-center justify-center border-r border-border px-3 py-4 text-center transition-colors hover:bg-primary/[0.025] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary lg:min-w-[130px]"
+                    className="flex min-w-0 flex-col items-center justify-center border-r border-b border-border px-2 py-3 text-center transition-colors hover:bg-primary/[0.025] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary lg:border-b-0 lg:px-1.5 lg:py-2"
                   >
-                    <span className="flex h-9 items-center justify-center">
+                    <span className="flex h-8 items-center justify-center">
                       {iconSrc ? (
                         <img
                           src={iconSrc}
                           alt=""
                           aria-hidden="true"
-                          className="h-8 w-8 object-contain"
+                          className="h-7 w-7 object-contain"
                         />
                       ) : (
                         <Landmark
@@ -171,11 +171,11 @@ export function KitchenLocationsSection({
                         />
                       )}
                     </span>
-                    <h3 className="mt-2 text-sm font-extrabold text-foreground">
+                    <h3 className="mt-1 text-xs font-extrabold text-foreground sm:text-sm">
                       {cityName}
                     </h3>
                     <p
-                      className={`mt-1 text-[10px] font-semibold ${
+                      className={`mt-0.5 text-[9px] font-semibold leading-tight sm:text-[10px] ${
                         location.fssaiLicenseNo
                           ? 'text-muted-foreground'
                           : 'text-primary'
@@ -190,10 +190,10 @@ export function KitchenLocationsSection({
               })}
             </div>
 
-            <div className="flex items-center justify-center border-t border-border p-4 lg:w-[170px] lg:border-l lg:border-t-0 lg:p-4">
+            <div className="flex items-center justify-center border-t border-border p-3 lg:w-[130px] lg:border-l lg:border-t-0 lg:p-2">
               <Link
                 href="/about#kitchens"
-                className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-primary/25 bg-primary/5 px-4 text-xs font-bold text-primary transition-all duration-250 ease-premium hover:-translate-y-0.5 hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 lg:w-auto lg:whitespace-nowrap"
+                className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border border-primary/25 bg-primary/5 px-2 text-[11px] font-bold text-primary transition-all duration-250 ease-premium hover:-translate-y-0.5 hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 lg:w-auto lg:whitespace-nowrap"
               >
                 View All Kitchens{' '}
                 <MapPin className="h-4 w-4" aria-hidden="true" />

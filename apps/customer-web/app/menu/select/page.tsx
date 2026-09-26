@@ -646,7 +646,7 @@ function MenuSelectContent() {
               <p className="eyebrow">
                 {isMealBox ? 'Your meal box' : 'Your package menu'}
               </p>
-              <h1 className="mt-2 max-w-3xl font-serif text-3xl font-semibold leading-[1.12] tracking-[-0.015em] text-charcoal sm:text-4xl">
+              <h1 className="mt-2 max-w-3xl font-sans text-3xl font-semibold leading-[1.12] tracking-[-0.015em] text-charcoal sm:text-4xl">
                 {isMealBox ? 'Review your ' : 'Review your '}
                 {config.packageName}
               </h1>

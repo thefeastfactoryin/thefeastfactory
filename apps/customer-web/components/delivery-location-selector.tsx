@@ -38,20 +38,30 @@ type LocationCandidate = {
 };
 
 function formatDeliveryEstimate(date: Date) {
-  return new Intl.DateTimeFormat('en-IN', {
+  const parts = new Intl.DateTimeFormat('en-US', {
     day: 'numeric',
     month: 'short',
     hour: 'numeric',
     minute: '2-digit',
-  }).format(date);
+    hour12: true,
+  })
+    .formatToParts(date)
+    .reduce<Record<string, string>>((values, part) => {
+      values[part.type] = part.value;
+      return values;
+    }, {});
+
+  return `${parts.day} ${parts.month} · ${parts.hour}:${parts.minute} ${parts.dayPeriod?.toUpperCase()}`;
 }
 
 function getLocationArea(location?: DeliveryLocation) {
-  return (
-    location?.address?.addressLine2 ||
-    location?.address?.city ||
-    location?.label
-  );
+  const locality = location?.address?.addressLine2?.trim();
+  if (locality) return locality;
+
+  const label = location?.label?.trim();
+  if (label) return label.replace(/^near\s+/i, '');
+
+  return location?.address?.city;
 }
 
 export function DeliveryLocationSelector({
@@ -326,7 +336,7 @@ export function DeliveryLocationSelector({
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="flex h-9 w-[132px] min-w-0 flex-none items-center justify-start gap-1.5 rounded-xl border border-border bg-white px-2 text-left text-primary shadow-[0_2px_8px_rgba(45,31,20,0.04)] transition-colors hover:border-primary/30 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 min-[375px]:w-[148px] sm:h-11 sm:w-auto sm:min-w-[260px] sm:max-w-[340px] sm:gap-2.5 sm:px-3"
+          className="order-3 flex basis-full h-10 w-full min-w-0 flex-none items-center justify-start gap-2 border-y border-border/70 bg-[hsl(var(--ivory-warm))] px-0 text-left text-primary transition-colors hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 sm:order-none sm:basis-auto sm:h-11 sm:w-auto sm:min-w-[260px] sm:max-w-[340px] sm:gap-2.5 sm:rounded-xl sm:border sm:bg-white sm:px-3 sm:shadow-[0_2px_8px_rgba(45,31,20,0.04)]"
           aria-label={
             location
               ? location.resolution.serviceable
@@ -342,7 +352,7 @@ export function DeliveryLocationSelector({
               : 'Set delivery location'
           }
         >
-          <span className="relative grid h-6 w-6 shrink-0 place-items-center rounded-full bg-primary/10 text-primary sm:h-auto sm:w-auto sm:rounded-none sm:bg-transparent">
+          <span className="relative grid h-6 w-6 shrink-0 place-items-center text-primary sm:h-auto sm:w-auto">
             {status === 'locating' || status === 'resolving' ? (
               <LoaderCircle className="h-4 w-4 animate-spin sm:h-[18px] sm:w-[18px]" />
             ) : (
@@ -352,7 +362,7 @@ export function DeliveryLocationSelector({
               <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white sm:-right-1 sm:-top-1 sm:bottom-auto sm:h-2 sm:w-2" />
             )}
           </span>
-          <span className="flex min-w-0 flex-1 items-center gap-0.5 sm:hidden">
+          <span className="flex min-w-0 flex-1 items-center gap-2 sm:hidden">
             <span className="min-w-0 flex-1 leading-none">
               <span className="block truncate text-[11px] font-bold text-foreground/75">
                 {getLocationArea(location) ||
@@ -362,12 +372,12 @@ export function DeliveryLocationSelector({
                       ? 'Checking…'
                       : 'Set location')}
               </span>
-              {location?.resolution.serviceable && deliveryEstimate && (
-                <span className="mt-1 block truncate text-[9px] font-bold text-primary/75">
-                  By {deliveryEstimate}
-                </span>
-              )}
             </span>
+            {deliveryEstimate && (
+              <span className="block shrink-0 max-w-[45%] truncate whitespace-nowrap text-[10px] font-semibold text-primary/80 min-[375px]:text-[11px]">
+                Earliest: {deliveryEstimate}
+              </span>
+            )}
             <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           </span>
           <span className="hidden min-w-0 flex-1 sm:block">

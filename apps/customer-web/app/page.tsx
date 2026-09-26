@@ -43,7 +43,7 @@ const heroTags = [
   { label: 'No Palm Oil', icon: CircleOff },
   { label: 'No Artificial Colors', icon: Leaf },
   { label: 'FSSAI Certified', icon: BadgeCheck },
-  { label: 'Delivered Piping Hot', icon: Flame },
+  { label: 'Delivered Hot', icon: Flame },
 ];
 
 function formatDiscoveryPrice(value: string | number) {
@@ -282,13 +282,31 @@ export default function HomePage() {
 
               <Link
                 href="#ordering-styles"
-                className="mt-5 inline-flex h-11 items-center justify-center gap-2 rounded-full bg-accent px-6 text-sm font-extrabold text-accent-foreground shadow-[0_10px_28px_rgba(211,163,58,0.30)] transition-all duration-250 ease-premium hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_14px_34px_rgba(211,163,58,0.38)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-primary sm:text-[15px]"
+                className="mt-5 inline-flex h-11 w-fit items-center justify-center gap-1.5 rounded-xl bg-accent px-4 text-sm font-extrabold text-accent-foreground shadow-[0_10px_28px_rgba(211,163,58,0.30)] transition-all duration-250 ease-premium hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_14px_34px_rgba(211,163,58,0.38)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-primary sm:px-5 sm:text-[15px]"
               >
-                Explore Food Options <ArrowRight className="h-5 w-5" />
+                Order now <ArrowRight className="h-5 w-5" />
               </Link>
 
               <div
-                className="mt-4 flex max-w-xl flex-wrap gap-2 lg:max-w-[540px]"
+                className="mt-3 grid max-w-xl grid-cols-2 gap-x-4 gap-y-2 sm:hidden"
+                aria-label="Service trust signals"
+              >
+                {heroTags.map(({ label, icon: Icon }) => (
+                  <div
+                    key={label}
+                    className="flex min-w-0 items-center gap-1.5 text-[10.5px] font-medium leading-tight text-white/75"
+                  >
+                    <Icon
+                      className="h-3 w-3 shrink-0 text-accent"
+                      aria-hidden="true"
+                    />
+                    <span className="min-w-0">{label}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div
+                className="mt-4 hidden max-w-xl flex-wrap gap-2 lg:max-w-[540px] sm:flex"
                 aria-label="Service trust signals"
               >
                 {heroTags.map(({ label, icon: Icon }) => (
@@ -325,7 +343,10 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section id="ordering-styles" className="bg-ivory py-5 sm:py-6 lg:py-7">
+      <section
+        id="ordering-styles"
+        className="scroll-mt-14 bg-ivory py-5 sm:scroll-mt-[78px] sm:py-6 lg:py-7"
+      >
         <div className="mx-auto w-full max-w-[1440px] px-4 sm:px-6 lg:px-10">
           <div className="mb-3 max-w-[540px] sm:mb-4">
             <p className="eyebrow hidden sm:block">Choose your order style</p>
@@ -586,6 +607,12 @@ export default function HomePage() {
         </div>
       </section>
 
+      <KitchenLocationsSection
+        locations={kitchenLocations}
+        className="bg-ivory px-4 py-8 sm:px-6 sm:py-9 lg:px-10 lg:py-10"
+        variant="compact"
+      />
+
       <section className="bg-background py-5 lg:py-7">
         <div className="mx-auto w-full max-w-[1440px] px-4 sm:px-6 lg:px-10">
           <div className="mb-4 max-w-[540px]">
@@ -643,12 +670,6 @@ export default function HomePage() {
           })}
         </div>
       </section>
-
-      <KitchenLocationsSection
-        locations={kitchenLocations}
-        className="bg-ivory px-4 py-8 sm:px-6 sm:py-9 lg:px-10 lg:py-10"
-        variant="compact"
-      />
 
       {/* Change: Remove the duplicate lower trust and promise rows now that assurances live in one band beneath the hero. */}
       {detailsPackage && (

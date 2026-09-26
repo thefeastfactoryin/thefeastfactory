@@ -177,7 +177,7 @@ export default function AboutPage() {
                 <div className="mx-auto grid h-9 w-9 place-items-center rounded-full bg-primary/10 text-primary sm:h-10 sm:w-10">
                   <Icon className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
                 </div>
-                <p className="mt-2 font-serif text-lg font-bold text-foreground sm:mt-3 sm:text-xl">
+                <p className="mt-2 font-sans text-lg font-semibold text-foreground sm:mt-3 sm:text-xl">
                   {value}
                 </p>
                 <p className="mt-0.5 text-[10px] font-medium leading-3.5 text-muted-foreground sm:mt-1 sm:text-[11px] sm:leading-4">

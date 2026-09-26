@@ -183,8 +183,8 @@ export function CustomerShell({
     <div className="min-h-screen pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">
       {/* ─── Desktop header ─── */}
       <header className="sticky top-0 z-40 border-b border-border bg-white/95 backdrop-blur-xl">
-        <div className="mx-auto flex h-14 max-w-[1536px] items-center justify-between gap-1.5 px-3 sm:h-[78px] sm:gap-3 sm:px-6 lg:px-10">
-          <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2 md:flex-none">
+        <div className="mx-auto flex min-h-14 max-w-[1536px] flex-wrap items-center justify-between gap-1.5 px-3 py-1.5 sm:h-[78px] sm:flex-nowrap sm:gap-3 sm:px-6 sm:py-0 lg:px-10">
+          <div className="contents min-w-0 flex-1 items-center gap-1.5 sm:flex sm:gap-2 md:flex-none">
             {/* Logo */}
             <Link
               href="/"
@@ -202,7 +202,7 @@ export function CustomerShell({
               </span>
             </Link>
 
-            <div className="min-w-0 flex-1 [&>button]:max-w-full max-sm:[&>button]:w-full max-sm:[&>button]:gap-1 max-sm:[&>button]:px-1 md:flex-none">
+            <div className="contents w-full min-w-0 flex-1 [&>button]:max-w-full sm:block md:flex-none">
               <DeliveryLocationSelector active variant="header" />
             </div>
           </div>
@@ -321,7 +321,7 @@ export function CustomerShell({
             )}
           </div>
 
-          <div className="flex shrink-0 items-center md:hidden">
+          <div className="order-2 flex shrink-0 items-center md:order-none md:hidden">
             <Link
               href="/cart"
               aria-label={`Cart — ${cartCount} packages`}

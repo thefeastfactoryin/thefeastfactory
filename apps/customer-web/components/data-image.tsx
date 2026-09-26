@@ -1,9 +1,12 @@
+import type { CSSProperties } from 'react';
 import { cn } from '../lib/utils';
 
-export function DataImage({ src, alt, className }: {
+export function DataImage({ src, alt, className, loading, style }: {
   src?: string | null;
   alt: string;
   className?: string;
+  loading?: 'eager' | 'lazy';
+  style?: CSSProperties;
 }) {
   if (src) {
     const isLocalMenuImage =
@@ -26,6 +29,8 @@ export function DataImage({ src, alt, className }: {
         sizes={isLocalMenuImage ? '(max-width: 640px) 50vw, 400px' : undefined}
         alt={alt}
         className={className}
+        loading={loading}
+        style={style}
       />
     );
   }
