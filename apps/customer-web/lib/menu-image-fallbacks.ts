@@ -76,6 +76,7 @@ const localMenuImageAliases: Readonly<Record<string, string>> = {
   gongurakodikoora: 'Gongura Chicken Curry.avif',
   guttivankayakoora: 'Guttivankaya Koora.avif',
   karivepakukodivepudu: 'Karivepaku Kodi Vepudu.avif',
+  chickendumbiryani: 'Chicken Biryani.avif',
   plainrice: 'Plain Rice.avif',
   vegmanchurian: 'Veg Manchuria.avif',
 };
@@ -92,9 +93,12 @@ export function withLocalMenuImages<T>(value: T): T {
   const localImageByName = normalizedName
     ? localMenuImageByName[normalizedName]
     : undefined;
-  const localImageByAlias = normalizedName
+  const aliasFilename = normalizedName
+    ? localMenuImageAliases[normalizedName]
+    : undefined;
+  const localImageByAlias = aliasFilename
     ? localMenuImageByName[
-        normalizeMenuName(localMenuImageAliases[normalizedName] ?? '')
+        normalizeMenuName(aliasFilename.replace(/\.avif$/i, ''))
       ]
     : undefined;
   const localImage = localImageByName ?? localImageByAlias;

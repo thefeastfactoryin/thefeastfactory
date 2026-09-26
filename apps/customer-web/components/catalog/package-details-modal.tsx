@@ -85,21 +85,6 @@ export function PackageDetailsModal({
         total + rule.items.filter((item) => item.role === 'EXTRA').length,
       0,
     ) ?? 0;
-  const swappableItemIds = new Set(
-    config?.categoryRules.flatMap((rule) =>
-      rule.items
-        .filter(
-          (item) =>
-            item.role === 'INCLUDED' &&
-            !item.swapForMenuItemId &&
-            item.isSwappable &&
-            rule.items.some(
-              (candidate) => candidate.swapForMenuItemId === item.id,
-            ),
-        )
-        .map((item) => item.id),
-    ) ?? [],
-  );
   const includedItems = includedByCategory.flatMap(({ items }) => items);
   const isVegetarianPackage =
     includedItems.length > 0 && includedItems.every((item) => item.isVeg);
@@ -177,12 +162,6 @@ export function PackageDetailsModal({
                   </>
                 )}
               </div>
-              {swappableItemIds.size > 0 && (
-                <p className="mt-1 text-xs leading-5 text-muted-foreground lg:hidden">
-                  Some included dishes can be changed after selecting.
-                </p>
-              )}
-
               {!config ? (
                 <div className="mt-6 space-y-3">
                   {[1, 2, 3].map((row) => (
@@ -225,11 +204,6 @@ export function PackageDetailsModal({
                                   <p className="text-sm font-medium leading-5 sm:text-base sm:font-semibold">
                                     {item.name}
                                   </p>
-                                  {swappableItemIds.has(item.id) && (
-                                    <p className="mt-0.5 text-xs leading-4 text-muted-foreground">
-                                      Change after selecting
-                                    </p>
-                                  )}
                                 </div>
                                 {!isVegetarianPackage && (
                                   <span
