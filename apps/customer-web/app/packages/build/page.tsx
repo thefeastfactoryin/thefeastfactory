@@ -23,6 +23,7 @@ import {
   isClearedCartError,
   subscribeToCartCleared,
 } from '../../../lib/cart-state';
+import { formatCategoryLabel } from '../../../lib/format';
 import { cn } from '../../../lib/utils';
 import { useDeliveryLocationStore } from '../../../store/delivery-location.store';
 import { useOrderBuilderStore } from '../../../store/order-builder.store';
@@ -629,7 +630,9 @@ function BuildPackageContent() {
     Array<{ id: CategoryFilter; label: string }>
   >(() => {
     const seen = new Map<string, string>();
-    for (const dish of dishes) seen.set(dish.categoryId, dish.categoryName);
+    for (const dish of dishes) {
+      seen.set(dish.categoryId, formatCategoryLabel(dish.categoryName));
+    }
     return [
       { id: 'all', label: 'All' },
       ...Array.from(seen.entries()).map(([id, label]) => ({ id, label })),

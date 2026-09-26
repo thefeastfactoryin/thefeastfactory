@@ -29,7 +29,7 @@ import {
   isClearedCartError,
   subscribeToCartCleared,
 } from '../../../lib/cart-state';
-import { formatCurrency } from '../../../lib/format';
+import { formatCategoryLabel, formatCurrency } from '../../../lib/format';
 import { usePackagePreviewQuote } from '../../../lib/use-package-preview-quote';
 import { cn } from '../../../lib/utils';
 import {
@@ -544,6 +544,7 @@ function MenuSelectContent() {
   const activeCategoryName =
     categories.find((category) => category.id === menuCategory)?.name ??
     'All items';
+  const displayActiveCategoryName = formatCategoryLabel(activeCategoryName);
 
   return (
     <main className="bg-ivory pb-44 text-charcoal md:pb-20 lg:pb-16">
@@ -644,7 +645,7 @@ function MenuSelectContent() {
           <div className="hidden">
             <div className="min-w-0">
               <p className="eyebrow">
-                {isMealBox ? 'Your meal box' : 'Your package menu'}
+                {isMealBox ? 'Your meal box' : "What's included"}
               </p>
               <h1 className="mt-2 max-w-3xl font-sans text-3xl font-semibold leading-[1.12] tracking-[-0.015em] text-charcoal sm:text-4xl">
                 {isMealBox ? 'Review your ' : 'Review your '}
@@ -781,7 +782,7 @@ function MenuSelectContent() {
               )}
             </button>
             <span className="hidden max-w-[38%] truncate text-xs font-semibold text-muted-foreground sm:block">
-              {activeCategoryName}
+              {displayActiveCategoryName}
             </span>
           </div>
 
@@ -1432,7 +1433,7 @@ function SwapDrawer({
                   {selected.name}
                 </strong>
                 <span className="mt-1 block text-xs text-muted-foreground">
-                  {row.rule.category.name} constraint preserved
+                  {formatCategoryLabel(row.rule.category.name)} constraint preserved
                 </span>
               </span>
             </div>
@@ -1582,8 +1583,8 @@ function ExtraRow({
           </strong>
           <DietBadge isVeg={row.item.isVeg} />
         </span>
-        <span className="text-xs text-muted-foreground">
-          {row.rule.category.name}
+        <span className="category-label">
+          {formatCategoryLabel(row.rule.category.name)}
         </span>
       </button>
       <span className="money-text hidden text-right text-xs font-bold text-primary sm:block">
@@ -1716,7 +1717,7 @@ function MenuSummary({
                 {row.shown.name}
               </strong>
               <span className="mt-0.5 block truncate text-[10px] text-muted-foreground">
-                {row.categoryName}
+                {formatCategoryLabel(row.categoryName)}
                 {!row.swapped && ' · Included'}
               </span>
             </span>

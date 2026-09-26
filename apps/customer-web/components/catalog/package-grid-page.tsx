@@ -21,6 +21,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { apiRequest } from '../../lib/api';
 import { notifyCartCleared } from '../../lib/cart-state';
+import { formatCategoryLabel } from '../../lib/format';
 import { useDeliveryLocationStore } from '../../store/delivery-location.store';
 import { useOrderBuilderStore } from '../../store/order-builder.store';
 import { useSessionStore } from '../../store/session.store';
@@ -42,15 +43,12 @@ function formatCatalogPrice(value: string) {
 }
 
 function formatCategorySummary(count: number, categoryName: string) {
-  const displayName =
-    categoryName === 'Indian Breads'
-      ? 'Bread'
-      : categoryName === 'Rice Items'
-        ? 'Rice'
-        : categoryName === 'Desserts'
-          ? 'Dessert'
-        : categoryName;
+  const displayName = formatCategoryLabel(categoryName);
   return count > 1 ? `${count} ${displayName}` : displayName;
+}
+
+function formatMealBoxDisplayName(name: string) {
+  return name.replace(/\s+(?:non[- ]?veg|veg)(?=\s+meal box\b)/i, '');
 }
 
 export function PackageGridPage({
@@ -358,7 +356,7 @@ export function PackageGridPage({
         </div>
         {type === 'MEAL_BOX' && (
           <div
-            className="mb-4 flex w-full overflow-hidden rounded-xl border border-border bg-muted/60 p-1 sm:mb-6 sm:w-auto sm:gap-2 sm:overflow-visible sm:rounded-full sm:border-0 sm:bg-transparent sm:p-0"
+            className="mb-4 flex w-full overflow-hidden rounded-xl border border-border bg-muted/60 p-0.5 sm:mb-6 sm:w-auto sm:gap-2 sm:overflow-visible sm:rounded-full sm:border-0 sm:bg-transparent sm:p-0"
             aria-label="Diet filter"
             role="group"
           >
@@ -450,21 +448,54 @@ export function PackageGridPage({
                     : [];
                 },
               );
+              const mealBoxDisplayName = isMealBox
+                ? formatMealBoxDisplayName(pkg.name)
+                : pkg.name;
+              const mobileIncludedSummary = categoryHighlights.length
+                ? `${categoryHighlights
+                    .slice(0, 3)
+                    .map(({ categoryName, count }) =>
+                      formatCategorySummary(count, categoryName),
+                    )
+                    .join(' · ')}${
+                    categoryHighlights.length > 3
+                      ? ` · +${categoryHighlights.length - 3} more`
+                      : ''
+                  }`
+                : visibleIncluded.length
+                  ? visibleIncluded.map((item) => item.name).join(' · ')
+                  : pkg.type === 'CUSTOM_PACKAGE'
+                    ? 'Choose dishes and create your menu.'
+                    : '';
+              const narrowMobileIncludedSummary = categoryHighlights.length
+                ? `${categoryHighlights
+                    .slice(0, 2)
+                    .map(({ categoryName, count }) =>
+                      formatCategorySummary(count, categoryName),
+                    )
+                    .join(' · ')}${
+                    categoryHighlights.length > 2
+                      ? ` · +${categoryHighlights.length - 2} more`
+                      : ''
+                  }`
+                : mobileIncludedSummary;
               return (
                 <article
                   key={pkg.id}
                   data-testid={`package-card-${pkg.id}`}
-                  className="group flex h-full min-w-0 flex-col overflow-hidden rounded-[18px] border border-border bg-card shadow-card transition-all duration-250 ease-premium hover:-translate-y-0.5 hover:border-accent/45 hover:shadow-card-hover"
+                  className={`group flex h-full min-w-0 flex-col overflow-hidden rounded-[18px] border border-border bg-card shadow-card transition-all duration-250 ease-premium hover:-translate-y-0.5 hover:border-accent/45 hover:shadow-card-hover ${isMealBox ? 'sm:flex-col' : ''}`}
                 >
                   <button
                     type="button"
                     onClick={() => updateDetails(pkg.id)}
-                    className="block w-full text-left"
+                    className={`w-full text-left ${isMealBox ? 'flex items-stretch sm:block' : 'block'}`}
                     aria-label={`View details for ${pkg.name}`}
                   >
                     <div
-                      className={`relative w-full shrink-0 overflow-hidden rounded-t-[18px] bg-muted/50 sm:aspect-auto sm:h-[168px] ${
-                        isOccasionPackages ? 'aspect-[2.65/1]' : 'aspect-[2.2/1]'
+                      className={`relative shrink-0 overflow-hidden bg-muted/50 ${
+                        isMealBox
+                          ? 'aspect-[1/1] self-start w-[32%] rounded-l-[18px] sm:aspect-auto sm:h-[168px] sm:w-full sm:rounded-l-none sm:rounded-t-[18px]'
+                          : `w-full rounded-t-[18px] ${isOccasionPackages ? 'aspect-[2.65/1]' : 'aspect-[2.2/1]'}`
                       }`}
                     >
                       <DataImage
@@ -475,20 +506,39 @@ export function PackageGridPage({
                       <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent opacity-80" />
                       {pkg.type === 'MEAL_BOX' && (
                         <span
-                          className={`absolute right-3 top-3 rounded-full border border-white/25 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm ${isVeg ? 'bg-emerald-700/90' : 'bg-red-700/90'}`}
+                          className={`absolute right-3 top-3 hidden rounded-full border border-white/25 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm sm:inline-flex ${isVeg ? 'bg-emerald-700/90' : 'bg-red-700/90'}`}
                         >
                           {isVeg ? 'Veg' : 'Non-Veg'}
                         </span>
                       )}
                     </div>
-                    <div className="flex min-w-0 flex-col bg-white px-4 pb-2 pt-2 sm:px-4 sm:pb-3 sm:pt-4">
+                    <div
+                      className={`flex min-w-0 flex-col bg-white px-3 py-3 sm:px-4 sm:pb-3 sm:pt-4 ${isMealBox ? 'flex-1 max-[359px]:px-2 sm:flex-none' : ''}`}
+                    >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <h2
-                            className={`${isOccasionPackages ? 'text-[17px]' : 'text-[18px]'} font-semibold leading-[1.18] text-foreground sm:text-[20px]`}
-                          >
-                            {pkg.name}
-                          </h2>
+                          <div className="flex items-start gap-2 max-[359px]:gap-1">
+                            <h2
+                              className={`${isOccasionPackages ? 'text-[17px]' : 'text-[16px]'} min-w-0 flex-1 line-clamp-2 font-semibold leading-[1.18] text-foreground max-[359px]:text-[15px] sm:line-clamp-none sm:text-[20px]`}
+                            >
+                              <span className={isMealBox ? 'sm:hidden' : undefined}>
+                                {mealBoxDisplayName}
+                              </span>
+                              {isMealBox && (
+                                <span className="hidden sm:inline">
+                                  {pkg.name}
+                                </span>
+                              )}
+                            </h2>
+                            {pkg.type === 'MEAL_BOX' && (
+                              <span
+                                className={`mt-0.5 shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold leading-none max-[359px]:px-1 sm:hidden ${isVeg ? 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200' : 'bg-orange-50 text-orange-700 ring-1 ring-inset ring-orange-200'}`}
+                                aria-label={isVeg ? 'Vegetarian' : 'Non-vegetarian'}
+                              >
+                                {isVeg ? 'Veg' : 'Non-Veg'}
+                              </span>
+                            )}
+                          </div>
                           <p className="mt-1.5 hidden line-clamp-2 min-h-[38px] text-[13px] leading-[1.42] text-muted-foreground sm:block">
                             {pkg.description}
                           </p>
@@ -512,21 +562,34 @@ export function PackageGridPage({
                           </p>
                         </div>
                       ) : (
-                        <div className="mt-1.5 border-b border-border pb-2 sm:hidden">
+                        <div className="mt-2 space-y-0.5 sm:hidden">
                           <p className="flex flex-wrap items-baseline gap-x-1.5 text-[12px] leading-5 text-muted-foreground">
                             <strong className="money-text text-[16px] font-extrabold text-primary">
                               &#8377;{formatCatalogPrice(version.basePricePerPlate)}
                             </strong>
                             <span>/ guest</span>
-                            <span aria-hidden="true">·</span>
-                            <strong className="text-[14px] font-extrabold text-foreground">
+                          </p>
+                          <p className="text-[11px] leading-4 text-muted-foreground">
                               {version.minGuestCount}
                               {version.maxGuestCount
                                 ? `–${version.maxGuestCount}`
                                 : '+'}
-                            </strong>
-                            <span>guests</span>
+                              {' '}guests
                           </p>
+                          {mobileIncludedSummary && (
+                            <div className="pt-2 text-[11px] leading-[1.3] text-muted-foreground">
+                              <p className="font-semibold text-foreground/85">
+                                {included.length}{' '}
+                                {included.length === 1 ? 'item' : 'items'}
+                              </p>
+                              <p className="line-clamp-2 min-[360px]:hidden">
+                                {narrowMobileIncludedSummary}
+                              </p>
+                              <p className="hidden line-clamp-2 min-[360px]:block">
+                                {mobileIncludedSummary}
+                              </p>
+                            </div>
+                          )}
                         </div>
                       )}
                       <div className="mt-3 hidden grid-cols-2 overflow-hidden rounded-[14px] border border-border bg-ivory sm:grid">
@@ -578,21 +641,19 @@ export function PackageGridPage({
                       </span>
                     </div>
                   </button>
-                    <div className="mt-auto px-4 pt-0 pb-3 sm:pt-1 sm:pb-4">
+                    <div
+                      className={`px-3 pb-2 sm:mt-auto sm:px-4 sm:pb-4 ${isMealBox ? 'mt-0 pt-0 sm:pt-1' : 'mt-auto pt-2 sm:pt-0'}`}
+                    >
                     <div>
-                      {categoryHighlights.length ? (
-                        <p className="mb-1 text-[13px] leading-[1.4] text-foreground/85 sm:hidden">
+                      {!isMealBox && (categoryHighlights.length ? (
+                        <p className="mb-1 line-clamp-2 text-[13px] leading-[1.4] text-foreground/85 sm:hidden">
                           <span className="font-semibold text-foreground">
                             {included.length} {included.length === 1 ? 'item' : 'items'}:
                           </span>{' '}
-                          {categoryHighlights
-                            .map(({ categoryName, count }) =>
-                              formatCategorySummary(count, categoryName),
-                            )
-                            .join(' · ')}
+                          {mobileIncludedSummary}
                         </p>
                       ) : visibleIncluded.length ? (
-                        <p className="mb-1 text-[13px] leading-[1.4] text-foreground/85 sm:hidden">
+                        <p className="mb-1 line-clamp-2 text-[12px] leading-[1.35] text-foreground/85 sm:hidden">
                           <span className="font-semibold text-foreground">
                             {included.length} {included.length === 1 ? 'item' : 'items'}:
                           </span>{' '}
@@ -605,7 +666,7 @@ export function PackageGridPage({
                         <p className="mb-1 text-[13px] leading-[1.45] text-foreground/85 sm:hidden">
                           Choose dishes and create your menu.
                         </p>
-                      ) : null}
+                      ) : null)}
                       {categoryHighlights.length ? (
                         <div className="mb-4 hidden flex-wrap gap-2 sm:flex">
                           {categoryHighlights.map(({ categoryName, count }) => (
@@ -694,7 +755,9 @@ export function PackageGridPage({
                           </button>
                         </div>
                       )}
-                    <div className="mt-1 flex items-center justify-between gap-2 border-t border-border/70 pt-1 sm:mt-3 sm:block sm:border-0 sm:pt-0">
+                    <div
+                      className={`flex items-center justify-between gap-2 border-t border-border/70 sm:mt-3 sm:block sm:border-0 sm:pt-0 ${isMealBox ? 'mt-0 pt-0' : 'mt-1 pt-1'}`}
+                    >
                       <button
                         type="button"
                         onClick={() => updateDetails(pkg.id)}
@@ -707,15 +770,20 @@ export function PackageGridPage({
                         type="button"
                         onClick={() => choose(pkg)}
                         disabled={Boolean(selecting)}
-                        className="flex min-h-10 shrink-0 items-center justify-center gap-1.5 rounded-md bg-primary px-3 text-xs font-extrabold text-white transition-all hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60 sm:mt-2 sm:h-11 sm:w-full sm:rounded-full sm:px-4 sm:text-[13.5px] sm:shadow-[0_7px_15px_rgba(116,28,42,0.12)]"
+                        className="flex min-h-10 shrink-0 items-center justify-center gap-1.5 rounded-md bg-primary px-2.5 text-xs font-extrabold text-white transition-all hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60 sm:mt-2 sm:h-11 sm:w-full sm:rounded-full sm:px-4 sm:text-[13.5px] sm:shadow-[0_7px_15px_rgba(116,28,42,0.12)]"
                       >
-                        {selecting === pkg.id
-                          ? 'Selecting...'
-                          : pkg.type === 'CUSTOM_PACKAGE'
-                            ? 'Build menu'
-                            : pkg.type === 'MEAL_BOX'
-                              ? 'Select Meal Box'
-                              : 'Select Package'}
+                        <span className="sm:hidden">
+                          {selecting === pkg.id ? 'Selecting...' : 'Select'}
+                        </span>
+                        <span className="hidden sm:inline">
+                          {selecting === pkg.id
+                            ? 'Selecting...'
+                            : pkg.type === 'CUSTOM_PACKAGE'
+                              ? 'Build menu'
+                              : pkg.type === 'MEAL_BOX'
+                                ? 'Select Meal Box'
+                                : 'Select Package'}
+                        </span>
                         <ArrowRight className="h-3.5 w-3.5" />
                       </button>
                     </div>

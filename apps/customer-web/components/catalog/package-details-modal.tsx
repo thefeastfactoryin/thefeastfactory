@@ -16,7 +16,7 @@ import {
   X,
 } from 'lucide-react';
 import { useEffect, useMemo } from 'react';
-import { formatCurrency } from '../../lib/format';
+import { formatCategoryLabel, formatCurrency } from '../../lib/format';
 import { cn } from '../../lib/utils';
 import { Button } from '../ui/button';
 import { DataImage } from '../data-image';
@@ -88,6 +88,7 @@ export function PackageDetailsModal({
   const includedItems = includedByCategory.flatMap(({ items }) => items);
   const isVegetarianPackage =
     includedItems.length > 0 && includedItems.every((item) => item.isVeg);
+  const isMealBox = pkg.type === 'MEAL_BOX';
   const version = pkg.activeVersion;
 
   return (
@@ -105,7 +106,7 @@ export function PackageDetailsModal({
       />
       <section className="relative flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:max-w-5xl sm:rounded-3xl">
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="relative aspect-[2.25/1] min-h-[9.25rem] overflow-hidden bg-muted sm:aspect-auto sm:h-72">
+          <div className="relative aspect-[2.6/1] min-h-[8rem] overflow-hidden bg-muted sm:aspect-auto sm:h-72">
             <DataImage
               src={pkg.imageUrl}
               alt={`${pkg.name} presentation`}
@@ -116,10 +117,12 @@ export function PackageDetailsModal({
             <button
               type="button"
               onClick={onClose}
-              className="absolute right-3 top-3 grid h-10 w-10 place-items-center rounded-full border border-white/50 bg-black/45 text-white shadow-sm backdrop-blur hover:bg-black/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:right-4 sm:top-4"
+              className="absolute right-3 top-3 grid h-11 w-11 place-items-center rounded-full text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:right-4 sm:top-4"
               aria-label="Close package details"
             >
-              <X className="h-4 w-4" />
+              <span className="grid h-8 w-8 place-items-center rounded-full border border-white/25 bg-black/25 shadow-sm backdrop-blur-sm transition-colors hover:bg-black/40">
+                <X className="h-4 w-4" />
+              </span>
             </button>
             <div className="absolute inset-x-0 bottom-0 p-4 text-white sm:p-7">
               <h2
@@ -131,7 +134,7 @@ export function PackageDetailsModal({
             </div>
           </div>
 
-          <div className="grid gap-5 px-4 py-3 sm:gap-7 sm:p-7 lg:grid-cols-[minmax(0,1fr)_280px]">
+          <div className="grid gap-4 px-4 py-2 sm:gap-7 sm:p-7 lg:grid-cols-[minmax(0,1fr)_280px]">
             <div className="min-w-0">
               {pkg.description && (
                 <p className="text-sm leading-5 text-muted-foreground sm:text-base sm:leading-6">
@@ -141,8 +144,8 @@ export function PackageDetailsModal({
 
               <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground lg:hidden">
                 <span>
-                  From{' '}
-                  <strong className="font-semibold text-foreground">
+                  {!isMealBox && 'From '}
+                  <strong className="money-text text-base font-extrabold text-primary">
                     {formatPackagePrice(version?.basePricePerPlate)}
                   </strong>{' '}
                   / guest
@@ -158,7 +161,7 @@ export function PackageDetailsModal({
                 {isVegetarianPackage && (
                   <>
                     <span aria-hidden="true">·</span>
-                    <span>Vegetarian</span>
+                    <span>{isMealBox ? 'Veg' : 'Vegetarian'}</span>
                   </>
                 )}
               </div>
@@ -172,26 +175,55 @@ export function PackageDetailsModal({
                   ))}
                 </div>
               ) : includedByCategory.length ? (
-                <div className="mt-4 sm:mt-7">
+                <div className="mt-3 sm:mt-7">
                   <h3 className="font-sans text-lg font-semibold sm:text-2xl">
-                    Your package menu
+                    {isMealBox ? "What's in this box" : "What's included"}
                   </h3>
-                  <div className="mt-3 space-y-5">
+                  <div className="mt-2 space-y-0 sm:mt-3 sm:space-y-5">
                     {includedByCategory.map(({ rule, items }) => (
                       <section key={rule.id}>
-                        <div className="mb-1.5 flex items-center justify-between gap-3 border-b pb-2 sm:mb-3">
-                          <h4 className="font-bold">{rule.category.name}</h4>
-                          <span className="text-xs font-medium text-muted-foreground">
-                            {items.length} {items.length === 1 ? 'item' : 'items'}
-                          </span>
+                        <div className="mb-0.5 hidden items-center justify-between gap-3 sm:mb-3 sm:flex">
+                          <h4 className="category-label sm:text-base">
+                            {formatCategoryLabel(rule.category.name)}
+                          </h4>
+                          {items.length > 1 && (
+                            <span className="text-xs font-medium text-muted-foreground">
+                              {items.length} items
+                            </span>
+                          )}
                         </div>
-                        <div className="divide-y sm:grid sm:grid-cols-2 sm:gap-3 sm:divide-y-0">
+                        <div className="divide-y sm:hidden">
                           {items.map((item) => (
                             <div
                               key={item.id}
-                              className="flex min-h-14 items-center gap-3 py-1.5 first:pt-0 last:pb-0 sm:grid sm:min-h-0 sm:grid-cols-[72px_1fr] sm:gap-3 sm:rounded-xl sm:border sm:bg-white sm:p-2"
+                              className="grid grid-cols-[40px_minmax(0,1fr)_5rem] items-center gap-2 py-1 first:pt-0 last:pb-0"
                             >
-                              <div className="h-11 w-11 shrink-0 overflow-hidden rounded-md bg-muted sm:h-[72px] sm:w-[72px] sm:rounded-lg">
+                              <div className="h-10 w-10 overflow-hidden rounded-md bg-muted">
+                                <DataImage
+                                  src={item.imageUrl}
+                                  alt={item.name}
+                                  className="h-full w-full object-cover"
+                                  loading="lazy"
+                                />
+                              </div>
+                              <p className="min-w-0 text-sm font-medium leading-5 text-foreground">
+                                {item.name}
+                              </p>
+                              <span className="category-label w-20 self-center pr-1 text-right text-[12px]">
+                                {formatCategoryLabel(rule.category.name, {
+                                  singular: true,
+                                })}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="hidden divide-y sm:grid sm:grid-cols-2 sm:gap-3 sm:divide-y-0">
+                          {items.map((item) => (
+                            <div
+                              key={item.id}
+                              className="flex min-h-10 items-center gap-3 py-0.5 first:pt-0 last:pb-0 sm:grid sm:min-h-0 sm:grid-cols-[72px_1fr] sm:gap-3 sm:rounded-xl sm:border sm:bg-white sm:p-2"
+                            >
+                              <div className="h-[72px] w-[72px] overflow-hidden rounded-lg bg-muted">
                                 <DataImage
                                   src={item.imageUrl}
                                   alt={item.name}
@@ -306,6 +338,8 @@ export function PackageDetailsModal({
                 ? 'Selecting…'
                 : pkg.isCustom
                   ? 'Build this menu'
+                  : isMealBox
+                    ? 'Select Meal Box'
                   : 'Select package'}
               {!selecting && <ArrowRight className="ml-2 h-4 w-4" />}
             </Button>

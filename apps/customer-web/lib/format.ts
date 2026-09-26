@@ -16,3 +16,27 @@ export function formatStatus(value: string) {
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
 }
+
+const CATEGORY_LABELS: Record<string, string> = {
+  Starters: 'Starters',
+  'Indian Breads': 'Indian Breads',
+  Curry: 'Curry',
+  Curries: 'Curries',
+  Biryani: 'Biryani',
+  'Rice Items': 'Rice Items',
+  Desserts: 'Desserts',
+  Accompaniments: 'Accompaniments',
+};
+
+export function formatCategoryLabel(
+  value: string,
+  options?: { singular?: boolean },
+) {
+  const trimmed = value.trim();
+  const label = CATEGORY_LABELS[trimmed] ?? trimmed;
+  if (options?.singular) {
+    if (label === 'Starters') return 'Starter';
+    if (label === 'Indian Breads') return 'Indian Bread';
+  }
+  return label;
+}

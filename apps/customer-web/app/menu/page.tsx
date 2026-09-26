@@ -17,6 +17,7 @@ import { StatePanel } from '../../components/ui/state-panel';
 import { usePublicSettings } from '../../components/public-settings-provider';
 import { DataImage } from '../../components/data-image';
 import { apiRequest } from '../../lib/api';
+import { formatCategoryLabel } from '../../lib/format';
 import {
   generateWhatsAppLink,
   whatsappMessages,
@@ -276,8 +277,8 @@ function MenuCard({ item }: { item: MenuItem }) {
         </span>
 
         <div className="absolute bottom-2 left-2 hidden items-center gap-1.5 sm:flex">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-white/75">
-            {item.category?.name ?? 'Menu'}
+          <span className="category-label text-white/75">
+            {formatCategoryLabel(item.category?.name ?? 'Menu')}
           </span>
         </div>
       </div>

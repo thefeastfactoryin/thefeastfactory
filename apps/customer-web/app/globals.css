@@ -262,6 +262,9 @@ body {
     @apply text-[11px] font-bold uppercase text-accent;
     letter-spacing: 0.24em;
   }
+  .category-label {
+    @apply font-sans text-[13px] font-medium leading-4 tracking-normal text-muted-foreground;
+  }
   .display-heading {
     @apply font-serif font-medium;
     letter-spacing: -0.015em;
