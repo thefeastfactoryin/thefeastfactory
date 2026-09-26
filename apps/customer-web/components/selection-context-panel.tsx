@@ -111,10 +111,12 @@ function ThemedDatePicker({
   value,
   min,
   onChange,
+  compact = false,
 }: {
   value: string;
   min: string;
   onChange: (value: string) => void;
+  compact?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const initialDate = parseDateValue(value || min) ?? new Date();
@@ -150,20 +152,33 @@ function ThemedDatePicker({
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
         className={cn(
-          'flex min-h-12 w-full items-center gap-3 rounded-xl border border-input bg-white/95 px-3 py-2 text-left text-sm outline-none transition hover:border-primary/40 focus-visible:ring-2 focus-visible:ring-primary/30',
+          compact
+            ? 'flex min-h-10 w-full min-w-0 items-center gap-1.5 rounded-md border border-input bg-white/90 px-2 py-1 text-left text-xs outline-none transition hover:border-primary/40 focus-visible:ring-2 focus-visible:ring-primary/30'
+            : 'flex min-h-12 w-full items-center gap-3 rounded-xl border border-input bg-white/95 px-3 py-2 text-left text-sm outline-none transition hover:border-primary/40 focus-visible:ring-2 focus-visible:ring-primary/30',
           open && 'border-primary/50 ring-2 ring-primary/15',
         )}
       >
-        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-primary/[0.07] text-primary">
+        <span className={cn(
+          'grid shrink-0 place-items-center rounded-md bg-primary/[0.06] text-primary',
+          compact ? 'h-6 w-6' : 'h-8 w-8 rounded-lg bg-primary/[0.07]',
+        )}>
           <CalendarDays className="h-4 w-4" />
         </span>
         <span
           className={cn(
             'min-w-0 flex-1 font-semibold',
+            compact && 'truncate whitespace-nowrap',
             !value && 'font-normal text-muted-foreground',
           )}
         >
-          {formatDateLabel(value)}
+          {compact && !value
+            ? 'Choose date'
+            : compact && value
+              ? new Intl.DateTimeFormat('en-IN', {
+                  day: 'numeric',
+                  month: 'short',
+                }).format(parseDateValue(value) ?? new Date(value))
+              : formatDateLabel(value)}
         </span>
         <ChevronDown
           className={cn(
@@ -253,10 +268,12 @@ function ThemedTimePicker({
   value,
   onChange,
   slots,
+  compact = false,
 }: {
   value: string;
   onChange: (value: string) => void;
   slots: DeliveryTimeSlot[];
+  compact?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -288,20 +305,26 @@ function ThemedTimePicker({
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
         className={cn(
-          'flex min-h-12 w-full items-center gap-3 rounded-xl border border-input bg-white/95 px-3 py-2 text-left text-sm outline-none transition hover:border-primary/40 focus-visible:ring-2 focus-visible:ring-primary/30',
+          compact
+            ? 'flex min-h-10 w-full min-w-0 items-center gap-1.5 rounded-md border border-input bg-white/90 px-2 py-1 text-left text-xs outline-none transition hover:border-primary/40 focus-visible:ring-2 focus-visible:ring-primary/30'
+            : 'flex min-h-12 w-full items-center gap-3 rounded-xl border border-input bg-white/95 px-3 py-2 text-left text-sm outline-none transition hover:border-primary/40 focus-visible:ring-2 focus-visible:ring-primary/30',
           open && 'border-primary/50 ring-2 ring-primary/15',
         )}
       >
-        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-primary/[0.07] text-primary">
+        <span className={cn(
+          'grid shrink-0 place-items-center rounded-md bg-primary/[0.06] text-primary',
+          compact ? 'h-6 w-6' : 'h-8 w-8 rounded-lg bg-primary/[0.07]',
+        )}>
           <Clock3 className="h-4 w-4" />
         </span>
         <span
           className={cn(
             'min-w-0 flex-1 font-semibold',
+            compact && 'truncate whitespace-nowrap',
             !value && 'font-normal text-muted-foreground',
           )}
         >
-          {selectedSlot?.label || value || 'Choose a time'}
+          {selectedSlot?.label || value || (compact ? 'Choose time' : 'Choose a time')}
         </span>
         <ChevronDown
           className={cn(
@@ -684,18 +707,26 @@ export function SelectionContextPanel({
                 : '',
         )}
       >
-        <Field label="Delivery date">
+        <Field
+          label="Delivery date"
+          className={checkoutCompact ? '[&>span]:sr-only' : undefined}
+        >
           <ThemedDatePicker
             min={firstEventDate}
             value={eventDate}
             onChange={setEventDate}
+            compact={checkoutCompact}
           />
         </Field>
-        <Field label="Delivery time">
+        <Field
+          label="Delivery time"
+          className={checkoutCompact ? '[&>span]:sr-only' : undefined}
+        >
           <ThemedTimePicker
             value={eventTimeStart}
             onChange={setEventTimeStart}
             slots={deliveryTimeSlots}
+            compact={checkoutCompact}
           />
         </Field>
         {!hideQuantity && !isKg && (
@@ -880,35 +911,20 @@ export function SelectionContextPanel({
 
       {checkoutCompact && (
         <>
-          <div className="mt-4 border-y border-border/70 py-3">
-            <div className="flex items-start gap-3">
-              <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-3">
-                  <h3 className="text-sm font-bold">Delivery address</h3>
-                  <div className="flex shrink-0 items-center gap-3">
-                    {addresses.length > 0 && (
-                      <button
-                        type="button"
-                        aria-expanded={addressesExpanded}
-                        onClick={() => setAddressesExpanded((value) => !value)}
-                        className="min-h-10 text-sm font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-                      >
-                        {addressesExpanded ? 'Done' : 'Change'}
-                      </button>
-                    )}
-                    <Link
-                      className="inline-flex min-h-10 items-center text-sm font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-                      href={`/addresses?tab=map&returnTo=${encodeURIComponent(returnTo)}`}
-                    >
-                      {deliveryLocation && !deliveryLocation.savedAddressId
-                        ? 'Complete address'
-                        : 'Add address'}
-                    </Link>
-                  </div>
-                </div>
-                {selectedVenue ? (
-                  <p className="mt-0.5 text-sm leading-5 text-muted-foreground">
+          <div className="mt-3 rounded-md border border-border/55 bg-white/75 px-3 py-2.5">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold">Delivery address</h3>
+                {!selectedVenue && (
+                  <span className="rounded border border-border/60 bg-muted/50 px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+                    Required
+                  </span>
+                )}
+              </div>
+              {selectedVenue ? (
+                <div className="mt-1 flex items-start gap-2">
+                  <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                  <p className="min-w-0 flex-1 text-sm leading-5 text-muted-foreground">
                     <span className="font-semibold text-foreground">
                       {selectedVenue.label || selectedVenue.addressLine1}
                     </span>
@@ -917,58 +933,92 @@ export function SelectionContextPanel({
                       selectedVenue.addressLine1,
                       selectedVenue.addressLine2,
                       selectedVenue.city,
+                      selectedVenue.state,
+                      selectedVenue.pincode,
                     ]
                       .filter(Boolean)
                       .join(', ')}
                   </p>
-                ) : (
-                  <p className="mt-0.5 text-sm text-muted-foreground">
-                    {deliveryLocation?.label || 'Choose a delivery address'}
-                    <span className="ml-2 font-semibold text-primary">
-                      Required
-                    </span>
-                  </p>
-                )}
-                {addressesExpanded && addresses.length > 0 && (
-                  <div
-                    className="mt-3 grid gap-2"
-                    role="radiogroup"
-                    aria-label="Choose delivery address"
+                  <button
+                    type="button"
+                    aria-expanded={addressesExpanded}
+                    onClick={() => setAddressesExpanded((value) => !value)}
+                    className="min-h-8 shrink-0 text-sm font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                   >
-                    {addresses.map((address) => {
-                      const selected = address.id === addressId;
-                      return (
-                        <button
-                          key={address.id}
-                          type="button"
-                          role="radio"
-                          aria-checked={selected}
-                          onClick={() => {
-                            setAddressId(address.id);
-                            setAddressesExpanded(false);
-                          }}
-                          className={cn(
-                            'flex min-h-12 items-center justify-between gap-3 border-t border-border/60 py-2 text-left text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary',
-                            selected && 'text-primary',
-                          )}
-                        >
-                          <span className="min-w-0">
-                            <strong className="block truncate">
-                              {address.label || address.addressLine1}
-                            </strong>
-                            <span className="block truncate text-xs text-muted-foreground">
-                              {[address.addressLine1, address.city, address.pincode]
-                                .filter(Boolean)
-                                .join(', ')}
-                            </span>
-                          </span>
-                          {selected && <Check className="h-4 w-4 shrink-0" />}
-                        </button>
-                      );
-                    })}
+                    {addressesExpanded ? 'Done' : 'Change'}
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <p className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
+                    <MapPin className="h-4 w-4 shrink-0 text-primary" />
+                    {deliveryLocation?.label || 'Choose a delivery address'}
+                  </p>
+                  <div className="ml-6 flex flex-wrap items-center gap-x-4">
+                    <Link
+                      className="inline-flex min-h-8 items-center text-sm font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                      href={`/addresses?tab=map&returnTo=${encodeURIComponent(returnTo)}`}
+                    >
+                      Add complete address →
+                    </Link>
+                    {addresses.length > 0 && (
+                      <button
+                        type="button"
+                        aria-expanded={addressesExpanded}
+                        onClick={() => setAddressesExpanded((value) => !value)}
+                        className="inline-flex min-h-8 items-center text-sm font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                      >
+                        {addressesExpanded ? 'Done' : 'Choose saved address'}
+                      </button>
+                    )}
                   </div>
-                )}
-              </div>
+                </>
+              )}
+              {addressesExpanded && addresses.length > 0 && (
+                <div
+                  className="mt-2 grid gap-1"
+                  role="radiogroup"
+                  aria-label="Choose delivery address"
+                >
+                  {addresses.map((address) => {
+                    const selected = address.id === addressId;
+                    return (
+                      <button
+                        key={address.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        onClick={() => {
+                          setAddressId(address.id);
+                          setAddressesExpanded(false);
+                        }}
+                        className={cn(
+                          'flex min-h-10 items-center justify-between gap-3 border-t border-border/50 py-1.5 text-left text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary',
+                          selected && 'text-primary',
+                        )}
+                      >
+                        <span className="min-w-0">
+                          <strong className="block truncate">
+                            {address.label || address.addressLine1}
+                          </strong>
+                          <span className="block truncate text-xs text-muted-foreground">
+                            {[address.addressLine1, address.city, address.pincode]
+                              .filter(Boolean)
+                              .join(', ')}
+                          </span>
+                        </span>
+                        {selected && <Check className="h-4 w-4 shrink-0" />}
+                      </button>
+                    );
+                  })}
+                  <Link
+                    className="inline-flex min-h-8 items-center border-t border-border/50 pt-1.5 text-sm font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                    href={`/addresses?tab=map&returnTo=${encodeURIComponent(returnTo)}`}
+                  >
+                    Add another address
+                  </Link>
+                </div>
+              )}
             </div>
           </div>
           {deliveryService}
@@ -987,7 +1037,7 @@ export function SelectionContextPanel({
       id={checkoutCompact ? 'checkout-delivery' : undefined}
       className={cn(
         checkoutCompact
-          ? 'border-b border-border/70 py-4 first:pt-0'
+          ? 'pb-0 first:pt-0'
           : 'rounded-2xl border border-border bg-white shadow-[0_14px_36px_-30px_rgba(75,12,23,.55)]',
         !checkoutCompact && (sidebar ? 'p-4' : 'p-5 sm:p-6'),
       )}
@@ -1003,7 +1053,9 @@ export function SelectionContextPanel({
         )}
         aria-expanded={sidebar ? expanded : true}
       >
-        <MapPin className="h-5 w-5 shrink-0 text-primary" />
+        {!checkoutCompact && (
+          <MapPin className="h-5 w-5 shrink-0 text-primary" />
+        )}
         <span className="min-w-0 flex-1">
           <span
             id="event-context-title"
@@ -1012,7 +1064,7 @@ export function SelectionContextPanel({
               checkoutCompact ? 'text-xl' : sidebar ? 'text-xl' : 'text-2xl',
             )}
           >
-            Delivery details
+            {checkoutCompact ? 'Delivery' : 'Delivery details'}
           </span>
           {!checkoutCompact && (
             <span className="mt-0.5 block text-xs text-muted-foreground">

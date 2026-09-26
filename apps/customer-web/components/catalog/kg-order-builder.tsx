@@ -9,7 +9,6 @@ import type {
 } from '@aranyam/shared-types';
 import {
   ArrowRight,
-  ChefHat,
   Flame,
   Leaf,
   Minus,
@@ -349,31 +348,33 @@ export function KgOrderBuilder() {
           className="absolute inset-0 -z-20 h-full w-full object-cover object-[62%_center] sm:object-center"
         />
         <div className="absolute inset-0 -z-10 bg-[linear-gradient(90deg,hsl(var(--hero-end)/0.99)_0%,hsl(var(--hero-start)/0.94)_40%,hsl(var(--hero-start)/0.30)_72%,rgba(0,0,0,0.08)_100%)]" />
-        <div className="container-pad flex min-h-[238px] items-center py-5 sm:min-h-[330px] sm:py-7 lg:min-h-[360px] lg:px-16 lg:py-9">
+        <div className="container-pad flex min-h-[156px] items-center py-4 sm:min-h-[280px] sm:py-7 lg:min-h-[330px] lg:px-16 lg:py-9">
           <div className="max-w-[620px]">
             <p className="eyebrow">Flexible bulk catering</p>
-            <h1 className="mt-2 font-serif text-[30px] font-bold leading-[1.12] tracking-[-0.015em] text-white sm:text-[42px] lg:text-[48px]">
+            <h1 className="mt-1.5 font-serif text-[30px] font-bold leading-[1.12] tracking-[-0.015em] text-white sm:text-[42px] lg:text-[48px]">
               Order <span className="text-accent">by KG</span>
             </h1>
-            <p className="mt-3 hidden max-w-[520px] text-base font-semibold leading-6 text-white/85 sm:block sm:text-lg">
-              Choose your dishes by weight with clear, itemised pricing.
+            <p className="mt-2 max-w-[520px] text-xs font-semibold leading-5 text-white/85 sm:mt-3 sm:text-lg sm:leading-6">
+              Choose your favourite dishes for your gathering, priced by kg.
             </p>
-            <div className="mt-4 grid max-w-[600px] grid-cols-2 gap-1.5 sm:mt-5 sm:grid-cols-4 sm:gap-2">
+            <div className="mt-3 flex items-center gap-1.5 text-[10px] font-semibold text-white/80 sm:mt-5 sm:grid sm:max-w-[600px] sm:grid-cols-4 sm:gap-2 sm:text-[11px]">
               {[
                 { label: 'Priced per kg', icon: Scale },
                 { label: 'Bulk portions', icon: Plus },
-                { label: 'Made for groups', icon: ChefHat },
                 { label: 'Freshly prepared', icon: Leaf },
               ].map(({ label, icon: Icon }) => (
                 <div
                   key={label}
-                  className="flex min-h-10 items-center gap-2 rounded-xl border border-white/10 bg-black/15 px-2.5 py-1.5 text-[11px] font-extrabold leading-tight text-white backdrop-blur-sm sm:min-h-11 sm:py-2"
+                  className="flex items-center gap-1 whitespace-nowrap sm:min-h-10 sm:rounded-lg sm:border sm:border-white/10 sm:bg-black/15 sm:px-2.5 sm:py-2 sm:font-extrabold sm:text-white sm:backdrop-blur-sm"
                 >
                   <Icon
-                    className="h-[18px] w-[18px] shrink-0 text-accent"
+                    className="hidden h-[18px] w-[18px] shrink-0 text-accent sm:block"
                     aria-hidden="true"
                   />
                   {label}
+                  {label !== 'Freshly prepared' && (
+                    <span className="text-white/50 sm:hidden" aria-hidden="true">·</span>
+                  )}
                 </div>
               ))}
             </div>
@@ -410,7 +411,7 @@ export function KgOrderBuilder() {
             </Link>
           </section>
         ) : (
-          <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="grid items-start gap-6">
             <div className="min-w-0">
               {packages.length > 1 && !requestedCart && (
                 <label className="mb-4 block text-sm font-semibold">
@@ -432,7 +433,7 @@ export function KgOrderBuilder() {
                   </select>
                 </label>
               )}
-              <div className="mb-5 grid grid-cols-[minmax(0,1fr)_136px] gap-2 sm:mb-6 sm:flex sm:flex-wrap sm:gap-3">
+              <div className="mb-3 grid grid-cols-[minmax(0,1fr)_136px] gap-2 sm:mb-4 sm:flex sm:flex-wrap sm:gap-3">
                 <div className="relative min-w-0 flex-1">
                   <Search
                     className="absolute left-3 top-3 h-4 w-4 text-muted-foreground"
@@ -443,12 +444,12 @@ export function KgOrderBuilder() {
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                     placeholder="Search dishes"
-                    className="pl-9"
+                    className="h-10 pl-9"
                   />
                 </div>
                 <select
                   aria-label="Diet preference"
-                  className="min-h-11 rounded-xl border bg-card px-3 text-sm"
+                  className="h-10 rounded-lg border bg-card px-3 text-sm"
                   value={diet}
                   onChange={(event) => setDiet(event.target.value)}
                 >
@@ -457,80 +458,75 @@ export function KgOrderBuilder() {
                   <option value="NON_VEG">Non-vegetarian</option>
                 </select>
               </div>
+              <nav
+                aria-label="Dish categories"
+                className="mb-5 flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              >
+                {groups.map((rule) => (
+                  <a
+                    key={rule.id}
+                    href={`#kg-category-${rule.id}`}
+                    className="min-h-9 shrink-0 rounded-md border border-border/70 bg-card px-3 py-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                  >
+                    {rule.category.name}
+                  </a>
+                ))}
+              </nav>
               {!groups.length && (
                 <p className="rounded-xl border bg-card p-5 text-sm">
                   No dishes match your search.
                 </p>
               )}
               {groups.map((rule) => (
-                <section key={rule.id} className="mb-7">
-                  <div className="mb-3 flex items-baseline justify-between gap-3 sm:mb-4">
-                    <h2 className="font-sans text-xl font-semibold sm:text-2xl">
+                <section key={rule.id} id={`kg-category-${rule.id}`} className="mb-5 scroll-mt-4 sm:mb-7">
+                  <div className="mb-2 flex items-baseline justify-between gap-3 sm:mb-3">
+                    <h2 className="font-sans text-xs font-bold uppercase tracking-[0.08em] text-primary sm:text-sm">
                       {rule.category.name}
                     </h2>
-                    <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-[10px] font-bold text-muted-foreground">
+                    <span className="shrink-0 text-[11px] font-medium text-muted-foreground">
                       {rule.items.length}{' '}
                       {rule.items.length === 1 ? 'dish' : 'dishes'}
                     </span>
                   </div>
-                  <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
+                  <div className="grid gap-2.5 sm:grid-cols-2 sm:gap-4">
                     {rule.items.map((item) => (
                       <article
                         key={item.id}
-                        className="group grid min-h-[148px] grid-cols-[112px_minmax(0,1fr)] overflow-hidden rounded-2xl border border-border bg-card shadow-[0_4px_18px_rgba(0,0,0,0.06)] transition-all hover:border-primary/20 hover:shadow-[0_10px_28px_rgba(0,0,0,0.10)] sm:flex sm:flex-col"
+                        className="group grid min-h-[116px] grid-cols-[96px_minmax(0,1fr)] overflow-hidden rounded-xl border border-border/80 bg-card transition-colors hover:border-primary/30 sm:min-h-[132px]"
                       >
-                        <div className="relative h-full min-h-[148px] overflow-hidden sm:h-40 sm:min-h-0">
+                        <div className="relative h-full min-h-[116px] overflow-hidden sm:min-h-[132px]">
                           <DataImage
                             src={item.imageUrl}
                             alt={item.name}
                             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
                           />
-                          <div className="absolute inset-x-0 top-0 h-14 bg-gradient-to-b from-black/35 to-transparent" />
-                          <span
-                            className={`absolute left-2 top-2 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[9px] font-extrabold text-white shadow-sm ${
-                              item.isVeg ? 'bg-emerald-600' : 'bg-orange-500'
-                            }`}
-                          >
-                            {item.isVeg ? (
-                              <Leaf
-                                className="h-2.5 w-2.5"
-                                aria-hidden="true"
-                              />
-                            ) : (
-                              <Flame
-                                className="h-2.5 w-2.5"
-                                aria-hidden="true"
-                              />
-                            )}
-                            {item.isVeg ? 'Veg' : 'Non-veg'}
-                          </span>
                         </div>
-                        <div className="flex min-w-0 flex-1 flex-col p-3 sm:p-4">
-                          <h3 className="text-[20px] font-semibold leading-[1.12] text-foreground">
+                        <div className="flex min-w-0 flex-1 flex-col justify-between p-2.5 sm:p-3">
+                          <h3 className="line-clamp-2 text-sm font-semibold leading-5 text-foreground sm:text-base">
                             {item.name}
                           </h3>
-                          <div className="mt-1.5 flex items-baseline justify-between gap-2 sm:mt-2">
-                            <p className="money-text whitespace-nowrap text-lg font-extrabold leading-none text-primary">
-                              {formatCurrency(item.pricePerKg)}{' '}
-                              <span className="text-[11px] font-semibold text-muted-foreground">
+                          <div className="mt-1 flex items-center justify-between gap-2">
+                            <p className="money-text whitespace-nowrap text-sm font-bold leading-none text-primary sm:text-base">
+                              {formatCurrency(item.pricePerKg).replace(/\.00$/, '')}{' '}
+                              <span className="text-[10px] font-semibold text-muted-foreground">
                                 / kg
                               </span>
                             </p>
                             {quoteById.get(item.id)?.lineTotal && (
-                              <span className="money-text shrink-0 text-sm font-extrabold text-foreground">
+                              <span className="money-text shrink-0 text-xs font-bold text-foreground">
                                 {formatCurrency(
                                   quoteById.get(item.id)!.lineTotal,
                                 )}
                               </span>
                             )}
                           </div>
-                          <span className="mt-2 inline-flex w-fit items-center gap-1 rounded-full bg-primary/[0.06] px-2 py-1 text-[9px] font-bold text-primary sm:text-[10px]">
-                            <Scale className="h-3 w-3" aria-hidden="true" />
-                            Bulk portions
-                          </span>
-                          <div className="mt-auto flex w-full flex-wrap items-center justify-between gap-2 pt-2.5 sm:pt-4">
+                          <div className="mt-2 flex w-full flex-wrap items-center justify-between gap-2">
+                            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
+                              {item.isVeg ? <Leaf className="h-3 w-3 text-emerald-700" aria-hidden="true" /> : <Flame className="h-3 w-3 text-orange-600" aria-hidden="true" />}
+                              {item.isVeg ? 'Veg' : 'Non-veg'}
+                            </span>
                             {weights[item.id] ? (
-                              <div className="flex items-center rounded-xl border bg-background">
+                              <div className="flex h-9 items-center rounded-md border bg-background">
                                 <button
                                   type="button"
                                   disabled={saving}
@@ -541,11 +537,11 @@ export function KgOrderBuilder() {
                                     )
                                   }
                                   aria-label={`Decrease ${item.name} weight by ${formatWeightKg(weightIncrementGrams)} kilograms`}
-                                  className="grid h-11 w-11 place-items-center text-primary disabled:opacity-40"
+                                  className="grid h-9 w-8 place-items-center text-primary disabled:opacity-40"
                                 >
                                   <Minus className="h-4 w-4" />
                                 </button>
-                                <span className="min-w-12 text-center text-xs font-bold sm:min-w-16 sm:text-sm">
+                                <span className="min-w-11 text-center text-xs font-bold sm:min-w-14 sm:text-sm">
                                   {weights[item.id] / 1000} kg
                                 </span>
                                 <button
@@ -561,7 +557,7 @@ export function KgOrderBuilder() {
                                     )
                                   }
                                   aria-label={`Increase ${item.name} weight by ${formatWeightKg(weightIncrementGrams)} kilograms`}
-                                  className="grid h-11 w-11 place-items-center text-primary disabled:opacity-40"
+                                  className="grid h-9 w-8 place-items-center text-primary disabled:opacity-40"
                                 >
                                   <Plus className="h-4 w-4" />
                                 </button>
@@ -574,9 +570,9 @@ export function KgOrderBuilder() {
                                 onClick={() =>
                                   changeWeight(item.id, defaultWeightGrams)
                                 }
-                                className="h-11 px-3"
+                                className="h-9 px-2.5 text-xs"
                               >
-                                Add {formatWeightKg(defaultWeightGrams)} kg{' '}
+                                Add{' '}
                                 <Plus className="ml-1.5 h-4 w-4" />
                               </Button>
                             )}
@@ -588,62 +584,10 @@ export function KgOrderBuilder() {
                 </section>
               ))}
             </div>
-            <aside className="rounded-2xl border bg-card p-5 lg:sticky lg:top-24">
-              <h2 className="font-sans text-2xl font-semibold">Your selection</h2>
-              <div className="mt-4 space-y-3" aria-live="polite">
-                {quote?.items.map((item) => (
-                  <div key={item.menuItemId} className="border-b pb-3 text-sm">
-                    <div className="flex justify-between gap-3">
-                      <span>{item.menuItemName}</span>
-                      <strong className="money-text">
-                        {formatCurrency(item.lineTotal)}
-                      </strong>
-                    </div>
-                    <p className="money-text mt-1 text-xs text-muted-foreground">
-                      {(item.weightGrams ?? 0) / 1000} kg ×{' '}
-                      {formatCurrency(item.pricePerKg)} / kg
-                    </p>
-                  </div>
-                ))}
-                {quoting && (
-                  <p role="status" className="text-sm">
-                    Updating total…
-                  </p>
-                )}
-                {quoteError && (
-                  <p role="alert" className="text-sm text-red-700">
-                    {quoteError}
-                  </p>
-                )}
-              </div>
-              <div className="mt-5 flex justify-between font-bold">
-                <span>Food subtotal</span>
-                <span className="money-text">
-                  {quote ? formatCurrency(quote.totalAmount) : '—'}
-                </span>
-              </div>
-              <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                Excluding delivery.
-              </p>
-              <Button
-                className="mt-5 w-full"
-                disabled={!quote || quoting || saving || !selectedItems.length}
-                onClick={() => void save()}
-              >
-                {saving
-                  ? 'Saving…'
-                  : session
-                    ? requestedCart
-                      ? 'Update cart'
-                      : 'Add to cart'
-                    : 'Sign in to continue'}
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            </aside>
           </div>
         )}
       </div>
-      {config && (
+      {config && selectedItems.length > 0 && (
         <MobileOrderBar label="Order by KG total and cart">
           <div className="mobile-order-bar-row">
             <div className="mobile-order-bar-summary">
@@ -655,8 +599,8 @@ export function KgOrderBuilder() {
                 {quoting
                   ? 'Updating…'
                   : quote
-                    ? formatCurrency(quote.totalAmount)
-                    : 'Select dishes'}
+                    ? formatCurrency(quote.totalAmount).replace(/\.00$/, '')
+                    : 'Updating total'}
               </span>
             </div>
             <Button
@@ -668,7 +612,7 @@ export function KgOrderBuilder() {
                 ? 'Saving…'
                 : requestedCart
                   ? 'Update cart'
-                  : 'Add to cart'}
+                  : 'View cart'}
               <ArrowRight className="ml-1 h-4 w-4" aria-hidden="true" />
             </Button>
           </div>

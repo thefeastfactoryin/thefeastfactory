@@ -13,7 +13,11 @@ export function MobileOrderBar({
   return (
     <section
       aria-label={label}
-      className={checkout ? 'mobile-order-bar !bottom-0' : 'mobile-order-bar'}
+      className={
+        checkout
+          ? 'mobile-order-bar !bottom-0 pb-[max(.5rem,env(safe-area-inset-bottom))]'
+          : 'mobile-order-bar'
+      }
     >
       {children}
     </section>

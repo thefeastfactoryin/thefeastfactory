@@ -19,8 +19,6 @@ import {
   MessageSquareText,
   Minus,
   Package,
-  Pencil,
-  Phone,
   Plus,
   ShoppingBag,
   Truck,
@@ -888,18 +886,18 @@ export default function CartPage() {
     : multiCartQuote?.totalAmount;
 
   return (
-    <main className="bg-background pb-20 lg:pb-10">
+    <main className="bg-background pb-[calc(3.5rem+env(safe-area-inset-bottom)+1rem)] lg:pb-10">
       <Script
         src="https://checkout.razorpay.com/v1/checkout.js"
         strategy="afterInteractive"
       />
 
-      <div className="mx-auto w-full max-w-[1320px] px-4 py-4 sm:px-6 sm:py-5 lg:px-8">
-        <header className="mb-4 sm:mb-6">
-          <h1 className="font-serif text-2xl font-semibold leading-tight text-foreground sm:text-3xl">
+      <div className="mx-auto w-full max-w-[1320px] px-3 py-4 sm:px-5 sm:py-5 lg:px-8">
+        <header className="mb-2 sm:mb-4">
+          <h1 className="font-serif text-xl font-semibold leading-tight text-foreground sm:text-2xl">
             Complete your order
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="mt-0.5 text-xs text-muted-foreground">
             Confirm delivery and order details.
           </p>
         </header>
@@ -1085,9 +1083,9 @@ export default function CartPage() {
           </div>
         )}
 
-        <div className="grid gap-x-10 gap-y-2 lg:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.9fr)] lg:items-start">
-          <div className="min-w-0">
-            {isMultiCart && !pendingOrder && (
+        <div className="grid gap-x-10 gap-y-2.5 lg:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.9fr)] lg:items-start">
+          <div className="min-w-0 space-y-2.5">
+            {/* {isMultiCart && !pendingOrder && (
               <section className="rounded-2xl border border-primary/15 bg-primary/[0.045] p-4 sm:p-5">
                 <div className="flex items-start gap-3">
                   <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-primary shadow-sm">
@@ -1107,7 +1105,7 @@ export default function CartPage() {
                   </div>
                 </div>
               </section>
-            )}
+            )} */}
             {pendingOrder ? (
               <EventSummary cart={cart} />
             ) : (
@@ -1138,38 +1136,43 @@ export default function CartPage() {
               />
             )}
 
-            <section className="border-b border-border/70 py-4">
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <h2 className="text-lg font-semibold">Your menu</h2>
+            <section className="rounded-lg border border-border/60 bg-white/80 p-3 sm:p-4">
+              <div className="flex items-center justify-between gap-4">
+                <h2 className="text-base font-semibold text-foreground">Your order</h2>
+                {!pendingOrder && (
+                  <Link
+                    href={editHref}
+                    className="inline-flex min-h-8 shrink-0 items-center px-1 text-sm font-medium text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                  >
+                    Edit
+                  </Link>
+                )}
+              </div>
+              <div className="mt-1.5 min-w-0">
                   <p className="mt-1 text-sm font-semibold text-foreground">
                     {cart.package.name}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    {reviewRows.length} dishes ·{' '}
+                    {reviewRows.length} {reviewRows.length === 1 ? 'dish' : 'dishes'} ·{' '}
                     {cart.package.type === 'ORDER_BY_KG'
                       ? `${cart.items.reduce((sum, item) => sum + (item.weightGrams ?? 0), 0) / 1000} kg`
                       : `${quote?.guestCount ?? cart.guestCount ?? cart.package.minGuestCount} ${isMealBox ? 'boxes' : 'guests'}`}
                   </p>
-                </div>
-                {!pendingOrder && (
-                  <Link
-                    href={editHref}
-                    className="inline-flex min-h-10 shrink-0 items-center gap-1.5 px-2 text-sm font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-                  >
-                    <Pencil className="h-4 w-4" aria-hidden="true" /> Edit
-                  </Link>
-                )}
               </div>
-              <p className="mt-2 text-sm leading-5 text-muted-foreground">
-                {groupedRows
-                  .map((group) => `${group.rows.length} ${group.name}`)
-                  .join(' · ')}
-              </p>
-              <details className="group mt-1">
-                <summary className="inline-flex min-h-10 cursor-pointer list-none items-center gap-1 text-sm font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
-                  <span className="group-open:hidden">View menu</span>
-                  <span className="hidden group-open:inline">Hide menu</span>
+              {/* <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {groupedRows.map((group) => (
+                  <span
+                    key={group.id}
+                    className="rounded-sm bg-background/80 px-2 py-0.5 text-xs leading-5 text-muted-foreground"
+                  >
+                    {formatCategoryCount(group.name, group.rows.length)}
+                  </span>
+                ))}
+              </div> */}
+              <details className="group mt-0.5">
+                <summary className="inline-flex min-h-8 cursor-pointer list-none items-center gap-1 text-sm font-medium text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+                  <span className="group-open:hidden">View menu →</span>
+                  <span className="hidden group-open:inline">Hide menu ↑</span>
                 </summary>
                 <div className="mt-2 space-y-3 border-t border-border/60 pt-3">
                   {groupedRows.map((group) => (
@@ -1193,20 +1196,13 @@ export default function CartPage() {
               </details>
             </section>
             {!pendingOrder && (
-              <>
-                <section
-                  id="checkout-contact"
-                  className="border-b border-border/70 py-4"
-                >
+              <section
+                id="checkout-contact"
+                className="rounded-lg border border-border/60 bg-white/80 p-3 sm:p-4"
+              >
                   <div className="flex items-center justify-between gap-4">
                     <div className="min-w-0">
-                      <h2 className="text-base font-semibold">Contact</h2>
-                      {!editingContact && (
-                        <p className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
-                          <Phone className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
-                          {contactNumber ? `+91 ${contactNumber}` : 'Add a contact number'}
-                        </p>
-                      )}
+                      <h2 className="text-base font-semibold text-foreground">Contact</h2>
                     </div>
                     <button
                       type="button"
@@ -1216,16 +1212,16 @@ export default function CartPage() {
                           ? void saveContactNumber()
                           : setEditingContact(true)
                       }
-                      className="inline-flex min-h-10 shrink-0 items-center gap-1.5 px-2 text-sm font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60"
+                      className="inline-flex min-h-8 shrink-0 items-center px-1 text-xs font-medium text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60"
                     >
-                      {editingContact ? (
-                        <Check className="h-4 w-4" aria-hidden="true" />
-                      ) : (
-                        <Pencil className="h-4 w-4" aria-hidden="true" />
-                      )}
                       {savingContact ? 'Saving…' : editingContact ? 'Save' : 'Edit'}
                     </button>
                   </div>
+                  {!editingContact && (
+                    <p className="mt-0.5 text-sm text-muted-foreground">
+                      {contactNumber ? `+91 ${contactNumber}` : 'Add a contact number'}
+                    </p>
+                  )}
                   {editingContact && (
                     <div className="mt-2 flex min-h-12 max-w-sm items-center overflow-hidden rounded-lg border border-input bg-white focus-within:ring-2 focus-within:ring-primary/30">
                       <label
@@ -1254,16 +1250,11 @@ export default function CartPage() {
                       />
                     </div>
                   )}
-                </section>
-
-                <section className="py-4">
+                <div className="mt-1.5 border-t border-border/60 pt-1">
                   {specialNotes && !notesExpanded ? (
                     <div className="flex items-start justify-between gap-4">
                       <div className="min-w-0">
-                        <h2 className="flex items-center gap-2 text-sm font-semibold">
-                          <MessageSquareText className="h-4 w-4 text-primary" aria-hidden="true" />
-                          Kitchen note
-                        </h2>
+                        <p className="text-xs font-semibold text-foreground">Kitchen note</p>
                         <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
                           “{specialNotes}”
                         </p>
@@ -1271,7 +1262,7 @@ export default function CartPage() {
                       <button
                         type="button"
                         onClick={() => setNotesExpanded(true)}
-                        className="min-h-10 shrink-0 px-2 text-sm font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                        className="min-h-8 shrink-0 px-1 text-xs font-medium text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                       >
                         Edit
                       </button>
@@ -1297,12 +1288,12 @@ export default function CartPage() {
                         placeholder="e.g. Keep the food mildly spiced and pack chutney separately."
                         maxLength={1000}
                         rows={3}
-                        className="mt-2 w-full max-w-2xl resize-y rounded-lg border border-border bg-white p-3 text-sm leading-6 outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15"
+                        className="mt-1.5 w-full max-w-2xl resize-y rounded-md border border-border bg-background p-2.5 text-sm leading-6 outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15"
                       />
                       <button
                         type="button"
                         onClick={() => setNotesExpanded(false)}
-                        className="mt-1 min-h-10 text-sm font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                        className="min-h-8 text-sm font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                       >
                         Done
                       </button>
@@ -1311,35 +1302,48 @@ export default function CartPage() {
                     <button
                       type="button"
                       onClick={() => setNotesExpanded(true)}
-                      className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                      className="inline-flex min-h-8 items-center gap-2 text-sm font-medium text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                     >
                       <Plus className="h-4 w-4" aria-hidden="true" />
                       Add a note for the kitchen
                     </button>
                   )}
-                </section>
-              </>
+                </div>
+              </section>
             )}
           </div>
 
           <aside className="h-fit lg:sticky lg:top-24">
-            <section className="border-y border-border bg-white py-4 lg:rounded-xl lg:border lg:p-5 lg:shadow-sm">
-              <div className="border-b border-border/70 pb-3">
-                <p className="eyebrow">
-                  {pendingOrder ? 'Payment pending' : 'Order summary'}
-                </p>
-                {activeCarts.length > 1 && !pendingOrder && (
-                  <h2 className="mt-1 text-lg font-semibold">
-                    {activeCarts.length} packages
+            <section className="rounded-lg border border-border/60 bg-white/80 p-3 sm:p-4">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <h2 className="text-base font-semibold text-foreground">
+                    {pendingOrder ? 'Payment pending' : 'Order summary'}
                   </h2>
+                  {activeCarts.length > 1 && !pendingOrder && (
+                    <p className="text-xs text-muted-foreground">
+                      {activeCarts.length} packages
+                    </p>
+                  )}
+                </div>
+                {!pendingOrder && (
+                  <button
+                    type="button"
+                    aria-label="Clear cart"
+                    title="Clear cart"
+                    onClick={() => setClearCartOpen(true)}
+                    className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-muted-foreground transition hover:bg-red-50 hover:text-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                  >
+                    <Trash2 className="h-4 w-4" aria-hidden="true" />
+                  </button>
                 )}
               </div>
               {pendingOrder ? (
-                <div className="pt-4">
-                  <div className="flex items-center justify-between gap-4 border-b pb-4">
+                <div>
+                  <div className="flex items-center justify-between gap-4 border-t border-border/60 pt-2">
                     <span className="font-semibold">Total</span>
-                    <strong className="money-text text-2xl font-bold text-primary">
-                      {formatCurrency(pendingBatch?.totalAmount ?? pendingOrder.totalAmount)}
+                    <strong className="money-text text-lg font-bold text-primary">
+                      {formatCheckoutCurrency(pendingBatch?.totalAmount ?? pendingOrder.totalAmount)}
                     </strong>
                   </div>
                   <div className="mt-4">
@@ -1355,7 +1359,7 @@ export default function CartPage() {
                   </Button>
                 </div>
               ) : (
-                <div className="pt-4">
+                <div>
                   {multiCartQuote ? (
                     <MultiCartPriceSummary
                       carts={activeCarts}
@@ -1378,9 +1382,9 @@ export default function CartPage() {
                   )}
                   <div className="hidden lg:block">
                     <Button
-                      className="mt-4 h-12 w-full"
+                      className="mt-3 h-11 w-full"
                       onClick={requestPayment}
-                      disabled={!multiCartQuote?.valid || quoteLoading || paying}
+                      disabled={quoteLoading || paying}
                     >
                       <LockKeyhole className="mr-2 h-4 w-4" aria-hidden="true" />
                       {paying
@@ -1389,18 +1393,11 @@ export default function CartPage() {
                           ? 'Pay securely'
                           : 'Complete details'}
                     </Button>
-                    <p className="mt-2 flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
+                    <p className="mt-1.5 flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
                       <LockKeyhole className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                       Secure payment
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setClearCartOpen(true)}
-                    className="mt-4 min-h-10 text-sm text-red-700 underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700"
-                  >
-                    Clear cart
-                  </button>
                 </div>
               )}
             </section>
@@ -1464,7 +1461,7 @@ export default function CartPage() {
           <div className="mobile-order-bar-summary">
             <strong className="mobile-order-bar-total">
               {mobileTotal != null
-                ? formatCurrency(mobileTotal)
+                ? formatCheckoutCurrency(mobileTotal)
                 : quoteLoading
                   ? 'Updating…'
                   : 'Add event details'}
@@ -1480,7 +1477,7 @@ export default function CartPage() {
             <Button
               className="mobile-order-bar-action"
               onClick={requestPayment}
-              disabled={!multiCartQuote?.valid || quoteLoading || paying}
+              disabled={quoteLoading || paying}
             >
               <LockKeyhole className="mr-2 h-4 w-4" />
               {paying
@@ -1576,84 +1573,77 @@ function MultiCartPriceSummary({
     0,
     ...aggregate.carts.map((entry) => entry.quote.cutleryExtraCount ?? 0),
   );
-  const cutleryUnitPrice =
-    aggregate.carts[0]?.quote.cutleryUnitPrice ?? '5.00';
   const cutleryTotal = Number(aggregate.cutleryTotal ?? 0);
+  const deliveryLabel = assistedPeople
+    ? `Delivery · Serving team · ${assistedPeople} ${assistedPeople === 1 ? 'person' : 'people'}`
+    : 'Delivery';
   return (
-    <>
-      <div className="space-y-3 text-sm">
+    <div>
+      <div className="space-y-1.5">
         {aggregate.carts.map(({ cartId, quote }) => {
           const packageCart = cartById.get(cartId);
           const unitLabel =
             packageCart?.package.type === 'MEAL_BOX' ? 'box' : 'guest';
-          return (
-            <div key={cartId} className="border-b border-border/60 pb-2">
-              <PriceLine
-                label={packageCart?.package.name ?? quote.packageName}
-                value={formatCurrency(quote.subtotalAmount)}
-              />
-              <p className="mt-1 text-[11px] leading-5 text-muted-foreground">
-                {formatMenuCalculation({
+          const isKg =
+            packageCart?.package.type === 'ORDER_BY_KG' ||
+            quote.packageType === 'ORDER_BY_KG';
+          const packageCalculation =
+            quote.finalPerPlatePrice != null &&
+            quote.guestCount != null &&
+            !isKg
+              ? `${formatCheckoutCurrency(quote.finalPerPlatePrice)} × ${quote.guestCount} ${quote.guestCount === 1 ? unitLabel : unitLabel === 'box' ? 'boxes' : 'guests'}`
+              : formatMenuCalculation({
                   basePrice: quote.basePerPlatePrice,
                   guestCount: quote.guestCount,
                   unitLabel,
                   items: quote.items,
-                })}
-              </p>
+                }).replace(/\.00/g, '');
+          return (
+            <div
+              key={cartId}
+              className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3"
+            >
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-foreground">
+                  {packageCart?.package.name ?? quote.packageName}
+                </p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {packageCalculation}
+                </p>
+              </div>
+              <strong className="money-text shrink-0 text-sm font-semibold text-foreground">
+                {formatCheckoutCurrency(quote.subtotalAmount)}
+              </strong>
             </div>
           );
         })}
-        {aggregate.carts.length > 1 && (
-          <PriceLine
-            label="Packages subtotal"
-            value={formatCurrency(aggregate.subtotalAmount)}
-          />
-        )}
+      </div>
+      <div className="mt-2 space-y-1 text-xs">
         {extraCutleryCount > 0 && (
           <PriceLine
-            label={`Extra cutlery (${extraCutleryCount} × ${formatCurrency(cutleryUnitPrice)})`}
-            value={formatCurrency(cutleryTotal)}
+            label={`Extra cutlery · ${extraCutleryCount} ${extraCutleryCount === 1 ? 'set' : 'sets'}`}
+            value={formatCheckoutCurrency(cutleryTotal)}
           />
         )}
-        <div className="border-t border-border/60 pt-2">
-          <PriceLine
-            label="Delivery"
-            value={Number(aggregate.deliveryFee) === 0
-              ? 'Included'
-              : formatCurrency(aggregate.deliveryFee)}
-          />
-          {assistedPeople > 0 && (
-            <div className="mt-2 flex items-center justify-between gap-4 border-t border-border/70 pt-2 text-xs">
-              <span className="flex items-center gap-1.5 font-medium text-muted-foreground">
-                <UserRound
-                  className="h-3.5 w-3.5 text-primary"
-                  aria-hidden="true"
-                />
-                Delivery & Serving Team
-              </span>
-              <span className="font-semibold text-foreground">
-                {assistedPeople}{' '}
-                {assistedPeople === 1 ? 'service person' : 'service persons'}
-              </span>
-            </div>
-          )}
-          {/* {deliveryQuote?.region && (
-            <p className="mt-1 text-[11px] leading-5 text-muted-foreground">
-              {deliveryQuote.region.name} kitchen · {deliveryQuote.distanceKm}{' '}
-              km
-            </p>
-          )} */}
-        </div>
+        <PriceLine
+          label={deliveryLabel}
+          value={Number(aggregate.deliveryFee) === 0
+            ? 'Included'
+            : formatCheckoutCurrency(aggregate.deliveryFee)}
+        />
       </div>
-      <div className="my-3 h-px bg-border" />
-      <div className="flex items-center justify-between gap-4">
+      <div className="mt-2 flex items-center justify-between gap-4 border-t border-border pt-2">
         <span className="font-semibold">Total</span>
-        <strong className="money-text text-2xl font-bold text-primary">
-          {formatCurrency(aggregate.totalAmount)}
+        <strong className="money-text text-base font-bold text-primary">
+          {formatCheckoutCurrency(aggregate.totalAmount)}
         </strong>
       </div>
-    </>
+    </div>
   );
+}
+
+function formatCheckoutCurrency(value: string | number | null | undefined) {
+  return formatCurrency(value).replace(/\.00$/, '');
 }
 
 function CutleryOptions({
@@ -1674,110 +1664,80 @@ function CutleryOptions({
   const total = Number(quote?.cutleryTotal ?? 0);
 
   return (
-    <section className="mt-3 border-t border-border/70 pt-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent/15 text-primary">
-            <Utensils className="h-4 w-4" aria-hidden="true" />
-          </span>
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-sm font-bold text-foreground">Cutlery</h3>
-              <span className="text-sm text-muted-foreground">
-                {includedCount} sets included
-              </span>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Plate + Spoon · Additional sets {formatCurrency(unitPrice)} each
-            </p>
-          </div>
+    <section className="mt-3 rounded-md border border-border/55 bg-white/75 p-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <Utensils className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+          <h3 className="text-sm font-semibold text-foreground">Cutlery</h3>
         </div>
-        {extraCount === 0 ? (
-          <div className="flex w-full justify-end sm:w-auto">
+        <span className="shrink-0 text-xs font-medium text-muted-foreground">
+          {includedCount} included
+        </span>
+      </div>
+      <p className="mt-0.5 text-xs text-muted-foreground">
+        Plate + Spoon · Extra {formatCurrency(unitPrice).replace(/\.00$/, '')}/set
+      </p>
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <span className="text-xs font-medium text-muted-foreground">Extra sets</span>
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="inline-flex h-9 items-center overflow-hidden rounded-md border border-border bg-background">
+            <button
+              type="button"
+              disabled={disabled || extraCount <= 0}
+              onClick={() => onChange(extraCount - 1)}
+              className="grid h-9 w-9 place-items-center text-foreground/75 transition hover:bg-primary/[0.06] hover:text-primary disabled:text-muted-foreground/35"
+              aria-label="Decrease extra cutlery sets"
+            >
+              <Minus className="h-3.5 w-3.5" />
+            </button>
+            <label htmlFor="extra-cutlery-count" className="sr-only">
+              Extra cutlery sets
+            </label>
+            <input
+              id="extra-cutlery-count"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              disabled={disabled}
+              defaultValue={extraCount}
+              key={extraCount}
+              onFocus={(event) => event.currentTarget.select()}
+              onBlur={(event) => {
+                const next = Math.max(
+                  0,
+                  Math.min(10000, Math.round(Number(event.target.value) || 0)),
+                );
+                event.currentTarget.value = String(next);
+                if (next !== extraCount) onChange(next);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') event.currentTarget.blur();
+              }}
+              onChange={(event) => {
+                event.currentTarget.value = event.currentTarget.value
+                  .replace(/\D/g, '')
+                  .slice(0, 5);
+              }}
+              className="money-text h-9 w-9 border-x border-border bg-transparent text-center text-sm font-semibold text-foreground outline-none focus:bg-primary/[0.03] disabled:opacity-60"
+              aria-describedby="additional-cutlery-help"
+            />
             <button
               type="button"
               disabled={disabled}
-              onClick={() => onChange(1)}
-              className="inline-flex min-h-10 items-center justify-center px-2 text-sm font-semibold text-primary transition hover:underline disabled:opacity-50"
+              onClick={() => onChange(extraCount + 1)}
+              className="grid h-9 w-9 place-items-center text-foreground/75 transition hover:bg-primary/[0.06] hover:text-primary disabled:opacity-50"
+              aria-label="Increase extra cutlery sets"
             >
-              Add more
+              <Plus className="h-3.5 w-3.5" />
             </button>
           </div>
-        ) : (
-          <div className="flex w-full shrink-0 items-center justify-between gap-3 sm:w-auto">
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">
-                {extraCount} extra · {formatCurrency(total)}
-              </span>
-              <span
-                id="additional-cutlery-help"
-                className="sr-only"
-              >
-                Additional cutlery total {formatCurrency(total)}
-              </span>
-            </div>
-            <div className="flex items-center justify-between gap-2">
-              <button
-                type="button"
-                disabled={disabled || extraCount <= 0}
-                onClick={() => onChange(extraCount - 1)}
-                className="grid h-9 w-9 place-items-center rounded-lg bg-primary text-white disabled:bg-muted disabled:text-muted-foreground"
-                aria-label="Remove additional cutlery set"
-              >
-                <Minus className="h-4 w-4" />
-              </button>
-              <label
-                htmlFor="extra-cutlery-count"
-                className="flex h-9 min-w-28 items-center justify-center gap-1.5 rounded-lg border border-border bg-white px-3 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15"
-              >
-                <input
-                  id="extra-cutlery-count"
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  disabled={disabled}
-                  defaultValue={extraCount}
-                  key={extraCount}
-                  onFocus={(event) => event.currentTarget.select()}
-                  onBlur={(event) => {
-                    const next = Math.max(
-                      0,
-                      Math.min(
-                        10000,
-                        Math.round(Number(event.target.value) || 0),
-                      ),
-                    );
-                    event.currentTarget.value = String(next);
-                    if (next !== extraCount) onChange(next);
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') event.currentTarget.blur();
-                  }}
-                  onChange={(event) => {
-                    event.currentTarget.value = event.currentTarget.value
-                      .replace(/\D/g, '')
-                      .slice(0, 5);
-                  }}
-                  className="money-text w-10 bg-transparent text-center text-sm font-extrabold text-foreground outline-none disabled:opacity-60"
-                  aria-describedby="additional-cutlery-help"
-                  aria-label="Additional cutlery sets"
-                />
-                <span className="text-xs font-bold text-muted-foreground">
-                  additional
-                </span>
-              </label>
-              <button
-                type="button"
-                disabled={disabled}
-                onClick={() => onChange(extraCount + 1)}
-                className="grid h-9 w-9 place-items-center rounded-lg bg-primary text-white disabled:opacity-50"
-                aria-label="Add additional cutlery set"
-              >
-                <Plus className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-        )}
+          <span
+            id="additional-cutlery-help"
+            className="money-text min-w-8 text-right text-xs font-semibold text-foreground"
+          >
+            {formatCurrency(total).replace(/\.00$/, '')}
+          </span>
+        </div>
       </div>
     </section>
   );
@@ -1812,48 +1772,54 @@ function DeliveryServiceOptions({
     {
       type: 'STANDARD',
       title: 'Standard Delivery',
-      description: 'Food delivered to your building or office entrance.',
+      description: 'Building/office entrance',
       addon: 0,
       icon: Truck,
     },
     {
       type: 'DOORSTEP',
       title: 'Doorstep Delivery',
-      description: 'We deliver the food directly to your doorstep.',
+      description: 'Delivered to your doorstep',
       addon: 399,
       icon: Package,
     },
     {
       type: 'ASSISTED',
       title: 'Delivery & Serving Team',
-      description:
-        'Serving team will help you unpack and do service for 3 hours.',
+      description: '3-hour serving assistance',
       addon: helperCount * 999,
       icon: UserRound,
     },
   ];
 
   return (
-    <section className="mt-3 border-t border-border/70 pt-3">
+    <section className="mt-3">
       <h3 className="mb-2 text-sm font-bold">Delivery service</h3>
-      <div className="space-y-2" role="radiogroup" aria-label="Delivery service">
-        {options.map(({ type, title, description, addon, icon: Icon }) => {
+      <div
+        className="rounded-md border border-border/55 bg-white/75 p-1.5"
+        role="radiogroup"
+        aria-label="Delivery service"
+      >
+        {options.map(({ type, title, description, addon, icon: Icon }, index) => {
           const isSelected = selected === type;
           const total = baseDelivery + addon;
           const priceLabel =
             addon === 0
               ? total === 0
                 ? 'Included'
-                : formatCurrency(total)
-              : `+${formatCurrency(addon)}`;
+                : formatCurrency(total).replace(/\.00$/, '')
+              : `+${formatCurrency(addon).replace(/\.00$/, '')}`;
           return (
             <div
               key={type}
               className={cn(
-                'rounded-lg border transition-colors',
+                'transition-colors',
                 isSelected
-                  ? 'border-primary bg-primary/[0.045]'
-                  : 'border-border/80 bg-white hover:border-primary/35',
+                  ? cn(
+                      'rounded-sm bg-primary/[0.045]',
+                      index < options.length - 1 && 'border-b border-border/60',
+                    )
+                  : 'border-b border-border/60 last:border-b-0',
                 disabled && 'opacity-70',
               )}
             >
@@ -1865,25 +1831,28 @@ function DeliveryServiceOptions({
                 onClick={() =>
                   onChange(type, type === 'ASSISTED' ? helperCount : 0)
                 }
-                className="flex min-h-[68px] w-full items-center gap-3 rounded-lg px-3 py-2 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                className={cn(
+                  'flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
+                  isSelected ? 'min-h-12' : 'min-h-11',
+                )}
               >
                 <span
                   className={cn(
-                    'grid h-5 w-5 shrink-0 place-items-center rounded-full border',
+                    'grid h-4 w-4 shrink-0 place-items-center rounded-full border',
                     isSelected
                       ? 'border-primary bg-primary text-white'
                       : 'border-muted-foreground/60 bg-white',
                   )}
                   aria-hidden="true"
                 >
-                  {isSelected && <Check className="h-3.5 w-3.5" />}
+                  {isSelected && <Check className="h-3 w-3" />}
                 </span>
-                <Icon className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                <Icon className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden="true" />
                 <span className="min-w-0 flex-1">
-                  <strong className="block text-sm font-semibold text-foreground">
+                  <strong className="block truncate whitespace-nowrap text-sm font-semibold text-foreground">
                     {title}
                   </strong>
-                  <span className="block text-xs leading-4 text-muted-foreground">
+                  <span className="block truncate whitespace-nowrap text-xs leading-4 text-muted-foreground">
                     {description}
                   </span>
                 </span>
