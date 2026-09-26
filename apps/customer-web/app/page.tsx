@@ -54,7 +54,7 @@ function formatDiscoveryPrice(value: string | number) {
 
 const orderOptionCopy = {
   PACKAGES: {
-    label: 'COMPLETE MENU',
+    label: 'Complete menu',
     title: 'Packages',
     description: 'Curated menus for every celebration',
     image: '/order-occasion.png',
@@ -62,7 +62,7 @@ const orderOptionCopy = {
     alt: 'A complete catered spread prepared for a celebration',
   },
   MEAL_BOX: {
-    label: 'INDIVIDUAL MEALS',
+    label: 'Individual meals',
     title: 'Meal Boxes',
     description: 'Complete meals, individually packed',
     image: '/order-mealbox.png',
@@ -70,7 +70,7 @@ const orderOptionCopy = {
     alt: 'An individual compartment meal box',
   },
   ORDER_BY_KG: {
-    label: 'BULK DISHES',
+    label: 'Bulk dishes',
     title: 'Order by KG',
     description: 'Your favourite dishes, by the kilo',
     image: '/order-by-kg-bulk.png',
@@ -78,7 +78,7 @@ const orderOptionCopy = {
     alt: 'Bulk dishes prepared for ordering by weight',
   },
   CUSTOM_MENU: {
-    label: 'CUSTOM MENU',
+    label: 'Custom menu',
     title: 'Build Your Own',
     description: 'Pick your dishes. Make it yours.',
     image: '/order-build.png',
@@ -418,7 +418,7 @@ export default function HomePage() {
                   </div>
                   <div className="flex items-start justify-between gap-2.5">
                     <div className="min-w-0">
-                      <p className="text-[9px] font-extrabold uppercase tracking-[0.18em] text-primary/80">
+                      <p className="text-[9px] font-extrabold text-primary/80">
                         {copy?.label ?? offering.code}
                       </p>
                       <h3 className="mt-2 font-sans text-[20px] font-semibold leading-[1.08] tracking-[-0.02em] text-foreground">
@@ -480,7 +480,7 @@ export default function HomePage() {
                     </div>
                     <div className="relative min-w-0 px-3 py-2.5 pr-9">
                       {pkg.badgeLabel && (
-                        <p className="text-[8px] font-bold uppercase tracking-[0.14em] text-primary/70">
+                        <p className="text-[8px] font-bold text-primary/70">
                           {pkg.badgeLabel}
                         </p>
                       )}
@@ -533,7 +533,7 @@ export default function HomePage() {
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent" />
                       {pkg.badgeLabel && (
-                        <span className="absolute left-3 top-3 rounded-full bg-primary px-3 py-1 text-[11px] font-extrabold uppercase tracking-wide text-white">
+                        <span className="absolute left-3 top-3 rounded-full bg-primary px-3 py-1 text-[11px] font-extrabold text-white">
                           {pkg.badgeLabel}
                         </span>
                       )}

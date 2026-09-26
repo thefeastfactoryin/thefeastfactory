@@ -240,7 +240,7 @@ export function PackageDetailsModal({
                                 {!isVegetarianPackage && (
                                   <span
                                     className={cn(
-                                      'inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase sm:mt-2 sm:px-2 sm:py-1 sm:text-[10px]',
+                                      'inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold sm:mt-2 sm:px-2 sm:py-1 sm:text-[10px]',
                                       item.isVeg
                                         ? 'bg-emerald-50 text-emerald-700'
                                         : 'bg-orange-50 text-orange-700',
@@ -273,7 +273,7 @@ export function PackageDetailsModal({
             </div>
 
             <aside className="hidden h-fit rounded-2xl border bg-muted/35 p-5 lg:sticky lg:top-5 lg:block">
-              <p className="text-xs font-bold uppercase tracking-[.14em] text-muted-foreground">
+              <p className="text-xs font-bold text-muted-foreground">
                 Package essentials
               </p>
               <p className="money-text mt-3 text-3xl font-extrabold text-primary">

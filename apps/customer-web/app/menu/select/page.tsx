@@ -100,6 +100,7 @@ function MenuSelectContent() {
   const updateItemQuantity = useOrderBuilderStore(
     (state) => state.updateItemQuantity,
   );
+  const removeItem = useOrderBuilderStore((state) => state.removeItem);
   const removeSwap = useOrderBuilderStore((state) => state.removeSwap);
   const clearSelections = useOrderBuilderStore(
     (state) => state.clearSelections,
@@ -117,6 +118,7 @@ function MenuSelectContent() {
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [mobileSummaryOpen, setMobileSummaryOpen] = useState(false);
   const [extrasExpanded, setExtrasExpanded] = useState(false);
+  const [swappableOnly, setSwappableOnly] = useState(false);
   const [expandedSwapId, setExpandedSwapId] = useState<string>();
   const [pendingSwapId, setPendingSwapId] = useState<string>();
   const [detailItem, setDetailItem] = useState<DetailItem>();
@@ -265,33 +267,56 @@ function MenuSelectContent() {
       );
   }, [includedRows, orderedCategoryRules]);
 
+  const extraCategories = useMemo(() => {
+    return orderedCategoryRules
+      .map((rule) => ({
+        id: rule.category.id,
+        name: rule.category.name,
+        count: extraRows.filter(
+          (row) => row.rule.category.id === rule.category.id,
+        ).length,
+      }))
+      .filter(
+        (category, index, rows) =>
+          category.count > 0 &&
+          rows.findIndex((row) => row.id === category.id) === index,
+      );
+  }, [extraRows, orderedCategoryRules]);
+
   const matchesFilters = useCallback(
-    ({ rule, item }: MenuRow) => {
+    ({ rule, item }: MenuRow, includeSwappableFilter = true) => {
       const query = menuSearch.trim().toLowerCase();
       return (
         (menuCategory === 'all' || rule.category.id === menuCategory) &&
         (menuDiet === 'all' || item.isVeg === (menuDiet === 'veg')) &&
+        (!includeSwappableFilter ||
+          !swappableOnly ||
+          (Boolean(item.isSwappable) &&
+            alternativesFor(rule, item).length > 0)) &&
         (!query ||
           `${item.name} ${item.description ?? ''} ${rule.category.name}`
             .toLowerCase()
             .includes(query))
       );
     },
-    [menuCategory, menuDiet, menuSearch],
+    [menuCategory, menuDiet, menuSearch, swappableOnly],
   );
 
   const visibleIncluded = useMemo(
-    () => includedRows.filter(matchesFilters),
+    () => includedRows.filter((row) => matchesFilters(row, true)),
     [includedRows, matchesFilters],
   );
   const visibleExtras = useMemo(
-    () => extraRows.filter(matchesFilters),
+    () => extraRows.filter((row) => matchesFilters(row, false)),
     [extraRows, matchesFilters],
   );
   const activeFilterCount =
     Number(menuCategory !== 'all') +
     Number(menuDiet !== 'all') +
-    Number(Boolean(menuSearch.trim()));
+    Number(Boolean(menuSearch.trim())) +
+    Number(!extrasExpanded && swappableOnly);
+  const activeCategories = extrasExpanded ? extraCategories : categories;
+  const activeMenuCount = extrasExpanded ? extraRows.length : includedRows.length;
 
   const currentSwaps = useMemo(
     () =>
@@ -541,15 +566,10 @@ function MenuSelectContent() {
     );
   }
 
-  const activeCategoryName =
-    categories.find((category) => category.id === menuCategory)?.name ??
-    'All items';
-  const displayActiveCategoryName = formatCategoryLabel(activeCategoryName);
-
   return (
     <main className="bg-ivory pb-44 text-charcoal md:pb-20 lg:pb-16">
       <div className="border-b border-border/70 bg-ivory">
-        <div className="mx-auto max-w-[1440px] px-3 py-2 sm:px-5 sm:py-3 lg:px-6">
+        <div className="mx-auto max-w-[1440px] px-3 py-1 sm:px-5 sm:py-3 lg:px-6">
           <MenuStepIndicator
             current={1}
             context={isMealBox ? 'Meal box' : 'Package'}
@@ -574,7 +594,7 @@ function MenuSelectContent() {
               type="button"
               onClick={() => setFiltersExpanded((value) => !value)}
               className={cn(
-                'flex h-12 w-full items-center border-b px-4 text-sm font-extrabold uppercase text-charcoal transition hover:bg-primary/[0.025]',
+                'flex h-12 w-full items-center border-b px-4 text-sm font-extrabold text-charcoal transition hover:bg-primary/[0.025]',
                 filtersExpanded ? 'justify-between' : 'justify-center',
               )}
               aria-expanded={filtersExpanded}
@@ -600,8 +620,11 @@ function MenuSelectContent() {
                   setDiet={setMenuDiet}
                   category={menuCategory}
                   setCategory={setMenuCategory}
-                  categories={categories}
-                  total={includedRows.length}
+                  categories={activeCategories}
+                  total={activeMenuCount}
+                  extrasMode={extrasExpanded}
+                    swappableOnly={swappableOnly}
+                    setSwappableOnly={setSwappableOnly}
                 />
               </div>
             ) : (
@@ -663,8 +686,8 @@ function MenuSelectContent() {
             </span>
           </div>
 
-          <div className="grid gap-3 rounded-[18px] border border-border/80 bg-white p-3 shadow-[0_12px_32px_-28px_rgba(75,12,23,.65)] sm:grid-cols-[200px_minmax(0,1fr)] sm:items-center sm:gap-4 sm:p-4">
-            <div className="h-32 overflow-hidden rounded-xl border border-border/80 bg-muted sm:h-32">
+          <div className="grid gap-0.5 border-b border-border/30 bg-white px-0 py-0.5 sm:grid-cols-[200px_minmax(0,1fr)] sm:items-center sm:gap-4 sm:border sm:px-4 sm:py-4">
+            <div className="hidden h-32 overflow-hidden rounded-xl border border-border/80 bg-muted sm:block">
               <Image
                 src={isMealBox ? '/order-mealbox.png' : '/pkg-puja.png'}
                 alt=""
@@ -675,17 +698,27 @@ function MenuSelectContent() {
               />
             </div>
             <div className="min-w-0">
-              <div className="flex flex-wrap items-start gap-2 sm:items-center sm:gap-3">
+              <div className="flex min-w-0 items-start justify-between gap-3">
                 <h1 className="min-w-0 flex-1 font-sans text-[22px] font-semibold leading-[1.12] tracking-[-0.015em] text-charcoal sm:text-[30px]">
                   {config.packageName}
                 </h1>
+              </div>
+              <p className="mt-0.5 max-w-2xl text-[13px] leading-5 text-muted-foreground">
+                {isMealBox
+                  ? 'Review the dishes included in your meal box and customise available replacements.'
+                  : 'A complete traditional spread for your special occasion.'}
+              </p>
+              <div className="mt-0 flex items-center justify-between gap-3 border-t border-border/30 pt-0.5">
+                <span className="text-xs font-bold text-muted-foreground">
+                  {isMealBox ? 'Boxes' : 'Guests'}
+                </span>
                 <div className="numeric-text inline-flex h-10 shrink-0 items-center overflow-hidden rounded-lg border border-border bg-white">
                   <button
                     type="button"
                     aria-label={`Decrease ${isMealBox ? 'meal-box' : 'guest'} count`}
                     disabled={guestCount <= (config.minGuestCount ?? 1)}
                     onClick={() => updateBoxCount(guestCount - 1)}
-                    className="grid h-10 w-10 place-items-center text-primary disabled:text-muted-foreground/40"
+                    className="grid h-10 w-10 place-items-center text-primary transition-colors hover:bg-primary/5 disabled:text-muted-foreground/40"
                   >
                     <Minus className="h-4 w-4" />
                   </button>
@@ -698,7 +731,7 @@ function MenuSelectContent() {
                       setBoxCountInput(digits);
                     }}
                     onBlur={() => updateBoxCount(Number(boxCountInput))}
-                    className="h-10 w-14 border-x text-center text-sm font-bold outline-none"
+                    className="h-10 w-10 border-x text-center text-[13px] font-bold outline-none focus:bg-primary/[0.03]"
                   />
                   <button
                     type="button"
@@ -708,25 +741,17 @@ function MenuSelectContent() {
                       guestCount >= config.maxGuestCount,
                     )}
                     onClick={() => updateBoxCount(guestCount + 1)}
-                    className="grid h-10 w-10 place-items-center text-primary disabled:text-muted-foreground/40"
+                    className="grid h-10 w-10 place-items-center text-primary transition-colors hover:bg-primary/5 disabled:text-muted-foreground/40"
                   >
                     <Plus className="h-4 w-4" />
                   </button>
-                  <span className="px-3 text-xs font-semibold text-muted-foreground">
-                    {isMealBox ? 'boxes' : 'guests'}
-                  </span>
                 </div>
               </div>
-              <p className="mt-2 max-w-2xl text-sm leading-5 text-muted-foreground">
-                {isMealBox
-                  ? 'Review the dishes included in your meal box and customise available replacements.'
-                  : 'A complete traditional spread for your special occasion.'}
-              </p>
             </div>
           </div>
 
           <div
-            className="mt-4 grid min-h-11 grid-cols-2 overflow-hidden rounded-lg border border-border/80 bg-white"
+            className="mt-1 grid min-h-11 grid-cols-2 border-b border-border/40 bg-white"
             role="tablist"
             aria-label="Menu sections"
           >
@@ -735,7 +760,7 @@ function MenuSelectContent() {
               role="tab"
               aria-selected={!extrasExpanded}
               className={cn(
-                'border-b-2 px-2 py-2 text-xs font-bold leading-tight transition sm:px-4 sm:text-sm',
+                'min-h-10 border-b-2 px-2 py-1.5 text-xs font-bold leading-tight transition sm:px-4 sm:text-sm',
                 !extrasExpanded
                   ? 'border-primary bg-white text-primary'
                   : 'border-transparent text-muted-foreground hover:bg-muted/30 hover:text-primary',
@@ -753,9 +778,9 @@ function MenuSelectContent() {
               type="button"
               role="tab"
               aria-selected={extrasExpanded}
-              disabled={isMealBox || extraRows.length === 0}
+              disabled={isMealBox}
               className={cn(
-                'border-b-2 px-2 py-2 text-xs font-bold leading-tight transition disabled:cursor-not-allowed disabled:opacity-45 sm:px-4 sm:text-sm',
+                'min-h-10 border-b-2 px-2 py-1.5 text-xs font-bold leading-tight transition disabled:cursor-not-allowed disabled:opacity-45 sm:px-4 sm:text-sm',
                 extrasExpanded
                   ? 'border-primary bg-white text-primary'
                   : 'border-transparent text-muted-foreground hover:bg-muted/30 hover:text-primary',
@@ -767,25 +792,6 @@ function MenuSelectContent() {
             </button>
           </div>
 
-          <div className="mt-4 flex items-center justify-between gap-2 rounded-xl border bg-white p-2 shadow-sm lg:hidden">
-            <button
-              type="button"
-              onClick={() => setMobileFiltersOpen(true)}
-              className="inline-flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-lg border border-primary/20 bg-white px-3 text-sm font-bold text-primary"
-            >
-              <SlidersHorizontal className="h-4 w-4 shrink-0" />
-              <span className="truncate">Filters & categories</span>
-              {activeFilterCount > 0 && (
-                <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] text-white">
-                  {activeFilterCount}
-                </span>
-              )}
-            </button>
-            <span className="hidden max-w-[38%] truncate text-xs font-semibold text-muted-foreground sm:block">
-              {displayActiveCategoryName}
-            </span>
-          </div>
-
           {!extrasExpanded && (
             <MenuSections
               rows={visibleIncluded}
@@ -795,54 +801,80 @@ function MenuSelectContent() {
               alternativesFor={alternativesFor}
               openSwap={openSwap}
               openDetails={setDetailItem}
+              activeFilterCount={activeFilterCount}
+              onOpenFilters={() => setMobileFiltersOpen(true)}
             />
           )}
 
-          {extrasExpanded && !isMealBox && extraRows.length > 0 && (
-            <section className="mt-4 rounded-xl border border-border/80 bg-white/70 p-4 shadow-sm">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="eyebrow">Optional extras</p>
-                  <h2 className="mt-1 font-sans text-xl font-semibold text-charcoal">
-                    Add something more
-                  </h2>
-                </div>
-                <span className="text-xs font-bold text-primary">
-                  {selectedExtras.length} added
-                </span>
+          {extrasExpanded && !isMealBox && (
+            <section className="mt-4">
+              <div className="flex min-h-10 items-center justify-between gap-2 px-1">
+                <h2 className="min-w-0 font-sans text-[11px] font-extrabold uppercase tracking-[0.14em] text-primary">
+                  Optional extras
+                  <span className="font-medium normal-case tracking-normal text-muted-foreground">
+                    {' · '}
+                    {selectedExtras.length} added
+                  </span>
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setMobileFiltersOpen(true)}
+                  className="inline-flex min-h-10 shrink-0 items-center gap-1.5 px-1 text-[11px] font-medium text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                >
+                  <SlidersHorizontal className="h-3.5 w-3.5" />
+                  <span>Filter</span>
+                  {activeFilterCount > 0 && (
+                    <span className="text-[10px] text-muted-foreground">
+                      · {activeFilterCount}
+                    </span>
+                  )}
+                </button>
               </div>
-              <p className="mt-2 text-xs text-muted-foreground">
-                {selectedExtras.length
-                  ? `${selectedExtras.length} ${selectedExtras.length === 1 ? 'extra' : 'extras'} selected`
-                  : 'Your included menu is complete without extras.'}
+              <p className="px-1 text-xs leading-4 text-muted-foreground">
+                Add something extra — completely optional.
               </p>
-              <div className="mt-4 grid gap-3">
-                {visibleExtras.map((row) => (
-                  <ExtraRow
-                    key={`${row.rule.id}-${row.item.id}`}
-                    row={row}
-                    selected={selectedIds.has(row.item.id)}
-                    quantity={
-                      selectedItemById.get(row.item.id)?.quantity ?? guestCount
-                    }
-                    onToggle={() => toggleExtra(row)}
-                    onQuantityChange={(quantity) =>
-                      setExtraQuantity(row.item.id, quantity)
-                    }
-                    onDetails={() =>
-                      setDetailItem({
-                        item: row.item,
-                        categoryName: row.rule.category.name,
-                      })
-                    }
-                  />
-                ))}
-              </div>
+              {extraRows.length === 0 ? (
+                <p className="mt-4 border-y border-border/50 bg-white px-3 py-4 text-sm text-muted-foreground">
+                  No extras available for this package.
+                </p>
+              ) : visibleExtras.length === 0 ? (
+                <div className="mt-3 flex items-center justify-between gap-3 border-y border-border/50 bg-white px-3 py-3">
+                  <p className="text-sm text-muted-foreground">
+                    No extras match these filters.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuSearch('');
+                      setMenuCategory('all');
+                      setMenuDiet('all');
+                    }}
+                    className="min-h-10 shrink-0 px-2 text-xs font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                  >
+                    Clear filters
+                  </button>
+                </div>
+              ) : (
+                <MenuExtraSections
+                  rows={visibleExtras}
+                  selectedIds={selectedIds}
+                  selectedItemById={selectedItemById}
+                  guestCount={guestCount}
+                  onToggle={toggleExtra}
+                  onRemove={removeItem}
+                  onQuantityChange={setExtraQuantity}
+                  onDetails={(row) =>
+                    setDetailItem({
+                      item: row.item,
+                      categoryName: row.rule.category.name,
+                    })
+                  }
+                />
+              )}
             </section>
           )}
 
-          {((!extrasExpanded && visibleIncluded.length === 0) ||
-            (extrasExpanded && visibleExtras.length === 0)) && (
+          {!extrasExpanded && visibleIncluded.length === 0 && (
             <div className="mt-6 rounded-2xl border border-border/80 bg-white p-6 text-center shadow-sm sm:mt-8 sm:p-10">
               <Search className="mx-auto h-6 w-6 text-muted-foreground" />
               <h2 className="mt-3 font-semibold">No matching dishes</h2>
@@ -899,15 +931,17 @@ function MenuSelectContent() {
             onClick={() => setMobileSummaryOpen(true)}
             className="mobile-order-bar-summary"
           >
-            <span className="mobile-order-bar-label">
-              View summary · {summaryRows.length} dishes
-            </span>
             <span className="mobile-order-bar-total">
-              {formatCurrency(menuSubtotal)}
+              {formatCurrency(menuSubtotal).replace(/\.00$/, '')}
+            </span>
+            <span className="mobile-order-bar-label normal-case tracking-normal font-medium">
+              {summaryRows.length} dishes
+              {selectedExtras.length > 0 && ` · ${selectedExtras.length} extras`}
+              {' · View summary ›'}
             </span>
           </button>
           <Button
-            className="mobile-order-bar-action"
+            className="mobile-order-bar-action px-3 sm:px-4"
             onClick={
               !isMealBox && !extrasExpanded
                 ? () => setExtrasExpanded(true)
@@ -923,7 +957,7 @@ function MenuSelectContent() {
 
       {mobileFiltersOpen && (
         <MobileSheet
-          title="Filters & categories"
+          title="Filter"
           onClose={() => setMobileFiltersOpen(false)}
         >
           <FilterContents
@@ -936,8 +970,11 @@ function MenuSelectContent() {
               setMenuCategory(category);
               setMobileFiltersOpen(false);
             }}
-            categories={categories}
-            total={includedRows.length}
+            categories={activeCategories}
+            total={activeMenuCount}
+            extrasMode={extrasExpanded}
+            swappableOnly={swappableOnly}
+            setSwappableOnly={setSwappableOnly}
           />
         </MobileSheet>
       )}
@@ -1009,7 +1046,7 @@ function MenuStepIndicator({
   guestCount: number;
   isMealBox: boolean;
 }) {
-  const steps = [context, 'Menu', 'Event & payment'];
+  const steps = [context, 'Menu', 'Event'];
   const subtitles = [
     `${packageName} • ${guestCount} ${isMealBox ? 'boxes' : 'guests'}`,
     'Review & customise',
@@ -1018,7 +1055,7 @@ function MenuStepIndicator({
   return (
     <nav
       aria-label="Order progress"
-      className="rounded-xl border border-border/75 bg-white shadow-[0_8px_24px_-24px_rgba(75,12,23,.55)]"
+      className="bg-transparent"
     >
       <ol className="grid grid-cols-3">
         {steps.map((label, index) => {
@@ -1028,8 +1065,8 @@ function MenuStepIndicator({
             <li key={label} className="relative min-w-0">
               <div
                 className={cn(
-                  'flex min-h-[58px] min-w-0 items-center justify-center gap-1.5 px-2 text-center text-xs sm:min-h-[66px] sm:justify-start sm:gap-3 sm:px-5 sm:text-sm sm:text-left',
-                  active && 'bg-white text-primary',
+                  'flex min-h-10 min-w-0 items-center justify-center gap-1 px-1 text-center text-[11px] sm:min-h-[66px] sm:justify-start sm:gap-3 sm:px-5 sm:text-sm sm:text-left',
+                  active && 'text-primary',
                   complete && 'text-primary',
                   !active && !complete && 'text-muted-foreground',
                 )}
@@ -1037,7 +1074,7 @@ function MenuStepIndicator({
               >
                 <span
                   className={cn(
-                    'grid h-7 w-7 shrink-0 place-items-center rounded-full border text-xs font-extrabold sm:h-9 sm:w-9 sm:text-sm',
+                    'grid h-6 w-6 shrink-0 place-items-center rounded-full border text-[10px] font-extrabold sm:h-9 sm:w-9 sm:text-sm',
                     complete && 'border-primary bg-primary text-white',
                     active && 'border-accent bg-accent text-accent-foreground',
                     !complete && !active && 'border-border bg-white',
@@ -1046,7 +1083,7 @@ function MenuStepIndicator({
                   {complete ? <Check className="h-4 w-4" /> : index + 1}
                 </span>
                 <span className="min-w-0">
-                  <span className="block truncate font-bold text-charcoal">
+                  <span className="block whitespace-nowrap font-bold text-charcoal">
                     {label}
                   </span>
                   <span className="mt-1 hidden truncate text-xs font-medium text-muted-foreground sm:block">
@@ -1071,6 +1108,9 @@ function FilterContents({
   setCategory,
   categories,
   total,
+  extrasMode,
+  swappableOnly,
+  setSwappableOnly,
 }: {
   search: string;
   setSearch: (value: string) => void;
@@ -1080,6 +1120,9 @@ function FilterContents({
   setCategory: (value: string) => void;
   categories: Array<{ id: string; name: string; count: number }>;
   total: number;
+  extrasMode: boolean;
+  swappableOnly: boolean;
+  setSwappableOnly: (value: boolean) => void;
 }) {
   return (
     <div>
@@ -1128,7 +1171,7 @@ function FilterContents({
         ))}
       </nav>
       <div className="mt-5 border-t pt-4">
-        <p className="text-xs font-extrabold uppercase text-charcoal">
+        <p className="text-xs font-extrabold text-charcoal">
           Diet preference
         </p>
         <div className="mt-3 flex gap-2">
@@ -1149,12 +1192,24 @@ function FilterContents({
             </button>
           ))}
         </div>
+        {!extrasMode && (
+          <label className="mt-4 flex min-h-11 cursor-pointer items-center justify-between gap-3 border-t pt-4 text-sm font-semibold text-charcoal">
+            <span>Replaceable only</span>
+            <input
+              type="checkbox"
+              checked={swappableOnly}
+              onChange={(event) => setSwappableOnly(event.target.checked)}
+              className="h-4 w-4 accent-[hsl(var(--primary))]"
+            />
+          </label>
+        )}
         <button
           type="button"
           onClick={() => {
             setSearch('');
             setDiet('all');
             setCategory('all');
+            setSwappableOnly(false);
           }}
           className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-primary/30 bg-white px-4 text-sm font-bold text-primary transition hover:bg-primary/[0.04]"
         >
@@ -1194,6 +1249,20 @@ function CategoryButton({
   );
 }
 
+function groupMenuRows(rows: MenuRow[]) {
+  return rows.reduce<Array<{ rule: CategoryRule; rows: MenuRow[] }>>(
+    (result, row) => {
+      const group = result.find(
+        ({ rule }) => rule.category.id === row.rule.category.id,
+      );
+      if (group) group.rows.push(row);
+      else result.push({ rule: row.rule, rows: [row] });
+      return result;
+    },
+    [],
+  );
+}
+
 function MenuSections({
   rows,
   supportsSwaps,
@@ -1202,6 +1271,8 @@ function MenuSections({
   alternativesFor,
   openSwap,
   openDetails,
+  activeFilterCount,
+  onOpenFilters,
 }: {
   rows: MenuRow[];
   supportsSwaps: boolean;
@@ -1213,72 +1284,71 @@ function MenuSections({
   ) => MenuSelectionItem[];
   openSwap: (row: MenuRow) => void;
   openDetails: (detail: DetailItem) => void;
+  activeFilterCount: number;
+  onOpenFilters: () => void;
 }) {
-  const [swappableOnly, setSwappableOnly] = useState(false);
-  const visibleRows = swappableOnly
-    ? rows.filter(
-        (row) =>
-          Boolean(row.item.isSwappable) &&
-          alternativesFor(row.rule, row.item).length > 0,
-      )
-    : rows;
+  const groups = groupMenuRows(rows);
 
   return (
-    <div className="mt-4 space-y-3">
-      <div className="flex items-center justify-end">
-        <label className="inline-flex min-h-11 items-center gap-2 text-xs font-semibold text-muted-foreground">
-          <span>Show only replaceable</span>
-          <button
-            type="button"
-            onClick={() => setSwappableOnly((value) => !value)}
-            className={cn(
-              'relative h-6 w-11 rounded-full border transition',
-              swappableOnly
-                ? 'border-primary bg-primary'
-                : 'border-border bg-muted',
-            )}
-            aria-pressed={swappableOnly}
-          >
-            <span
-              className={cn(
-                'absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition',
-                swappableOnly ? 'left-5' : 'left-0.5',
-              )}
-            />
-          </button>
-        </label>
-      </div>
-      <section className="overflow-hidden rounded-lg border border-border/80 bg-white shadow-sm">
-        <div className="divide-y divide-border/80">
-          {visibleRows.map((row) => {
-            const alternatives = alternativesFor(row.rule, row.item);
-            const currentSwap = currentSwaps.get(row.item.id);
-            const shownItem = currentSwap
-              ? (itemById.get(currentSwap.menuItemId) ?? row.item)
-              : row.item;
-            const swappable =
-              supportsSwaps &&
-              Boolean(row.item.isSwappable) &&
-              alternatives.length > 0;
-            return (
-              <DishRow
-                key={row.item.id}
-                item={shownItem}
-                original={row.item}
-                swappable={swappable}
-                swapped={Boolean(currentSwap)}
-                onSwap={() => openSwap(row)}
-                onDetails={() =>
-                  openDetails({
-                    item: shownItem,
-                    categoryName: row.rule.category.name,
-                  })
-                }
+    <div className="mt-3 space-y-5 sm:mt-5 sm:space-y-7">
+      {groups.map(({ rule, rows: categoryRows }) => (
+        <section key={rule.category.id}>
+          <div className="mb-1 flex min-h-10 items-center justify-between gap-3 px-1">
+            <div className="flex min-w-0 items-baseline gap-2">
+              <MenuCategoryHeading
+                name={rule.category.name}
+                count={categoryRows.length}
               />
-            );
-          })}
-        </div>
-      </section>
+            </div>
+            {groups[0]?.rule.category.id === rule.category.id && (
+              <button
+                type="button"
+                onClick={onOpenFilters}
+                className="inline-flex min-h-10 shrink-0 items-center gap-1.5 px-1 text-[11px] font-medium text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+                <span>Filter</span>
+                {activeFilterCount > 0 && (
+                  <span className="grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1 text-[10px] text-white">
+                    {activeFilterCount}
+                  </span>
+                )}
+              </button>
+            )}
+          </div>
+          <div className="overflow-hidden border-y border-border/50 bg-white">
+            <div className="divide-y divide-border/80">
+              {categoryRows.map((row) => {
+                const alternatives = alternativesFor(row.rule, row.item);
+                const currentSwap = currentSwaps.get(row.item.id);
+                const shownItem = currentSwap
+                  ? (itemById.get(currentSwap.menuItemId) ?? row.item)
+                  : row.item;
+                const swappable =
+                  supportsSwaps &&
+                  Boolean(row.item.isSwappable) &&
+                  alternatives.length > 0;
+                return (
+                  <DishRow
+                    key={row.item.id}
+                    item={shownItem}
+                    original={row.item}
+                    swappable={swappable}
+                    swapped={Boolean(currentSwap)}
+                    onSwap={() => openSwap(row)}
+                    onDetails={() =>
+                      openDetails({
+                        item: shownItem,
+                        categoryName: row.rule.category.name,
+                      })
+                    }
+                  />
+                );
+              })}
+              </div>
+            </div>
+          </section>
+        ))}
     </div>
   );
 }
@@ -1299,11 +1369,11 @@ function DishRow({
   onDetails: () => void;
 }) {
   return (
-    <article className="grid min-w-0 grid-cols-[72px_minmax(0,1fr)] gap-3 bg-white px-3 py-3 transition hover:bg-ivory/45 sm:grid-cols-[92px_minmax(0,1fr)_170px] sm:items-center sm:px-4">
+    <article className="grid min-w-0 grid-cols-[52px_minmax(0,1fr)_auto] items-center gap-2 bg-white px-2 py-2.5 transition hover:bg-ivory/45 sm:grid-cols-[92px_minmax(0,1fr)_170px] sm:gap-3 sm:px-4 sm:py-3">
       <button
         type="button"
         onClick={onDetails}
-        className="h-[68px] overflow-hidden rounded-lg bg-muted sm:h-[84px]"
+        className="h-12 w-[52px] overflow-hidden rounded-md bg-muted sm:h-[84px] sm:w-auto sm:rounded-lg"
         aria-label={`View details for ${item.name}`}
       >
         <DataImage
@@ -1317,8 +1387,8 @@ function DishRow({
         onClick={onDetails}
         className="min-h-11 min-w-0 text-left"
       >
-        <span className="flex flex-wrap items-center gap-2">
-          <strong className="min-w-0 break-words font-sans text-[16px] font-semibold leading-[1.12] tracking-[-0.015em] text-charcoal sm:text-[17px]">
+        <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
+          <strong className="min-w-0 break-words font-sans text-[14px] font-semibold leading-[1.2] text-charcoal sm:text-[17px]">
             {item.name}
           </strong>
           <DietBadge isVeg={item.isVeg} />
@@ -1331,34 +1401,23 @@ function DishRow({
           </span>
         )}
       </button>
-      <div className="col-span-2 sm:col-span-1 sm:justify-self-end">
-        <button
-          type="button"
-          onClick={onSwap}
-          disabled={!swappable}
-          className={cn(
-            'inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border px-3 text-xs font-bold transition sm:min-w-32',
-            swappable
-              ? 'border-primary/35 bg-white text-primary hover:bg-primary/[0.04]'
-              : 'cursor-not-allowed border-border bg-muted/50 text-muted-foreground/70',
-          )}
-          aria-label={
-            swappable
-              ? `${swapped ? 'Change replacement for' : 'Replace'} ${original.name}`
-              : `${original.name} is a fixed item`
-          }
-        >
-          {swappable ? (
+      <div className="justify-self-end sm:justify-self-end">
+        {swappable ? (
+          <button
+            type="button"
+            onClick={onSwap}
+            className="inline-flex min-h-10 items-center gap-1 px-1 text-xs font-bold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:min-w-32 sm:justify-center sm:rounded-lg sm:border sm:border-primary/35 sm:px-3"
+            aria-label={`${swapped ? 'Change replacement for' : 'Replace'} ${original.name}`}
+          >
             <ArrowRightLeft className="h-3.5 w-3.5" />
-          ) : (
-            <Lock className="h-3.5 w-3.5" />
-          )}
-          {swappable
-            ? swapped
-              ? 'Change replacement'
-              : 'Replace item'
-            : 'Fixed item'}
-        </button>
+            <span className="hidden sm:inline">{swapped ? 'Change replacement' : 'Replace'}</span>
+            <span className="sm:hidden">Replace</span>
+          </button>
+        ) : (
+          <span className="inline-flex min-h-10 items-center gap-1 px-1 text-[11px] font-semibold text-muted-foreground">
+            <Lock className="h-3 w-3" /> Fixed
+          </span>
+        )}
       </div>
     </article>
   );
@@ -1432,9 +1491,9 @@ function SwapDrawer({
                 <strong className="block truncate text-sm text-charcoal">
                   {selected.name}
                 </strong>
-                <span className="mt-1 block text-xs text-muted-foreground">
+                {/* <span className="mt-1 block text-xs text-muted-foreground">
                   {formatCategoryLabel(row.rule.category.name)} constraint preserved
-                </span>
+                </span> */}
               </span>
             </div>
           </div>
@@ -1540,11 +1599,81 @@ function SwapChoice({
   );
 }
 
+function MenuCategoryHeading({ name, count }: { name: string; count: number }) {
+  return (
+    <h2 className="font-sans text-[11px] font-extrabold uppercase tracking-[0.14em] text-primary">
+      {formatCategoryLabel(name)}
+      <span className="font-medium tracking-normal text-muted-foreground">
+        {' · '}
+        {count}
+      </span>
+    </h2>
+  );
+}
+
+function MenuExtraSections({
+  rows,
+  selectedIds,
+  selectedItemById,
+  guestCount,
+  onToggle,
+  onRemove,
+  onQuantityChange,
+  onDetails,
+}: {
+  rows: MenuRow[];
+  selectedIds: Set<string>;
+  selectedItemById: Map<string, SelectedItem>;
+  guestCount: number;
+  onToggle: (row: MenuRow) => void;
+  onRemove: (menuItemId: string) => void;
+  onQuantityChange: (menuItemId: string, quantity: number) => void;
+  onDetails: (row: MenuRow) => void;
+}) {
+  const groups = groupMenuRows(rows);
+
+  return (
+    <div className="mt-3 space-y-5 sm:mt-5 sm:space-y-7">
+      {groups.map(({ rule, rows: categoryRows }) => (
+        <section key={rule.category.id}>
+          <div className="mb-1 flex min-h-10 items-center gap-3 px-1">
+            <MenuCategoryHeading
+              name={rule.category.name}
+              count={categoryRows.length}
+            />
+          </div>
+          <div className="overflow-hidden border-y border-border/50 bg-white">
+            <div className="divide-y divide-border/80">
+              {categoryRows.map((row) => (
+                <ExtraRow
+                  key={`${row.rule.id}-${row.item.id}`}
+                  row={row}
+                  selected={selectedIds.has(row.item.id)}
+                  quantity={
+                    selectedItemById.get(row.item.id)?.quantity ?? guestCount
+                  }
+                  onToggle={() => onToggle(row)}
+                  onRemove={() => onRemove(row.item.id)}
+                  onQuantityChange={(quantity) =>
+                    onQuantityChange(row.item.id, quantity)
+                  }
+                  onDetails={() => onDetails(row)}
+                />
+              ))}
+            </div>
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
 function ExtraRow({
   row,
   selected,
   quantity,
   onToggle,
+  onRemove,
   onQuantityChange,
   onDetails,
 }: {
@@ -1552,19 +1681,21 @@ function ExtraRow({
   selected: boolean;
   quantity: number;
   onToggle: () => void;
+  onRemove: () => void;
   onQuantityChange: (quantity: number) => void;
   onDetails: () => void;
 }) {
   const unitPrice = Number(
     row.item.itemPrice || row.item.adjustmentAmount || 0,
   );
-  const lineTotal = unitPrice * quantity;
+  const displayPrice = formatCurrency(unitPrice).replace(/\.00$/, '');
   return (
-    <article className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-3 rounded-2xl border border-border/80 bg-white p-3 shadow-sm sm:grid-cols-[84px_minmax(0,1fr)_auto_auto_auto] sm:gap-4 sm:p-4">
+    <article className="grid min-w-0 grid-cols-[52px_minmax(0,1fr)_auto] items-center gap-2 bg-white px-2 py-2 transition-colors hover:bg-ivory/45 sm:grid-cols-[92px_minmax(0,1fr)_auto] sm:gap-3 sm:px-4 sm:py-2.5">
       <button
         type="button"
         onClick={onDetails}
-        className="h-[68px] overflow-hidden rounded-xl bg-muted sm:h-[72px]"
+        className="h-12 w-[52px] overflow-hidden rounded-md bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:h-[84px] sm:w-[92px] sm:rounded-lg"
+        aria-label={`View details for ${row.item.name}`}
       >
         <DataImage
           src={row.item.imageUrl}
@@ -1575,72 +1706,68 @@ function ExtraRow({
       <button
         type="button"
         onClick={onDetails}
-        className="min-h-11 min-w-0 text-left"
+        className="min-h-11 min-w-0 py-1 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+        aria-label={`View details for ${row.item.name}`}
       >
-        <span className="flex flex-wrap items-center gap-2">
-          <strong className="min-w-0 break-words font-sans text-base font-semibold leading-[1.12] tracking-[-0.015em] text-charcoal sm:text-lg">
+        <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
+          <strong className="min-w-0 break-words font-sans text-[14px] font-semibold leading-[1.2] text-charcoal sm:text-[17px]">
             {row.item.name}
           </strong>
           <DietBadge isVeg={row.item.isVeg} />
         </span>
-        <span className="category-label">
-          {formatCategoryLabel(row.rule.category.name)}
+        <span className="mt-1 block text-xs font-semibold leading-4 text-primary">
+          {displayPrice}
+          <span className="ml-1 font-normal text-muted-foreground">
+            per portion
+          </span>
         </span>
       </button>
-      <span className="money-text hidden text-right text-xs font-bold text-primary sm:block">
-        +₹{row.item.itemPrice}
-        <small className="block font-normal text-muted-foreground">
-          per portion
-        </small>
-      </span>
-      {selected && (
-        <div className="col-span-2 flex items-center justify-between gap-3 rounded-lg bg-muted/50 px-2 py-2 sm:col-span-1 sm:w-40 sm:bg-transparent sm:p-0">
-          <span className="money-text text-[11px] font-semibold text-muted-foreground sm:hidden">
-            {formatCurrency(lineTotal)}
-          </span>
-          <div className="ml-auto inline-flex h-9 items-center rounded-lg border bg-white">
-            <button
-              type="button"
-              onClick={() => onQuantityChange(quantity - 1)}
-              className="grid h-8 w-8 place-items-center text-primary disabled:text-muted-foreground"
-              disabled={quantity <= 1}
-              aria-label={`Reduce ${row.item.name} portions`}
-            >
-              <Minus className="h-3.5 w-3.5" />
-            </button>
-            <input
-              value={quantity}
-              onChange={(event) =>
-                onQuantityChange(Number(event.currentTarget.value))
-              }
-              className="h-8 w-10 border-x text-center text-xs font-bold outline-none"
-              inputMode="numeric"
-              aria-label={`${row.item.name} portions`}
-            />
-            <button
-              type="button"
-              onClick={() => onQuantityChange(quantity + 1)}
-              className="grid h-8 w-8 place-items-center text-primary disabled:text-muted-foreground"
-              aria-label={`Increase ${row.item.name} portions`}
-            >
-              <Plus className="h-3.5 w-3.5" />
-            </button>
-          </div>
+      {selected ? (
+        <div
+          className="inline-flex min-h-11 items-center justify-self-end rounded-lg border border-border/70 bg-white"
+          role="group"
+          aria-label={`${row.item.name} quantity`}
+        >
+          <button
+            type="button"
+            onClick={
+              quantity <= 1 ? onRemove : () => onQuantityChange(quantity - 1)
+            }
+            className="grid h-10 w-9 place-items-center rounded-l-lg text-primary transition hover:bg-primary/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+            aria-label={
+              quantity <= 1
+                ? `Remove ${row.item.name}`
+                : `Decrease ${row.item.name} quantity`
+            }
+          >
+            <Minus className="h-3.5 w-3.5" />
+          </button>
+          <output
+            className="min-w-7 text-center text-xs font-bold tabular-nums text-charcoal"
+            aria-live="polite"
+          >
+            {quantity}
+          </output>
+          <button
+            type="button"
+            onClick={() => onQuantityChange(quantity + 1)}
+            className="grid h-10 w-9 place-items-center rounded-r-lg text-primary transition hover:bg-primary/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+            aria-label={`Increase ${row.item.name} quantity`}
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
         </div>
+      ) : (
+        <button
+          type="button"
+          onClick={onToggle}
+          className="inline-flex min-h-11 min-w-[52px] items-center justify-center gap-0.5 justify-self-end rounded-md px-1.5 text-xs font-semibold text-primary transition hover:bg-primary/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          aria-label={`Add ${row.item.name}`}
+        >
+          <Plus className="h-3.5 w-3.5" />
+          <span>Add</span>
+        </button>
       )}
-      <button
-        type="button"
-        onClick={onToggle}
-        className={cn(
-          'col-span-2 inline-flex min-h-11 items-center justify-center rounded-xl border px-3 text-xs font-bold sm:col-span-1',
-          selected
-            ? 'border-primary bg-primary text-white'
-            : 'border-primary/50 text-primary hover:bg-primary/5',
-        )}
-      >
-        {selected ? <Check className="mr-1.5 h-3.5 w-3.5" /> : null}
-        {selected ? 'Remove extra' : `Add · ₹${row.item.itemPrice}`}
-      </button>
     </article>
   );
 }
@@ -1825,13 +1952,13 @@ function DietBadge({ isVeg }: { isVeg: boolean }) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold',
+        'inline-flex items-center gap-0.5 rounded-full px-1 py-0.5 text-[9px] font-semibold',
         isVeg
-          ? 'bg-emerald-50 text-emerald-700'
-          : 'bg-orange-50 text-orange-700',
+          ? 'bg-emerald-50/40 text-emerald-700'
+          : 'bg-orange-50/40 text-orange-700',
       )}
     >
-      <Leaf className="h-3 w-3" /> {isVeg ? 'Veg' : 'Non-veg'}
+      <Leaf className="h-2.5 w-2.5" /> {isVeg ? 'Veg' : 'Non-veg'}
     </span>
   );
 }

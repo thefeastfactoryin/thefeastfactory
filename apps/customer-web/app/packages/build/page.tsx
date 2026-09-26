@@ -123,7 +123,7 @@ function GuestStepper({
       <div className="min-w-0">
         <label
           htmlFor="guest-count"
-          className="block text-xs font-extrabold uppercase tracking-[0.08em] text-muted-foreground"
+          className="block text-xs font-extrabold text-muted-foreground"
         >
           Guests
         </label>
@@ -394,7 +394,7 @@ function SummaryPanel({
           ['Non-veg', nonVegCount],
         ].map(([label, value]) => (
           <div key={label} className="p-2.5">
-            <p className="text-[11px] font-extrabold uppercase text-muted-foreground">
+            <p className="text-[11px] font-extrabold text-muted-foreground">
               {label}
             </p>
             <p className="mt-0.5 font-sans text-xl font-semibold text-foreground">
@@ -808,7 +808,7 @@ function BuildPackageContent() {
       </div>
       <div className="relative flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <div className="min-w-0 max-w-[560px] sm:pr-24">
-          <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-accent">
+          <p className="text-[11px] font-extrabold text-accent">
             Build your menu
           </p>
           <h1 className="mt-1 font-serif text-[22px] font-bold leading-[1.05] text-white sm:text-[30px]">

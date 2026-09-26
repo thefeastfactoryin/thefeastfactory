@@ -75,24 +75,24 @@ body {
 
 @layer components {
   .mobile-order-bar {
-    @apply fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 border-t border-border bg-card px-3 py-2 shadow-[0_-8px_24px_rgba(45,31,20,0.10)] md:bottom-0 lg:hidden;
+    @apply fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 border-t border-border bg-card px-3 py-1.5 shadow-[0_-6px_18px_rgba(45,31,20,0.08)] md:bottom-0 lg:hidden;
     font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   }
   .mobile-order-bar-row {
     @apply mx-auto flex max-w-2xl items-center justify-between gap-3;
   }
   .mobile-order-bar-summary {
-    @apply min-h-11 min-w-0 flex-1 rounded-xl border border-border bg-background px-3 py-2 text-left;
+    @apply min-h-10 min-w-0 flex-1 px-1 py-1 text-left;
   }
   .mobile-order-bar-label {
-    @apply block text-[10px] font-bold uppercase tracking-wider text-muted-foreground;
+    @apply block text-[10px] font-medium tracking-normal text-muted-foreground;
   }
   .mobile-order-bar-total {
     @apply block truncate font-sans text-base font-bold leading-6 text-primary;
     font-variant-numeric: tabular-nums;
   }
   .mobile-order-bar-action {
-    @apply inline-flex h-11 shrink-0 items-center justify-center rounded-full bg-primary px-4 font-sans text-sm font-semibold text-primary-foreground shadow-sm disabled:opacity-50 sm:px-5;
+    @apply inline-flex h-10 shrink-0 items-center justify-center rounded-full bg-primary px-4 font-sans text-sm font-semibold text-primary-foreground shadow-sm disabled:opacity-50 sm:px-5;
   }
 }
 
@@ -259,8 +259,8 @@ body {
 
   /* ─── Typography ─── */
   .eyebrow {
-    @apply text-[11px] font-bold uppercase text-accent;
-    letter-spacing: 0.24em;
+    @apply text-[11px] font-semibold text-accent;
+    letter-spacing: 0;
   }
   .category-label {
     @apply font-sans text-[13px] font-medium leading-4 tracking-normal text-muted-foreground;
@@ -317,10 +317,10 @@ body {
     @apply inline-flex items-center rounded-full bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground;
   }
   .veg-badge {
-    @apply inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-700;
+    @apply inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700;
   }
   .nonveg-badge {
-    @apply inline-flex items-center gap-1 rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-bold uppercase text-orange-700;
+    @apply inline-flex items-center gap-1 rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-bold text-orange-700;
   }
 
   /* ─── Quantity stepper ─── */

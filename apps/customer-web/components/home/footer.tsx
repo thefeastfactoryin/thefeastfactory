@@ -61,7 +61,7 @@ export function Footer() {
                 <p className="truncate text-sm font-bold leading-tight text-white">
                   The Feast Factory
                 </p>
-                <p className="text-[9px] font-semibold uppercase tracking-widest text-white/50">
+                <p className="text-[9px] font-semibold text-white/50">
                   Bulk Catering
                 </p>
               </div>
@@ -146,7 +146,7 @@ export function Footer() {
               </span>
               <div>
                 <p className="text-sm font-bold leading-tight text-white">The Feast Factory</p>
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-white/50">
+                <p className="text-[10px] font-semibold text-white/50">
                   Bulk Catering
                 </p>
               </div>
@@ -177,7 +177,7 @@ export function Footer() {
 
           {/* Quick links */}
           <div>
-            <p className="mb-5 text-[11px] font-bold uppercase tracking-widest text-white/50">
+            <p className="mb-5 text-[11px] font-bold text-white/50">
               Quick Links
             </p>
             <ul className="space-y-3">
@@ -196,7 +196,7 @@ export function Footer() {
 
           {/* Services */}
           <div>
-            <p className="mb-5 text-[11px] font-bold uppercase tracking-widest text-white/50">
+            <p className="mb-5 text-[11px] font-bold text-white/50">
               Our Services
             </p>
             <ul className="space-y-3">
@@ -216,7 +216,7 @@ export function Footer() {
           {/* Contact */}
           {contactItems.length > 0 && (
             <div>
-              <p className="mb-5 text-[11px] font-bold uppercase tracking-widest text-white/50">
+              <p className="mb-5 text-[11px] font-bold text-white/50">
                 Contact
               </p>
               <ul className="space-y-3 text-sm text-white/70">

@@ -594,7 +594,7 @@ export function PackageGridPage({
                       )}
                       <div className="mt-3 hidden grid-cols-2 overflow-hidden rounded-[14px] border border-border bg-ivory sm:grid">
                         <div className="border-r border-border px-3 py-2">
-                          <p className="hidden text-[10.5px] font-extrabold uppercase tracking-[0.12em] text-muted-foreground sm:block">
+                          <p className="hidden text-[10.5px] font-extrabold text-muted-foreground sm:block">
                             From
                           </p>
                           <strong className="money-text mt-0.5 hidden text-[18px] font-extrabold leading-none text-primary sm:block">
@@ -605,7 +605,7 @@ export function PackageGridPage({
                           </p>
                         </div>
                         <div className="px-3 py-2">
-                          <p className="hidden text-[10.5px] font-extrabold uppercase tracking-[0.12em] text-muted-foreground sm:block">
+                          <p className="hidden text-[10.5px] font-extrabold text-muted-foreground sm:block">
                             Serves
                           </p>
                           <span className="mt-0.5 hidden text-[13px] font-extrabold leading-snug text-foreground sm:block">

@@ -63,7 +63,7 @@ export default function OrdersPage() {
           />
         ) : orders.length ? (
           <div className="overflow-hidden rounded-2xl border border-border bg-white shadow-card">
-            <div className="hidden grid-cols-[1.15fr_1.35fr_.85fr_.55fr_.85fr_.8fr_.75fr_24px] gap-4 border-b border-border bg-ivory px-5 py-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground md:grid">
+            <div className="hidden grid-cols-[1.15fr_1.35fr_.85fr_.55fr_.85fr_.8fr_.75fr_24px] gap-4 border-b border-border bg-ivory px-5 py-3 text-[10px] font-bold text-muted-foreground md:grid">
               <span>Order</span>
               <span>Package</span>
               <span>Event</span>
@@ -98,7 +98,7 @@ export default function OrdersPage() {
                     </div>
                   </div>
                   <div className="mt-4 min-w-0 md:mt-0">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground md:hidden">
+                    <p className="text-[10px] font-bold text-muted-foreground md:hidden">
                       Package
                     </p>
                     <h2 className="mt-1 truncate font-sans text-lg font-semibold md:mt-0">
@@ -126,7 +126,7 @@ export default function OrdersPage() {
                     numeric
                   />
                   <div className="mt-3 md:mt-0">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground md:hidden">
+                    <p className="text-[10px] font-bold text-muted-foreground md:hidden">
                       Status
                     </p>
                     <span className="mt-1 inline-flex rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-bold text-primary md:mt-0">
@@ -138,7 +138,7 @@ export default function OrdersPage() {
                     value={formatStatus(order.paymentStatus)}
                   />
                   <div className="mt-3 md:mt-0 md:text-right">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground md:hidden">
+                    <p className="text-[10px] font-bold text-muted-foreground md:hidden">
                       Total
                     </p>
                     <strong className="money-text mt-1 block text-lg font-extrabold text-primary md:mt-0 md:text-base">
@@ -179,7 +179,7 @@ function TableValue({
 }) {
   return (
     <div className="mt-3 min-w-0 md:mt-0">
-      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground md:hidden">
+      <p className="text-[10px] font-bold text-muted-foreground md:hidden">
         {label}
       </p>
       <p

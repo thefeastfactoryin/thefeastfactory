@@ -361,7 +361,7 @@ function Fact({
         <Icon className="h-4 w-4" />
       </span>
       <div className="min-w-0">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+        <p className="text-[10px] font-bold text-muted-foreground">
           {label}
         </p>
         <p className="mt-1 truncate text-sm font-bold">{value}</p>

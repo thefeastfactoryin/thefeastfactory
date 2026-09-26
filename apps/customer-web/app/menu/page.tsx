@@ -69,7 +69,7 @@ function MenuSidebar({
     <aside className="sticky top-20 hidden h-[calc(100vh-5rem)] w-[310px] shrink-0 overflow-y-auto border-r border-border/80 bg-white/95 px-6 py-8 shadow-[8px_0_30px_rgba(88,64,48,0.04)] backdrop-blur lg:block">
       <div className="space-y-7">
         <section>
-          <p className="text-[0.68rem] font-extrabold uppercase tracking-[0.28em] text-amber-800/75">
+          <p className="text-[0.68rem] font-extrabold text-amber-800/75">
             Browse Categories
           </p>
           <nav className="mt-4 space-y-2" aria-label="Browse menu categories">
@@ -97,7 +97,7 @@ function MenuSidebar({
         </section>
 
         <section className="border-t border-border pt-6">
-          <p className="text-[0.68rem] font-extrabold uppercase tracking-[0.28em] text-amber-800/75">
+          <p className="text-[0.68rem] font-extrabold text-amber-800/75">
             Filters
           </p>
           <div className="mt-4 grid grid-cols-3 gap-2">

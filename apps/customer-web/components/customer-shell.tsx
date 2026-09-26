@@ -167,6 +167,7 @@ export function CustomerShell({
     : 0;
   const cartActive = mounted && (cartCount > 0 || pathname === '/cart');
   const desktopLinks = navLinks;
+  const isCheckoutRoute = pathname === '/cart' || pathname.startsWith('/checkout');
   const isFocusedFlow = [
     '/packages/build',
     '/menu/select',
@@ -180,7 +181,12 @@ export function CustomerShell({
   ].some((route) => pathname.startsWith(route));
 
   return (
-    <div className="min-h-screen pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">
+    <div
+      className={cn(
+        'min-h-screen',
+        !isCheckoutRoute && 'pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0',
+      )}
+    >
       {/* ─── Desktop header ─── */}
       <header className="sticky top-0 z-40 border-b border-border bg-white/95 backdrop-blur-xl">
         <div className="mx-auto flex min-h-14 max-w-[1536px] flex-wrap items-center justify-between gap-1.5 px-3 py-1.5 sm:h-[78px] sm:flex-nowrap sm:gap-3 sm:px-6 sm:py-0 lg:px-10">
@@ -540,6 +546,7 @@ export function CustomerShell({
       )}
 
       {/* ─── Mobile bottom nav ─── */}
+      {!isCheckoutRoute && (
       <nav
         className="fixed inset-x-0 bottom-0 z-[60] grid min-h-[calc(4rem+env(safe-area-inset-bottom))] grid-cols-5 border-t border-border/80 bg-card/95 pb-[max(.25rem,env(safe-area-inset-bottom))] shadow-[0_-10px_30px_rgba(45,31,20,0.10)] backdrop-blur-xl md:hidden"
         aria-label="Primary mobile navigation"
@@ -623,6 +630,7 @@ export function CustomerShell({
           <span>More</span>
         </button>
       </nav>
+      )}
     </div>
   );
 }

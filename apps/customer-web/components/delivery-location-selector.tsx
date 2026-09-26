@@ -525,7 +525,7 @@ export function DeliveryLocationSelector({
 
                 {addresses.length > 0 && (
                   <div className="mt-6">
-                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
+                    <p className="text-xs font-bold text-muted-foreground">
                       Saved addresses
                     </p>
                     <div className="mt-3 grid gap-2 sm:grid-cols-2">
