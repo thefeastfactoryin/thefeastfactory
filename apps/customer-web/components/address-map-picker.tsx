@@ -484,13 +484,9 @@ export function AddressMapPicker({
 
   if (!apiKey) {
     return (
-      <div className="rounded-xl border border-amber-200 bg-amber-50 p-5">
-        <p className="font-semibold text-amber-900">
-          Map selection is not configured
-        </p>
-        <p className="mt-1 text-sm leading-6 text-amber-800">
-          Add `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` to enable place search and map
-          selection. Manual address entry remains available.
+      <div className="rounded-lg border border-border bg-muted/40 p-3">
+        <p className="text-sm text-muted-foreground">
+          Enter your address manually below.
         </p>
       </div>
     );

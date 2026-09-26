@@ -686,8 +686,8 @@ export default function CartPage() {
     router.push(`/payment/status?orderId=${orderId}&status=success`);
   }
 
-  async function pay() {
-    if (!session || !cart || !ready || !multiCartQuote?.valid) return;
+  async function pay(isReady = ready) {
+    if (!session || !cart || !isReady || !multiCartQuote?.valid) return;
     const validatedContactNumber = mobileNumberSchema.safeParse(contactNumber);
     if (!validatedContactNumber.success) {
       setError('Enter a valid 10-digit contact number to continue.');
@@ -795,13 +795,42 @@ export default function CartPage() {
     }
   }
 
-  function requestPayment() {
-    if (!ready) {
-      const missingAddress = activeCarts.some(
-        (entry) => !entry.event?.address || !entry.event.region,
+  async function requestPayment() {
+    if (!session) return;
+    let cartsForValidation = activeCarts;
+    let isReady = ready;
+
+    if (!isReady) {
+      try {
+        const refreshedCarts = await apiRequest<CartSummary[]>(
+          '/cart/all',
+          {},
+          session.accessToken,
+        );
+        if (refreshedCarts.length) {
+          cartsForValidation = refreshedCarts;
+          isReady = refreshedCarts.every(eventReady);
+          setActiveCarts(refreshedCarts);
+          const refreshedCart = refreshedCarts.find(
+            (entry) => entry.id === cart?.id,
+          );
+          if (refreshedCart) setCart(refreshedCart);
+        }
+      } catch {
+        // Keep the existing local state if the refresh is temporarily unavailable.
+      }
+    }
+
+    if (!isReady) {
+      const missingAddress = cartsForValidation.some(
+        (entry) =>
+          !(entry.event?.address ?? entry.address) ||
+          !(entry.event?.region ?? entry.region),
       );
-      const missingDate = activeCarts.some((entry) => !entry.event?.eventDate);
-      const missingTime = activeCarts.some(
+      const missingDate = cartsForValidation.some(
+        (entry) => !entry.event?.eventDate,
+      );
+      const missingTime = cartsForValidation.some(
         (entry) => !entry.event?.eventTimeStart,
       );
       setError(
@@ -838,7 +867,7 @@ export default function CartPage() {
       );
       return;
     }
-    void pay();
+    void pay(isReady);
   }
 
   if (!session) {

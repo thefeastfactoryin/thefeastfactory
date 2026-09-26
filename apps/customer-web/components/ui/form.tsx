@@ -10,21 +10,28 @@ export function Field({
   label,
   hint,
   optional,
+  optionalInline,
   children,
   className,
 }: {
   label: string;
   hint?: string;
   optional?: boolean;
+  optionalInline?: boolean;
   children: React.ReactNode;
   className?: string;
 }) {
   return (
     <label className={cn('block', className)}>
-      <span className="mb-2 flex items-center justify-between gap-3 text-sm font-semibold">
+      <span className="mb-2 flex items-center gap-3 text-sm font-semibold">
         <span>{label}</span>
         {optional && (
-          <span className="text-xs font-medium text-muted-foreground">
+          <span
+            className={cn(
+              'text-xs font-medium text-muted-foreground',
+              optionalInline && "before:mr-1.5 before:content-['·']",
+            )}
+          >
             Optional
           </span>
         )}

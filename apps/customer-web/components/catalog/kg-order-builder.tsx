@@ -10,6 +10,7 @@ import type {
 import {
   ArrowRight,
   Flame,
+  IndianRupee,
   Leaf,
   Minus,
   Plus,
@@ -341,45 +342,55 @@ export function KgOrderBuilder() {
   );
   return (
     <main className="min-h-screen overflow-x-clip bg-background pb-28 lg:pb-10">
-      <section className="relative isolate overflow-hidden border-b bg-hero-end text-white">
+      <section className="relative isolate hidden overflow-hidden border-b bg-hero-end text-white sm:block">
         <img
           src={orderByKgImage}
           alt="Indian dishes prepared in bulk beside a weighing scale"
           className="absolute inset-0 -z-20 h-full w-full object-cover object-[62%_center] sm:object-center"
         />
         <div className="absolute inset-0 -z-10 bg-[linear-gradient(90deg,hsl(var(--hero-end)/0.99)_0%,hsl(var(--hero-start)/0.94)_40%,hsl(var(--hero-start)/0.30)_72%,rgba(0,0,0,0.08)_100%)]" />
-        <div className="container-pad flex min-h-[156px] items-center py-4 sm:min-h-[280px] sm:py-7 lg:min-h-[330px] lg:px-16 lg:py-9">
+        <div className="container-pad flex min-h-[238px] items-center py-5 sm:min-h-[330px] sm:py-7 lg:min-h-[360px] lg:px-16 lg:py-9">
           <div className="max-w-[620px]">
-            <p className="eyebrow">Flexible bulk catering</p>
-            <h1 className="mt-1.5 font-serif text-[30px] font-bold leading-[1.12] tracking-[-0.015em] text-white sm:text-[42px] lg:text-[48px]">
+            {/* <p className="eyebrow">Flexible bulk catering</p> */}
+            <h1 className="mt-2 font-serif text-[30px] font-bold leading-[1.12] tracking-[-0.015em] text-white sm:text-[42px] lg:text-[48px]">
               Order <span className="text-accent">by KG</span>
             </h1>
-            <p className="mt-2 max-w-[520px] text-xs font-semibold leading-5 text-white/85 sm:mt-3 sm:text-lg sm:leading-6">
+            <p className="mt-3 hidden max-w-[520px] text-base font-semibold leading-6 text-white/85 sm:block sm:text-lg">
               Choose your favourite dishes for your gathering, priced by kg.
             </p>
-            <div className="mt-3 flex items-center gap-1.5 text-[10px] font-semibold text-white/80 sm:mt-5 sm:grid sm:max-w-[600px] sm:grid-cols-4 sm:gap-2 sm:text-[11px]">
+            <div className="mt-4 grid max-w-[600px] grid-cols-2 gap-1.5 sm:mt-5 sm:grid-cols-4 sm:gap-2">
               {[
                 { label: 'Priced per kg', icon: Scale },
-                { label: 'Bulk portions', icon: Plus },
+                { label: 'Flexible portions', icon: Plus },
                 { label: 'Freshly prepared', icon: Leaf },
+                { label: 'Transparent pricing', icon: IndianRupee },
               ].map(({ label, icon: Icon }) => (
                 <div
                   key={label}
-                  className="flex items-center gap-1 whitespace-nowrap sm:min-h-10 sm:rounded-lg sm:border sm:border-white/10 sm:bg-black/15 sm:px-2.5 sm:py-2 sm:font-extrabold sm:text-white sm:backdrop-blur-sm"
+                  className="flex min-h-10 items-center gap-2 rounded-xl border border-white/10 bg-black/15 px-2.5 py-1.5 text-white backdrop-blur-sm sm:min-h-11 sm:py-2"
                 >
                   <Icon
-                    className="hidden h-[18px] w-[18px] shrink-0 text-accent sm:block"
+                    className="h-[18px] w-[18px] shrink-0 text-accent"
                     aria-hidden="true"
+                    strokeWidth={2}
                   />
-                  {label}
-                  {label !== 'Freshly prepared' && (
-                    <span className="text-white/50 sm:hidden" aria-hidden="true">·</span>
-                  )}
+                  <span className="text-[11px] font-extrabold leading-tight">
+                    {label}
+                  </span>
                 </div>
               ))}
             </div>
           </div>
         </div>
+      </section>
+      <section className="border-b border-border bg-background px-4 pb-3 pt-2 sm:hidden">
+        <p className="eyebrow text-gold-text">Flexible bulk catering</p>
+        <h1 className="mt-0.5 font-serif text-[28px] font-bold leading-[1.08] text-foreground">
+          Order by KG
+        </h1>
+        <p className="mt-0.5 max-w-[34rem] text-sm leading-[1.35] text-muted-foreground">
+          Choose your favourite dishes for your gathering, priced by kg.
+        </p>
       </section>
       <div className="mx-auto max-w-7xl px-3 py-4 sm:px-6 sm:py-5 lg:px-10">
         {error && (

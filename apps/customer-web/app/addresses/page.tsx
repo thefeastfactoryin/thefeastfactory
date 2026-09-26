@@ -7,7 +7,7 @@ import {
   type UserAddress,
 } from '@aranyam/shared-types';
 import { createAddressSchema } from '@aranyam/validation';
-import { CheckCircle2, MapPin, Plus } from 'lucide-react';
+import { CheckCircle2, MapPin } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '../../components/ui/button';
@@ -20,6 +20,7 @@ import { useSessionStore } from '../../store/session.store';
 import { safeReturnPath } from '../../lib/safe-return-path';
 import { useDeliveryLocationStore } from '../../store/delivery-location.store';
 import { useAddressBookStore } from '../../store/address-book.store';
+import { publicEnv } from '../../lib/public-env';
 
 const initialForm = {
   addressType: 'HOME' as AddressType,
@@ -112,7 +113,11 @@ export default function AddressesPage() {
 
     const result = createAddressSchema.safeParse({
       ...form,
-      label: form.label.trim() || undefined,
+      label:
+        form.label.trim() ||
+        ({ HOME: 'Home', OFFICE: 'Office', EVENT_VENUE: 'Event venue', OTHER: 'Other' }[
+          form.addressType
+        ] ?? undefined),
       addressLine2: form.addressLine2.trim() || undefined,
       landmark: form.landmark.trim() || undefined,
       latitude: form.latitude || undefined,
@@ -183,20 +188,15 @@ export default function AddressesPage() {
   }
 
   return (
-    <main className="page-shell pb-20">
+    <main className="page-shell pb-28 pt-4 sm:pb-12 sm:pt-6 lg:pb-12 lg:pt-8">
       <div className="max-w-3xl">
-        <p className="eyebrow">Your venues</p>
-        <h1 className="mt-1 font-serif text-3xl font-semibold sm:mt-2 sm:text-5xl">
-          Venues & addresses
+        <h1 className="font-sans text-lg font-semibold leading-6 tracking-normal sm:text-2xl">
+          {activeTab === 'map' ? 'Add address' : 'Addresses'}
         </h1>
-        <p className="mt-2 hidden leading-6 text-muted-foreground sm:block">
-          Save frequently used places or choose an exact event location on the
-          map for faster planning.
-        </p>
       </div>
 
       <div
-        className="mt-4 inline-flex w-full rounded-xl border border-border bg-muted/60 p-1 sm:mt-6 sm:w-auto"
+        className="mt-2 grid h-12 w-full max-w-md grid-cols-2 rounded-lg border border-border bg-muted/60 p-0.5 sm:mt-3"
         role="tablist"
         aria-label="Venue options"
       >
@@ -205,9 +205,9 @@ export default function AddressesPage() {
           role="tab"
           aria-selected={activeTab === 'saved'}
           onClick={() => switchTab('saved')}
-          className={`flex-1 rounded-lg px-5 py-2.5 text-sm font-semibold transition sm:flex-none ${
+          className={`min-h-11 rounded-md px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
             activeTab === 'saved'
-              ? 'bg-white text-primary shadow-sm'
+              ? 'bg-primary text-white shadow-sm'
               : 'text-muted-foreground hover:text-foreground'
           }`}
         >
@@ -223,91 +223,85 @@ export default function AddressesPage() {
           role="tab"
           aria-selected={activeTab === 'map'}
           onClick={() => switchTab('map')}
-          className={`flex-1 rounded-lg px-5 py-2.5 text-sm font-semibold transition sm:flex-none ${
+          className={`min-h-11 rounded-md px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
             activeTab === 'map'
               ? 'bg-primary text-white shadow-sm'
-              : 'text-primary hover:bg-primary/10'
+              : 'text-muted-foreground hover:text-foreground'
           }`}
         >
-          Choose on map
+          {publicEnv.googleMapsApiKey ? 'Choose on map' : 'Add new'}
         </button>
       </div>
 
       {activeTab === 'map' && (
         <div
-          className="mt-5 grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_420px]"
+          className="mt-2 grid items-start gap-3 lg:grid-cols-[minmax(0,1fr)_420px] sm:mt-3 lg:gap-5"
           role="tabpanel"
         >
-          <section className="surface-card p-4 sm:p-5">
-            <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
-              <h2 className="font-sans text-2xl font-semibold">
-                Find the exact location
-              </h2>
-              <p className="hidden text-xs text-muted-foreground sm:block">
-                Search, click, drag the pin, or use your location
-              </p>
-            </div>
-            <AddressMapPicker
-              initialPosition={
-                deliveryLocation
-                  ? {
-                      latitude: deliveryLocation.latitude,
-                      longitude: deliveryLocation.longitude,
-                    }
-                  : undefined
-              }
-              onAddress={(address) => {
-                setError('');
-                setForm((current) => ({ ...current, ...address }));
-              }}
-            />
-          </section>
-
-          <form onSubmit={add} className="surface-card h-fit p-5 sm:p-6">
-            <div className="flex items-center gap-3">
-              <span className="grid h-10 w-10 place-items-center rounded-full bg-primary/10 text-primary">
-                <Plus className="h-5 w-5" />
-              </span>
-              <div>
-                <h2 className="font-sans text-2xl font-semibold">
-                  Address details
+          {publicEnv.googleMapsApiKey && (
+            <section className="surface-card p-3 sm:p-5">
+              <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+                <h2 className="font-sans text-lg font-semibold">
+                  Find your address
                 </h2>
                 <p className="hidden text-xs text-muted-foreground sm:block">
-                  Review the detected details before saving
+                  Search, click, drag the pin, or use your location
                 </p>
               </div>
-            </div>
+              <AddressMapPicker
+                initialPosition={
+                  deliveryLocation
+                    ? {
+                        latitude: deliveryLocation.latitude,
+                        longitude: deliveryLocation.longitude,
+                      }
+                    : undefined
+                }
+                onAddress={(address) => {
+                  setError('');
+                  setForm((current) => ({ ...current, ...address }));
+                }}
+              />
+            </section>
+          )}
 
-            <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
-              <Field label="Address type">
+          <form
+            onSubmit={add}
+            className="address-form h-fit rounded-none border-0 bg-transparent p-0 shadow-none lg:surface-card lg:p-5"
+          >
+
+            <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-3 lg:grid-cols-1 [&_input]:h-12 [&_input]:rounded-lg [&_input]:px-3.5 [&_select]:h-12 [&_select]:min-h-12 [&_select]:rounded-lg [&_select]:px-3.5 [&_textarea]:h-12 [&_textarea]:min-h-12 [&_textarea]:rounded-lg [&_textarea]:px-3.5 [&_label>span]:mb-1.5 [&_label>span]:text-sm [&_label>span]:font-medium">
+              <Field label="Address type" className="col-span-2 lg:col-span-1">
                 <Select
                   value={form.addressType}
-                  onChange={(event) =>
+                  onChange={(event) => {
+                    const addressType = event.target.value as AddressType;
                     setForm({
                       ...form,
-                      addressType: event.target.value as AddressType,
-                    })
-                  }
+                      addressType,
+                      label: addressType === 'OTHER' ? '' : form.label,
+                    });
+                  }}
                 >
                   <option value="HOME">Home</option>
-                  <option value="OFFICE">Office</option>
+                  <option value="OFFICE">Work</option>
                   <option value="EVENT_VENUE">Event venue</option>
                   <option value="OTHER">Other</option>
                 </Select>
               </Field>
-              <Field label="Label">
+              {form.addressType === 'OTHER' && <Field label="Label" optional optionalInline className="col-span-2 lg:col-span-1">
                 <Input
-                  placeholder="e.g. Home or Garden venue"
+                  placeholder="e.g. Parents' home"
                   maxLength={50}
                   value={form.label}
                   onChange={(event) =>
                     setForm({ ...form, label: event.target.value })
                   }
                 />
-              </Field>
+              </Field>}
               <Field
-                label="Address line 1"
-                className="sm:col-span-2 lg:col-span-1"
+                label="Address"
+                className="col-span-2 lg:col-span-1"
               >
                 <Input
                   placeholder="House, flat, building, or street"
@@ -320,9 +314,10 @@ export default function AddressesPage() {
                 />
               </Field>
               <Field
-                label="Address line 2"
+                label="Area / locality"
                 optional
-                className="sm:col-span-2 lg:col-span-1"
+                optionalInline
+                className="col-span-2 lg:col-span-1"
               >
                 <Input
                   placeholder="Area or locality"
@@ -381,7 +376,7 @@ export default function AddressesPage() {
                   required
                 />
               </Field>
-              <Field label="Landmark" optional>
+              <Field label="Landmark" optional optionalInline className="col-span-2 lg:col-span-1">
                 <Input
                   placeholder="Nearby landmark"
                   maxLength={255}
@@ -394,9 +389,8 @@ export default function AddressesPage() {
             </div>
 
             <Checkbox
-              className="mt-5"
+              className="mt-2 rounded-lg p-2"
               label="Make this my default address"
-              description="We will preselect this venue when planning your next event."
               checked={form.isDefault}
               onCheckedChange={(checked) =>
                 setForm({ ...form, isDefault: checked })
@@ -404,21 +398,20 @@ export default function AddressesPage() {
             />
 
             {form.latitude && form.longitude && (
-              <p className="mt-3 text-xs text-muted-foreground">
-                Map pin: {Number(form.latitude).toFixed(5)},{' '}
-                {Number(form.longitude).toFixed(5)}
+              <p className="mt-2 text-xs text-emerald-700">
+                Location pinned
               </p>
             )}
 
             {error && (
               <p
                 role="alert"
-                className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700"
+                className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700"
               >
                 {error}
               </p>
             )}
-            <Button className="mt-5 w-full" disabled={submitting}>
+            <Button className="mt-3 hidden w-full rounded-xl lg:inline-flex" disabled={submitting}>
               {submitting ? 'Saving address…' : 'Save address'}
             </Button>
           </form>
@@ -428,7 +421,7 @@ export default function AddressesPage() {
       {activeTab === 'saved' && (
         <section className="mt-5" role="tabpanel">
           <div className="flex items-center justify-between">
-            <h2 className="font-sans text-2xl font-semibold">
+            <h2 className="font-sans text-lg font-semibold">
               Your saved places
             </h2>
             <span className="text-sm text-muted-foreground">
@@ -437,7 +430,7 @@ export default function AddressesPage() {
           </div>
 
           {loading ? (
-            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
               {[1, 2].map((item) => (
                 <div
                   key={item}
@@ -448,7 +441,7 @@ export default function AddressesPage() {
           ) : addresses.length ? (
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               {addresses.map((address) => (
-                <article key={address.id} className="surface-card p-5 sm:p-6">
+                <article key={address.id} className="surface-card p-4">
                   <div className="flex items-start justify-between gap-3">
                     <span className="grid h-10 w-10 place-items-center rounded-full bg-primary/10 text-primary">
                       <MapPin className="h-5 w-5" />
@@ -459,7 +452,7 @@ export default function AddressesPage() {
                       </span>
                     )}
                   </div>
-                  <h3 className="mt-5 font-sans text-2xl font-semibold">
+                  <h3 className="mt-3 font-sans text-lg font-semibold">
                     {address.label || address.addressType}
                   </h3>
                   <p className="mt-2 text-sm leading-6 text-muted-foreground">
@@ -490,7 +483,7 @@ export default function AddressesPage() {
               ))}
             </div>
           ) : (
-            <div className="surface-card mt-5 p-8 text-center">
+            <div className="surface-card mt-4 p-6 text-center">
               <MapPin className="mx-auto h-7 w-7 text-primary" />
               <p className="mt-4 font-semibold">No saved addresses yet</p>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -499,6 +492,19 @@ export default function AddressesPage() {
             </div>
           )}
         </section>
+      )}
+
+      {activeTab === 'map' && (
+        <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 border-t border-border bg-card/95 px-3 py-2 shadow-[0_-3px_10px_rgba(45,31,20,0.05)] backdrop-blur lg:hidden">
+          <Button
+            type="button"
+            className="mx-auto h-12 w-full max-w-2xl rounded-xl"
+            disabled={submitting}
+            onClick={() => document.querySelector<HTMLFormElement>('form')?.requestSubmit()}
+          >
+            {submitting ? 'Saving address...' : 'Save address'}
+          </Button>
+        </div>
       )}
     </main>
   );

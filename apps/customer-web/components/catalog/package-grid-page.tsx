@@ -330,9 +330,9 @@ export function PackageGridPage({
         </div>
       </section>
       <section className="border-b border-border bg-background px-4 pb-3 pt-2 sm:hidden">
-        <p className="eyebrow text-gold-text">
+        {/* <p className="eyebrow text-gold-text">
           {isMealBox ? 'Meals, individually packed' : 'Curated event menus'}
-        </p>
+        </p> */}
         <h1 className="mt-0.5 font-serif text-[28px] font-bold leading-[1.08] text-foreground">
           {isMealBox ? 'Meal Boxes' : 'Occasion Packages'}
         </h1>

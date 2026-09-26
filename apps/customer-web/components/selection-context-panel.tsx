@@ -268,11 +268,13 @@ function ThemedTimePicker({
   value,
   onChange,
   slots,
+  isSlotAvailable,
   compact = false,
 }: {
   value: string;
   onChange: (value: string) => void;
   slots: DeliveryTimeSlot[];
+  isSlotAvailable: (slot: DeliveryTimeSlot) => boolean;
   compact?: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -338,7 +340,10 @@ function ThemedTimePicker({
         <div
           role="listbox"
           aria-label="Choose delivery time"
-          className="absolute left-0 z-40 mt-2 max-h-80 w-80 max-w-[calc(100vw-64px)] overflow-y-auto rounded-2xl border bg-white p-3 shadow-[0_20px_55px_-24px_rgba(75,12,23,.45)]"
+          className={cn(
+            'absolute z-40 mt-2 max-h-[min(28rem,calc(100dvh-12rem))] w-80 max-w-[calc(100vw-24px)] overflow-y-auto rounded-2xl border bg-white p-3 shadow-[0_20px_55px_-24px_rgba(75,12,23,.45)]',
+            compact ? 'right-0' : 'left-0',
+          )}
         >
           {value && !selectedSlot && (
             <button
@@ -362,18 +367,21 @@ function ThemedTimePicker({
               <div className="grid grid-cols-3 gap-2">
                 {group.slots.map((slot) => {
                   const selected = slot.value === value;
+                  const available = isSlotAvailable(slot);
                   return (
                     <button
                       key={slot.value}
                       type="button"
                       role="option"
                       aria-selected={selected}
+                      aria-disabled={!available}
+                      disabled={!available}
                       onClick={() => {
                         onChange(slot.value);
                         setOpen(false);
                       }}
                       className={cn(
-                        'rounded-lg border px-2 py-2 text-xs font-semibold transition hover:border-primary/40 hover:bg-primary/[0.05]',
+                        'rounded-lg border px-2 py-2 text-xs font-semibold transition hover:border-primary/40 hover:bg-primary/[0.05] disabled:cursor-not-allowed disabled:bg-muted/40 disabled:text-muted-foreground/40',
                         selected &&
                           'border-primary bg-primary text-white hover:bg-primary',
                       )}
@@ -676,6 +684,24 @@ export function SelectionContextPanel({
       ),
     [publicSettings],
   );
+  const minimumDeliveryInstant =
+    Date.now() +
+    (publicSettings?.minBookingLeadHours ?? 48) * 60 * 60 * 1000;
+  const isTimeAvailable = (slot: DeliveryTimeSlot) =>
+    !eventDate ||
+    new Date(`${eventDate}T${slot.value}:00.000+05:30`).getTime() >=
+      minimumDeliveryInstant;
+
+  useEffect(() => {
+    if (
+      eventTimeStart &&
+      !deliveryTimeSlots.some(
+        (slot) => slot.value === eventTimeStart && isTimeAvailable(slot),
+      )
+    ) {
+      setEventTimeStart('');
+    }
+  }, [deliveryTimeSlots, eventDate, eventTimeStart, minimumDeliveryInstant]);
   const selectedVenue = addresses.find((address) => address.id === addressId);
   const kitchenName = assignedRegion
     ? `${assignedRegion.name} Kitchen`
@@ -726,6 +752,7 @@ export function SelectionContextPanel({
             value={eventTimeStart}
             onChange={setEventTimeStart}
             slots={deliveryTimeSlots}
+            isSlotAvailable={isTimeAvailable}
             compact={checkoutCompact}
           />
         </Field>
@@ -914,7 +941,7 @@ export function SelectionContextPanel({
           <div className="mt-3 rounded-md border border-border/55 bg-white/75 px-3 py-2.5">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold">Delivery address</h3>
+                <h3 className="text-sm font-semibold tracking-normal">Delivery address</h3>
                 {!selectedVenue && (
                   <span className="rounded border border-border/60 bg-muted/50 px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
                     Required
@@ -924,8 +951,8 @@ export function SelectionContextPanel({
               {selectedVenue ? (
                 <div className="mt-1 flex items-start gap-2">
                   <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                  <p className="min-w-0 flex-1 text-sm leading-5 text-muted-foreground">
-                    <span className="font-semibold text-foreground">
+                  <p className="min-w-0 flex-1 text-[13px] leading-5 text-muted-foreground">
+                    <span className="text-sm font-semibold text-foreground">
                       {selectedVenue.label || selectedVenue.addressLine1}
                     </span>
                     {' · '}
