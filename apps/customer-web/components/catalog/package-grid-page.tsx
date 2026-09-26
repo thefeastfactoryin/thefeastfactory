@@ -331,13 +331,17 @@ export function PackageGridPage({
           </div>
         </div>
       </section>
-      <section className="border-b border-border bg-background px-4 pb-2 pt-2 sm:hidden">
-        <p className="eyebrow text-gold-text">Curated event menus</p>
+      <section className="border-b border-border bg-background px-4 pb-3 pt-2 sm:hidden">
+        <p className="eyebrow text-gold-text">
+          {isMealBox ? 'Meals, individually packed' : 'Curated event menus'}
+        </p>
         <h1 className="mt-0.5 font-serif text-[28px] font-bold leading-[1.08] text-foreground">
-          Occasion Packages
+          {isMealBox ? 'Meal Boxes' : 'Occasion Packages'}
         </h1>
         <p className="mt-0.5 max-w-[34rem] text-sm leading-[1.35] text-muted-foreground">
-          Choose a complete menu for your gathering and see exactly what's included.
+          {isMealBox
+            ? description
+            : "Choose a complete menu for your gathering and see exactly what's included."}
         </p>
       </section>
       <div className="mx-auto w-full max-w-7xl px-4 pb-3 pt-2 sm:px-6 sm:pb-4 sm:pt-6 lg:px-8 lg:pt-7">
@@ -353,12 +357,18 @@ export function PackageGridPage({
           </div>
         </div>
         {type === 'MEAL_BOX' && (
-          <div className="mb-6 flex flex-wrap gap-2" aria-label="Diet filter">
+          <div
+            className="mb-4 flex w-full overflow-hidden rounded-xl border border-border bg-muted/60 p-1 sm:mb-6 sm:w-auto sm:gap-2 sm:overflow-visible sm:rounded-full sm:border-0 sm:bg-transparent sm:p-0"
+            aria-label="Diet filter"
+            role="group"
+          >
             {(['all', 'veg', 'non-veg'] as const).map((value) => (
               <button
                 key={value}
+                type="button"
                 onClick={() => setDiet(value)}
-                className={`rounded-full px-4 py-2 text-sm font-bold ${diet === value ? 'bg-primary text-white' : 'border bg-white text-foreground'}`}
+                aria-pressed={diet === value}
+                className={`min-h-10 flex-1 px-3 text-sm font-bold transition-colors sm:flex-none sm:rounded-full sm:px-4 sm:py-2 ${diet === value ? 'rounded-lg bg-primary text-white shadow-sm sm:rounded-full' : 'rounded-lg text-foreground hover:bg-white/70 sm:border sm:bg-white'}`}
               >
                 {value === 'all'
                   ? 'All boxes'
@@ -465,7 +475,7 @@ export function PackageGridPage({
                       <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent opacity-80" />
                       {pkg.type === 'MEAL_BOX' && (
                         <span
-                          className={`absolute right-4 top-4 rounded-full border border-white/25 px-3 py-1 text-xs font-bold text-white shadow-sm ${isVeg ? 'bg-emerald-700/90' : 'bg-red-700/90'}`}
+                          className={`absolute right-3 top-3 rounded-full border border-white/25 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm ${isVeg ? 'bg-emerald-700/90' : 'bg-red-700/90'}`}
                         >
                           {isVeg ? 'Veg' : 'Non-Veg'}
                         </span>
@@ -517,9 +527,6 @@ export function PackageGridPage({
                             </strong>
                             <span>guests</span>
                           </p>
-                          <span className="mt-0.5 block text-[10px] font-semibold leading-4 text-muted-foreground">
-                            Starting price
-                          </span>
                         </div>
                       )}
                       <div className="mt-3 hidden grid-cols-2 overflow-hidden rounded-[14px] border border-border bg-ivory sm:grid">
@@ -573,11 +580,11 @@ export function PackageGridPage({
                   </button>
                     <div className="mt-auto px-4 pt-0 pb-3 sm:pt-1 sm:pb-4">
                     <div>
-                      <div className="mb-0.5 flex items-center justify-between gap-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                        <p>INCLUDES</p>
-                      </div>
                       {categoryHighlights.length ? (
-                        <p className="mb-1 text-[13px] leading-[1.45] text-foreground/85 sm:hidden">
+                        <p className="mb-1 text-[13px] leading-[1.4] text-foreground/85 sm:hidden">
+                          <span className="font-semibold text-foreground">
+                            {included.length} {included.length === 1 ? 'item' : 'items'}:
+                          </span>{' '}
                           {categoryHighlights
                             .map(({ categoryName, count }) =>
                               formatCategorySummary(count, categoryName),
@@ -585,7 +592,10 @@ export function PackageGridPage({
                             .join(' · ')}
                         </p>
                       ) : visibleIncluded.length ? (
-                        <p className="mb-1 text-[13px] leading-[1.45] text-foreground/85 sm:hidden">
+                        <p className="mb-1 text-[13px] leading-[1.4] text-foreground/85 sm:hidden">
+                          <span className="font-semibold text-foreground">
+                            {included.length} {included.length === 1 ? 'item' : 'items'}:
+                          </span>{' '}
                           {visibleIncluded
                             .slice(0, 6)
                             .map((item) => item.name)
@@ -684,7 +694,7 @@ export function PackageGridPage({
                           </button>
                         </div>
                       )}
-                    <div className="mt-1.5 flex items-center justify-between gap-2 border-t border-border/70 pt-1.5 sm:mt-3 sm:block sm:border-0 sm:pt-0">
+                    <div className="mt-1 flex items-center justify-between gap-2 border-t border-border/70 pt-1 sm:mt-3 sm:block sm:border-0 sm:pt-0">
                       <button
                         type="button"
                         onClick={() => updateDetails(pkg.id)}
@@ -697,7 +707,7 @@ export function PackageGridPage({
                         type="button"
                         onClick={() => choose(pkg)}
                         disabled={Boolean(selecting)}
-                        className="flex min-h-10 shrink-0 items-center justify-center gap-1.5 rounded-md bg-primary px-2.5 text-xs font-extrabold text-white transition-all hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60 sm:mt-2 sm:h-11 sm:w-full sm:rounded-full sm:px-4 sm:text-[13.5px] sm:shadow-[0_7px_15px_rgba(116,28,42,0.12)]"
+                        className="flex min-h-10 shrink-0 items-center justify-center gap-1.5 rounded-md bg-primary px-3 text-xs font-extrabold text-white transition-all hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60 sm:mt-2 sm:h-11 sm:w-full sm:rounded-full sm:px-4 sm:text-[13.5px] sm:shadow-[0_7px_15px_rgba(116,28,42,0.12)]"
                       >
                         {selecting === pkg.id
                           ? 'Selecting...'
