@@ -8,7 +8,7 @@ import Radio from '@mui/material/Radio';
 import RadioGroup from '@mui/material/RadioGroup';
 import Switch from '@mui/material/Switch';
 import type { MenuCategory, MenuItem } from '@aranyam/shared-types';
-import { ImagePlus, Pencil, Plus, Save, Search, Trash2, X } from 'lucide-react';
+import { Download, ImagePlus, Pencil, Plus, Save, Search, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '../../../../components/ui/button';
 import { MediaUploader } from '../../../../components/media-uploader';
@@ -50,6 +50,10 @@ function formatMoney(value: string) {
   if (!normalized) return '';
   const amount = Number(normalized);
   return Number.isFinite(amount) ? amount.toFixed(2) : value.trim();
+}
+
+function csvCell(value: string) {
+  return `"${value.replaceAll('"', '""')}"`;
 }
 
 export default function MenuItems() {
@@ -99,6 +103,44 @@ export default function MenuItems() {
       return matchesSearch && matchesCategory;
     });
   }, [rows, search, categoryFilter]);
+
+  function downloadMenu() {
+    const headers = [
+      'category',
+      'name',
+      'description',
+      'boxPrice',
+      'generalPrice',
+      'foodType',
+      'isActive',
+      'imageUrl',
+    ];
+    const csv = [
+      headers.join(','),
+      ...rows.map((item) =>
+        [
+          item.category.name,
+          item.name,
+          item.description ?? '',
+          item.boxPrice,
+          item.generalPrice,
+          item.isVeg ? 'VEG' : 'NON_VEG',
+          String(item.isActive),
+          item.imageUrl ?? '',
+        ]
+          .map(csvCell)
+          .join(','),
+      ),
+    ].join('\n');
+    const url = URL.createObjectURL(
+      new Blob([csv], { type: 'text/csv;charset=utf-8' }),
+    );
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'the-feast-factory-menu.csv';
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
 
   function openCreate() {
     const firstCategory = categories.find((category) => category.isActive);
@@ -212,10 +254,16 @@ export default function MenuItems() {
             Package add-ons are managed from the package screen.
           </p>
         </div>
-        <Button onClick={openCreate} disabled={!categories.length}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add menu item
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" onClick={downloadMenu}>
+            <Download className="mr-2 h-4 w-4" />
+            Download menu CSV
+          </Button>
+          <Button onClick={openCreate} disabled={!categories.length}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add menu item
+          </Button>
+        </div>
       </div>
 
       <section className="admin-card mt-7 grid gap-3 lg:grid-cols-[1fr_260px]">
