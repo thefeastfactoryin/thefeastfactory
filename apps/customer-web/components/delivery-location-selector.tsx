@@ -26,14 +26,14 @@ import {
   reverseGeocodeLocation,
   type MapAddress,
 } from './address-map-picker';
-import { Button } from './ui/button';
 
 const DELIVERY_LEAD_TIME_HOURS = 24;
 const SAVED_ADDRESS_MATCH_KM = 0.5;
 
-type LocationCandidate = {
-  address: MapAddress;
-  resolution: LocationResolution;
+type LocationNotice = {
+  title: string;
+  detail: string;
+  serviceable: boolean;
 };
 
 function formatDeliveryEstimate(date: Date) {
@@ -115,11 +115,12 @@ export function DeliveryLocationSelector({
   const [showSavedAddresses, setShowSavedAddresses] = useState(false);
   const [addresses, setAddresses] = useState<UserAddress[]>([]);
   const [addressesLoaded, setAddressesLoaded] = useState(false);
-  const [candidate, setCandidate] = useState<LocationCandidate>();
   const [candidateLoading, setCandidateLoading] = useState(false);
+  const [notice, setNotice] = useState<LocationNotice>();
   const [deliveryEstimate, setDeliveryEstimate] = useState('');
   const addressBookRevision = useAddressBookStore((state) => state.revision);
   const initialHomeLocated = useRef(false);
+  const selectionRequestId = useRef(0);
 
   useEffect(() => {
     if (!active) return;
@@ -129,6 +130,12 @@ export function DeliveryLocationSelector({
       ),
     );
   }, [active]);
+
+  useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(undefined), 5_000);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
 
   useEffect(() => {
     if (
@@ -275,17 +282,27 @@ export function DeliveryLocationSelector({
     expectedLocation?: DeliveryLocation,
   ) {
     if (!address.latitude || !address.longitude) return;
+    const requestId = close ? ++selectionRequestId.current : undefined;
     setStatus('resolving');
     try {
       const resolution = await resolve(address.latitude, address.longitude);
+      if (requestId && requestId !== selectionRequestId.current) return;
       if (
         expectedLocation &&
         useDeliveryLocationStore.getState().location !== expectedLocation
       )
         return;
       setLocation(locationFromSavedAddress(address, resolution));
-      if (close) setOpen(false);
+      if (close) {
+        setNotice({
+          title: 'Delivery location updated',
+          detail: `${address.label || address.addressLine1} · ${resolution.serviceable ? 'Delivery available' : 'Delivery unavailable here'}`,
+          serviceable: resolution.serviceable,
+        });
+        closeSelector();
+      }
     } catch (reason) {
+      if (requestId && requestId !== selectionRequestId.current) return;
       if (
         expectedLocation &&
         useDeliveryLocationStore.getState().location !== expectedLocation
@@ -295,58 +312,75 @@ export function DeliveryLocationSelector({
     }
   }
 
+  function closeSelector() {
+    selectionRequestId.current += 1;
+    setCandidateLoading(false);
+    setOpen(false);
+  }
+
   async function inspectCandidate(address: MapAddress) {
+    const requestId = ++selectionRequestId.current;
+    if (!address.addressLine1.trim()) {
+      setCandidateLoading(false);
+      setError('Google Maps could not find an address for this pin. Choose a nearby point.');
+      return;
+    }
     setCandidateLoading(true);
     try {
       const nearby = await findNearbySavedAddress(
         address.latitude,
         address.longitude,
       );
-      if (nearby) {
-        setCandidate(undefined);
-        await selectSavedAddress(nearby);
-        return;
-      }
-      setCandidate({
-        address,
-        resolution: await resolve(address.latitude, address.longitude),
+      if (requestId !== selectionRequestId.current) return;
+      const resolution = await resolve(
+        nearby?.latitude ?? address.latitude,
+        nearby?.longitude ?? address.longitude,
+      );
+      if (requestId !== selectionRequestId.current) return;
+      setLocation(
+        nearby
+          ? locationFromSavedAddress(nearby, resolution)
+          : {
+              latitude: address.latitude,
+              longitude: address.longitude,
+              label:
+                address.addressLine2 ||
+                address.addressLine1 ||
+                address.city ||
+                resolution.region?.name ||
+                'Selected location',
+              source: 'manual',
+              address: {
+                addressLine1: address.addressLine1,
+                addressLine2: address.addressLine2,
+                city: address.city,
+                state: address.state,
+                pincode: address.pincode,
+                landmark: address.landmark,
+              },
+              resolution,
+            },
+      );
+      setNotice({
+        title: nearby
+          ? 'Nearby saved address selected'
+          : 'Delivery location updated',
+        detail: `${nearby?.label || formatCandidateAddress(address) || 'Selected map point'} · ${resolution.serviceable ? 'Delivery available' : 'Delivery unavailable here'}`,
+        serviceable: resolution.serviceable,
       });
+      closeSelector();
     } catch (reason) {
-      setCandidate(undefined);
+      if (requestId !== selectionRequestId.current) return;
       setError((reason as Error).message);
     } finally {
-      setCandidateLoading(false);
+      if (requestId === selectionRequestId.current) {
+        setCandidateLoading(false);
+      }
     }
   }
 
-  function useCandidate() {
-    if (!candidate) return;
-    const { address, resolution } = candidate;
-    setLocation({
-      latitude: address.latitude,
-      longitude: address.longitude,
-      label:
-        address.addressLine2 ||
-        address.addressLine1 ||
-        address.city ||
-        resolution.region?.name ||
-        'Selected location',
-      source: 'manual',
-      address: {
-        addressLine1: address.addressLine1,
-        addressLine2: address.addressLine2,
-        city: address.city,
-        state: address.state,
-        pincode: address.pincode,
-        landmark: address.landmark,
-      },
-      resolution,
-    });
-    setOpen(false);
-  }
-
   useEffect(() => {
-    if (!active) setOpen(false);
+    if (!active) closeSelector();
   }, [active]);
 
   useEffect(() => {
@@ -374,6 +408,36 @@ export function DeliveryLocationSelector({
 
   return (
     <>
+      {notice &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            role="status"
+            aria-live="polite"
+            className={`fixed left-4 right-4 top-[calc(4.5rem+env(safe-area-inset-top))] z-[110] mx-auto flex max-w-md items-start gap-3 rounded-xl border p-4 shadow-xl sm:left-auto sm:right-6 sm:top-20 ${notice.serviceable ? 'border-emerald-200 bg-white text-emerald-800' : 'border-amber-200 bg-white text-amber-900'}`}
+          >
+            {notice.serviceable ? (
+              <Check className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+            ) : (
+              <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold">{notice.title}</p>
+              <p className="mt-0.5 break-words text-xs leading-5 text-foreground/75">
+                {notice.detail}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setNotice(undefined)}
+              className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted"
+              aria-label="Dismiss location confirmation"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>,
+          document.body,
+        )}
       {variant === 'header' && (
         <button
           type="button"
@@ -520,7 +584,7 @@ export function DeliveryLocationSelector({
               type="button"
               className="absolute inset-0"
               aria-label="Close location selector"
-              onClick={() => setOpen(false)}
+              onClick={closeSelector}
             />
             <section className="relative ml-auto flex h-[100dvh] max-h-[100dvh] w-full max-w-3xl flex-col overflow-hidden bg-white shadow-2xl sm:ml-0 sm:h-auto sm:max-h-[calc(100dvh-1.5rem)] sm:rounded-2xl">
               <header className="flex shrink-0 items-start justify-between gap-4 border-b px-4 py-3 sm:px-6 sm:py-4">
@@ -534,7 +598,7 @@ export function DeliveryLocationSelector({
                 </div>
                 <button
                   type="button"
-                  onClick={() => setOpen(false)}
+                  onClick={closeSelector}
                   className="grid h-10 w-10 shrink-0 place-items-center rounded-full border text-muted-foreground hover:text-foreground"
                   aria-label="Close"
                 >
@@ -610,42 +674,16 @@ export function DeliveryLocationSelector({
                 )}
 
                 <div className="mt-5">
+                  {candidateLoading && (
+                    <p role="status" className="mb-3 flex items-center gap-2 rounded-xl border border-primary/15 bg-primary/[0.04] px-3 py-2.5 text-sm font-medium text-primary">
+                      <LoaderCircle className="h-4 w-4 shrink-0 animate-spin" aria-hidden="true" />
+                      Checking your location and saved addresses…
+                    </p>
+                  )}
                   <AddressMapPicker
                     onAddress={(address) => void inspectCandidate(address)}
                     inlineMobileSearch
                   />
-                  {(candidate || candidateLoading) && (
-                    <div className="mt-4 rounded-xl border bg-muted/40 p-4">
-                      {candidateLoading ? (
-                        <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <LoaderCircle className="h-4 w-4 animate-spin" />{' '}
-                          Checking this location…
-                        </p>
-                      ) : candidate ? (
-                        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-                          <div>
-                            <p className="text-sm font-bold leading-5">
-                              {formatCandidateAddress(candidate.address) ||
-                                'Selected map location'}
-                            </p>
-                            <p
-                              className={`mt-1 text-xs ${candidate.resolution.serviceable ? 'text-emerald-700' : 'text-amber-700'}`}
-                            >
-                              {candidate.resolution.serviceable
-                                ? `${candidate.resolution.region?.name} Kitchen can serve this location.`
-                                : candidate.resolution.reason ===
-                                    'KITCHEN_CLOSED'
-                                  ? `${candidate.resolution.region?.name} Kitchen is currently closed.`
-                                  : 'This location is outside our current service area.'}
-                            </p>
-                          </div>
-                          <Button type="button" onClick={useCandidate}>
-                            Confirm location
-                          </Button>
-                        </div>
-                      ) : null}
-                    </div>
-                  )}
                 </div>
               </div>
             </section>

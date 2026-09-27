@@ -20,7 +20,7 @@ import {
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { ReactNode } from 'react';
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DataImage } from '../../../components/data-image';
 import { Button } from '../../../components/ui/button';
 import { StatePanel } from '../../../components/ui/state-panel';
@@ -102,9 +102,6 @@ function MenuSelectContent() {
   );
   const removeItem = useOrderBuilderStore((state) => state.removeItem);
   const removeSwap = useOrderBuilderStore((state) => state.removeSwap);
-  const clearSelections = useOrderBuilderStore(
-    (state) => state.clearSelections,
-  );
   const session = useSessionStore((state) => state.session);
   const deliveryLocation = useDeliveryLocationStore((state) => state.location);
 
@@ -125,27 +122,42 @@ function MenuSelectContent() {
   const [saving, setSaving] = useState(false);
   const [boxCountInput, setBoxCountInput] = useState(String(guestCount));
   const requestedCartId = searchParams.get('cartId');
+  const workingCartId = useRef<string | undefined>(undefined);
+  const lastUrlCartId = useRef(requestedCartId);
+
+  useEffect(() => {
+    if (lastUrlCartId.current === requestedCartId) return;
+    lastUrlCartId.current = requestedCartId;
+    workingCartId.current = undefined;
+  }, [requestedCartId]);
 
   const discardStaleCart = useCallback(() => {
+    workingCartId.current = undefined;
     setDbCartId(undefined);
-    clearSelections();
     const next = new URLSearchParams(searchParams.toString());
     next.delete('cartId');
     const query = next.toString();
     router.replace(query ? `/menu/select?${query}` : '/menu/select');
-  }, [clearSelections, router, searchParams, setDbCartId]);
+  }, [router, searchParams, setDbCartId]);
 
   useEffect(() => {
     if (!session || !requestedCartId) return;
+    let active = true;
     apiRequest<CartSummary>(`/cart/${requestedCartId}`, {}, session.accessToken)
-      .then((savedCart) => hydrateFromCart(savedCart))
+      .then((savedCart) => {
+        if (active) hydrateFromCart(savedCart);
+      })
       .catch((reason) => {
+        if (!active) return;
         if (isClearedCartError(reason)) {
           discardStaleCart();
           return;
         }
         setError((reason as Error).message);
       });
+    return () => {
+      active = false;
+    };
   }, [discardStaleCart, hydrateFromCart, requestedCartId, session]);
 
   useEffect(
@@ -465,7 +477,7 @@ function MenuSelectContent() {
     setSaving(true);
     setMessage('');
     try {
-      const requestedCartId = searchParams.get('cartId') || dbCartId;
+      const requestedCartId = workingCartId.current || searchParams.get('cartId') || dbCartId;
       const createCart = () =>
         apiRequest<{ id: string }>(
           '/cart',
@@ -493,10 +505,11 @@ function MenuSelectContent() {
           );
         } catch (reason) {
           if (!isClearedCartError(reason)) throw reason;
-          discardStaleCart();
+          setDbCartId(undefined);
           cart = await createCart();
         }
       }
+      workingCartId.current = cart.id;
       setDbCartId(cart.id);
       await apiRequest(
         `/cart/${cart.id}/items`,
@@ -686,14 +699,14 @@ function MenuSelectContent() {
             </span>
           </div>
 
-          <div className="grid gap-0.5 border-b border-border/30 bg-white px-0 py-0.5 sm:grid-cols-[200px_minmax(0,1fr)] sm:items-center sm:gap-4 sm:border sm:px-4 sm:py-4">
-            <div className="hidden h-32 overflow-hidden rounded-xl border border-border/80 bg-muted sm:block">
+          <div className="grid gap-0.5 border-b border-border/30 bg-white px-0 py-0.5 sm:grid-cols-[200px_minmax(0,1fr)] sm:items-center sm:gap-4 sm:border sm:px-4 sm:py-4 lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-6">
+            <div className="hidden h-32 overflow-hidden rounded-xl border border-border/80 bg-muted sm:block lg:h-40">
               <Image
                 src={isMealBox ? '/order-mealbox.png' : '/pkg-puja.png'}
                 alt=""
                 width={800}
                 height={450}
-                sizes="(max-width: 640px) 100vw, 200px"
+                sizes="(max-width: 1023px) 200px, 240px"
                 className="h-full w-full object-cover"
               />
             </div>
@@ -1369,11 +1382,11 @@ function DishRow({
   onDetails: () => void;
 }) {
   return (
-    <article className="grid min-w-0 grid-cols-[52px_minmax(0,1fr)_auto] items-center gap-2 bg-white px-2 py-2.5 transition hover:bg-ivory/45 sm:grid-cols-[92px_minmax(0,1fr)_170px] sm:gap-3 sm:px-4 sm:py-3">
+    <article className="grid min-w-0 grid-cols-[52px_minmax(0,1fr)_auto] items-center gap-2 bg-white px-2 py-2.5 transition hover:bg-ivory/45 sm:grid-cols-[92px_minmax(0,1fr)_170px] sm:gap-3 sm:px-4 sm:py-3 lg:grid-cols-[112px_minmax(0,1fr)_170px] lg:gap-4">
       <button
         type="button"
         onClick={onDetails}
-        className="h-12 w-[52px] overflow-hidden rounded-md bg-muted sm:h-[84px] sm:w-auto sm:rounded-lg"
+        className="h-12 w-[52px] overflow-hidden rounded-md bg-muted sm:h-[84px] sm:w-auto sm:rounded-lg lg:h-[104px]"
         aria-label={`View details for ${item.name}`}
       >
         <DataImage
@@ -1690,11 +1703,11 @@ function ExtraRow({
   );
   const displayPrice = formatCurrency(unitPrice).replace(/\.00$/, '');
   return (
-    <article className="grid min-w-0 grid-cols-[52px_minmax(0,1fr)_auto] items-center gap-2 bg-white px-2 py-2 transition-colors hover:bg-ivory/45 sm:grid-cols-[92px_minmax(0,1fr)_auto] sm:gap-3 sm:px-4 sm:py-2.5">
+    <article className="grid min-w-0 grid-cols-[52px_minmax(0,1fr)_auto] items-center gap-2 bg-white px-2 py-2 transition-colors hover:bg-ivory/45 sm:grid-cols-[92px_minmax(0,1fr)_auto] sm:gap-3 sm:px-4 sm:py-2.5 lg:grid-cols-[112px_minmax(0,1fr)_auto] lg:gap-4">
       <button
         type="button"
         onClick={onDetails}
-        className="h-12 w-[52px] overflow-hidden rounded-md bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:h-[84px] sm:w-[92px] sm:rounded-lg"
+        className="h-12 w-[52px] overflow-hidden rounded-md bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:h-[84px] sm:w-[92px] sm:rounded-lg lg:h-[104px] lg:w-[112px]"
         aria-label={`View details for ${row.item.name}`}
       >
         <DataImage
@@ -2027,16 +2040,16 @@ function ItemDetails({
         aria-label="Close dish details"
       />
       <section
-        className="relative max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-3xl bg-white shadow-2xl sm:grid sm:max-h-[90vh] sm:grid-cols-[.9fr_1.1fr] sm:rounded-2xl"
+        className="relative max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-3xl bg-white shadow-2xl sm:grid sm:max-h-[90vh] sm:grid-cols-[.9fr_1.1fr] sm:rounded-2xl lg:max-w-4xl lg:grid-cols-[1fr_1fr]"
         role="dialog"
         aria-modal="true"
         aria-label={`${detail.item.name} details`}
       >
-        <div className="min-h-44 bg-muted sm:min-h-56">
+        <div className="min-h-44 bg-muted sm:min-h-56 lg:min-h-80">
           <DataImage
             src={detail.item.imageUrl}
             alt={detail.item.name}
-            className="h-full min-h-44 w-full object-cover sm:min-h-56"
+            className="h-full min-h-44 w-full object-cover sm:min-h-56 lg:min-h-80"
           />
         </div>
         <div className="p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6">

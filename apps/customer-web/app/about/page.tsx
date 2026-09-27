@@ -162,7 +162,7 @@ export default function AboutPage() {
               height={941}
               priority
               sizes="(max-width: 1024px) 100vw, 54vw"
-              className="h-[210px] w-full object-cover sm:h-[320px] lg:h-[380px]"
+              className="h-[210px] w-full object-cover sm:h-[320px] lg:h-[440px]"
             />
             <div className="absolute inset-x-0 bottom-0 hidden bg-gradient-to-t from-black/75 via-black/35 to-transparent px-6 pb-5 pt-14 lg:block">
               <h2 className="font-serif text-2xl font-bold leading-[1.12] tracking-[-0.015em] text-white">

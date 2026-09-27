@@ -18,6 +18,8 @@ export type MapAddress = {
   longitude: string;
 };
 
+export type MapSelectionSource = 'map' | 'search' | 'current' | 'initial';
+
 type PickerStatus =
   | 'idle'
   | 'loading-map'
@@ -89,6 +91,7 @@ function componentValue(
 function parseAddress(
   result: google.maps.GeocoderResult,
   position: google.maps.LatLngLiteral,
+  useFullAddress = false,
 ): MapAddress {
   const components = result.address_components;
   const streetNumber = componentValue(components, 'street_number');
@@ -108,11 +111,16 @@ function parseAddress(
     'neighborhood',
   );
 
+  const addressLine1 =
+    [subpremise, premise, streetNumber, route].filter(Boolean).join(', ') ||
+    pointOfInterest ||
+    result.formatted_address.split(',')[0];
+
   return {
-    addressLine1:
-      [subpremise, premise, streetNumber, route].filter(Boolean).join(', ') ||
-      pointOfInterest ||
-      result.formatted_address.split(',')[0],
+    addressLine1: (useFullAddress
+      ? result.formatted_address.trim() || addressLine1
+      : addressLine1
+    ).slice(0, 255),
     addressLine2: locality,
     city: componentValue(
       components,
@@ -211,7 +219,7 @@ export function AddressMapPicker({
   onSearchFocusChange,
   onSearchError,
 }: {
-  onAddress: (address: MapAddress) => void;
+  onAddress: (address: MapAddress, source: MapSelectionSource) => void;
   initialPosition?: { latitude: string; longitude: string };
   inlineMobileSearch?: boolean;
   /** Reports whether the place search field currently has focus, so a parent
@@ -228,6 +236,7 @@ export function AddressMapPicker({
   const marker = useRef<google.maps.Marker | null>(null);
   const geocoder = useRef<google.maps.Geocoder | null>(null);
   const searchToken = useRef<google.maps.places.AutocompleteSessionToken | null>(null);
+  const selectionVersion = useRef(0);
   const initialPositionRef = useRef(initialPosition);
   const [status, setStatus] = useState<PickerStatus>('idle');
   const [message, setMessage] = useState('');
@@ -240,8 +249,10 @@ export function AddressMapPicker({
   async function selectPosition(
     position: google.maps.LatLngLiteral,
     zoom = 17,
+    source: MapSelectionSource = 'map',
   ) {
     if (!map.current || !marker.current || !geocoder.current) return;
+    const version = ++selectionVersion.current;
     marker.current.setPosition(position);
     map.current.panTo(position);
     map.current.setZoom(zoom);
@@ -249,10 +260,11 @@ export function AddressMapPicker({
     setMessage('Finding the postal address…');
     try {
       const response = await geocoder.current.geocode({ location: position });
+      if (version !== selectionVersion.current) return;
       if (!response.results[0])
         throw new Error('No address was found for this point.');
-      const address = parseAddress(response.results[0], position);
-      onAddress(address);
+      const address = parseAddress(response.results[0], position, true);
+      onAddress(address, source);
       setStatus('ready');
       setMessage(
         address.pincode
@@ -260,6 +272,7 @@ export function AddressMapPicker({
           : 'Location selected, but the pincode needs to be entered manually.',
       );
     } catch {
+      if (version !== selectionVersion.current) return;
       onAddress({
         addressLine1: '',
         addressLine2: '',
@@ -269,13 +282,14 @@ export function AddressMapPicker({
         landmark: '',
         latitude: position.lat.toFixed(8),
         longitude: position.lng.toFixed(8),
-      });
+      }, source);
       setStatus('error');
-      setMessage('');
+      setMessage('Google Maps could not find an address for this pin. Try a nearby point or enter the address manually.');
     }
   }
 
   async function selectPlace(prediction: google.maps.places.PlacePrediction) {
+    const version = ++selectionVersion.current;
     setSuggestions([]);
     setSearchQuery(prediction.text.text);
     setSearchFocused(false);
@@ -293,6 +307,7 @@ export function AddressMapPicker({
           'viewport',
         ],
       });
+      if (version !== selectionVersion.current) return;
       const location = place.location;
       if (!location) throw new Error('Selected place has no location');
       const position = { lat: location.lat(), lng: location.lng() };
@@ -304,10 +319,15 @@ export function AddressMapPicker({
       }
       let address = parsePlaceAddress(place, position);
       if (!address.pincode && geocoder.current) {
-        const response = await geocoder.current.geocode({ location: position });
-        if (response.results[0]) address = parseAddress(response.results[0], position);
+        try {
+          const response = await geocoder.current.geocode({ location: position });
+          if (version !== selectionVersion.current) return;
+          if (response.results[0]) address = parseAddress(response.results[0], position);
+        } catch {
+          // Keep the selected place details if reverse geocoding is unavailable.
+        }
       }
-      onAddress(address);
+      onAddress(address, 'search');
       setStatus('ready');
       setMessage(
         address.pincode
@@ -315,6 +335,7 @@ export function AddressMapPicker({
           : 'Location selected, but the pincode needs to be entered manually.',
       );
     } catch (reason) {
+      if (version !== selectionVersion.current) return;
       console.error('[AddressMapPicker] Place selection failed', reason);
       setStatus('error');
       setMessage('We could not load that place. Try another result or choose a point on the map.');
@@ -472,7 +493,7 @@ export function AddressMapPicker({
           const latitude = Number(initial.latitude);
           const longitude = Number(initial.longitude);
           if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
-            void selectPosition({ lat: latitude, lng: longitude }, 17);
+            void selectPosition({ lat: latitude, lng: longitude }, 17, 'initial');
           }
         }
         window.addEventListener('resize', resizeMap);
@@ -512,9 +533,13 @@ export function AddressMapPicker({
     }
     setStatus('locating');
     setMessage('Getting your accurate location…');
-    const selectCurrentPosition: PositionCallback = ({ coords }) =>
-      void selectPosition({ lat: coords.latitude, lng: coords.longitude }, 18);
+    const requestVersion = ++selectionVersion.current;
+    const selectCurrentPosition: PositionCallback = ({ coords }) => {
+      if (requestVersion !== selectionVersion.current) return;
+      void selectPosition({ lat: coords.latitude, lng: coords.longitude }, 18, 'current');
+    };
     const showLocationError = (error: GeolocationPositionError) => {
+      if (requestVersion !== selectionVersion.current) return;
       setStatus('error');
       if (error.code === error.PERMISSION_DENIED)
         setMessage(
@@ -532,6 +557,7 @@ export function AddressMapPicker({
     navigator.geolocation.getCurrentPosition(
       selectCurrentPosition,
       (error) => {
+        if (requestVersion !== selectionVersion.current) return;
         if (error.code === error.PERMISSION_DENIED) {
           showLocationError(error);
           return;
@@ -608,14 +634,24 @@ export function AddressMapPicker({
           disabled={busy}
           className={`h-12 rounded-xl border-primary/25 bg-primary/[0.04] px-5 font-semibold text-primary shadow-sm hover:border-primary/40 hover:bg-primary/10 hover:text-primary ${searchFocused && !inlineMobileSearch ? 'max-md:hidden' : ''}`}
         >
-          {status === 'locating' ? (
+          {status === 'locating' || status === 'geocoding' ? (
             <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
           ) : (
             <Crosshair className="mr-2 h-4 w-4" />
           )}
-          Use my location
+          {status === 'locating'
+            ? 'Finding your location…'
+            : status === 'geocoding'
+              ? 'Checking location…'
+              : 'Use my location'}
         </Button>
       </div>
+      {(status === 'locating' || status === 'geocoding') && (
+        <p role="status" className="mt-3 flex items-center gap-2 rounded-xl border border-primary/15 bg-white px-3 py-2.5 text-sm font-medium text-primary">
+          <LoaderCircle className="h-4 w-4 shrink-0 animate-spin" aria-hidden="true" />
+          {message}
+        </p>
+      )}
       {inlineMobileSearch && suggestions.length > 0 && (
         <div
           id="mobile-place-suggestions"
@@ -667,7 +703,7 @@ export function AddressMapPicker({
           </span>
         </div>
       </div>
-      {message && (
+      {message && status !== 'locating' && status !== 'geocoding' && (
         <div
           className={`mt-3 flex min-h-12 items-start gap-2 rounded-xl border px-3.5 py-3 text-sm leading-5 ${statusStyle} ${searchFocused && !inlineMobileSearch ? 'max-md:hidden' : ''}`}
           role="status"

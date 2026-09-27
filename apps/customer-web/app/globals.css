@@ -166,7 +166,7 @@ body {
   }
 
   .about-kitchen-photo {
-    @apply block h-32 w-full rounded-lg bg-cover bg-center sm:h-40;
+    @apply block h-32 w-full rounded-lg bg-cover bg-center sm:h-40 lg:h-52;
     background-image: url('/about-gathering.png');
   }
 
@@ -200,7 +200,7 @@ body {
   }
 
   .about-team-photo {
-    @apply mx-auto aspect-[4/5] w-full max-w-[150px] rounded-xl bg-cover bg-center shadow-sm sm:max-w-[176px];
+    @apply mx-auto aspect-[4/5] w-full max-w-[150px] rounded-xl bg-cover bg-center shadow-sm sm:max-w-[176px] lg:max-w-[200px];
   }
 
   .about-credentials-panel,

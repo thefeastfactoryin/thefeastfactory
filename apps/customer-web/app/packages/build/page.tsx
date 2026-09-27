@@ -307,15 +307,15 @@ function DishCatalogue({
             return (
               <article
                 key={dish.id}
-                className="grid min-h-[64px] grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-2 rounded-xl border border-border bg-white px-2 py-1.5 transition hover:border-primary/25 hover:bg-[#fffdf8] sm:min-h-[76px] sm:grid-cols-[50px_minmax(0,1fr)_auto] sm:gap-2.5 sm:px-2.5 sm:py-2"
+                className="grid min-h-[64px] grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-2 rounded-xl border border-border bg-white px-2 py-1.5 transition hover:border-primary/25 hover:bg-[#fffdf8] sm:min-h-[76px] sm:grid-cols-[50px_minmax(0,1fr)_auto] sm:gap-2.5 sm:px-2.5 sm:py-2 lg:min-h-[88px] lg:grid-cols-[64px_minmax(0,1fr)_auto]"
               >
                 <Image
                   src={getDishImage(dish)}
                   alt=""
-                  width={50}
-                  height={50}
-                  sizes="(max-width: 639px) 40px, 50px"
-                  className="h-10 w-10 rounded-lg object-cover sm:h-[50px] sm:w-[50px]"
+                  width={64}
+                  height={64}
+                  sizes="(max-width: 639px) 40px, (max-width: 1023px) 50px, 64px"
+                  className="h-10 w-10 rounded-lg object-cover sm:h-[50px] sm:w-[50px] lg:h-16 lg:w-16"
                 />
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
@@ -511,10 +511,18 @@ function BuildPackageContent() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const hydratedCartVersion = useRef<string | undefined>(undefined);
+  const workingCartId = useRef<string | null>(cartId);
+  const lastUrlCartId = useRef(cartId);
+
+  useEffect(() => {
+    if (lastUrlCartId.current === cartId) return;
+    lastUrlCartId.current = cartId;
+    workingCartId.current = cartId;
+  }, [cartId]);
 
   const discardStaleCart = useCallback(() => {
+    workingCartId.current = null;
     setDbCartId(undefined);
-    setOrder([]);
     const next = new URLSearchParams(searchParams.toString());
     next.delete('cartId');
     const query = next.toString();
@@ -590,7 +598,12 @@ function BuildPackageContent() {
       .then((cart) => {
         if (!active) return;
         hydratedCartVersion.current = packageVersionId;
-        if (!cart || cart.packageVersionId !== packageVersionId) return;
+        if (
+          !cart ||
+          cart.status !== 'ACTIVE' ||
+          cart.packageVersionId !== packageVersionId
+        )
+          return;
 
         const availableIds = new Set(dishes.map((dish) => dish.id));
         setOrder(
@@ -734,20 +747,21 @@ function BuildPackageContent() {
           session.accessToken,
         );
       let cart: CartSummary;
-      if (!cartId) cart = await createCart();
+      if (!workingCartId.current) cart = await createCart();
       else {
         try {
           cart = await apiRequest<CartSummary>(
-            `/cart/${cartId}/quantity`,
+            `/cart/${workingCartId.current}/quantity`,
             { method: 'PUT', body: JSON.stringify({ guestCount }) },
             session.accessToken,
           );
         } catch (reason) {
           if (!isClearedCartError(reason)) throw reason;
-          discardStaleCart();
+          setDbCartId(undefined);
           cart = await createCart();
         }
       }
+      workingCartId.current = cart.id;
       setDbCartId(cart.id);
       await apiRequest(
         `/cart/${cart.id}/items`,
@@ -847,7 +861,7 @@ function BuildPackageContent() {
     <main className="min-h-screen overflow-x-clip bg-background pb-36 lg:pb-16">
       <div className="mx-auto w-full min-w-0 max-w-6xl px-4 py-2 sm:px-5 sm:py-3 lg:px-6">
         {builderHeader}
-        <div className="mt-2 grid min-w-0 gap-2 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+        <div className="mt-2 grid min-w-0 gap-2 lg:grid-cols-[minmax(0,1fr)_350px] lg:items-start">
           <div className="min-w-0">{catalogue}</div>
           <div className="hidden lg:block">{summary}</div>
         </div>

@@ -108,7 +108,7 @@ export function PackageDetailsModal({
         aria-label="Close package details"
         onClick={onClose}
       />
-      <section className="relative flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:h-auto sm:max-h-[min(92vh,calc(100dvh-2.5rem))] sm:max-w-5xl sm:rounded-3xl">
+      <section className="relative flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:h-auto sm:max-h-[min(92vh,calc(100dvh-2.5rem))] sm:max-w-5xl sm:rounded-3xl lg:max-w-6xl">
         <button
           type="button"
           onClick={onClose}
@@ -120,7 +120,7 @@ export function PackageDetailsModal({
           </span>
         </button>
         <div className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain pb-[calc(env(safe-area-inset-bottom)+2rem)] [-webkit-overflow-scrolling:touch] sm:pb-0">
-          <div className="relative aspect-[2.6/1] min-h-[8rem] overflow-hidden bg-muted sm:aspect-auto sm:h-72">
+          <div className="relative aspect-[2.6/1] min-h-[8rem] overflow-hidden bg-muted sm:aspect-auto sm:h-72 lg:h-[360px]">
             <DataImage
               src={pkg.imageUrl}
               alt={`${pkg.name} presentation`}

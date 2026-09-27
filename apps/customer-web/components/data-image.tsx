@@ -30,7 +30,11 @@ export function DataImage({ src, alt, className, loading, style }: {
             ? `${thumbSrc} 192w, ${mediumSrc} 640w, ${src} 1200w`
             : undefined
         }
-        sizes={isLocalMenuImage ? '(max-width: 640px) 50vw, 400px' : undefined}
+        sizes={
+          isLocalMenuImage
+            ? '(max-width: 640px) 50vw, (max-width: 1024px) 45vw, 600px'
+            : undefined
+        }
         alt={alt}
         className={className}
         loading={loading}

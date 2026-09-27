@@ -18,9 +18,9 @@ import {
   Users,
 } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiRequest } from '../../lib/api';
-import { notifyCartCleared } from '../../lib/cart-state';
+import { notifyCartCleared, subscribeToCartCleared } from '../../lib/cart-state';
 import { formatCategoryLabel } from '../../lib/format';
 import { sortMenuCategories } from '../../lib/menu-category-order';
 import { useDeliveryLocationStore } from '../../store/delivery-location.store';
@@ -85,6 +85,7 @@ export function PackageGridPage({
   );
   const [pendingIntent, setPendingIntent] = useState<SelectionIntent>('select');
   const [activeCartCount, setActiveCartCount] = useState(0);
+  const cartCountVersion = useRef(0);
 
   useEffect(() => {
     Promise.all([
@@ -127,14 +128,31 @@ export function PackageGridPage({
   }, [type, searchParams]);
 
   useEffect(() => {
+    const version = ++cartCountVersion.current;
     if (!session) {
       setActiveCartCount(0);
       return;
     }
     apiRequest<CartSummary[]>('/cart/all', {}, session.accessToken)
-      .then((rows) => setActiveCartCount(rows.length))
-      .catch(() => setActiveCartCount(0));
+      .then((rows) => {
+        if (version === cartCountVersion.current) setActiveCartCount(rows.length);
+      })
+      .catch(() => {
+        if (version === cartCountVersion.current) setActiveCartCount(0);
+      });
+    return () => {
+      cartCountVersion.current += 1;
+    };
   }, [session]);
+
+  useEffect(
+    () => subscribeToCartCleared(() => {
+      cartCountVersion.current += 1;
+      setActiveCartCount(0);
+      reset();
+    }),
+    [reset],
+  );
 
   const shown = useMemo(() => {
     const visible = packages.filter((pkg) => {
@@ -396,7 +414,7 @@ export function PackageGridPage({
         {loading ? (
           <div
             className={`grid gap-5 sm:grid-cols-2 ${
-              isMealBox ? 'xl:grid-cols-3' : 'lg:grid-cols-4'
+              isMealBox ? 'xl:grid-cols-3' : 'lg:grid-cols-3'
             }`}
           >
             {(isMealBox ? [1, 2, 3] : [1, 2, 3, 4]).map((item) => (
@@ -409,7 +427,7 @@ export function PackageGridPage({
         ) : (
           <div
             className={`grid items-stretch gap-4 sm:grid-cols-2 ${
-              isMealBox ? 'xl:grid-cols-3' : 'lg:grid-cols-4'
+              isMealBox ? 'xl:grid-cols-3' : 'lg:grid-cols-3'
             }`}
           >
             {shown.map((pkg) => {
@@ -500,8 +518,8 @@ export function PackageGridPage({
                     <div
                       className={`relative shrink-0 overflow-hidden bg-muted/50 ${
                         isMealBox
-                          ? 'aspect-[1/1] self-start w-[32%] rounded-l-[18px] sm:aspect-auto sm:h-[168px] sm:w-full sm:rounded-l-none sm:rounded-t-[18px]'
-                          : `w-full rounded-t-[18px] ${isOccasionPackages ? 'aspect-[2.65/1]' : 'aspect-[2.2/1]'}`
+                          ? 'aspect-[1/1] self-start w-[32%] rounded-l-[18px] sm:aspect-auto sm:h-[168px] sm:w-full sm:rounded-l-none sm:rounded-t-[18px] lg:h-[228px]'
+                          : `w-full rounded-t-[18px] ${isOccasionPackages ? 'aspect-[2.65/1]' : 'aspect-[2.2/1]'} lg:aspect-auto lg:h-[228px]`
                       }`}
                     >
                       <DataImage

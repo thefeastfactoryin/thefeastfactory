@@ -59,9 +59,6 @@ export function KgOrderBuilder() {
   const regionId = location?.resolution.region?.id;
   const hydrate = useOrderBuilderStore((state) => state.hydrateFromCart);
   const setDbCartId = useOrderBuilderStore((state) => state.setDbCartId);
-  const clearSelections = useOrderBuilderStore(
-    (state) => state.clearSelections,
-  );
   const [packages, setPackages] = useState<PackageSummary[]>([]);
   const [config, setConfig] = useState<PackageConfiguration>();
   const [weights, setWeights] = useState<Weights>({});
@@ -76,15 +73,31 @@ export function KgOrderBuilder() {
   const [quoting, setQuoting] = useState(false);
   const [saving, setSaving] = useState(false);
   const savedCartId = useRef<string | null>(requestedCart);
+  const lastUrlCartId = useRef(requestedCart);
+  const weightsRef = useRef(weights);
+  const configIdRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    weightsRef.current = weights;
+  }, [weights]);
+  useEffect(() => {
+    if (lastUrlCartId.current === requestedCart) return;
+    lastUrlCartId.current = requestedCart;
+    savedCartId.current = requestedCart;
+  }, [requestedCart]);
   const discardStaleCart = useCallback(() => {
+    if (configIdRef.current && Object.keys(weightsRef.current).length) {
+      sessionStorage.setItem(
+        `kg-draft:${configIdRef.current}`,
+        JSON.stringify(weightsRef.current),
+      );
+    }
     savedCartId.current = null;
     setDbCartId(undefined);
-    clearSelections();
     const next = new URLSearchParams(params.toString());
     next.delete('cartId');
     const query = next.toString();
     router.replace(query ? `/order-by-kg?${query}` : '/order-by-kg');
-  }, [clearSelections, params, router, setDbCartId]);
+  }, [params, router, setDbCartId]);
   const defaultWeightGrams =
     config?.kgDefaultWeightGrams ?? FALLBACK_DEFAULT_WEIGHT_GRAMS;
   const weightIncrementGrams =
@@ -100,7 +113,6 @@ export function KgOrderBuilder() {
     setError('');
     setConfig(undefined);
     setQuote(undefined);
-    savedCartId.current = requestedCart;
     (async () => {
       const rows = (
         await apiRequest<PackageSummary[]>(
@@ -137,6 +149,7 @@ export function KgOrderBuilder() {
       if (next.packageType !== 'ORDER_BY_KG')
         throw new Error('Choose an Order by KG menu.');
       if (!current) return;
+      configIdRef.current = next.id;
       setConfig(next);
       const nextDefaultWeightGrams =
         next.kgDefaultWeightGrams ?? FALLBACK_DEFAULT_WEIGHT_GRAMS;
@@ -308,7 +321,8 @@ export function KgOrderBuilder() {
         );
       } catch (reason) {
         if (!isClearedCartError(reason)) throw reason;
-        discardStaleCart();
+        savedCartId.current = null;
+        setDbCartId(undefined);
         const created = await createCart();
         savedCartId.current = created.id;
         cart = await apiRequest<CartSummary>(
@@ -575,13 +589,13 @@ export function KgOrderBuilder() {
                       {rule.items.length === 1 ? 'dish' : 'dishes'}
                     </span>
                   </div>
-                  <div className="grid gap-2.5 sm:grid-cols-[repeat(auto-fit,minmax(260px,340px))] sm:gap-4">
+                  <div className="grid gap-2.5 sm:grid-cols-[repeat(auto-fit,minmax(260px,340px))] sm:gap-4 lg:grid-cols-[repeat(auto-fit,minmax(360px,1fr))]">
                     {rule.items.map((item) => (
                       <article
                         key={item.id}
-                        className="group grid min-h-[116px] grid-cols-[96px_minmax(0,1fr)] overflow-hidden rounded-xl border border-border/80 bg-card transition-colors hover:border-primary/30 sm:min-h-[132px]"
+                        className="group grid min-h-[116px] grid-cols-[96px_minmax(0,1fr)] overflow-hidden rounded-xl border border-border/80 bg-card transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-card-hover sm:min-h-[132px] lg:min-h-[156px] lg:grid-cols-[132px_minmax(0,1fr)]"
                       >
-                        <div className="relative h-full min-h-[116px] overflow-hidden sm:min-h-[132px]">
+                        <div className="relative h-full min-h-[116px] overflow-hidden sm:min-h-[132px] lg:min-h-[156px]">
                           <DataImage
                             src={item.imageUrl}
                             alt={item.name}

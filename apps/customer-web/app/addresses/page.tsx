@@ -7,8 +7,8 @@ import {
   type UserAddress,
 } from '@aranyam/shared-types';
 import { createAddressSchema } from '@aranyam/validation';
-import { CheckCircle2, MapPin } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { CheckCircle2, MapPin, Trash2, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '../../components/ui/button';
 import { Checkbox, Field, Select } from '../../components/ui/form';
@@ -38,12 +38,16 @@ const initialForm = {
 
 export default function AddressesPage() {
   const router = useRouter();
+  const addressFormRef = useRef<HTMLFormElement>(null);
   const [activeTab, setActiveTab] = useState<'saved' | 'map'>('saved');
   const [returnTo, setReturnTo] = useState<string | null>(null);
   const session = useSessionStore((state) => state.session);
   const deliveryLocation = useDeliveryLocationStore((state) => state.location);
   const setDeliveryLocation = useDeliveryLocationStore(
     (state) => state.setLocation,
+  );
+  const resetDeliveryLocation = useDeliveryLocationStore(
+    (state) => state.reset,
   );
   const markAddressesChanged = useAddressBookStore(
     (state) => state.markChanged,
@@ -53,6 +57,10 @@ export default function AddressesPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [addressToDelete, setAddressToDelete] = useState<UserAddress>();
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+  const [mapSelectionMessage, setMapSelectionMessage] = useState('');
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const destination = safeReturnPath(params.get('returnTo'), '') || null;
@@ -175,6 +183,7 @@ export default function AddressesPage() {
         }
       }
       setForm({ ...initialForm, isDefault: false });
+      setMapSelectionMessage('');
       if (returnTo) {
         router.replace(returnTo.replace('ADDRESS_ID', created.id));
         return;
@@ -184,6 +193,42 @@ export default function AddressesPage() {
       setError((reason as Error).message);
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  function confirmDelete(address: UserAddress) {
+    setDeleteError('');
+    setAddressToDelete(address);
+  }
+
+  async function deleteAddress() {
+    if (!session || !addressToDelete || deleting) return;
+    setDeleting(true);
+    setDeleteError('');
+    try {
+      await apiRequest<{ success: boolean }>(
+        `/me/addresses/${addressToDelete.id}`,
+        { method: 'DELETE' },
+        session.accessToken,
+      );
+      if (deliveryLocation?.savedAddressId === addressToDelete.id) {
+        resetDeliveryLocation();
+      }
+      setAddresses((current) =>
+        current.filter((address) => address.id !== addressToDelete.id),
+      );
+      markAddressesChanged();
+      setAddressToDelete(undefined);
+      await load();
+    } catch (reason) {
+      const message = (reason as Error).message;
+      setDeleteError(
+        message.includes('used by a cart or order')
+          ? 'This address is linked to a cart or past order and cannot be deleted.'
+          : message,
+      );
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -257,18 +302,40 @@ export default function AddressesPage() {
                       }
                     : undefined
                 }
-                onAddress={(address) => {
+                onAddress={(address, source) => {
                   setError('');
                   setForm((current) => ({ ...current, ...address }));
+                  if (source !== 'initial') {
+                    setMapSelectionMessage(
+                      address.addressLine1
+                        ? 'The address field is filled from the selected map pin. Review the details before saving.'
+                        : 'Google Maps could not find an address for this pin. Enter the address details manually or choose a nearby point.',
+                    );
+                    if (window.matchMedia('(max-width: 1023px)').matches) {
+                      window.requestAnimationFrame(() =>
+                        addressFormRef.current?.scrollIntoView({
+                          behavior: 'smooth',
+                          block: 'start',
+                        }),
+                      );
+                    }
+                  }
                 }}
               />
             </section>
           )}
 
           <form
+            ref={addressFormRef}
             onSubmit={add}
-            className="address-form h-fit rounded-none border-0 bg-transparent p-0 shadow-none lg:surface-card lg:p-5"
+            className="address-form h-fit scroll-mt-20 rounded-none border-0 bg-transparent p-0 shadow-none lg:surface-card lg:p-5"
           >
+
+            {mapSelectionMessage && (
+              <p role="status" className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-900">
+                {mapSelectionMessage}
+              </p>
+            )}
 
             <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-3 lg:grid-cols-1 [&_input]:h-12 [&_input]:rounded-lg [&_input]:px-3.5 [&_select]:h-12 [&_select]:min-h-12 [&_select]:rounded-lg [&_select]:px-3.5 [&_textarea]:h-12 [&_textarea]:min-h-12 [&_textarea]:rounded-lg [&_textarea]:px-3.5 [&_label>span]:mb-1.5 [&_label>span]:text-sm [&_label>span]:font-medium">
               <Field label="Address type" className="col-span-2 lg:col-span-1">
@@ -479,6 +546,15 @@ export default function AddressesPage() {
                       Select this address
                     </Button>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => confirmDelete(address)}
+                    className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-lg px-2 text-sm font-semibold text-red-700 transition hover:bg-red-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700"
+                    aria-label={`Delete ${address.label || address.addressLine1}`}
+                  >
+                    <Trash2 className="h-4 w-4" aria-hidden="true" />
+                    Delete address
+                  </button>
                 </article>
               ))}
             </div>
@@ -504,6 +580,69 @@ export default function AddressesPage() {
           >
             {submitting ? 'Saving address...' : 'Save address'}
           </Button>
+        </div>
+      )}
+
+      {addressToDelete && (
+        <div className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/60 p-4 backdrop-blur-sm">
+          <button
+            type="button"
+            className="absolute inset-0"
+            aria-label="Cancel deleting address"
+            disabled={deleting}
+            onClick={() => setAddressToDelete(undefined)}
+          />
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-address-title"
+            className="relative w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl sm:p-6"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <span className="grid h-11 w-11 place-items-center rounded-full bg-red-50 text-red-700">
+                <Trash2 className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <button
+                type="button"
+                onClick={() => setAddressToDelete(undefined)}
+                disabled={deleting}
+                className="grid h-9 w-9 place-items-center rounded-full text-muted-foreground hover:bg-muted disabled:opacity-50"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <h2 id="delete-address-title" className="mt-4 font-sans text-xl font-semibold">
+              Delete this address?
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              {addressToDelete.label || addressToDelete.addressLine1} will be removed from your saved addresses.
+              {addressToDelete.isDefault && ' Your next saved address will become the default.'}
+            </p>
+            {deleteError && (
+              <p role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                {deleteError}
+              </p>
+            )}
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={deleting}
+                onClick={() => setAddressToDelete(undefined)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                disabled={deleting}
+                onClick={() => void deleteAddress()}
+                className="bg-red-700 text-white hover:bg-red-800"
+              >
+                {deleting ? 'Deleting…' : 'Delete address'}
+              </Button>
+            </div>
+          </section>
         </div>
       )}
     </main>

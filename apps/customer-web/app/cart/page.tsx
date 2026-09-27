@@ -32,7 +32,7 @@ import {
 import Link from 'next/link';
 import Script from 'next/script';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RetryPaymentButton } from '../../components/retry-payment-button';
 import { SelectionContextPanel } from '../../components/selection-context-panel';
 import type { VenueServiceability } from '../../components/selection-context-panel';
@@ -41,7 +41,11 @@ import { Field, Select } from '../../components/ui/form';
 import { Input } from '../../components/ui/input';
 import { AuthRequiredPanel, StatePanel } from '../../components/ui/state-panel';
 import { apiRequest } from '../../lib/api';
-import { notifyCartCleared } from '../../lib/cart-state';
+import {
+  isClearedCartError,
+  notifyCartCleared,
+  subscribeToCartCleared,
+} from '../../lib/cart-state';
 import { formatCurrency } from '../../lib/format';
 import { sortMenuCategories } from '../../lib/menu-category-order';
 import { cn } from '../../lib/utils';
@@ -269,6 +273,9 @@ export default function CartPage() {
   }>();
   const [loading, setLoading] = useState(true);
   const [quoteLoading, setQuoteLoading] = useState(false);
+  const [cartReloadKey, setCartReloadKey] = useState(0);
+  const missingCartRecoveryAttempts = useRef(0);
+  const recoveringCart = useRef(false);
   const [paying, setPaying] = useState(false);
   const [deletingCartId, setDeletingCartId] = useState('');
   const [clearCartOpen, setClearCartOpen] = useState(false);
@@ -381,6 +388,31 @@ export default function CartPage() {
     }
   }
 
+  const recoverMissingCart = useCallback((reason: unknown) => {
+    if (!isClearedCartError(reason)) return false;
+    if (missingCartRecoveryAttempts.current >= 2) {
+      setError('Your cart changed. Refresh this page to continue.');
+      return true;
+    }
+    missingCartRecoveryAttempts.current += 1;
+    recoveringCart.current = true;
+    setError('');
+    setLoading(true);
+    setQuote(undefined);
+    setMultiCartQuote(undefined);
+    setCartReloadKey((current) => current + 1);
+    return true;
+  }, []);
+
+  useEffect(
+    () => subscribeToCartCleared((source) => {
+      if (source === 'storage') {
+        recoverMissingCart(new Error('Active cart not found'));
+      }
+    }),
+    [recoverMissingCart],
+  );
+
   const loadQuote = useCallback(
     async (currentCartId?: string) => {
       if (!session) return;
@@ -396,6 +428,7 @@ export default function CartPage() {
         )?.quote;
         setMultiCartQuote(aggregate);
         setQuote(detail ?? aggregate.carts[0]?.quote);
+        missingCartRecoveryAttempts.current = 0;
         setError(
           aggregate.valid
             ? ''
@@ -404,17 +437,19 @@ export default function CartPage() {
       } catch (reason) {
         setQuote(undefined);
         setMultiCartQuote(undefined);
-        setError((reason as Error).message);
+        if (!recoverMissingCart(reason)) setError((reason as Error).message);
       } finally {
         setQuoteLoading(false);
       }
     },
-    [session],
+    [session, recoverMissingCart],
   );
 
   useEffect(() => {
     if (!session) return;
     let active = true;
+    recoveringCart.current = false;
+    setLoading(true);
     async function load() {
       try {
         const [value, allCarts] = await Promise.all([
@@ -424,19 +459,30 @@ export default function CartPage() {
         if (!active) return;
         setActiveCarts(allCarts);
         publishCheckoutCartCount(allCarts.length);
-        if (!value) return;
-        setCart(value);
-        setSpecialNotes(value.specialNotes ?? '');
-        setContactNumber(value.contactNumber || session!.user.mobileNumber);
-        hydrate(value);
+        const currentCart =
+          allCarts.find((entry) => entry.id === value?.id) ??
+          allCarts[0] ??
+          (value?.pendingOrderId ? value : undefined);
+        if (!currentCart) {
+          missingCartRecoveryAttempts.current = 0;
+          reset();
+          setCart(undefined);
+          setQuote(undefined);
+          setMultiCartQuote(undefined);
+          return;
+        }
+        setCart(currentCart);
+        setSpecialNotes(currentCart.specialNotes ?? '');
+        setContactNumber(currentCart.contactNumber || session!.user.mobileNumber);
+        hydrate(currentCart);
         const configuration = await apiRequest<PackageConfiguration>(
-          `/package-versions/${value.packageVersionId}/configuration`,
+          `/package-versions/${currentCart.packageVersionId}/configuration`,
         );
         if (!active) return;
         setConfig(configuration);
         const configurations = await Promise.all(
           allCarts.map(async (packageCart) => {
-            if (packageCart.id === value.id) {
+            if (packageCart.id === currentCart.id) {
               return [packageCart.id, configuration] as const;
             }
             try {
@@ -459,9 +505,9 @@ export default function CartPage() {
             ),
           );
         }
-        if (value.pendingOrderId) {
+        if (currentCart.pendingOrderId) {
           const order = await apiRequest<OrderSummary>(
-            `/orders/${value.pendingOrderId}`,
+            `/orders/${currentCart.pendingOrderId}`,
             {},
             session!.accessToken,
           );
@@ -470,28 +516,29 @@ export default function CartPage() {
             orderIds: string[];
             totalAmount: string;
           }>(
-            `/orders/${value.pendingOrderId}/payment-batch`,
+            `/orders/${currentCart.pendingOrderId}/payment-batch`,
             {},
             session!.accessToken,
           );
           if (active) {
+            missingCartRecoveryAttempts.current = 0;
             setPendingOrder(order);
             setPendingBatch(batch);
           }
         } else {
-          await loadQuote(value.id);
+          await loadQuote(currentCart.id);
         }
       } catch (reason) {
-        if (active) setError((reason as Error).message);
+        if (active && !recoverMissingCart(reason)) setError((reason as Error).message);
       } finally {
-        if (active) setLoading(false);
+        if (active && !recoveringCart.current) setLoading(false);
       }
     }
     void load();
     return () => {
       active = false;
     };
-  }, [session, hydrate, loadQuote]);
+  }, [session, hydrate, loadQuote, reset, recoverMissingCart, cartReloadKey]);
 
   const onEventSaved = useCallback(
     (updated: CartSummary) => {
@@ -547,9 +594,11 @@ export default function CartPage() {
           }
           return undefined;
         })
-        .catch((reason) => setError((reason as Error).message));
+        .catch((reason) => {
+          if (!recoverMissingCart(reason)) setError((reason as Error).message);
+        });
     },
-    [session, hydrate, loadQuote, activeCarts],
+    [session, hydrate, loadQuote, activeCarts, recoverMissingCart],
   );
 
   async function updatePackageQuantity(
@@ -579,7 +628,7 @@ export default function CartPage() {
       }
       await loadQuote(cart?.id ?? updated.id);
     } catch (reason) {
-      setError((reason as Error).message);
+      if (!recoverMissingCart(reason)) setError((reason as Error).message);
     } finally {
       setUpdatingCartId('');
     }
@@ -617,7 +666,7 @@ export default function CartPage() {
       }
       await loadQuote(cart.id);
     } catch (reason) {
-      setError((reason as Error).message);
+      if (!recoverMissingCart(reason)) setError((reason as Error).message);
     } finally {
       setUpdatingDelivery(false);
     }
@@ -652,7 +701,7 @@ export default function CartPage() {
       }
       await loadQuote(cart.id);
     } catch (reason) {
-      setError((reason as Error).message);
+      if (!recoverMissingCart(reason)) setError((reason as Error).message);
     } finally {
       setUpdatingDelivery(false);
     }
@@ -697,7 +746,7 @@ export default function CartPage() {
       await persistContactNumber(validated.data);
       setEditingContact(false);
     } catch (reason) {
-      setError((reason as Error).message);
+      if (!recoverMissingCart(reason)) setError((reason as Error).message);
     } finally {
       setSavingContact(false);
     }
@@ -724,6 +773,7 @@ export default function CartPage() {
         setConfig(undefined);
         setQuote(undefined);
         setMultiCartQuote(undefined);
+        notifyCartCleared();
         return;
       }
       if (cart?.id === cartId) {
@@ -745,7 +795,7 @@ export default function CartPage() {
         await loadQuote(detailCartId);
       }
     } catch (reason) {
-      setError((reason as Error).message);
+      if (!recoverMissingCart(reason)) setError((reason as Error).message);
     } finally {
       setDeletingCartId('');
     }
@@ -768,7 +818,7 @@ export default function CartPage() {
       notifyCartCleared();
       window.dispatchEvent(new Event('cart-updated'));
     } catch (reason) {
-      setError((reason as Error).message);
+      if (!recoverMissingCart(reason)) setError((reason as Error).message);
     } finally {
       setClearingCart(false);
     }
@@ -1052,7 +1102,7 @@ export default function CartPage() {
       });
       checkout.open();
     } catch (reason) {
-      setError((reason as Error).message);
+      if (!recoverMissingCart(reason)) setError((reason as Error).message);
       setPaying(false);
     }
   }
@@ -1364,6 +1414,9 @@ export default function CartPage() {
                   onSaved={onEventSaved}
                   onAddAddress={openAddressDialog}
                   onVenueStatusChange={setVenueStatus}
+                  onMissingCart={() =>
+                    recoverMissingCart(new Error('Active cart not found'))
+                  }
                 />
                 {validationLocation === 'delivery' && error && (
                   <p role="alert" className="mt-1 text-sm font-medium text-red-800">

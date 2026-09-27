@@ -302,7 +302,7 @@ function MenuCard({ item }: { item: MenuItem }) {
   return (
     <article className="group grid min-h-[68px] grid-cols-[32%_minmax(0,1fr)] overflow-hidden rounded-xl border border-border/70 bg-white shadow-[0_2px_12px_rgba(88,64,48,0.05)] transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-[0_8px_22px_rgba(88,64,48,0.08)] sm:flex sm:min-h-[160px] sm:flex-col sm:rounded-2xl">
       {/* Food image */}
-      <div className="relative h-full min-h-[68px] overflow-hidden sm:aspect-[4/2] sm:h-auto sm:min-h-0">
+      <div className="relative h-full min-h-[68px] overflow-hidden sm:aspect-[4/2] sm:h-auto sm:min-h-0 lg:aspect-[3/2]">
         <DataImage
           src={item.imageUrl}
           alt={item.name}
@@ -366,7 +366,7 @@ function MenuCard({ item }: { item: MenuItem }) {
 ══════════════════════════════════════════════════════════ */
 function MenuSkeleton() {
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+    <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
       {Array.from({ length: 6 }).map((_, i) => (
         <div
           key={i}
@@ -644,7 +644,7 @@ export default function PublicMenuPage() {
                       )}
                       aria-label={category.name}
                     >
-                      <div className="grid gap-2 sm:grid-cols-2 sm:gap-5 xl:grid-cols-3 2xl:grid-cols-4">
+                      <div className="grid gap-2 sm:grid-cols-2 sm:gap-5 2xl:grid-cols-3">
                         {categoryItems.map((item) => (
                           <MenuCard key={item.id} item={item} />
                         ))}

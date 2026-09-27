@@ -27,6 +27,7 @@ import { usePathname } from 'next/navigation';
 import type { ReactNode, RefObject } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiRequest } from '../lib/api';
+import { isClearedCartError } from '../lib/cart-state';
 import { cn } from '../lib/utils';
 import { useDeliveryLocationStore } from '../store/delivery-location.store';
 import { useAddressBookStore } from '../store/address-book.store';
@@ -420,6 +421,7 @@ export function SelectionContextPanel({
   onSaved,
   onAddAddress,
   onVenueStatusChange,
+  onMissingCart,
 }: {
   cartId: string;
   packageVersionId: string;
@@ -432,6 +434,7 @@ export function SelectionContextPanel({
   onSaved?: (cart: CartSummary) => void;
   onAddAddress?: () => void;
   onVenueStatusChange?: (status: VenueServiceability) => void;
+  onMissingCart?: () => void;
 }) {
   const sidebar = variant === 'sidebar';
   const publicSettings = usePublicSettings();
@@ -464,11 +467,16 @@ export function SelectionContextPanel({
   const [guestInput, setGuestInput] = useState(String(guestCount));
   const hydrated = useRef(false);
   const onSavedRef = useRef(onSaved);
+  const onMissingCartRef = useRef(onMissingCart);
   const lastSavedKey = useRef('');
 
   useEffect(() => {
     onSavedRef.current = onSaved;
   }, [onSaved]);
+
+  useEffect(() => {
+    onMissingCartRef.current = onMissingCart;
+  }, [onMissingCart]);
 
   useEffect(() => setGuestInput(String(guestCount)), [guestCount]);
 
@@ -550,7 +558,12 @@ export function SelectionContextPanel({
         hydrated.current = true;
       })
       .catch((reason) => {
-        if (current) setMessage(reason.message);
+        if (!current) return;
+        if (isClearedCartError(reason)) {
+          onMissingCartRef.current?.();
+          return;
+        }
+        setMessage(reason.message);
       });
     return () => {
       current = false;
@@ -694,6 +707,10 @@ export function SelectionContextPanel({
             : 'Address saved. Add the delivery date and time to continue.',
         );
       } catch (reason) {
+        if (isClearedCartError(reason)) {
+          onMissingCartRef.current?.();
+          return;
+        }
         setMessage((reason as Error).message);
       } finally {
         setSaving(false);

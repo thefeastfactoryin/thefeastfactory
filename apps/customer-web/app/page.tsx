@@ -21,13 +21,13 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   catalogCopy,
   offeringDisplay,
 } from '../lib/catalog-display';
 import { apiRequest } from '../lib/api';
-import { notifyCartCleared } from '../lib/cart-state';
+import { notifyCartCleared, subscribeToCartCleared } from '../lib/cart-state';
 import { DataImage } from '../components/data-image';
 import { sortMenuCategories } from '../lib/menu-category-order';
 import {
@@ -124,6 +124,7 @@ export default function HomePage() {
   const [selecting, setSelecting] = useState('');
   const [selectionError, setSelectionError] = useState('');
   const [activeCartCount, setActiveCartCount] = useState(0);
+  const cartCountVersion = useRef(0);
   const [activeHeroImage, setActiveHeroImage] = useState(0);
   const [kgAvailableAtLocation, setKgAvailableAtLocation] = useState(true);
   useEffect(() => {
@@ -174,14 +175,31 @@ export default function HomePage() {
   }, [deliveryLocation?.resolution.region?.id]);
 
   useEffect(() => {
+    const version = ++cartCountVersion.current;
     if (!session) {
       setActiveCartCount(0);
       return;
     }
     apiRequest<CartSummary[]>('/cart/all', {}, session.accessToken)
-      .then((rows) => setActiveCartCount(rows.length))
-      .catch(() => setActiveCartCount(0));
+      .then((rows) => {
+        if (version === cartCountVersion.current) setActiveCartCount(rows.length);
+      })
+      .catch(() => {
+        if (version === cartCountVersion.current) setActiveCartCount(0);
+      });
+    return () => {
+      cartCountVersion.current += 1;
+    };
   }, [session]);
+
+  useEffect(
+    () => subscribeToCartCleared(() => {
+      cartCountVersion.current += 1;
+      setActiveCartCount(0);
+      reset();
+    }),
+    [reset],
+  );
 
   async function selectPackage(pkg: PackageSummary, confirmed = false) {
     if (!pkg.activeVersion || selecting) return;
@@ -271,7 +289,7 @@ export default function HomePage() {
         }}
       >
         <div className="mx-auto w-full max-w-[1536px] px-4 sm:px-6 lg:px-12">
-          <div className="grid min-w-0 items-center gap-4 py-7 sm:gap-6 sm:py-9 lg:min-h-[480px] lg:grid-cols-[0.95fr_1.1fr] lg:gap-10 lg:py-10">
+          <div className="grid min-w-0 items-center gap-4 py-7 sm:gap-6 sm:py-9 lg:min-h-[540px] lg:grid-cols-[0.9fr_1.1fr] lg:gap-10 lg:py-10">
             <div className="min-w-0 max-w-[590px]">
               {/* <p className="eyebrow">Food for gatherings</p> */}
               <h1 className="mt-3 max-w-[570px] font-serif text-[30px] font-bold leading-[1.04] tracking-[-0.03em] sm:text-[38px] lg:text-[48px] lg:leading-[0.98]">
@@ -326,7 +344,7 @@ export default function HomePage() {
             </div>
 
             <div className="relative min-w-0 lg:-mr-8">
-              <div className="relative h-[240px] overflow-hidden rounded-[18px] border border-accent/15 shadow-[0_20px_40px_rgba(0,0,0,0.28)] sm:h-[320px] sm:aspect-[16/9] sm:rounded-[24px] lg:h-[440px] lg:aspect-auto lg:rounded-[26px]">
+              <div className="relative h-[240px] overflow-hidden rounded-[18px] border border-accent/15 shadow-[0_20px_40px_rgba(0,0,0,0.28)] sm:h-[320px] sm:aspect-[16/9] sm:rounded-[24px] lg:h-[490px] lg:aspect-auto lg:rounded-[26px] lg:shadow-[0_28px_60px_rgba(0,0,0,0.32)]">
                 {heroImages.map((image, index) => (
                   <img
                     key={image.src}
@@ -405,14 +423,14 @@ export default function HomePage() {
                 <Link
                   key={offering.id}
                   href={display.href}
-                  className="group flex min-h-[122px] flex-col justify-between rounded-[12px] border border-border bg-card p-3 transition-colors hover:border-primary/30 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                  className="group flex min-h-[122px] flex-col justify-between rounded-[12px] border border-border bg-card p-3 transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:bg-white hover:shadow-card-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 lg:p-4"
                 >
-                  <div className="mb-3 h-24 overflow-hidden rounded-[8px] bg-muted">
+                  <div className="mb-3 h-24 overflow-hidden rounded-[8px] bg-muted lg:h-40 lg:rounded-[10px]">
                     {copy && (
                       <img
                         src={copy.image}
                         alt={copy.alt}
-                        className="h-full w-full object-cover"
+                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
                         style={{ objectPosition: copy.imagePosition }}
                       />
                     )}
@@ -529,7 +547,7 @@ export default function HomePage() {
                     className="block w-full text-left"
                     aria-label={`View details for ${pkg.name}`}
                   >
-                    <div className="relative h-52 overflow-hidden">
+                    <div className="relative h-52 overflow-hidden lg:h-64">
                       <DataImage
                         src={pkg.imageUrl}
                         alt={`${pkg.name} presentation`}
