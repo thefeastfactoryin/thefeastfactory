@@ -11,6 +11,7 @@ import {
   Search,
   Utensils,
   UtensilsCrossed,
+  X,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { StatePanel } from '../../components/ui/state-panel';
@@ -198,47 +199,97 @@ function CategoryButton({
 interface FilterBarProps {
   dietary: DietaryFilter;
   onDietaryChange: (v: DietaryFilter) => void;
-  searchActive: boolean;
-  itemCount: number;
-  loading: boolean;
+  search: string;
+  onSearchChange: (value: string) => void;
+  onClearSearch: () => void;
 }
 
 function FilterBar({
   dietary,
   onDietaryChange,
-  searchActive,
-  itemCount,
-  loading,
+  search,
+  onSearchChange,
+  onClearSearch,
 }: FilterBarProps) {
+  const [searchOpen, setSearchOpen] = useState(false);
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 py-2">
-      {/* Dietary */}
-      <div className="flex items-center gap-1.5">
-        {(
-          [
-            { value: 'all', label: 'All dishes' },
-            { value: 'veg', label: 'Veg' },
-            { value: 'non-veg', label: 'Non-Veg' },
-          ] as const
-        ).map(({ value, label }) => (
-          <button
-            key={value}
-            onClick={() => onDietaryChange(value)}
-            className={cn(
-              'rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors',
-              dietary === value
-                ? 'border-primary bg-primary text-white shadow-sm'
-                : 'border-border bg-white text-muted-foreground hover:border-primary/40 hover:text-primary',
-            )}
-          >
-            {label}
-          </button>
-        ))}
-        {!loading && itemCount > 0 && !searchActive && (
-          <span className="ml-1 text-xs text-muted-foreground">
-            {itemCount} {itemCount === 1 ? 'dish' : 'dishes'}
-          </span>
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 py-1">
+        {/* Dietary */}
+        <div className="flex items-center gap-1.5">
+          {(
+            [
+              { value: 'all', label: 'All' },
+              { value: 'veg', label: 'Veg' },
+              { value: 'non-veg', label: 'Non-Veg' },
+            ] as const
+          ).map(({ value, label }) => (
+            <button
+              key={value}
+              onClick={() => onDietaryChange(value)}
+              className={cn(
+                'min-h-8 rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                dietary === value
+                  ? 'border-primary bg-primary text-white shadow-sm'
+                  : 'border-border bg-white text-muted-foreground hover:border-primary/40 hover:text-primary',
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          aria-expanded={searchOpen}
+          aria-label={searchOpen ? 'Close dish search' : 'Search dishes'}
+          onClick={() => {
+            if (searchOpen) onClearSearch();
+            setSearchOpen((open) => !open);
+          }}
+          className={cn(
+            'grid h-8 w-8 shrink-0 place-items-center rounded-full border transition',
+            searchOpen
+              ? 'border-primary bg-primary text-white'
+              : 'border-border bg-white text-muted-foreground hover:border-primary/40 hover:text-primary',
+          )}
+        >
+          {searchOpen ? (
+            <X className="h-3.5 w-3.5" />
+          ) : (
+            <Search className="h-3.5 w-3.5" />
+          )}
+        </button>
+      </div>
+      <div
+        aria-hidden={!searchOpen}
+        className={cn(
+          'grid transition-all duration-200 ease-out',
+          searchOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
         )}
+      >
+        <div className="overflow-hidden">
+          <label className="flex min-h-9 items-center gap-2 rounded-xl border border-border bg-[#fbf8f2] px-3 focus-within:border-primary/45 focus-within:ring-2 focus-within:ring-primary/10">
+            <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <span className="sr-only">Search dishes</span>
+            <input
+              tabIndex={searchOpen ? 0 : -1}
+              value={search}
+              onChange={(event) => onSearchChange(event.target.value)}
+              placeholder="Search dishes..."
+              className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none placeholder:text-muted-foreground"
+            />
+            {search && (
+              <button
+                type="button"
+                aria-label="Clear dish search"
+                onClick={onClearSearch}
+                className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-muted-foreground transition hover:bg-primary hover:text-white"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </label>
+        </div>
       </div>
     </div>
   );
@@ -483,8 +534,8 @@ export default function PublicMenuPage() {
         {/* ② Filters, cart context, and compact food grid */}
         <main className="min-w-0 flex-1 px-4 pb-24 pt-4 sm:px-6 lg:px-8 lg:pb-12 lg:pt-8">
           <div className="mx-auto max-w-6xl">
-            <div className="relative mb-3">
-              <Search className="absolute left-5 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+            <div className="relative mb-2 hidden lg:block">
+              <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
                 type="text"
                 placeholder="Search dishes by name..."
@@ -495,7 +546,7 @@ export default function PublicMenuPage() {
                   if (value.trim()) setCategoryId('');
                   else if (categories[0]) setCategoryId(categories[0].id);
                 }}
-                className="h-12 w-full rounded-xl border border-border bg-white pl-12 pr-4 text-sm font-medium shadow-[0_8px_26px_rgba(88,64,48,0.08)] outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 sm:h-14 sm:rounded-2xl sm:pl-14 sm:pr-64"
+                className="h-10 w-full rounded-xl border border-border bg-white pl-10 pr-4 text-sm font-medium shadow-[0_8px_26px_rgba(88,64,48,0.08)] outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 sm:h-11 sm:pl-11 sm:pr-64"
               />
               <span className="pointer-events-none absolute right-5 top-1/2 hidden -translate-y-1/2 text-xs font-medium text-muted-foreground sm:block">
                 Example: Chicken 65, Paneer, Biryani
@@ -505,9 +556,16 @@ export default function PublicMenuPage() {
               <FilterBar
                 dietary={dietary}
                 onDietaryChange={setDietary}
-                searchActive={Boolean(search)}
-                itemCount={items.length}
-                loading={loading}
+                search={search}
+                onSearchChange={(value) => {
+                  setSearch(value);
+                  if (value.trim()) setCategoryId('');
+                  else if (categories[0]) setCategoryId(categories[0].id);
+                }}
+                onClearSearch={() => {
+                  setSearch('');
+                  if (categories[0]) setCategoryId(categories[0].id);
+                }}
               />
               <div
                 className="mb-0 flex gap-1.5 overflow-x-auto pb-1"
@@ -521,18 +579,31 @@ export default function PublicMenuPage() {
                       type="button"
                       onClick={() => setCategoryId(cat.id)}
                       className={cn(
-                        'flex h-10 shrink-0 items-center gap-1.5 rounded-full px-3 text-[14px] font-semibold',
+                        'flex h-8 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-[12px] font-semibold',
                         categoryId === cat.id
                           ? 'bg-primary text-white shadow-sm'
                           : 'border border-border bg-white text-muted-foreground',
                       )}
                     >
-                      <Icon className="h-3.5 w-3.5" />
+                      <Icon className="h-3 w-3" />
                       {cat.name}
                     </button>
                   );
                 })}
               </div>
+              {categoryId && (
+                <div className="mt-1.5 flex items-baseline justify-between gap-2 px-0.5">
+                  <span className="text-sm font-bold text-foreground">
+                    {
+                      orderedCategories.find((cat) => cat.id === categoryId)
+                        ?.name
+                    }
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {items.length} {items.length === 1 ? 'dish' : 'dishes'}
+                  </span>
+                </div>
+              )}
             </div>
 
             {!categoryId && (
@@ -571,19 +642,8 @@ export default function PublicMenuPage() {
                         index > 0 &&
                           'border-t-2 border-primary/10 pt-7 lg:pt-10',
                       )}
-                      aria-labelledby={`menu-category-${category.id}`}
+                      aria-label={category.name}
                     >
-                      <div className="mb-1 flex flex-wrap items-end gap-3 sm:mb-5">
-                        <div>
-                          <h2
-                            id={`menu-category-${category.id}`}
-                            className="font-sans text-[1.4rem] font-semibold text-foreground lg:text-[1.55rem]"
-                          >
-                            {category.name}
-                          </h2>
-                          <div className="mt-2 h-[3px] w-12 bg-amber-500" />
-                        </div>
-                      </div>
                       <div className="grid gap-2 sm:grid-cols-2 sm:gap-5 xl:grid-cols-3 2xl:grid-cols-4">
                         {categoryItems.map((item) => (
                           <MenuCard key={item.id} item={item} />

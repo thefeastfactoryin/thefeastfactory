@@ -30,7 +30,6 @@ import {
   subscribeToCartCleared,
 } from '../../../lib/cart-state';
 import { formatCategoryLabel, formatCurrency } from '../../../lib/format';
-import { menuCategoryRank } from '../../../lib/menu-category-order';
 import { usePackagePreviewQuote } from '../../../lib/use-package-preview-quote';
 import { cn } from '../../../lib/utils';
 import {
@@ -46,6 +45,28 @@ type MenuSelectionItem = CategoryRule['items'][number] & {
 };
 type MenuRow = { rule: CategoryRule; item: MenuSelectionItem };
 type DetailItem = { item: MenuSelectionItem; categoryName: string };
+
+const MENU_CATEGORY_ORDER = [
+  'starters',
+  'breads',
+  'curries',
+  'rice items',
+  'desserts',
+  'accompaniments',
+] as const;
+
+function menuCategoryRank(categoryName: string) {
+  const normalized = categoryName.trim().toLowerCase();
+
+  if (normalized.includes('starter')) return 0;
+  if (normalized.includes('bread')) return 1;
+  if (normalized.includes('curry') || normalized.includes('curries')) return 2;
+  if (normalized.includes('rice') || normalized.includes('biryani')) return 3;
+  if (normalized.includes('dessert') || normalized.includes('sweet')) return 4;
+  if (normalized.includes('accompaniment')) return 5;
+
+  return MENU_CATEGORY_ORDER.length;
+}
 
 export default function MenuSelectPage() {
   return (
@@ -547,7 +568,7 @@ function MenuSelectContent() {
 
   return (
     <main className="bg-ivory pb-44 text-charcoal md:pb-20 lg:pb-16">
-      <div className="border-b border-border/70 bg-ivory">
+      <div className="hidden border-b border-border/70 bg-ivory sm:block">
         <div className="mx-auto max-w-[1440px] px-3 py-1 sm:px-5 sm:py-3 lg:px-6">
           <MenuStepIndicator
             current={1}

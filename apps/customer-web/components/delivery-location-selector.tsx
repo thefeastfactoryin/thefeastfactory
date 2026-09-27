@@ -83,7 +83,6 @@ export function DeliveryLocationSelector({
   const [addresses, setAddresses] = useState<UserAddress[]>([]);
   const [addressesLoaded, setAddressesLoaded] = useState(false);
   const [candidate, setCandidate] = useState<LocationCandidate>();
-  const [searchFocused, setSearchFocused] = useState(false);
   const [candidateLoading, setCandidateLoading] = useState(false);
   const [deliveryEstimate, setDeliveryEstimate] = useState('');
   const addressBookRevision = useAddressBookStore((state) => state.revision);
@@ -505,7 +504,7 @@ export function DeliveryLocationSelector({
                 </button>
               </header>
 
-              <div className="overscroll-contain flex-1 overflow-y-auto px-3 pb-4 pt-4 sm:p-6">
+              <div className="overscroll-contain overflow-y-auto px-3 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4 sm:p-6">
                 <Button
                   type="button"
                   variant="outline"
@@ -573,13 +572,7 @@ export function DeliveryLocationSelector({
 
                 <button
                   type="button"
-                  onClick={() =>
-                    setShowMap((shown) => {
-                      const next = !shown;
-                      if (!next) setSearchFocused(false);
-                      return next;
-                    })
-                  }
+                  onClick={() => setShowMap((shown) => !shown)}
                   className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-bold text-white hover:bg-primary/90"
                 >
                   <Search className="h-4 w-4" />
@@ -590,68 +583,43 @@ export function DeliveryLocationSelector({
                   <div className="mt-5">
                     <AddressMapPicker
                       onAddress={(address) => void inspectCandidate(address)}
-                      onSearchFocusChange={setSearchFocused}
-                      onSearchError={() => setCandidate(undefined)}
                     />
+                    {(candidate || candidateLoading) && (
+                      <div className="mt-4 rounded-xl border bg-muted/40 p-4">
+                        {candidateLoading ? (
+                          <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <LoaderCircle className="h-4 w-4 animate-spin" />{' '}
+                            Checking this location…
+                          </p>
+                        ) : candidate ? (
+                          <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+                            <div>
+                              <p className="text-sm font-bold">
+                                {candidate.address.addressLine2 ||
+                                  candidate.address.addressLine1 ||
+                                  candidate.address.city}
+                              </p>
+                              <p
+                                className={`mt-1 text-xs ${candidate.resolution.serviceable ? 'text-emerald-700' : 'text-amber-700'}`}
+                              >
+                                {candidate.resolution.serviceable
+                                  ? `${candidate.resolution.region?.name} Kitchen can serve this location.`
+                                  : candidate.resolution.reason ===
+                                      'KITCHEN_CLOSED'
+                                    ? `${candidate.resolution.region?.name} Kitchen is currently closed.`
+                                    : 'This location is outside our current service area.'}
+                              </p>
+                            </div>
+                            <Button type="button" onClick={useCandidate}>
+                              Use this location
+                            </Button>
+                          </div>
+                        ) : null}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
-
-              {showMap && (
-                <div
-                  className={`shrink-0 border-t bg-white px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-6px_20px_rgba(45,31,20,0.08)] sm:px-6 ${
-                    searchFocused ? 'max-md:hidden' : ''
-                  }`}
-                >
-                  {candidateLoading ? (
-                    <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <LoaderCircle className="h-4 w-4 animate-spin" />
-                      Checking this location…
-                    </p>
-                  ) : candidate ? (
-                    <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-bold">
-                          {candidate.address.addressLine2 ||
-                            candidate.address.addressLine1 ||
-                            candidate.address.city}
-                        </p>
-                        <p
-                          className={`mt-1 text-xs ${candidate.resolution.serviceable ? 'text-emerald-700' : 'text-amber-700'}`}
-                        >
-                          {candidate.resolution.serviceable
-                            ? `${candidate.resolution.region?.name} Kitchen can serve this location.`
-                            : candidate.resolution.reason ===
-                                'KITCHEN_CLOSED'
-                              ? `${candidate.resolution.region?.name} Kitchen is currently closed.`
-                              : 'This location is outside our current service area.'}
-                        </p>
-                      </div>
-                      <Button
-                        type="button"
-                        onClick={useCandidate}
-                        className="h-12 w-full shrink-0 sm:w-auto"
-                      >
-                        Use this location
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-                      <p className="text-xs text-muted-foreground">
-                        Search for a place or tap the map to choose a
-                        location.
-                      </p>
-                      <Button
-                        type="button"
-                        disabled
-                        className="h-12 w-full shrink-0 sm:w-auto"
-                      >
-                        Use this location
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              )}
             </section>
           </div>,
           document.body,

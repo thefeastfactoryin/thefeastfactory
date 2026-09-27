@@ -48,7 +48,6 @@ type Dish = {
 type DishId = string;
 type CategoryFilter = 'all' | string;
 type DietFilter = 'all' | 'veg' | 'nonveg';
-type MobileTab = 'dishes' | 'summary';
 
 function dishesFromConfig(config: PackageConfiguration): Dish[] {
   return config.categoryRules.flatMap((rule) =>
@@ -120,27 +119,24 @@ function GuestStepper({
   onInputBlur: () => void;
 }) {
   return (
-    <div className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-border bg-white px-3 py-2 shadow-sm">
+    <div className="mt-1.5 flex min-w-0 items-center justify-between gap-3 border-t border-border/30 pt-1.5">
       <div className="min-w-0">
         <label
           htmlFor="guest-count"
-          className="block text-xs font-extrabold text-muted-foreground"
+          className="block text-xs font-bold text-muted-foreground"
         >
           Guests
         </label>
-        <p className="mt-0.5 text-[11px] font-semibold leading-4 text-muted-foreground">
-          Min {minGuestCount}
-        </p>
       </div>
-      <div className="flex h-10 shrink-0 items-center overflow-hidden rounded-lg border border-border bg-[#fbf8f2] focus-within:ring-2 focus-within:ring-primary/20">
+      <div className="numeric-text inline-flex h-9 shrink-0 items-center overflow-hidden rounded-lg border border-border bg-white">
         <button
           type="button"
           aria-label="Decrease guest count"
           disabled={guestCount <= minGuestCount}
           onClick={() => onStep(-1)}
-          className="grid h-10 w-10 shrink-0 place-items-center text-primary transition hover:bg-primary hover:text-white disabled:cursor-not-allowed disabled:text-muted-foreground/40 disabled:hover:bg-transparent"
+          className="grid h-9 w-9 shrink-0 place-items-center text-primary transition-colors hover:bg-primary/5 disabled:cursor-not-allowed disabled:text-muted-foreground/40"
         >
-          <Minus className="h-4 w-4" />
+          <Minus className="h-3.5 w-3.5" />
         </button>
         <input
           id="guest-count"
@@ -148,16 +144,16 @@ function GuestStepper({
           value={guestInput}
           onBlur={onInputBlur}
           onChange={(event) => onInputChange(event.target.value)}
-          className="h-10 w-14 border-x border-border bg-white text-center text-sm font-extrabold text-foreground outline-none"
+          className="h-9 w-9 border-x border-border text-center text-[13px] font-bold outline-none focus:bg-primary/[0.03]"
         />
         <button
           type="button"
           aria-label="Increase guest count"
           disabled={Boolean(maxGuestCount && guestCount >= maxGuestCount)}
           onClick={() => onStep(1)}
-          className="grid h-10 w-10 shrink-0 place-items-center text-primary transition hover:bg-primary hover:text-white disabled:cursor-not-allowed disabled:text-muted-foreground/40 disabled:hover:bg-transparent"
+          className="grid h-9 w-9 shrink-0 place-items-center text-primary transition-colors hover:bg-primary/5 disabled:cursor-not-allowed disabled:text-muted-foreground/40"
         >
-          <Plus className="h-4 w-4" />
+          <Plus className="h-3.5 w-3.5" />
         </button>
       </div>
     </div>
@@ -167,7 +163,6 @@ function GuestStepper({
 function DishCatalogue({
   categories,
   category,
-  counts,
   diet,
   onCategoryChange,
   onClearSearch,
@@ -180,7 +175,6 @@ function DishCatalogue({
 }: {
   categories: Array<{ id: CategoryFilter; label: string }>;
   category: CategoryFilter;
-  counts: Record<CategoryFilter, number>;
   diet: DietFilter;
   onCategoryChange: (category: CategoryFilter) => void;
   onClearSearch: () => void;
@@ -191,60 +185,95 @@ function DishCatalogue({
   setSearch: (value: string) => void;
   visible: Dish[];
 }) {
+  const [searchOpen, setSearchOpen] = useState(false);
   return (
-    <aside className="flex h-[calc(100dvh-23rem)] min-h-[400px] w-full min-w-0 max-w-full flex-col overflow-hidden rounded-2xl border border-border bg-white shadow-[0_8px_22px_rgba(45,31,20,0.045)] lg:sticky lg:top-20 lg:h-auto lg:max-h-[calc(100vh-96px)] lg:min-h-0">
-      <div className="shrink-0 border-b border-border p-3">
-        <div className="space-y-2.5">
-          <label className="flex min-h-11 items-center gap-2 rounded-xl border border-border bg-[#fbf8f2] px-3 focus-within:border-primary/45 focus-within:ring-2 focus-within:ring-primary/10">
-            <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <span className="sr-only">Search dishes</span>
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search dishes..."
-              className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none placeholder:text-muted-foreground"
-            />
-            {search && (
-              <button
-                type="button"
-                aria-label="Clear dish search"
-                onClick={onClearSearch}
-                className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted-foreground transition hover:bg-primary hover:text-white"
-              >
+    <aside className="flex w-full min-w-0 max-w-full flex-col rounded-2xl border border-border bg-white shadow-[0_8px_22px_rgba(45,31,20,0.045)] lg:sticky lg:top-20 lg:h-auto lg:max-h-[calc(100vh-96px)] lg:overflow-hidden">
+      <div className="shrink-0 border-b border-border p-2">
+        <div className="space-y-2">
+          <div className="flex items-center gap-1.5">
+            <div
+              className="grid flex-1 grid-cols-3 gap-1 rounded-xl border border-border bg-[#fbf8f2] p-1"
+              role="radiogroup"
+              aria-label="Diet filter"
+            >
+              {[
+                { id: 'all', label: 'All' },
+                { id: 'veg', label: 'Veg', dot: 'bg-emerald-600' },
+                { id: 'nonveg', label: 'Non-veg', dot: 'bg-red-600' },
+              ].map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={diet === option.id}
+                  onClick={() => onDietChange(option.id as DietFilter)}
+                  className={cn(
+                    'flex min-h-8 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-extrabold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30',
+                    diet === option.id
+                      ? 'bg-primary text-white shadow-sm'
+                      : 'bg-white text-foreground hover:border-primary/30 hover:text-primary',
+                  )}
+                >
+                  {option.dot && (
+                    <span className={cn('h-2 w-2 rounded-full', option.dot)} />
+                  )}
+                  {option.label}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              aria-expanded={searchOpen}
+              aria-label={searchOpen ? 'Close dish search' : 'Search dishes'}
+              onClick={() => {
+                if (searchOpen) onClearSearch();
+                setSearchOpen((open) => !open);
+              }}
+              className={cn(
+                'grid h-9 w-9 shrink-0 place-items-center rounded-xl border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30',
+                searchOpen
+                  ? 'border-primary bg-primary text-white'
+                  : 'border-border bg-[#fbf8f2] text-muted-foreground hover:border-primary/30 hover:text-primary',
+              )}
+            >
+              {searchOpen ? (
                 <X className="h-4 w-4" />
-              </button>
-            )}
-          </label>
+              ) : (
+                <Search className="h-4 w-4" />
+              )}
+            </button>
+          </div>
 
           <div
-            className="grid grid-cols-3 gap-1 rounded-xl border border-border bg-[#fbf8f2] p-1"
-            role="radiogroup"
-            aria-label="Diet filter"
+            aria-hidden={!searchOpen}
+            className={cn(
+              'grid transition-all duration-200 ease-out',
+              searchOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
+            )}
           >
-            {[
-              { id: 'all', label: 'All' },
-              { id: 'veg', label: 'Veg', dot: 'bg-emerald-600' },
-              { id: 'nonveg', label: 'Non-veg', dot: 'bg-red-600' },
-            ].map((option) => (
-              <button
-                key={option.id}
-                type="button"
-                role="radio"
-                aria-checked={diet === option.id}
-                onClick={() => onDietChange(option.id as DietFilter)}
-                className={cn(
-                  'flex min-h-10 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-extrabold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30',
-                  diet === option.id
-                    ? 'bg-primary text-white shadow-sm'
-                    : 'bg-white text-foreground hover:border-primary/30 hover:text-primary',
+            <div className="overflow-hidden">
+              <label className="flex min-h-11 items-center gap-2 rounded-xl border border-border bg-[#fbf8f2] px-3 focus-within:border-primary/45 focus-within:ring-2 focus-within:ring-primary/10">
+                <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span className="sr-only">Search dishes</span>
+                <input
+                  tabIndex={searchOpen ? 0 : -1}
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search dishes..."
+                  className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none placeholder:text-muted-foreground"
+                />
+                {search && (
+                  <button
+                    type="button"
+                    aria-label="Clear dish search"
+                    onClick={onClearSearch}
+                    className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted-foreground transition hover:bg-primary hover:text-white"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
                 )}
-              >
-                {option.dot && (
-                  <span className={cn('h-2 w-2 rounded-full', option.dot)} />
-                )}
-                {option.label}
-              </button>
-            ))}
+              </label>
+            </div>
           </div>
 
           <div className="flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -257,21 +286,13 @@ function DishCatalogue({
                   aria-pressed={active}
                   onClick={() => onCategoryChange(cat.id)}
                   className={cn(
-                    'min-h-9 shrink-0 rounded-full border px-2.5 text-[11px] font-extrabold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30',
+                    'min-h-8 shrink-0 rounded-full border px-2.5 text-[11px] font-extrabold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30',
                     active
                       ? 'border-primary bg-primary text-white'
                       : 'border-border bg-white text-foreground hover:border-primary/35 hover:text-primary',
                   )}
                 >
                   {cat.label}
-                  <span
-                    className={cn(
-                      'ml-1.5',
-                      active ? 'text-white/75' : 'text-muted-foreground',
-                    )}
-                  >
-                    {counts[cat.id]}
-                  </span>
                 </button>
               );
             })}
@@ -279,22 +300,22 @@ function DishCatalogue({
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2">
-        <div className="space-y-2">
+      <div className="p-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain">
+        <div className="space-y-1.5">
           {visible.map((dish) => {
             const selected = selectedIds.has(dish.id);
             return (
               <article
                 key={dish.id}
-                className="grid min-h-[74px] grid-cols-[46px_minmax(0,1fr)_auto] items-center gap-2 rounded-xl border border-border bg-white px-2.5 py-2 transition hover:border-primary/25 hover:bg-[#fffdf8] sm:min-h-[88px] sm:grid-cols-[56px_minmax(0,1fr)_auto] sm:gap-3 sm:px-3 sm:py-2.5"
+                className="grid min-h-[64px] grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-2 rounded-xl border border-border bg-white px-2 py-1.5 transition hover:border-primary/25 hover:bg-[#fffdf8] sm:min-h-[76px] sm:grid-cols-[50px_minmax(0,1fr)_auto] sm:gap-2.5 sm:px-2.5 sm:py-2"
               >
                 <Image
                   src={getDishImage(dish)}
                   alt=""
-                  width={56}
-                  height={56}
-                  sizes="(max-width: 639px) 46px, 56px"
-                  className="h-[46px] w-[46px] rounded-lg object-cover sm:h-14 sm:w-14"
+                  width={50}
+                  height={50}
+                  sizes="(max-width: 639px) 40px, 50px"
+                  className="h-10 w-10 rounded-lg object-cover sm:h-[50px] sm:w-[50px]"
                 />
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
@@ -314,7 +335,7 @@ function DishCatalogue({
                   aria-pressed={selected}
                   onClick={() => onToggleDish(dish.id)}
                   className={cn(
-                    'inline-flex min-h-9 w-fit min-w-[68px] items-center justify-center gap-1.5 rounded-lg border px-2.5 text-xs font-extrabold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 sm:min-h-10 sm:min-w-[84px] sm:px-3 sm:text-sm',
+                    'inline-flex min-h-8 w-fit min-w-[58px] items-center justify-center gap-1.5 rounded-lg border px-2 text-xs font-extrabold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 sm:min-h-9 sm:min-w-[70px] sm:px-2.5 sm:text-sm',
                     selected
                       ? 'border-primary bg-primary text-white hover:bg-primary/90'
                       : 'border-primary/45 bg-white text-primary hover:bg-primary/5',
@@ -358,7 +379,6 @@ function SummaryPanel({
   message,
   nonVegCount,
   onAddToCart,
-  onViewSummary,
   order,
   saving,
   subtotalPerPlate,
@@ -369,7 +389,6 @@ function SummaryPanel({
   message: string;
   nonVegCount: number;
   onAddToCart: () => void;
-  onViewSummary: () => void;
   order: DishId[];
   saving: boolean;
   subtotalPerPlate: number;
@@ -432,14 +451,6 @@ function SummaryPanel({
       <div className="mt-4 grid gap-2">
         <button
           type="button"
-          onClick={onViewSummary}
-          disabled={order.length === 0}
-          className="min-h-11 rounded-full border border-primary/35 bg-white px-4 text-sm font-extrabold text-primary transition hover:bg-primary/5"
-        >
-          View Summary
-        </button>
-        <button
-          type="button"
           disabled={order.length === 0 || saving}
           onClick={onAddToCart}
           className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-primary px-4 text-sm font-extrabold text-white transition hover:bg-primary/90 disabled:bg-primary/35"
@@ -495,12 +506,10 @@ function BuildPackageContent() {
   const [order, setOrder] = useState<DishId[]>([]);
   const [guestCount, setGuestCount] = useState(150);
   const [guestInput, setGuestInput] = useState('150');
-  const [mobileTab, setMobileTab] = useState<MobileTab>('dishes');
   const [dishes, setDishes] = useState<Dish[]>([]);
   const [config, setConfig] = useState<PackageConfiguration>();
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
-  const [summaryOpen, setSummaryOpen] = useState(false);
   const hydratedCartVersion = useRef<string | undefined>(undefined);
 
   const discardStaleCart = useCallback(() => {
@@ -643,17 +652,6 @@ function BuildPackageContent() {
     ];
   }, [dishes]);
 
-  const counts = useMemo(() => {
-    const initial = Object.fromEntries(
-      categories.map((cat) => [cat.id, 0]),
-    ) as Record<CategoryFilter, number>;
-    for (const dish of dishes) {
-      initial.all += 1;
-      initial[dish.cat] += 1;
-    }
-    return initial;
-  }, [categories, dishes]);
-
   const addedIds = useMemo(() => new Set(order), [order]);
   const dishMap = useMemo(
     () =>
@@ -780,7 +778,6 @@ function BuildPackageContent() {
   const catalogue = (
     <DishCatalogue
       category={cat}
-      counts={counts}
       categories={categories}
       diet={diet}
       onCategoryChange={setCat}
@@ -795,47 +792,26 @@ function BuildPackageContent() {
   );
 
   const builderHeader = (
-    <div className="relative overflow-hidden rounded-2xl bg-[hsl(var(--hero-end))] px-4 py-4 text-white shadow-[0_8px_24px_rgba(45,20,20,0.12)] sm:px-7 sm:py-5">
-      <div
-        className="absolute -right-10 -top-24 hidden h-56 w-56 rounded-full border-[28px] border-accent/15 sm:block"
-        aria-hidden="true"
+    <section className="overflow-hidden border-b border-border/30 bg-white px-3 py-2 sm:border sm:px-4 sm:py-3">
+      <div>
+        {/* <p className="eyebrow text-primary">Build your menu</p> */}
+        <h1 className="font-sans text-[22px] font-semibold leading-[1.12] tracking-[-0.015em] text-charcoal sm:text-[30px]">
+          Build Your Own Package
+        </h1>
+        <p className="mt-0.5 max-w-2xl text-[13px] leading-5 text-muted-foreground">
+          Pick the dishes your guests will enjoy.
+        </p>
+      </div>
+      <GuestStepper
+        guestCount={guestCount}
+        guestInput={guestInput}
+        minGuestCount={config?.minGuestCount ?? MIN_GUESTS}
+        maxGuestCount={config?.maxGuestCount}
+        onInputBlur={handleGuestBlur}
+        onInputChange={handleGuestInput}
+        onStep={(delta) => setClampedGuestCount(guestCount + delta)}
       />
-      <div
-        className="absolute right-16 top-7 hidden h-20 w-20 place-items-center rounded-full border border-dashed border-accent/55 bg-white/5 sm:grid"
-        aria-hidden="true"
-      >
-        <img
-          src="/logo.png"
-          alt=""
-          className="h-14 w-14 rounded-xl object-cover shadow-[0_0_0_5px_hsl(var(--accent)/0.18)]"
-        />
-      </div>
-      <div className="relative flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-        <div className="min-w-0 max-w-[560px] sm:pr-24">
-          <p className="text-[11px] font-extrabold text-accent">
-            Build your menu
-          </p>
-          <h1 className="mt-1 font-serif text-[22px] font-bold leading-[1.05] text-white sm:text-[30px]">
-            Build Your Own Package
-          </h1>
-          <p className="mt-1.5 hidden text-sm font-semibold leading-5 text-white/75 sm:block">
-            Choose your favourite dishes and customize a menu that fits your
-            occasion.
-          </p>
-        </div>
-        <div className="relative shrink-0 sm:w-[244px] [&>div]:border-white/15 [&>div]:bg-white/95">
-          <GuestStepper
-            guestCount={guestCount}
-            guestInput={guestInput}
-            minGuestCount={config?.minGuestCount ?? MIN_GUESTS}
-            maxGuestCount={config?.maxGuestCount}
-            onInputBlur={handleGuestBlur}
-            onInputChange={handleGuestInput}
-            onStep={(delta) => setClampedGuestCount(guestCount + delta)}
-          />
-        </div>
-      </div>
-    </div>
+    </section>
   );
 
   const summary = (
@@ -845,7 +821,6 @@ function BuildPackageContent() {
       message={message}
       nonVegCount={nonVegCount}
       onAddToCart={addToCart}
-      onViewSummary={() => setSummaryOpen(true)}
       order={order}
       saving={saving}
       subtotalPerPlate={subtotalPerPlate}
@@ -869,145 +844,14 @@ function BuildPackageContent() {
   }
 
   return (
-    <main className="min-h-screen overflow-x-clip bg-background pb-32 lg:pb-16">
-      <div className="sticky top-[60px] z-30 border-b border-border bg-background/95 backdrop-blur lg:hidden">
-        <div className="mx-auto grid max-w-[720px] grid-cols-2 gap-1 px-4 py-2">
-          {[
-            ['dishes', 'Add Dishes'],
-            ['summary', 'Summary'],
-          ].map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setMobileTab(id as MobileTab)}
-              className={cn(
-                'min-h-11 rounded-full border px-2 text-xs font-extrabold transition',
-                mobileTab === id
-                  ? 'border-primary bg-primary text-white'
-                  : 'border-border bg-white text-foreground',
-              )}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="mx-auto w-full min-w-0 max-w-6xl px-4 py-4 sm:px-5 lg:px-6">
+    <main className="min-h-screen overflow-x-clip bg-background pb-36 lg:pb-16">
+      <div className="mx-auto w-full min-w-0 max-w-6xl px-4 py-2 sm:px-5 sm:py-3 lg:px-6">
         {builderHeader}
-        <div className="mt-4 grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
-          <div
-            className={cn(
-              mobileTab === 'dishes' ? 'block' : 'hidden',
-              'min-w-0 lg:block',
-            )}
-          >
-            {catalogue}
-          </div>
-          <div
-            className={cn(
-              mobileTab === 'summary' ? 'block' : 'hidden',
-              'lg:block',
-            )}
-          >
-            {summary}
-          </div>
+        <div className="mt-2 grid min-w-0 gap-2 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+          <div className="min-w-0">{catalogue}</div>
+          <div className="hidden lg:block">{summary}</div>
         </div>
       </div>
-
-      {summaryOpen && (
-        <div className="fixed inset-0 z-[60] grid place-items-center bg-slate-950/45 p-4">
-          <button
-            type="button"
-            className="absolute inset-0"
-            onClick={() => setSummaryOpen(false)}
-            aria-label="Close menu summary"
-          />
-          <section className="relative flex max-h-[min(720px,90dvh)] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
-            <div className="flex shrink-0 items-start justify-between gap-4 border-b p-5">
-              <div className="flex min-w-0 items-center gap-3">
-                <img
-                  src="/logo.png"
-                  alt="The Feast Factory"
-                  className="h-12 w-12 shrink-0 rounded-xl object-cover shadow-sm"
-                />
-                <div className="min-w-0">
-                  <p className="eyebrow text-primary">Custom menu</p>
-                  <h2 className="mt-1 font-sans text-2xl font-semibold">
-                    Order summary
-                  </h2>
-                  <p className="numeric-text mt-1 text-sm text-muted-foreground">
-                    {guestCount} guests · {order.length} selected items
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSummaryOpen(false)}
-                className="grid h-10 w-10 place-items-center rounded-full border"
-                aria-label="Close menu summary"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5">
-              <div className="divide-y rounded-xl border">
-                {order.map((id) => {
-                  const dish = dishMap[id];
-                  if (!dish) return null;
-                  return (
-                    <div
-                      key={id}
-                      className="flex items-center justify-between gap-4 p-3"
-                    >
-                      <Image
-                        src={getDishImage(dish)}
-                        alt=""
-                        width={56}
-                        height={48}
-                        sizes="56px"
-                        className="h-12 w-14 shrink-0 rounded-lg object-cover"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-bold">
-                          {dish.name}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {dish.categoryName}
-                        </p>
-                      </div>
-                      <span className="money-text shrink-0 text-sm font-semibold">
-                        {formatCurrency(dish.price)} / guest
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-            <div className="shrink-0 border-t bg-[#fffdf8] p-5">
-              <div className="flex items-end justify-between gap-4">
-                <span className="text-sm text-muted-foreground">
-                  Estimated total
-                </span>
-                <strong className="money-text text-2xl font-extrabold text-primary">
-                  {formatCurrency(estimatedSubtotal)}
-                </strong>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setSummaryOpen(false);
-                  void addToCart();
-                }}
-                disabled={saving}
-                className="mt-4 min-h-11 w-full rounded-full bg-primary px-4 text-sm font-extrabold text-white disabled:bg-primary/35"
-              >
-                {saving ? 'Adding...' : 'Add to Cart'}
-              </button>
-            </div>
-          </section>
-        </div>
-      )}
 
       <MobileOrderBar label="Custom menu total and cart">
         <div className="mobile-order-bar-row">

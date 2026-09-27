@@ -273,12 +273,12 @@ export default function HomePage() {
         <div className="mx-auto w-full max-w-[1536px] px-4 sm:px-6 lg:px-12">
           <div className="grid min-w-0 items-center gap-4 py-7 sm:gap-6 sm:py-9 lg:min-h-[480px] lg:grid-cols-[0.95fr_1.1fr] lg:gap-10 lg:py-10">
             <div className="min-w-0 max-w-[590px]">
-              <p className="eyebrow">Food for gatherings</p>
+              {/* <p className="eyebrow">Food for gatherings</p> */}
               <h1 className="mt-3 max-w-[570px] font-serif text-[30px] font-bold leading-[1.04] tracking-[-0.03em] sm:text-[38px] lg:text-[48px] lg:leading-[0.98]">
                 Food for every gathering, made simple.
               </h1>
               <p className="mt-4 max-w-[540px] text-[14px] leading-6 text-white/80 sm:text-[15px] sm:leading-7">
-                Choose a complete event package, individual meal boxes, order dishes by kg, or build your own menu.
+                Good food for bringing people together, without the planning stress.
               </p>
 
               <Link

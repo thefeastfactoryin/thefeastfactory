@@ -15,6 +15,7 @@ import {
   Plus,
   Scale,
   Search,
+  X,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -27,6 +28,7 @@ import {
 import { formatCurrency } from '../../lib/format';
 import { sortMenuCategories } from '../../lib/menu-category-order';
 import { orderByKgImage } from '../../lib/catalog-display';
+import { cn } from '../../lib/utils';
 import { useSessionStore } from '../../store/session.store';
 import { useOrderBuilderStore } from '../../store/order-builder.store';
 import { useDeliveryLocationStore } from '../../store/delivery-location.store';
@@ -64,7 +66,9 @@ export function KgOrderBuilder() {
   const [config, setConfig] = useState<PackageConfiguration>();
   const [weights, setWeights] = useState<Weights>({});
   const [search, setSearch] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
   const [diet, setDiet] = useState('ALL');
+  const [category, setCategory] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [quoteError, setQuoteError] = useState('');
@@ -324,8 +328,15 @@ export function KgOrderBuilder() {
     }
   }
 
+  const categoryOptions = sortMenuCategories(
+    config?.categoryRules.map((rule) => rule.category) ?? [],
+    (cat) => cat.name,
+  ).filter(
+    (cat, index, all) => all.findIndex((other) => other.id === cat.id) === index,
+  );
   const groups = sortMenuCategories(
     config?.categoryRules
+      .filter((rule) => !category || rule.category.id === category)
       .map((rule) => ({
         ...rule,
         items: rule.items.filter(
@@ -344,23 +355,23 @@ export function KgOrderBuilder() {
   );
   return (
     <main className="min-h-screen overflow-x-clip bg-background pb-28 lg:pb-10">
-      <section className="relative isolate overflow-hidden border-b bg-hero-end text-white">
+      <section className="relative isolate hidden overflow-hidden border-b bg-hero-end text-white sm:block">
         <img
           src={orderByKgImage}
           alt="Indian dishes prepared in bulk beside a weighing scale"
           className="absolute inset-0 -z-20 h-full w-full object-cover object-[62%_center] sm:object-center"
         />
         <div className="absolute inset-0 -z-10 bg-[linear-gradient(90deg,hsl(var(--hero-end)/0.99)_0%,hsl(var(--hero-start)/0.94)_40%,hsl(var(--hero-start)/0.30)_72%,rgba(0,0,0,0.08)_100%)]" />
-        <div className="container-pad flex min-h-[156px] items-center py-4 sm:min-h-[280px] sm:py-7 lg:min-h-[330px] lg:px-16 lg:py-9">
+        <div className="container-pad flex min-h-[238px] items-center py-5 sm:min-h-[330px] sm:py-7 lg:min-h-[360px] lg:px-16 lg:py-9">
           <div className="max-w-[620px]">
             <p className="eyebrow">Flexible bulk catering</p>
-            <h1 className="mt-1.5 font-serif text-[30px] font-bold leading-[1.12] tracking-[-0.015em] text-white sm:text-[42px] lg:text-[48px]">
+            <h1 className="mt-2 font-serif text-[30px] font-bold leading-[1.12] tracking-[-0.015em] text-white sm:text-[42px] lg:text-[48px]">
               Order <span className="text-accent">by KG</span>
             </h1>
-            <p className="mt-2 max-w-[520px] text-xs font-semibold leading-5 text-white/85 sm:mt-3 sm:text-lg sm:leading-6">
+            <p className="mt-3 hidden max-w-[520px] text-base font-semibold leading-6 text-white/85 sm:block sm:text-lg">
               Choose your favourite dishes for your gathering, priced by kg.
             </p>
-            <div className="mt-3 flex items-center gap-1.5 text-[10px] font-semibold text-white/80 sm:mt-5 sm:grid sm:max-w-[600px] sm:grid-cols-4 sm:gap-2 sm:text-[11px]">
+            <div className="mt-4 grid max-w-[600px] grid-cols-2 gap-1.5 sm:mt-5 sm:grid-cols-3 sm:gap-2">
               {[
                 { label: 'Priced per kg', icon: Scale },
                 { label: 'Bulk portions', icon: Plus },
@@ -368,21 +379,29 @@ export function KgOrderBuilder() {
               ].map(({ label, icon: Icon }) => (
                 <div
                   key={label}
-                  className="flex items-center gap-1 whitespace-nowrap sm:min-h-10 sm:rounded-lg sm:border sm:border-white/10 sm:bg-black/15 sm:px-2.5 sm:py-2 sm:font-extrabold sm:text-white sm:backdrop-blur-sm"
+                  className="flex min-h-10 items-center gap-2 rounded-xl border border-white/10 bg-black/15 px-2.5 py-1.5 text-white backdrop-blur-sm sm:min-h-11 sm:py-2"
                 >
                   <Icon
-                    className="hidden h-[18px] w-[18px] shrink-0 text-accent sm:block"
+                    className="h-[18px] w-[18px] shrink-0 text-accent"
                     aria-hidden="true"
+                    strokeWidth={2}
                   />
-                  {label}
-                  {label !== 'Freshly prepared' && (
-                    <span className="text-white/50 sm:hidden" aria-hidden="true">·</span>
-                  )}
+                  <span className="text-[11px] font-extrabold leading-tight">
+                    {label}
+                  </span>
                 </div>
               ))}
             </div>
           </div>
         </div>
+      </section>
+      <section className="border-b border-border bg-background px-4 pb-3 pt-2 sm:hidden">
+        <h1 className="font-sans text-[22px] font-semibold leading-[1.12] tracking-[-0.015em] text-charcoal">
+          Order by KG
+        </h1>
+        <p className="mt-0.5 max-w-2xl text-[13px] leading-5 text-muted-foreground">
+          Choose your favourite dishes for your gathering, priced by kg.
+        </p>
       </section>
       <div className="mx-auto max-w-7xl px-3 py-4 sm:px-6 sm:py-5 lg:px-10">
         {error && (
@@ -414,7 +433,7 @@ export function KgOrderBuilder() {
             </Link>
           </section>
         ) : (
-          <div className="grid items-start gap-6">
+          <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
             <div className="min-w-0">
               {packages.length > 1 && !requestedCart && (
                 <label className="mb-4 block text-sm font-semibold">
@@ -436,43 +455,108 @@ export function KgOrderBuilder() {
                   </select>
                 </label>
               )}
-              <div className="mb-3 grid grid-cols-[minmax(0,1fr)_136px] gap-2 sm:mb-4 sm:flex sm:flex-wrap sm:gap-3">
-                <div className="relative min-w-0 flex-1">
-                  <Search
-                    className="absolute left-3 top-3 h-4 w-4 text-muted-foreground"
-                    aria-hidden="true"
-                  />
-                  <Input
-                    aria-label="Search dishes"
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Search dishes"
-                    className="h-10 pl-9"
-                  />
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2 sm:mb-4">
+                <div className="flex items-center gap-1.5">
+                  {(
+                    [
+                      { value: 'ALL', label: 'All' },
+                      { value: 'VEG', label: 'Veg' },
+                      { value: 'NON_VEG', label: 'Non-veg' },
+                    ] as const
+                  ).map(({ value, label }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setDiet(value)}
+                      className={cn(
+                        'min-h-8 rounded-full border px-3 py-1 text-xs font-bold transition-colors',
+                        diet === value
+                          ? 'border-primary bg-primary text-white shadow-sm'
+                          : 'border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-primary',
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
                 </div>
-                <select
-                  aria-label="Diet preference"
-                  className="h-10 rounded-lg border bg-card px-3 text-sm"
-                  value={diet}
-                  onChange={(event) => setDiet(event.target.value)}
+                <button
+                  type="button"
+                  aria-expanded={searchOpen}
+                  aria-label={searchOpen ? 'Close dish search' : 'Search dishes'}
+                  onClick={() => {
+                    if (searchOpen) setSearch('');
+                    setSearchOpen((open) => !open);
+                  }}
+                  className={cn(
+                    'grid h-8 w-8 shrink-0 place-items-center rounded-full border transition',
+                    searchOpen
+                      ? 'border-primary bg-primary text-white'
+                      : 'border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-primary',
+                  )}
                 >
-                  <option value="ALL">All dishes</option>
-                  <option value="VEG">Vegetarian</option>
-                  <option value="NON_VEG">Non-vegetarian</option>
-                </select>
+                  {searchOpen ? (
+                    <X className="h-3.5 w-3.5" />
+                  ) : (
+                    <Search className="h-3.5 w-3.5" />
+                  )}
+                </button>
+              </div>
+              <div
+                aria-hidden={!searchOpen}
+                className={cn(
+                  'grid transition-all duration-200 ease-out',
+                  searchOpen
+                    ? 'mb-3 grid-rows-[1fr] opacity-100 sm:mb-4'
+                    : 'grid-rows-[0fr] opacity-0',
+                )}
+              >
+                <div className="overflow-hidden">
+                  <div className="relative min-w-0">
+                    <Search
+                      className="absolute left-3 top-3 h-4 w-4 text-muted-foreground"
+                      aria-hidden="true"
+                    />
+                    <Input
+                      aria-label="Search dishes"
+                      tabIndex={searchOpen ? 0 : -1}
+                      value={search}
+                      onChange={(event) => setSearch(event.target.value)}
+                      placeholder="Search dishes"
+                      className="h-10 pl-9"
+                    />
+                  </div>
+                </div>
               </div>
               <nav
                 aria-label="Dish categories"
                 className="mb-5 flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
               >
-                {groups.map((rule) => (
-                  <a
-                    key={rule.id}
-                    href={`#kg-category-${rule.id}`}
-                    className="min-h-9 shrink-0 rounded-md border border-border/70 bg-card px-3 py-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                <button
+                  type="button"
+                  onClick={() => setCategory('')}
+                  className={cn(
+                    'min-h-9 shrink-0 rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary',
+                    !category
+                      ? 'border-primary bg-primary text-white'
+                      : 'border-border/70 bg-card text-muted-foreground hover:border-primary/40 hover:text-primary',
+                  )}
+                >
+                  All dishes
+                </button>
+                {categoryOptions.map((cat) => (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setCategory(cat.id)}
+                    className={cn(
+                      'min-h-9 shrink-0 rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary',
+                      category === cat.id
+                        ? 'border-primary bg-primary text-white'
+                        : 'border-border/70 bg-card text-muted-foreground hover:border-primary/40 hover:text-primary',
+                    )}
                   >
-                    {rule.category.name}
-                  </a>
+                    {cat.name}
+                  </button>
                 ))}
               </nav>
               {!groups.length && (
@@ -481,17 +565,17 @@ export function KgOrderBuilder() {
                 </p>
               )}
               {groups.map((rule) => (
-                <section key={rule.id} id={`kg-category-${rule.id}`} className="mb-5 scroll-mt-4 sm:mb-7">
-                  <div className="mb-2 flex items-baseline justify-between gap-3 sm:mb-3">
+                <section key={rule.id} className="mb-5 sm:mb-7">
+                  <div className="mb-2 flex items-baseline gap-2 sm:mb-3">
                     <h2 className="font-sans text-xs font-bold uppercase tracking-[0.08em] text-primary sm:text-sm">
                       {rule.category.name}
                     </h2>
                     <span className="shrink-0 text-[11px] font-medium text-muted-foreground">
-                      {rule.items.length}{' '}
+                      · {rule.items.length}{' '}
                       {rule.items.length === 1 ? 'dish' : 'dishes'}
                     </span>
                   </div>
-                  <div className="grid gap-2.5 sm:grid-cols-2 sm:gap-4">
+                  <div className="grid gap-2.5 sm:grid-cols-[repeat(auto-fit,minmax(260px,340px))] sm:gap-4">
                     {rule.items.map((item) => (
                       <article
                         key={item.id}
@@ -587,6 +671,71 @@ export function KgOrderBuilder() {
                 </section>
               ))}
             </div>
+            <aside className="hidden lg:sticky lg:top-24 lg:block">
+              <div className="rounded-2xl border border-border bg-white p-4 shadow-[0_8px_22px_rgba(45,31,20,0.045)]">
+                <p className="eyebrow text-primary">Live Summary</p>
+                <h2 className="mt-1 font-sans text-xl font-semibold">
+                  Your order
+                </h2>
+                {selectedItems.length === 0 ? (
+                  <div className="mt-3 rounded-xl border border-border bg-[#fbf8f2] p-3 text-sm">
+                    <p className="font-bold text-foreground">
+                      No dishes added yet
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                      Add dishes by weight to build your order.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="mt-3 space-y-2.5 border-t border-border pt-3 text-sm">
+                    <div className="flex justify-between gap-4">
+                      <span className="text-muted-foreground">
+                        {selectedItems.length}{' '}
+                        {selectedItems.length === 1 ? 'dish' : 'dishes'} selected
+                      </span>
+                    </div>
+                    <div className="flex justify-between gap-4 rounded-xl bg-primary/[0.055] p-2.5">
+                      <span className="font-extrabold text-primary">
+                        Estimated total
+                      </span>
+                      <strong className="money-text text-primary">
+                        {quoting
+                          ? 'Updating…'
+                          : quote
+                            ? formatCurrency(quote.totalAmount)
+                            : '-'}
+                      </strong>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Excluding taxes
+                    </p>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  disabled={!quote || quoting || saving || !selectedItems.length}
+                  onClick={() => void save()}
+                  className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-primary px-4 text-sm font-extrabold text-white transition hover:bg-primary/90 disabled:bg-primary/35"
+                >
+                  {saving
+                    ? 'Saving…'
+                    : requestedCart
+                      ? 'Update cart'
+                      : 'View cart'}
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+                {selectedItems.length === 0 && (
+                  <p className="mt-2 text-center text-xs font-semibold text-muted-foreground">
+                    Add at least one dish to continue.
+                  </p>
+                )}
+                {quoteError && (
+                  <p className="mt-2 rounded-lg border border-red-100 bg-red-50 p-2 text-xs font-semibold text-red-800">
+                    {quoteError}
+                  </p>
+                )}
+              </div>
+            </aside>
           </div>
         )}
       </div>
