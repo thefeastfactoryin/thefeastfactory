@@ -13,7 +13,6 @@ import { mobileNumberSchema } from '@aranyam/validation';
 import {
   CalendarDays,
   Check,
-  CheckCircle2,
   LockKeyhole,
   MapPin,
   MessageSquareText,
@@ -40,7 +39,6 @@ import { apiRequest } from '../../lib/api';
 import { notifyCartCleared } from '../../lib/cart-state';
 import { formatCurrency } from '../../lib/format';
 import { sortMenuCategories } from '../../lib/menu-category-order';
-import { formatMenuCalculation } from '../../lib/menu-price-calculation';
 import { cn } from '../../lib/utils';
 import { useOrderBuilderStore } from '../../store/order-builder.store';
 import { useSessionStore } from '../../store/session.store';
@@ -112,6 +110,12 @@ function withoutCartQuote(
   };
 }
 
+function publishCheckoutCartCount(count: number) {
+  window.dispatchEvent(
+    new CustomEvent('checkout-cart-count', { detail: { count } }),
+  );
+}
+
 function clampPackageQuantity(cart: CartSummary, requestedCount: number) {
   const minimum = cart.package.minGuestCount;
   const maximum = cart.package.maxGuestCount ?? Number.MAX_SAFE_INTEGER;
@@ -158,6 +162,49 @@ function groupOrderItems(
   }, []);
 }
 
+function fixedPackageMenuRows(
+  cart: CartSummary,
+  configuration: PackageConfiguration,
+) {
+  const configuredItems = new Map(
+    configuration.categoryRules.flatMap((rule) =>
+      rule.items.map((item) => [item.id, item] as const),
+    ),
+  );
+  const swaps = new Map(
+    cart.items
+      .filter((item) => item.replacedMenuItemId)
+      .map((item) => [item.replacedMenuItemId!, item]),
+  );
+  const included = configuration.categoryRules.flatMap((rule) =>
+    rule.items
+      .filter((item) => item.role === 'INCLUDED' && !item.swapForMenuItemId)
+      .map((item) => {
+        const swap = swaps.get(item.id);
+        const shown = swap ? configuredItems.get(swap.menuItemId) : item;
+        return {
+          id: `${rule.id}-${item.id}`,
+          categoryId: rule.category.id,
+          categoryName: rule.category.name,
+          name: shown?.name ?? item.name,
+          role: swap ? 'SWAP' : 'INCLUDED',
+          replacedName: swap ? item.name : undefined,
+        };
+      }),
+  );
+  const extras = cart.items
+    .filter((item) => item.role === 'EXTRA')
+    .map((item) => ({
+      id: item.id,
+      categoryId: item.categoryId,
+      categoryName: item.categoryName,
+      name: item.menuItemName,
+      role: item.role,
+      replacedName: item.replacedMenuItemName,
+    }));
+  return [...included, ...extras];
+}
+
 export default function CartPage() {
   const router = useRouter();
   const session = useSessionStore((state) => state.session);
@@ -171,6 +218,7 @@ export default function CartPage() {
   const [cart, setCart] = useState<CartSummary>();
   const [activeCarts, setActiveCarts] = useState<CartSummary[]>([]);
   const [config, setConfig] = useState<PackageConfiguration>();
+  const [configByCartId, setConfigByCartId] = useState<Record<string, PackageConfiguration>>({});
   const [quote, setQuote] = useState<PackageSelectionPrice>();
   const [multiCartQuote, setMultiCartQuote] = useState<MultiCartQuote>();
   const [pendingOrder, setPendingOrder] = useState<OrderSummary>();
@@ -186,14 +234,16 @@ export default function CartPage() {
   const [clearCartOpen, setClearCartOpen] = useState(false);
   const [clearingCart, setClearingCart] = useState(false);
   const [updatingCartId, setUpdatingCartId] = useState('');
-  const [selectingCartId, setSelectingCartId] = useState('');
+  const [editingQuantityCartId, setEditingQuantityCartId] = useState('');
   const [error, setError] = useState('');
+  const [validationLocation, setValidationLocation] = useState<'' | 'delivery' | 'contact'>('');
   const [specialNotes, setSpecialNotes] = useState('');
   const [notesExpanded, setNotesExpanded] = useState(false);
   const [contactNumber, setContactNumber] = useState('');
   const [editingContact, setEditingContact] = useState(false);
   const [savingContact, setSavingContact] = useState(false);
   const [updatingDelivery, setUpdatingDelivery] = useState(false);
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
 
   useEffect(() => {
     setContactNumber(session?.user.mobileNumber ?? '');
@@ -239,9 +289,11 @@ export default function CartPage() {
           apiRequest<CartSummary | null>('/cart', {}, session!.accessToken),
           apiRequest<CartSummary[]>('/cart/all', {}, session!.accessToken),
         ]);
-        if (!active || !value) return;
-        setCart(value);
+        if (!active) return;
         setActiveCarts(allCarts);
+        publishCheckoutCartCount(allCarts.length);
+        if (!value) return;
+        setCart(value);
         setSpecialNotes(value.specialNotes ?? '');
         setContactNumber(value.contactNumber || session!.user.mobileNumber);
         hydrate(value);
@@ -250,6 +302,31 @@ export default function CartPage() {
         );
         if (!active) return;
         setConfig(configuration);
+        const configurations = await Promise.all(
+          allCarts.map(async (packageCart) => {
+            if (packageCart.id === value.id) {
+              return [packageCart.id, configuration] as const;
+            }
+            try {
+              const packageConfiguration = await apiRequest<PackageConfiguration>(
+                `/package-versions/${packageCart.packageVersionId}/configuration`,
+              );
+              return [packageCart.id, packageConfiguration] as const;
+            } catch {
+              return undefined;
+            }
+          }),
+        );
+        if (active) {
+          setConfigByCartId(
+            Object.fromEntries(
+              configurations.filter(
+                (entry): entry is readonly [string, PackageConfiguration] =>
+                  Boolean(entry),
+              ),
+            ),
+          );
+        }
         if (value.pendingOrderId) {
           const order = await apiRequest<OrderSummary>(
             `/orders/${value.pendingOrderId}`,
@@ -287,6 +364,8 @@ export default function CartPage() {
   const onEventSaved = useCallback(
     (updated: CartSummary) => {
       if (!session) return;
+      setError('');
+      setValidationLocation('');
       setCart(updated);
       setActiveCarts((current) =>
         current.map((entry) => (entry.id === updated.id ? updated : entry)),
@@ -475,10 +554,12 @@ export default function CartPage() {
   async function saveContactNumber() {
     const validated = mobileNumberSchema.safeParse(contactNumber);
     if (!validated.success) {
+      setValidationLocation('contact');
       setError('Enter a valid 10-digit contact number to continue.');
       return;
     }
     setSavingContact(true);
+    setValidationLocation('');
     setError('');
     try {
       await persistContactNumber(validated.data);
@@ -502,6 +583,7 @@ export default function CartPage() {
       );
       const remaining = activeCarts.filter((entry) => entry.id !== cartId);
       setActiveCarts(remaining);
+      publishCheckoutCartCount(remaining.length);
       setMultiCartQuote((current) => withoutCartQuote(current, cartId));
       window.dispatchEvent(new Event('cart-updated'));
       if (!remaining.length) {
@@ -545,6 +627,7 @@ export default function CartPage() {
       await apiRequest('/cart', { method: 'DELETE' }, session.accessToken);
       reset();
       setActiveCarts([]);
+      publishCheckoutCartCount(0);
       setCart(undefined);
       setConfig(undefined);
       setQuote(undefined);
@@ -556,28 +639,6 @@ export default function CartPage() {
       setError((reason as Error).message);
     } finally {
       setClearingCart(false);
-    }
-  }
-
-  async function selectPackageCart(packageCart: CartSummary) {
-    if (!session || packageCart.id === cart?.id || selectingCartId) return;
-    setSelectingCartId(packageCart.id);
-    setError('');
-    try {
-      const configuration = await apiRequest<PackageConfiguration>(
-        `/package-versions/${packageCart.packageVersionId}/configuration`,
-      );
-      setCart(packageCart);
-      setConfig(configuration);
-      setQuote(
-        multiCartQuote?.carts.find((entry) => entry.cartId === packageCart.id)
-          ?.quote,
-      );
-      hydrate(packageCart);
-    } catch (reason) {
-      setError((reason as Error).message);
-    } finally {
-      setSelectingCartId('');
     }
   }
 
@@ -685,41 +746,37 @@ export default function CartPage() {
     return [...included, ...extras];
   }, [cart, config, configItems, quote]);
 
-  const groupedRows = useMemo(
-    () =>
-      sortMenuCategories(
-        groupOrderItems(reviewRows),
-        (group) => group.name,
-      ),
-    [reviewRows],
-  );
-
   const orderSummaries = activeCarts.map((packageCart) => {
     const packageQuote = multiCartQuote?.carts.find(
       (entry) => entry.cartId === packageCart.id,
     )?.quote;
-    const groups = sortMenuCategories(
+    const packageConfiguration =
+      configByCartId[packageCart.id] ??
+      (packageCart.id === cart?.id ? config : undefined);
+    const rows =
       packageCart.id === cart?.id
-        ? groupedRows
-        : groupOrderItems(
-            packageQuote?.items.length
-              ? packageQuote.items.map((item, index) => ({
-                  id: `${packageCart.id}-${item.menuItemId}-${index}`,
-                  categoryId: item.categoryId,
-                  categoryName: item.categoryName,
-                  name: item.menuItemName,
-                  role: item.role,
-                  replacedName: item.replacedMenuItemName,
-                }))
-              : packageCart.items.map((item) => ({
-                  id: item.id,
-                  categoryId: item.categoryId,
-                  categoryName: item.categoryName,
-                  name: item.menuItemName,
-                  role: item.role,
-                  replacedName: item.replacedMenuItemName,
-                })),
-          ),
+        ? reviewRows
+        : packageQuote?.items.length
+          ? packageQuote.items.map((item, index) => ({
+              id: `${packageCart.id}-${item.menuItemId}-${index}`,
+              categoryId: item.categoryId,
+              categoryName: item.categoryName,
+              name: item.menuItemName,
+              role: item.role,
+              replacedName: item.replacedMenuItemName,
+            }))
+          : packageCart.package.type === 'FIXED_PACKAGE' && packageConfiguration
+            ? fixedPackageMenuRows(packageCart, packageConfiguration)
+            : packageCart.items.map((item) => ({
+                id: item.id,
+                categoryId: item.categoryId,
+                categoryName: item.categoryName,
+                name: item.menuItemName,
+                role: item.role,
+                replacedName: item.replacedMenuItemName,
+              }));
+    const groups = sortMenuCategories(
+      groupOrderItems(rows),
       (group) => group.name,
     );
 
@@ -877,6 +934,7 @@ export default function CartPage() {
       const missingTime = activeCarts.some(
         (entry) => !entry.event?.eventTimeStart,
       );
+      setValidationLocation('delivery');
       setError(
         missingAddress
           ? 'Add a delivery address to continue.'
@@ -901,6 +959,7 @@ export default function CartPage() {
     }
     if (!mobileNumberSchema.safeParse(contactNumber).success) {
       setEditingContact(true);
+      setValidationLocation('contact');
       setError('Enter a valid 10-digit contact number to continue.');
       document
         .getElementById('checkout-contact')
@@ -911,16 +970,23 @@ export default function CartPage() {
       );
       return;
     }
+    setValidationLocation('');
     void pay();
   }
 
   if (!session) {
     return (
-      <AuthRequiredPanel
-        title="Sign in to resume your order"
-        description="Your menu is saved. Sign in to add event details and continue to payment."
-        returnHref="/cart"
-      />
+      <div className="page-shell">
+        <h1 className="mb-3 font-sans text-lg font-semibold leading-6 text-foreground sm:text-2xl">
+          Checkout
+        </h1>
+        <AuthRequiredPanel
+          title="Sign in to resume your order"
+          description="Your menu is saved. Sign in to add event details and continue to payment."
+          returnHref="/cart"
+          headingLevel={2}
+        />
+      </div>
     );
   }
   if (loading) {
@@ -946,206 +1012,163 @@ export default function CartPage() {
 
   const ready =
     activeCarts.length > 0 && activeCarts.every((entry) => eventReady(entry));
-  const editHref =
-    cart.package.type === 'ORDER_BY_KG'
-      ? `/order-by-kg?packageVersionId=${cart.packageVersionId}&cartId=${cart.id}`
-      : cart.package.type === 'CUSTOM_PACKAGE'
-        ? `/packages/build?packageVersionId=${cart.packageVersionId}&cartId=${cart.id}`
-        : `/menu/select?packageVersionId=${cart.packageVersionId}&cartId=${cart.id}`;
-  const isMultiCart = activeCarts.length > 1;
   const mobileTotal = pendingOrder
     ? (pendingBatch?.totalAmount ?? pendingOrder.totalAmount)
     : multiCartQuote?.totalAmount;
 
   return (
-    <main className="bg-background pb-[calc(3.5rem+env(safe-area-inset-bottom)+1rem)] lg:pb-10">
+    <main
+      className="bg-background pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-10"
+      onFocusCapture={(event) => {
+        if (
+          event.target instanceof HTMLInputElement ||
+          event.target instanceof HTMLTextAreaElement
+        ) {
+          setKeyboardOpen(true);
+        }
+      }}
+      onBlurCapture={() => {
+        window.setTimeout(() => {
+          const activeElement = document.activeElement;
+          setKeyboardOpen(
+            activeElement instanceof HTMLInputElement ||
+              activeElement instanceof HTMLTextAreaElement,
+          );
+        }, 0);
+      }}
+    >
       <Script
         src="https://checkout.razorpay.com/v1/checkout.js"
         strategy="afterInteractive"
       />
 
-      <div className="mx-auto w-full max-w-[1320px] px-3 py-4 sm:px-5 sm:py-5 lg:px-8">
-        <header className="mb-2 sm:mb-4">
-          <h1 className="font-serif text-xl font-semibold leading-tight text-foreground sm:text-2xl">
-            Complete your order
-          </h1>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Confirm delivery and order details.
-          </p>
-        </header>
-        {isMultiCart && !pendingOrder && (
-          <section className="mb-5 rounded-2xl border border-border bg-white p-4 shadow-sm sm:p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="font-sans text-xl font-semibold">
-                  Packages in your cart ({activeCarts.length})
-                </h2>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Delivery details, service choice, cutlery, and contact stay
-                  common. Select a package to review only its menu.
-                </p>
-              </div>
-              <Link
-                href="/packages"
-                className="inline-flex min-h-10 items-center rounded-full border border-primary/30 px-4 text-sm font-bold text-primary hover:bg-primary/5"
-              >
-                Add another package
-              </Link>
+      <div className="mx-auto w-full max-w-[1320px] px-3 py-2 sm:px-5 sm:py-4 lg:px-8">
+        <h1 className="mb-2 font-sans text-base font-semibold leading-6 text-foreground sm:mb-3 sm:text-xl">
+          Checkout
+        </h1>
+        {!pendingOrder && (
+          <section className="mb-2 overflow-hidden rounded-lg border border-border/60 bg-white/90">
+              <div className="border-b border-border/60 bg-ivory-warm/70 px-3 py-2 sm:px-4">
+              <h2 className="font-sans text-base font-semibold leading-5 text-primary">
+                Your order <span className="text-muted-foreground">({activeCarts.length})</span>
+              </h2>
             </div>
-            <div
-              className="mt-4 flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-              role="tablist"
-              aria-label="Packages in your cart"
-            >
-              {activeCarts.map((packageCart, packageIndex) => (
-                <article
-                  key={packageCart.id}
-                  className={cn(
-                    'group relative min-w-[280px] flex-1 rounded-xl border p-4 transition-all sm:min-w-[320px]',
-                    packageCart.id === cart.id
-                      ? 'border-primary bg-primary/[0.055] shadow-sm ring-1 ring-primary/15'
-                      : 'border-border bg-ivory/60 hover:-translate-y-0.5 hover:border-primary/40 hover:bg-white hover:shadow-md',
-                  )}
-                >
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={packageCart.id === cart.id}
-                    aria-label={`View ${packageCart.package.name} menu and details`}
-                    disabled={
-                      packageCart.id === cart.id || Boolean(selectingCartId)
-                    }
-                    onClick={() => void selectPackageCart(packageCart)}
-                    className="absolute inset-0 z-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-default"
-                  />
-                  <div className="pointer-events-none flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="block truncate font-bold text-foreground">
+            <div className="divide-y divide-border/60 px-3 sm:px-4">
+              {orderSummaries.map(({ cart: packageCart, itemCount, guestCount, weightKg }) => {
+                const packageQuote = multiCartQuote?.carts.find(
+                  (entry) => entry.cartId === packageCart.id,
+                )?.quote;
+                const menuHref =
+                  packageCart.package.type === 'ORDER_BY_KG'
+                    ? `/order-by-kg?packageVersionId=${packageCart.packageVersionId}&cartId=${packageCart.id}`
+                    : packageCart.package.type === 'CUSTOM_PACKAGE'
+                      ? `/packages/build?packageVersionId=${packageCart.packageVersionId}&cartId=${packageCart.id}`
+                      : `/menu/select?packageVersionId=${packageCart.packageVersionId}&cartId=${packageCart.id}`;
+                const menuSummary = itemCount > 0
+                  ? `${itemCount} ${itemCount === 1 ? 'dish' : 'dishes'}`
+                  : packageCart.package.type === 'FIXED_PACKAGE'
+                    ? 'Included menu'
+                    : 'No dishes selected';
+                return (
+                  <article key={packageCart.id} className="min-w-0 py-1 first:pt-1 last:pb-0.5">
+                    <div className="flex min-w-0 items-center justify-between gap-2">
+                      <h3 className="min-w-0 flex-1 break-words font-sans text-sm font-semibold leading-5 text-foreground">
                           {packageCart.package.name}
-                        </span>
-                        {packageCart.id === cart.id && (
-                          <CheckCircle2
-                            className="h-4 w-4 shrink-0 text-primary"
-                            aria-label="Selected package"
-                          />
-                        )}
-                      </div>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {selectingCartId === packageCart.id
-                          ? 'Updating menu…'
-                          : `${
-                              activeCarts.filter(
-                                (entry) =>
-                                  entry.packageVersionId ===
-                                  packageCart.packageVersionId,
-                              ).length > 1
-                                ? `Order ${
-                                    activeCarts
-                                      .slice(0, packageIndex + 1)
-                                      .filter(
-                                        (entry) =>
-                                          entry.packageVersionId ===
-                                          packageCart.packageVersionId,
-                                      ).length
-                                  } · `
-                                : ''
-                            }${packageCart.items.length} custom selection${packageCart.items.length === 1 ? '' : 's'}`}
-                      </p>
+                      </h3>
+                      <strong className="money-text shrink-0 text-sm font-semibold text-foreground">
+                          {packageQuote
+                            ? formatCheckoutCurrency(packageQuote.subtotalAmount)
+                            : quoteLoading ? 'Updating' : ''}
+                      </strong>
                     </div>
-                    <button
-                      type="button"
-                      aria-label={`Remove ${packageCart.package.name} from cart`}
-                      disabled={Boolean(deletingCartId)}
-                      onClick={() => void removeCart(packageCart.id)}
-                      className="pointer-events-auto relative z-10 grid h-9 w-9 shrink-0 place-items-center rounded-full text-red-700 hover:bg-red-50 disabled:opacity-40"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                  {packageCart.package.type === 'ORDER_BY_KG' ? (
-                    <p className="mt-3 rounded-lg border bg-white p-3 text-sm font-semibold">
-                      {packageCart.items.reduce(
-                        (sum, item) => sum + (item.weightGrams ?? 0),
-                        0,
-                      ) / 1000}{' '}
-                      kg total · Edit dish weights below
+                    <p className="mt-0.5 text-xs leading-4 text-muted-foreground">
+                      {packageCart.package.type === 'ORDER_BY_KG'
+                        ? `${weightKg} kg · ${menuSummary}`
+                        : `${guestCount} ${packageCart.package.type === 'MEAL_BOX' ? 'boxes' : 'guests'} · ${menuSummary}`}
                     </p>
-                  ) : (
-                    <div className="relative z-10 mt-3 flex items-center justify-between gap-3 rounded-lg border bg-white p-2">
-                      <span className="text-xs font-semibold text-muted-foreground">
-                        {packageCart.package.type === 'MEAL_BOX'
-                          ? 'Box count'
-                          : 'Guest count'}
-                      </span>
-                      <div className="flex items-center overflow-hidden rounded-lg border">
+                    <div className="mt-0.5 flex min-h-9 flex-wrap items-center gap-x-4 gap-y-0">
+                      <Link
+                        href={menuHref}
+                        className="inline-flex min-h-9 items-center text-xs font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                      >
+                        Edit menu
+                      </Link>
+                      {packageCart.package.type !== 'ORDER_BY_KG' && (
                         <button
                           type="button"
-                          aria-label={`Decrease count for ${packageCart.package.name}`}
-                          disabled={
-                            Boolean(updatingCartId) ||
-                            (packageCart.guestCount ??
-                              packageCart.package.minGuestCount) <=
-                              packageCart.package.minGuestCount
-                          }
                           onClick={() =>
-                            void updatePackageQuantity(
-                              packageCart,
-                              (packageCart.guestCount ??
-                                packageCart.package.minGuestCount) - 1,
+                            setEditingQuantityCartId((current) =>
+                              current === packageCart.id ? '' : packageCart.id,
                             )
                           }
-                          className="grid h-9 w-9 place-items-center text-primary disabled:opacity-30"
+                          className="inline-flex min-h-9 items-center text-xs font-medium text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                         >
-                          <Minus className="h-3.5 w-3.5" />
+                          {editingQuantityCartId === packageCart.id
+                            ? 'Done'
+                            : `Change ${packageCart.package.type === 'MEAL_BOX' ? 'boxes' : 'guests'}`}
                         </button>
-                        <input
-                          aria-label={`Count for ${packageCart.package.name}`}
-                          inputMode="numeric"
-                          defaultValue={
-                            packageCart.guestCount ??
-                            packageCart.package.minGuestCount
-                          }
-                          key={`${packageCart.id}-${packageCart.guestCount}`}
-                          onBlur={(event) => {
-                            const next = clampPackageQuantity(
-                              packageCart,
-                              Number(event.target.value),
-                            );
-                            event.currentTarget.value = String(next);
-                            void updatePackageQuantity(packageCart, next);
-                          }}
-                          className="h-9 w-14 border-x text-center text-sm font-bold outline-none"
-                        />
-                        <button
-                          type="button"
-                          aria-label={`Increase count for ${packageCart.package.name}`}
-                          disabled={
-                            Boolean(updatingCartId) ||
-                            Boolean(
-                              packageCart.package.maxGuestCount &&
-                              (packageCart.guestCount ??
-                                packageCart.package.minGuestCount) >=
-                                packageCart.package.maxGuestCount,
-                            )
-                          }
-                          onClick={() =>
-                            void updatePackageQuantity(
-                              packageCart,
-                              (packageCart.guestCount ??
-                                packageCart.package.minGuestCount) + 1,
-                            )
-                          }
-                          className="grid h-9 w-9 place-items-center text-primary disabled:opacity-30"
-                        >
-                          <Plus className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
+                      )}
+                      <button
+                        type="button"
+                        aria-label={`Remove ${packageCart.package.name} from cart`}
+                        disabled={Boolean(deletingCartId)}
+                        onClick={() => void removeCart(packageCart.id)}
+                        className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-red-50 hover:text-red-700 disabled:opacity-40"
+                      >
+                        <Trash2 className="h-4 w-4" aria-hidden="true" />
+                      </button>
                     </div>
-                  )}
-                </article>
-              ))}
+                    {editingQuantityCartId === packageCart.id &&
+                      packageCart.package.type !== 'ORDER_BY_KG' && (
+                        <div className="mt-1 flex items-center justify-between border-t border-border/50 pt-2">
+                          <span className="text-xs font-medium text-muted-foreground">
+                            {packageCart.package.type === 'MEAL_BOX' ? 'Box count' : 'Guest count'}
+                          </span>
+                          <div className="flex h-10 items-center overflow-hidden rounded-md border bg-white">
+                            <button
+                              type="button"
+                              aria-label={`Decrease count for ${packageCart.package.name}`}
+                              disabled={Boolean(updatingCartId) || guestCount <= packageCart.package.minGuestCount}
+                              onClick={() => void updatePackageQuantity(packageCart, guestCount - 1)}
+                              className="grid h-10 w-10 place-items-center text-primary disabled:opacity-30"
+                            >
+                              <Minus className="h-3.5 w-3.5" />
+                            </button>
+                            <input
+                              aria-label={`Count for ${packageCart.package.name}`}
+                              inputMode="numeric"
+                              defaultValue={guestCount}
+                              key={`${packageCart.id}-${guestCount}`}
+                              onBlur={(event) => {
+                                const next = clampPackageQuantity(packageCart, Number(event.target.value));
+                                event.currentTarget.value = String(next);
+                                void updatePackageQuantity(packageCart, next);
+                              }}
+                              className="h-10 w-14 border-x text-center text-sm font-bold outline-none"
+                            />
+                            <button
+                              type="button"
+                              aria-label={`Increase count for ${packageCart.package.name}`}
+                              disabled={Boolean(updatingCartId) || Boolean(packageCart.package.maxGuestCount && guestCount >= packageCart.package.maxGuestCount)}
+                              onClick={() => void updatePackageQuantity(packageCart, guestCount + 1)}
+                              className="grid h-10 w-10 place-items-center text-primary disabled:opacity-30"
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                  </article>
+                );
+              })}
             </div>
+            <Link
+              href="/packages"
+              className="inline-flex min-h-9 items-center text-xs font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            >
+              <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
+              Add another package
+            </Link>
           </section>
         )}
         {pendingOrder && (
@@ -1157,120 +1180,43 @@ export default function CartPage() {
 
         <div className="grid gap-x-10 gap-y-2.5 lg:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.9fr)] lg:items-start">
           <div className="min-w-0 space-y-2.5">
-            {/* {isMultiCart && !pendingOrder && (
-              <section className="rounded-2xl border border-primary/15 bg-primary/[0.045] p-4 sm:p-5">
-                <div className="flex items-start gap-3">
-                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-primary shadow-sm">
-                    <Truck className="h-5 w-5" aria-hidden="true" />
-                  </span>
-                  <div>
-                    <p className="eyebrow">Shared delivery setup</p>
-                    <h2 className="mt-1 font-sans text-xl font-semibold text-foreground">
-                      One delivery plan for all packages
-                    </h2>
-                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                      Venue, delivery time, serving option, cutlery, contact
-                      number, and kitchen note apply to every package in this
-                      cart. Only the menu section below changes when you switch
-                      packages.
-                    </p>
-                  </div>
-                </div>
-              </section>
-            )} */}
             {pendingOrder ? (
               <EventSummary cart={cart} />
             ) : (
-              <SelectionContextPanel
-                checkoutCompact
-                cartId={cart.id}
-                packageVersionId={cart.packageVersionId}
-                minPax={cart.package.minGuestCount}
-                maxPax={cart.package.maxGuestCount}
-                hideQuantity
-                deliveryService={
-                  <>
-                    <DeliveryServiceOptions
-                      cart={cart}
-                      quote={quote}
-                      disabled={updatingDelivery}
-                      onChange={updateDeliveryService}
-                    />
-                    <CutleryOptions
-                      cart={cart}
-                      quote={quote}
-                      disabled={updatingDelivery}
-                      onChange={updateCutleryExtraCount}
-                    />
-                  </>
-                }
-                onSaved={onEventSaved}
-              />
+              <>
+                <SelectionContextPanel
+                  checkoutCompact
+                  cartId={cart.id}
+                  packageVersionId={cart.packageVersionId}
+                  minPax={cart.package.minGuestCount}
+                  maxPax={cart.package.maxGuestCount}
+                  hideQuantity
+                  deliveryService={
+                    <>
+                      <DeliveryServiceOptions
+                        cart={cart}
+                        quote={quote}
+                        disabled={updatingDelivery}
+                        onChange={updateDeliveryService}
+                      />
+                      <CutleryOptions
+                        cart={cart}
+                        quote={quote}
+                        disabled={updatingDelivery}
+                        onChange={updateCutleryExtraCount}
+                      />
+                    </>
+                  }
+                  onSaved={onEventSaved}
+                />
+                {validationLocation === 'delivery' && error && (
+                  <p role="alert" className="mt-1 text-sm font-medium text-red-800">
+                    {error}
+                  </p>
+                )}
+              </>
             )}
 
-            <section className="rounded-lg border border-border/60 bg-white/80 p-3 sm:p-4">
-              <div className="flex items-center justify-between gap-4">
-                <h2 className="text-base font-semibold text-foreground">Your order</h2>
-                {!pendingOrder && (
-                  <Link
-                    href={editHref}
-                    className="inline-flex min-h-8 shrink-0 items-center px-1 text-sm font-medium text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-                  >
-                    Edit
-                  </Link>
-                )}
-              </div>
-              <div className="mt-1.5 divide-y divide-border/60">
-                {orderSummaries.map(({ cart: packageCart, groups, itemCount, guestCount, weightKg }) => (
-                  <div key={packageCart.id} className="py-2 first:pt-0 last:pb-0">
-                    <p className="text-sm font-semibold text-foreground">
-                      {packageCart.package.name}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {itemCount} {itemCount === 1 ? 'dish' : 'dishes'} ·{' '}
-                      {packageCart.package.type === 'ORDER_BY_KG'
-                        ? `${weightKg} kg`
-                        : `${guestCount} ${packageCart.package.type === 'MEAL_BOX' ? 'boxes' : 'guests'}`}
-                    </p>
-                    <div className="mt-1 flex flex-wrap gap-1.5">
-                      {groups.map((group) => (
-                        <span
-                          key={group.id}
-                          className="rounded-sm bg-background/80 px-2 py-0.5 text-xs leading-5 text-muted-foreground"
-                        >
-                          {formatCategoryCount(group.name, group.rows.length)}
-                        </span>
-                      ))}
-                    </div>
-                    <details className="group mt-0.5">
-                      <summary className="inline-flex min-h-8 cursor-pointer list-none items-center gap-1 text-sm font-medium text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
-                        <span className="group-open:hidden">View menu →</span>
-                        <span className="hidden group-open:inline">Hide menu ↑</span>
-                      </summary>
-                      <div className="mt-1.5 space-y-2 border-t border-border/50 pt-2">
-                        {groups.map((group) => (
-                          <section key={group.id}>
-                            <h3 className="text-[11px] font-bold uppercase text-primary">
-                              {group.name}
-                            </h3>
-                            <ul className="mt-0.5 flex flex-wrap gap-x-2 text-sm leading-6 text-foreground">
-                              {group.rows.map((row) => (
-                                <li key={row.id}>
-                                  {row.name}
-                                  {row.role === 'EXTRA' ? ' (extra)' : ''}
-                                  {row.replacedName ? ` (replaces ${row.replacedName})` : ''}
-                                  {group.rows.at(-1)?.id !== row.id ? ',' : ''}
-                                </li>
-                              ))}
-                            </ul>
-                          </section>
-                        ))}
-                      </div>
-                    </details>
-                  </div>
-                ))}
-              </div>
-            </section>
             {!pendingOrder && (
               <section
                 id="checkout-contact"
@@ -1278,7 +1224,7 @@ export default function CartPage() {
               >
                   <div className="flex items-center justify-between gap-4">
                     <div className="min-w-0">
-                      <h2 className="text-base font-semibold text-foreground">Contact</h2>
+                      <h2 className="font-sans text-base font-semibold leading-5 text-foreground">Contact</h2>
                     </div>
                     <button
                       type="button"
@@ -1314,17 +1260,24 @@ export default function CartPage() {
                         autoComplete="tel"
                         autoFocus
                         value={contactNumber}
-                        onChange={(event) =>
+                        onChange={(event) => {
                           setContactNumber(
                             event.target.value.replace(/\D/g, '').slice(0, 10),
-                          )
-                        }
+                          );
+                          setError('');
+                          setValidationLocation('');
+                        }}
                         maxLength={10}
                         placeholder="9876543210"
                         required
                         className="min-h-11 rounded-none border-0 focus-visible:ring-0"
                       />
                     </div>
+                  )}
+                  {validationLocation === 'contact' && error && (
+                    <p role="alert" className="mt-2 text-sm font-medium text-red-800">
+                      {error}
+                    </p>
                   )}
                 <div className="mt-1.5 border-t border-border/60 pt-1">
                   {specialNotes && !notesExpanded ? (
@@ -1393,26 +1346,10 @@ export default function CartPage() {
             <section className="rounded-lg border border-border/60 bg-white/80 p-3 sm:p-4">
               <div className="mb-2 flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <h2 className="text-base font-semibold text-foreground">
-                    {pendingOrder ? 'Payment pending' : 'Order summary'}
+                  <h2 className="font-sans text-base font-semibold leading-5 text-foreground">
+                    {pendingOrder ? 'Payment pending' : 'Price breakdown'}
                   </h2>
-                  {activeCarts.length > 1 && !pendingOrder && (
-                    <p className="text-xs text-muted-foreground">
-                      {activeCarts.length} packages
-                    </p>
-                  )}
                 </div>
-                {!pendingOrder && (
-                  <button
-                    type="button"
-                    aria-label="Clear cart"
-                    title="Clear cart"
-                    onClick={() => setClearCartOpen(true)}
-                    className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-muted-foreground transition hover:bg-red-50 hover:text-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-                  >
-                    <Trash2 className="h-4 w-4" aria-hidden="true" />
-                  </button>
-                )}
               </div>
               {pendingOrder ? (
                 <div>
@@ -1448,7 +1385,7 @@ export default function CartPage() {
                         : 'Confirm delivery details to calculate your total.'}
                     </p>
                   )}
-                  {error && (
+                  {error && !validationLocation && (
                     <p
                       role="alert"
                       className="mt-3 text-sm font-medium text-red-800"
@@ -1462,12 +1399,7 @@ export default function CartPage() {
                       onClick={requestPayment}
                       disabled={quoteLoading || paying}
                     >
-                      <LockKeyhole className="mr-2 h-4 w-4" aria-hidden="true" />
-                      {paying
-                        ? 'Opening payment…'
-                        : ready && mobileNumberSchema.safeParse(contactNumber).success
-                          ? 'Pay securely'
-                          : 'Complete details'}
+                      {paying ? 'Opening payment…' : 'Continue'}
                     </Button>
                     <p className="mt-1.5 flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
                       <LockKeyhole className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
@@ -1532,9 +1464,10 @@ export default function CartPage() {
 
       </div>
 
-      <MobileOrderBar checkout label="Cart total and payment">
+      {!keyboardOpen && <MobileOrderBar checkout label="Checkout total and continue">
         <div className="mobile-order-bar-row">
           <div className="mobile-order-bar-summary">
+            <span className="mobile-order-bar-label">Payable total</span>
             <strong className="mobile-order-bar-total">
               {mobileTotal != null
                 ? formatCheckoutCurrency(mobileTotal)
@@ -1555,16 +1488,11 @@ export default function CartPage() {
               onClick={requestPayment}
               disabled={quoteLoading || paying}
             >
-              <LockKeyhole className="mr-2 h-4 w-4" />
-              {paying
-                ? 'Opening…'
-                : ready && mobileNumberSchema.safeParse(contactNumber).success
-                  ? 'Pay securely'
-                  : 'Complete details'}
+              {paying ? 'Opening…' : 'Continue'}
             </Button>
           )}
         </div>
-      </MobileOrderBar>
+      </MobileOrderBar>}
     </main>
   );
 }
@@ -1655,62 +1583,44 @@ function MultiCartPriceSummary({
     : 'Delivery';
   return (
     <div>
-      <div className="space-y-1.5">
-        {aggregate.carts.map(({ cartId, quote }) => {
-          const packageCart = cartById.get(cartId);
-          const unitLabel =
-            packageCart?.package.type === 'MEAL_BOX' ? 'box' : 'guest';
-          const isKg =
-            packageCart?.package.type === 'ORDER_BY_KG' ||
-            quote.packageType === 'ORDER_BY_KG';
-          const packageCalculation =
-            quote.finalPerPlatePrice != null &&
-            quote.guestCount != null &&
-            !isKg
-              ? `${formatCheckoutCurrency(quote.finalPerPlatePrice)} × ${quote.guestCount} ${quote.guestCount === 1 ? unitLabel : unitLabel === 'box' ? 'boxes' : 'guests'}`
-              : formatMenuCalculation({
-                  basePrice: quote.basePerPlatePrice,
-                  guestCount: quote.guestCount,
-                  unitLabel,
-                  items: quote.items,
-                }).replace(/\.00/g, '');
-          return (
-            <div
-              key={cartId}
-              className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3"
-            >
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-foreground">
-                  {packageCart?.package.name ?? quote.packageName}
-                </p>
-                <p className="truncate text-xs text-muted-foreground">
-                  {packageCalculation}
-                </p>
-              </div>
-              <strong className="money-text shrink-0 text-sm font-semibold text-foreground">
-                {formatCheckoutCurrency(quote.subtotalAmount)}
-              </strong>
-            </div>
-          );
-        })}
-      </div>
-      <div className="mt-2 space-y-1 text-xs">
-        {extraCutleryCount > 0 && (
+      <details className="group">
+        <summary className="flex min-h-9 cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+          <span className="group-open:hidden">View breakdown</span>
+          <span className="hidden group-open:inline">Hide breakdown</span>
+          <span aria-hidden="true" className="text-lg leading-none">{`+`}</span>
+        </summary>
+        <div className="space-y-2 border-t border-border/60 py-2 text-xs">
+          {aggregate.carts.map(({ cartId, quote }) => {
+            const packageCart = cartById.get(cartId);
+            return (
+              <PriceLine
+                key={cartId}
+                label={packageCart?.package.name ?? quote.packageName}
+                value={formatCheckoutCurrency(quote.subtotalAmount)}
+              />
+            );
+          })}
           <PriceLine
-            label={`Extra cutlery · ${extraCutleryCount} ${extraCutleryCount === 1 ? 'set' : 'sets'}`}
-            value={formatCheckoutCurrency(cutleryTotal)}
+            label={deliveryLabel}
+            value={Number(aggregate.deliveryFee) === 0
+              ? 'Included'
+              : formatCheckoutCurrency(aggregate.deliveryFee)}
           />
-        )}
-        <PriceLine
-          label={deliveryLabel}
-          value={Number(aggregate.deliveryFee) === 0
-            ? 'Included'
-            : formatCheckoutCurrency(aggregate.deliveryFee)}
-        />
-      </div>
-      <div className="mt-2 flex items-center justify-between gap-4 border-t border-border pt-2">
-        <span className="font-semibold">Total</span>
-        <strong className="money-text text-base font-bold text-primary">
+          {extraCutleryCount > 0 && (
+            <PriceLine
+              label={`Extra cutlery · ${extraCutleryCount} ${extraCutleryCount === 1 ? 'set' : 'sets'}`}
+              value={formatCheckoutCurrency(cutleryTotal)}
+            />
+          )}
+          <PriceLine
+            label="Final total"
+            value={formatCheckoutCurrency(aggregate.totalAmount)}
+          />
+        </div>
+      </details>
+      <div className="mt-1 flex items-center justify-between gap-4 border-t border-border pt-2">
+        <span className="text-sm font-semibold">Total</span>
+        <strong className="money-text text-lg font-bold text-primary">
           {formatCheckoutCurrency(aggregate.totalAmount)}
         </strong>
       </div>
@@ -1720,25 +1630,6 @@ function MultiCartPriceSummary({
 
 function formatCheckoutCurrency(value: string | number | null | undefined) {
   return formatCurrency(value).replace(/\.00$/, '');
-}
-
-function formatCategoryCount(categoryName: string, count: number) {
-  const normalized = categoryName.trim().toLowerCase();
-  let label = categoryName.trim();
-
-  if (normalized.includes('starter')) label = count === 1 ? 'Starter' : 'Starters';
-  else if (normalized.includes('bread')) label = count === 1 ? 'Bread' : 'Breads';
-  else if (normalized.includes('curry')) label = count === 1 ? 'Curry' : 'Curries';
-  else if (normalized.includes('biryani')) label = count === 1 ? 'Biryani' : 'Biryanis';
-  else if (normalized.includes('rice')) label = count === 1 ? 'Rice' : 'Rice Items';
-  else if (normalized.includes('dessert') || normalized.includes('sweet'))
-    label = count === 1 ? 'Dessert' : 'Desserts';
-  else if (normalized.includes('accompaniment'))
-    label = count === 1 ? 'Accompaniment' : 'Accompaniments';
-  else if (count === 1 && label.toLowerCase().endsWith('s'))
-    label = label.slice(0, -1);
-
-  return `${count} ${label}`;
 }
 
 function CutleryOptions({
@@ -1889,13 +1780,15 @@ function DeliveryServiceOptions({
 
   return (
     <section className="mt-3">
-      <h3 className="mb-2 text-sm font-bold">Delivery service</h3>
+      <h3 className="mb-2 font-sans text-base font-semibold leading-5 text-foreground">
+        How should we deliver
+      </h3>
       <div
-        className="rounded-md border border-border/55 bg-white/75 p-1.5"
+        className="grid gap-1.5"
         role="radiogroup"
         aria-label="Delivery service"
       >
-        {options.map(({ type, title, description, addon, icon: Icon }, index) => {
+        {options.map(({ type, title, description, addon, icon: Icon }) => {
           const isSelected = selected === type;
           const total = baseDelivery + addon;
           const priceLabel =
@@ -1908,13 +1801,10 @@ function DeliveryServiceOptions({
             <div
               key={type}
               className={cn(
-                'transition-colors',
+                'overflow-hidden rounded-md border transition-colors',
                 isSelected
-                  ? cn(
-                      'rounded-sm bg-primary/[0.045]',
-                      index < options.length - 1 && 'border-b border-border/60',
-                    )
-                  : 'border-b border-border/60 last:border-b-0',
+                  ? 'border-primary/40 bg-primary/[0.055]'
+                  : 'border-border/70 bg-white/85 hover:border-primary/25',
                 disabled && 'opacity-70',
               )}
             >
@@ -1927,13 +1817,13 @@ function DeliveryServiceOptions({
                   onChange(type, type === 'ASSISTED' ? helperCount : 0)
                 }
                 className={cn(
-                  'flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
-                  isSelected ? 'min-h-12' : 'min-h-11',
+                  'flex w-full items-center gap-2 px-2.5 py-2 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
+                  isSelected ? 'min-h-12' : 'min-h-12',
                 )}
               >
                 <span
                   className={cn(
-                    'grid h-4 w-4 shrink-0 place-items-center rounded-full border',
+                    'grid h-5 w-5 shrink-0 place-items-center rounded-full border',
                     isSelected
                       ? 'border-primary bg-primary text-white'
                       : 'border-muted-foreground/60 bg-white',
@@ -1942,9 +1832,9 @@ function DeliveryServiceOptions({
                 >
                   {isSelected && <Check className="h-3 w-3" />}
                 </span>
-                <Icon className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <Icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                 <span className="min-w-0 flex-1">
-                  <strong className="block truncate whitespace-nowrap text-sm font-semibold text-foreground">
+                    <strong className="block truncate whitespace-nowrap text-sm font-semibold text-foreground">
                     {title}
                   </strong>
                   <span className="block truncate whitespace-nowrap text-xs leading-4 text-muted-foreground">
@@ -1961,7 +1851,7 @@ function DeliveryServiceOptions({
                 </span>
               </button>
               {type === 'ASSISTED' && isSelected && (
-                <div className="flex items-center justify-between border-t border-primary/10 px-3 py-2 pl-11">
+                <div className="flex items-center justify-between border-t border-primary/15 bg-white/50 px-3 py-2 pl-12">
                   <span className="text-xs text-muted-foreground">
                     Service people
                   </span>

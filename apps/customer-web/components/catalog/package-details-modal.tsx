@@ -108,8 +108,18 @@ export function PackageDetailsModal({
         aria-label="Close package details"
         onClick={onClose}
       />
-      <section className="relative flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:max-w-5xl sm:rounded-3xl">
-        <div className="min-h-0 flex-1 overflow-y-auto">
+      <section className="relative flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:h-auto sm:max-h-[min(92vh,calc(100dvh-2.5rem))] sm:max-w-5xl sm:rounded-3xl">
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute right-3 top-[max(0.75rem,env(safe-area-inset-top))] z-20 grid h-11 w-11 place-items-center rounded-full text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:right-4 sm:top-4"
+          aria-label="Close package details"
+        >
+          <span className="grid h-8 w-8 place-items-center rounded-full border border-white/25 bg-black/25 shadow-sm backdrop-blur-sm transition-colors hover:bg-black/40">
+            <X className="h-4 w-4" />
+          </span>
+        </button>
+        <div className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain pb-[calc(env(safe-area-inset-bottom)+2rem)] [-webkit-overflow-scrolling:touch] sm:pb-0">
           <div className="relative aspect-[2.6/1] min-h-[8rem] overflow-hidden bg-muted sm:aspect-auto sm:h-72">
             <DataImage
               src={pkg.imageUrl}
@@ -118,16 +128,6 @@ export function PackageDetailsModal({
               style={{ objectPosition: getPackageHeroImagePosition(pkg.imageUrl) }}
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
-            <button
-              type="button"
-              onClick={onClose}
-              className="absolute right-3 top-3 grid h-11 w-11 place-items-center rounded-full text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:right-4 sm:top-4"
-              aria-label="Close package details"
-            >
-              <span className="grid h-8 w-8 place-items-center rounded-full border border-white/25 bg-black/25 shadow-sm backdrop-blur-sm transition-colors hover:bg-black/40">
-                <X className="h-4 w-4" />
-              </span>
-            </button>
             <div className="absolute inset-x-0 bottom-0 p-4 text-white sm:p-7">
               <h2
                 id="package-details-title"
@@ -325,7 +325,7 @@ export function PackageDetailsModal({
           </div>
         </div>
 
-        <footer className="shrink-0 border-t bg-white/95 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] backdrop-blur sm:px-7 sm:py-4">
+        <footer className="shrink-0 border-t bg-white px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] shadow-[0_-8px_24px_rgba(45,31,20,0.08)] sm:px-7 sm:py-4">
           <div className="mx-auto flex max-w-5xl items-center justify-between gap-4">
             <div className="hidden sm:block">
               <p className="font-bold">{pkg.name}</p>

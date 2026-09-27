@@ -96,10 +96,12 @@ export function AuthRequiredPanel({
   title,
   description,
   returnHref,
+  headingLevel = 1,
 }: {
   title: string;
   description: string;
   returnHref?: string;
+  headingLevel?: 1 | 2;
 }) {
   return (
     <main className="page-shell">
@@ -107,6 +109,7 @@ export function AuthRequiredPanel({
         icon={LockKeyhole}
         eyebrow="Secure step"
         title={title}
+        headingLevel={headingLevel}
         description={description}
         actionHref={
           returnHref

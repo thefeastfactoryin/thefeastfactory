@@ -187,7 +187,6 @@ function ThemedDatePicker({
           )}
         />
       </button>
-
       {open && (
         <div
           role="dialog"
@@ -446,6 +445,7 @@ export function SelectionContextPanel({
   const [saving, setSaving] = useState(false);
   const [expanded, setExpanded] = useState(!sidebar);
   const [addressesExpanded, setAddressesExpanded] = useState(false);
+  const [checkoutEditing, setCheckoutEditing] = useState(true);
   const [guestInput, setGuestInput] = useState(String(guestCount));
   const hydrated = useRef(false);
   const onSavedRef = useRef(onSaved);
@@ -506,9 +506,18 @@ export function SelectionContextPanel({
           setEventTimeStart(cart.event.eventTimeStart || '');
           setGuestCount(cart.event.guestCount ?? minPax);
           setAssignedRegion(cart.event.region ?? cart.region ?? null);
+          setCheckoutEditing(
+            !(
+              savedAddressId &&
+              cart.event.eventDate &&
+              cart.event.eventTimeStart &&
+              (cart.event.region ?? cart.region)
+            ),
+          );
         } else {
           setEventDate('');
           setEventTimeStart('');
+          setCheckoutEditing(true);
           setAssignedRegion(
             cart?.region ?? deliveryLocation?.resolution.region ?? null,
           );
@@ -613,6 +622,7 @@ export function SelectionContextPanel({
         });
         setAssignedRegion(cart.event?.region ?? cart.region ?? null);
         lastSavedKey.current = saveKey;
+        if (completeEvent && address) setCheckoutEditing(false);
         onSavedRef.current?.(cart);
         setMessage(
           completeEvent
@@ -703,6 +713,9 @@ export function SelectionContextPanel({
     }
   }, [deliveryTimeSlots, eventDate, eventTimeStart, minimumDeliveryInstant]);
   const selectedVenue = addresses.find((address) => address.id === addressId);
+  const checkoutDetailsComplete = Boolean(
+    selectedVenue && eventDate && eventTimeStart && assignedRegion,
+  );
   const kitchenName = assignedRegion
     ? `${assignedRegion.name} Kitchen`
     : 'Kitchen will be assigned from delivery venue';
@@ -716,13 +729,38 @@ export function SelectionContextPanel({
     if (address.addressType === 'EVENT_VENUE') return MapPinned;
     return MapPin;
   };
+  const earliestSuggestion = (() => {
+    const leadHours = publicSettings?.minBookingLeadHours ?? 48;
+    const earliestInstant = Date.now() + leadHours * 60 * 60 * 1000;
+    const firstDate = localDateValue(new Date(earliestInstant));
+    for (let dayOffset = 0; dayOffset < 31; dayOffset += 1) {
+      const date = new Date(`${firstDate}T12:00:00`);
+      date.setDate(date.getDate() + dayOffset);
+      const dateValue = localDateValue(date);
+      const slot = deliveryTimeSlots.find(
+        (candidate) =>
+          new Date(`${dateValue}T${candidate.value}:00+05:30`).getTime() >=
+          earliestInstant,
+      );
+      if (slot) return { date: dateValue, time: slot.value };
+    }
+    return undefined;
+  })();
+  const formattedEventSlot = (date: string, time: string) =>
+    new Intl.DateTimeFormat('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      hour: 'numeric',
+      minute: '2-digit',
+      timeZone: 'Asia/Kolkata',
+    }).format(new Date(`${date}T${time}:00+05:30`));
   const fields = (
     <>
-      <div
+      {(!checkoutCompact || checkoutEditing || !checkoutDetailsComplete) && <div
         className={cn(
           'grid gap-3',
           checkoutCompact
-            ? 'mt-4 max-w-2xl grid-cols-2 max-[340px]:grid-cols-1'
+            ? 'mt-2 max-w-2xl grid-cols-2 gap-2 max-[340px]:grid-cols-1'
             : 'mt-5 gap-4 rounded-2xl border border-border bg-[#fcfaf6] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]',
           !checkoutCompact && sidebar
             ? 'grid-cols-1'
@@ -756,6 +794,11 @@ export function SelectionContextPanel({
             compact={checkoutCompact}
           />
         </Field>
+        {checkoutCompact && !eventTimeStart && earliestSuggestion && (
+          <p className="col-span-full -mt-1 text-xs leading-5 text-muted-foreground">
+            Earliest available: {formattedEventSlot(earliestSuggestion.date, earliestSuggestion.time)}
+          </p>
+        )}
         {!hideQuantity && !isKg && (
           <div>
             <span className="mb-2 block text-sm font-semibold">
@@ -800,7 +843,7 @@ export function SelectionContextPanel({
             </p>
           </div>
         )}
-      </div>
+      </div>}
 
       {!checkoutCompact && deliveryService}
 
@@ -938,24 +981,19 @@ export function SelectionContextPanel({
 
       {checkoutCompact && (
         <>
-          <div className="mt-3 rounded-md border border-border/55 bg-white/75 px-3 py-2.5">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-semibold tracking-normal">Delivery address</h3>
-                {!selectedVenue && (
-                  <span className="rounded border border-border/60 bg-muted/50 px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
-                    Required
-                  </span>
-                )}
-              </div>
+          <div className="mt-2 rounded-lg border border-border/60 bg-ivory/75 p-2.5 sm:p-3">
+            <div className="flex min-w-0 items-center gap-2">
+              <MapPin className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+              <div className="min-w-0 flex-1">
               {selectedVenue ? (
-                <div className="mt-1 flex items-start gap-2">
-                  <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                  <p className="min-w-0 flex-1 text-[13px] leading-5 text-muted-foreground">
-                    <span className="text-sm font-semibold text-foreground">
-                      {selectedVenue.label || selectedVenue.addressLine1}
-                    </span>
-                    {' · '}
+                <>
+                  <p className="truncate text-sm font-semibold leading-5 text-foreground">
+                    {selectedVenue.label || selectedVenue.addressLine1}
+                    {!checkoutEditing && eventDate && eventTimeStart && (
+                      <> · {formattedEventSlot(eventDate, eventTimeStart)}</>
+                    )}
+                  </p>
+                  <p className="truncate text-xs leading-4 text-muted-foreground">
                     {[
                       selectedVenue.addressLine1,
                       selectedVenue.addressLine2,
@@ -966,41 +1004,51 @@ export function SelectionContextPanel({
                       .filter(Boolean)
                       .join(', ')}
                   </p>
-                  <button
-                    type="button"
-                    aria-expanded={addressesExpanded}
-                    onClick={() => setAddressesExpanded((value) => !value)}
-                    className="min-h-8 shrink-0 text-sm font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-                  >
-                    {addressesExpanded ? 'Done' : 'Change'}
-                  </button>
-                </div>
+                </>
               ) : (
                 <>
-                  <p className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
-                    <MapPin className="h-4 w-4 shrink-0 text-primary" />
+                  <p className="truncate text-sm font-semibold leading-5 text-foreground">
                     {deliveryLocation?.label || 'Choose a delivery address'}
                   </p>
-                  <div className="ml-6 flex flex-wrap items-center gap-x-4">
-                    <Link
-                      className="inline-flex min-h-8 items-center text-sm font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-                      href={`/addresses?tab=map&returnTo=${encodeURIComponent(returnTo)}`}
-                    >
-                      Add complete address →
-                    </Link>
-                    {addresses.length > 0 && (
-                      <button
-                        type="button"
-                        aria-expanded={addressesExpanded}
-                        onClick={() => setAddressesExpanded((value) => !value)}
-                        className="inline-flex min-h-8 items-center text-sm font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-                      >
-                        {addressesExpanded ? 'Done' : 'Choose saved address'}
-                      </button>
-                    )}
-                  </div>
+                  <p className="truncate text-xs leading-4 text-muted-foreground">
+                    {checkoutDetailsComplete
+                      ? formattedEventSlot(eventDate, eventTimeStart)
+                      : 'Delivery date and time need confirmation'}
+                  </p>
                 </>
               )}
+              </div>
+              <button
+                type="button"
+                aria-expanded={checkoutEditing || addressesExpanded}
+                onClick={() => {
+                  if (checkoutDetailsComplete && checkoutEditing) {
+                    setCheckoutEditing(false);
+                    setAddressesExpanded(false);
+                  } else {
+                    setCheckoutEditing(true);
+                    setAddressesExpanded((value) => !value);
+                  }
+                }}
+                className="inline-flex min-h-10 shrink-0 items-center px-1 text-sm font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              >
+                {checkoutEditing && checkoutDetailsComplete
+                  ? 'Done'
+                  : addressesExpanded
+                    ? 'Done'
+                    : selectedVenue
+                      ? 'Change'
+                      : 'Choose address'}
+              </button>
+            </div>
+            {!selectedVenue && (
+              <Link
+                className="ml-6 inline-flex min-h-9 items-center text-sm font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                href={`/addresses?tab=map&returnTo=${encodeURIComponent(returnTo)}`}
+              >
+                Add complete address
+              </Link>
+            )}
               {addressesExpanded && addresses.length > 0 && (
                 <div
                   className="mt-2 grid gap-1"
@@ -1046,7 +1094,6 @@ export function SelectionContextPanel({
                   </Link>
                 </div>
               )}
-            </div>
           </div>
           {deliveryService}
           {showCheckoutStatus && (
@@ -1064,7 +1111,7 @@ export function SelectionContextPanel({
       id={checkoutCompact ? 'checkout-delivery' : undefined}
       className={cn(
         checkoutCompact
-          ? 'pb-0 first:pt-0'
+          ? 'rounded-lg border border-border/60 bg-ivory/55 p-3 sm:p-4'
           : 'rounded-2xl border border-border bg-white shadow-[0_14px_36px_-30px_rgba(75,12,23,.55)]',
         !checkoutCompact && (sidebar ? 'p-4' : 'p-5 sm:p-6'),
       )}
@@ -1088,10 +1135,10 @@ export function SelectionContextPanel({
             id="event-context-title"
             className={cn(
               'block font-sans font-semibold',
-              checkoutCompact ? 'text-xl' : sidebar ? 'text-xl' : 'text-2xl',
+              checkoutCompact ? 'text-base' : sidebar ? 'text-xl' : 'text-2xl',
             )}
           >
-            {checkoutCompact ? 'Delivery' : 'Delivery details'}
+            {checkoutCompact ? 'When & where' : 'Delivery details'}
           </span>
           {!checkoutCompact && (
             <span className="mt-0.5 block text-xs text-muted-foreground">

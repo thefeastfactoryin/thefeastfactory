@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  ArrowLeft,
   BookOpen,
   CircleHelp,
   ClipboardList,
@@ -133,11 +134,19 @@ export function CustomerShell({
         })
         .catch(() => {});
     };
+    const onCheckoutCartCount = (event: Event) => {
+      const nextCount = (event as CustomEvent<{ count: number }>).detail?.count;
+      if (active && Number.isInteger(nextCount) && nextCount >= 0) {
+        setActiveCartCount(nextCount);
+      }
+    };
     refresh();
     window.addEventListener('cart-updated', refresh);
+    window.addEventListener('checkout-cart-count', onCheckoutCartCount);
     return () => {
       active = false;
       window.removeEventListener('cart-updated', refresh);
+      window.removeEventListener('checkout-cart-count', onCheckoutCartCount);
     };
   }, [pathname, session]);
   useEffect(() => {
@@ -189,6 +198,46 @@ export function CustomerShell({
     >
       {/* ─── Desktop header ─── */}
       <header className="sticky top-0 z-40 border-b border-border bg-white/95 backdrop-blur-xl">
+        {isCheckoutRoute ? (
+          <div className="mx-auto flex h-14 max-w-[1536px] items-center gap-2 px-3 sm:px-6 lg:px-10">
+            <Link
+              href="/packages"
+              aria-label="Back to packages"
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-primary hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-primary/30"
+            >
+              <ArrowLeft className="h-5 w-5" aria-hidden="true" />
+            </Link>
+            <Link
+              href="/"
+              aria-label="The Feast Factory home"
+              className="flex min-w-0 shrink items-center gap-2"
+            >
+              <img
+                src="/logo.png"
+                alt=""
+                aria-hidden="true"
+                className="h-8 w-8 shrink-0 rounded-md object-cover"
+              />
+              <span className="block truncate whitespace-nowrap font-serif text-[15px] font-semibold leading-[1.12] text-primary sm:text-[18px]">
+                The Feast Factory
+              </span>
+            </Link>
+            <div className="ml-auto flex items-center gap-1">
+              <Link
+                href={session ? '/profile' : '/login'}
+                aria-label={session ? 'Profile' : 'Sign in'}
+                className="grid h-10 w-10 place-items-center rounded-full text-primary focus-visible:ring-2 focus-visible:ring-primary/30"
+              >
+                {session ? (
+                  <User className="h-5 w-5" aria-hidden="true" />
+                ) : (
+                  <LogIn className="h-5 w-5" aria-hidden="true" />
+                )}
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <>
         <div className="mx-auto flex min-h-14 max-w-[1536px] flex-wrap items-center justify-between gap-1.5 px-3 py-1.5 sm:h-[78px] sm:flex-nowrap sm:gap-3 sm:px-6 sm:py-0 lg:px-10">
           <div className="contents min-w-0 flex-1 items-center gap-1.5 sm:flex sm:gap-2 md:flex-none">
             {/* Logo */}
@@ -427,6 +476,8 @@ export function CustomerShell({
             </Link>
           </nav>
         )}
+          </>
+        )}
       </header>
 
       {children}
@@ -434,7 +485,11 @@ export function CustomerShell({
       <div className={isFocusedFlow ? 'hidden lg:block' : ''}>
         <Footer />
       </div>
-      {conciergeReady && <WhatsAppConcierge />}
+      {conciergeReady && (
+        <div className={isCheckoutRoute ? 'hidden lg:block' : undefined}>
+          <WhatsAppConcierge />
+        </div>
+      )}
 
       {accountOpen && (
         <div className="fixed inset-0 z-[70] md:hidden">
