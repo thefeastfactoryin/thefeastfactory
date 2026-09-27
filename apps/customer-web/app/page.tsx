@@ -29,6 +29,7 @@ import {
 import { apiRequest } from '../lib/api';
 import { notifyCartCleared } from '../lib/cart-state';
 import { DataImage } from '../components/data-image';
+import { sortMenuCategories } from '../lib/menu-category-order';
 import {
   PackageChangeDialog,
   PackageDetailsModal,
@@ -513,7 +514,10 @@ export default function HomePage() {
           <div className="mt-8 hidden gap-4 sm:grid sm:grid-cols-2 sm:overflow-visible sm:pb-0 lg:grid-cols-3">
             {packages.map((pkg) => {
               const version = pkg.activeVersion!;
-              const includes = configs[pkg.id]?.categoryRules.slice(0, 3) ?? [];
+              const includes = sortMenuCategories(
+                configs[pkg.id]?.categoryRules ?? [],
+                (rule) => rule.category.name,
+              ).slice(0, 3);
               return (
                 <article
                   key={pkg.id}

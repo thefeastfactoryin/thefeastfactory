@@ -24,6 +24,7 @@ import {
   subscribeToCartCleared,
 } from '../../../lib/cart-state';
 import { formatCategoryLabel } from '../../../lib/format';
+import { sortMenuCategories } from '../../../lib/menu-category-order';
 import { cn } from '../../../lib/utils';
 import { useDeliveryLocationStore } from '../../../store/delivery-location.store';
 import { useOrderBuilderStore } from '../../../store/order-builder.store';
@@ -635,7 +636,10 @@ function BuildPackageContent() {
     }
     return [
       { id: 'all', label: 'All' },
-      ...Array.from(seen.entries()).map(([id, label]) => ({ id, label })),
+      ...sortMenuCategories(
+        Array.from(seen.entries()).map(([id, label]) => ({ id, label })),
+        (category) => category.label,
+      ),
     ];
   }, [dishes]);
 

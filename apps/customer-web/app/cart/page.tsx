@@ -39,6 +39,7 @@ import { AuthRequiredPanel, StatePanel } from '../../components/ui/state-panel';
 import { apiRequest } from '../../lib/api';
 import { notifyCartCleared } from '../../lib/cart-state';
 import { formatCurrency } from '../../lib/format';
+import { sortMenuCategories } from '../../lib/menu-category-order';
 import { formatMenuCalculation } from '../../lib/menu-price-calculation';
 import { cn } from '../../lib/utils';
 import { useOrderBuilderStore } from '../../store/order-builder.store';
@@ -118,6 +119,43 @@ function clampPackageQuantity(cart: CartSummary, requestedCount: number) {
     Math.max(Math.round(requestedCount) || minimum, minimum),
     maximum,
   );
+}
+
+function groupOrderItems(
+  rows: Array<{
+    id: string;
+    categoryId: string;
+    categoryName: string;
+    name: string;
+    role?: string | null;
+    replacedName?: string | null;
+  }>,
+) {
+  return rows.reduce<
+    Array<{
+      id: string;
+      name: string;
+      rows: Array<{
+        id: string;
+        name: string;
+        role?: string | null;
+        replacedName?: string | null;
+      }>;
+    }>
+  >((groups, row) => {
+    let group = groups.find((entry) => entry.id === row.categoryId);
+    if (!group) {
+      group = { id: row.categoryId, name: row.categoryName, rows: [] };
+      groups.push(group);
+    }
+    group.rows.push({
+      id: row.id,
+      name: row.name,
+      role: row.role,
+      replacedName: row.replacedName,
+    });
+    return groups;
+  }, []);
 }
 
 export default function CartPage() {
@@ -649,22 +687,57 @@ export default function CartPage() {
 
   const groupedRows = useMemo(
     () =>
-      reviewRows.reduce<Array<{ id: string; name: string; rows: ReviewRow[] }>>(
-        (groups, row) => {
-          const group = groups.find((entry) => entry.id === row.categoryId);
-          if (group) group.rows.push(row);
-          else
-            groups.push({
-              id: row.categoryId,
-              name: row.categoryName,
-              rows: [row],
-            });
-          return groups;
-        },
-        [],
+      sortMenuCategories(
+        groupOrderItems(reviewRows),
+        (group) => group.name,
       ),
     [reviewRows],
   );
+
+  const orderSummaries = activeCarts.map((packageCart) => {
+    const packageQuote = multiCartQuote?.carts.find(
+      (entry) => entry.cartId === packageCart.id,
+    )?.quote;
+    const groups = sortMenuCategories(
+      packageCart.id === cart?.id
+        ? groupedRows
+        : groupOrderItems(
+            packageQuote?.items.length
+              ? packageQuote.items.map((item, index) => ({
+                  id: `${packageCart.id}-${item.menuItemId}-${index}`,
+                  categoryId: item.categoryId,
+                  categoryName: item.categoryName,
+                  name: item.menuItemName,
+                  role: item.role,
+                  replacedName: item.replacedMenuItemName,
+                }))
+              : packageCart.items.map((item) => ({
+                  id: item.id,
+                  categoryId: item.categoryId,
+                  categoryName: item.categoryName,
+                  name: item.menuItemName,
+                  role: item.role,
+                  replacedName: item.replacedMenuItemName,
+                })),
+          ),
+      (group) => group.name,
+    );
+
+    return {
+      cart: packageCart,
+      groups,
+      itemCount: groups.reduce((count, group) => count + group.rows.length, 0),
+      guestCount:
+        packageQuote?.guestCount ??
+        packageCart.guestCount ??
+        packageCart.package.minGuestCount,
+      weightKg:
+        packageCart.items.reduce(
+          (sum, item) => sum + (item.weightGrams ?? 0),
+          0,
+        ) / 1000,
+    };
+  });
 
   async function verifyPayment(
     orderId: string,
@@ -879,7 +952,6 @@ export default function CartPage() {
       : cart.package.type === 'CUSTOM_PACKAGE'
         ? `/packages/build?packageVersionId=${cart.packageVersionId}&cartId=${cart.id}`
         : `/menu/select?packageVersionId=${cart.packageVersionId}&cartId=${cart.id}`;
-  const isMealBox = cart.package.type === 'MEAL_BOX';
   const isMultiCart = activeCarts.length > 1;
   const mobileTotal = pendingOrder
     ? (pendingBatch?.totalAmount ?? pendingOrder.totalAmount)
@@ -1148,52 +1220,56 @@ export default function CartPage() {
                   </Link>
                 )}
               </div>
-              <div className="mt-1.5 min-w-0">
-                  <p className="mt-1 text-sm font-semibold text-foreground">
-                    {cart.package.name}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {reviewRows.length} {reviewRows.length === 1 ? 'dish' : 'dishes'} ·{' '}
-                    {cart.package.type === 'ORDER_BY_KG'
-                      ? `${cart.items.reduce((sum, item) => sum + (item.weightGrams ?? 0), 0) / 1000} kg`
-                      : `${quote?.guestCount ?? cart.guestCount ?? cart.package.minGuestCount} ${isMealBox ? 'boxes' : 'guests'}`}
-                  </p>
-              </div>
-              {/* <div className="mt-1.5 flex flex-wrap gap-1.5">
-                {groupedRows.map((group) => (
-                  <span
-                    key={group.id}
-                    className="rounded-sm bg-background/80 px-2 py-0.5 text-xs leading-5 text-muted-foreground"
-                  >
-                    {formatCategoryCount(group.name, group.rows.length)}
-                  </span>
-                ))}
-              </div> */}
-              <details className="group mt-0.5">
-                <summary className="inline-flex min-h-8 cursor-pointer list-none items-center gap-1 text-sm font-medium text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
-                  <span className="group-open:hidden">View menu →</span>
-                  <span className="hidden group-open:inline">Hide menu ↑</span>
-                </summary>
-                <div className="mt-2 space-y-3 border-t border-border/60 pt-3">
-                  {groupedRows.map((group) => (
-                    <section key={group.id}>
-                      <h3 className="text-[11px] font-bold uppercase text-primary">
-                        {group.name}
-                      </h3>
-                      <ul className="mt-1 flex flex-wrap gap-x-2 text-sm leading-6 text-foreground">
-                        {group.rows.map((row) => (
-                          <li key={row.id}>
-                            {row.name}
-                            {row.role === 'EXTRA' ? ' (extra)' : ''}
-                            {row.replacedName ? ` (replaces ${row.replacedName})` : ''}
-                            {group.rows.at(-1)?.id !== row.id ? ',' : ''}
-                          </li>
+              <div className="mt-1.5 divide-y divide-border/60">
+                {orderSummaries.map(({ cart: packageCart, groups, itemCount, guestCount, weightKg }) => (
+                  <div key={packageCart.id} className="py-2 first:pt-0 last:pb-0">
+                    <p className="text-sm font-semibold text-foreground">
+                      {packageCart.package.name}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {itemCount} {itemCount === 1 ? 'dish' : 'dishes'} ·{' '}
+                      {packageCart.package.type === 'ORDER_BY_KG'
+                        ? `${weightKg} kg`
+                        : `${guestCount} ${packageCart.package.type === 'MEAL_BOX' ? 'boxes' : 'guests'}`}
+                    </p>
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                      {groups.map((group) => (
+                        <span
+                          key={group.id}
+                          className="rounded-sm bg-background/80 px-2 py-0.5 text-xs leading-5 text-muted-foreground"
+                        >
+                          {formatCategoryCount(group.name, group.rows.length)}
+                        </span>
+                      ))}
+                    </div>
+                    <details className="group mt-0.5">
+                      <summary className="inline-flex min-h-8 cursor-pointer list-none items-center gap-1 text-sm font-medium text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+                        <span className="group-open:hidden">View menu →</span>
+                        <span className="hidden group-open:inline">Hide menu ↑</span>
+                      </summary>
+                      <div className="mt-1.5 space-y-2 border-t border-border/50 pt-2">
+                        {groups.map((group) => (
+                          <section key={group.id}>
+                            <h3 className="text-[11px] font-bold uppercase text-primary">
+                              {group.name}
+                            </h3>
+                            <ul className="mt-0.5 flex flex-wrap gap-x-2 text-sm leading-6 text-foreground">
+                              {group.rows.map((row) => (
+                                <li key={row.id}>
+                                  {row.name}
+                                  {row.role === 'EXTRA' ? ' (extra)' : ''}
+                                  {row.replacedName ? ` (replaces ${row.replacedName})` : ''}
+                                  {group.rows.at(-1)?.id !== row.id ? ',' : ''}
+                                </li>
+                              ))}
+                            </ul>
+                          </section>
                         ))}
-                      </ul>
-                    </section>
-                  ))}
-                </div>
-              </details>
+                      </div>
+                    </details>
+                  </div>
+                ))}
+              </div>
             </section>
             {!pendingOrder && (
               <section
@@ -1644,6 +1720,25 @@ function MultiCartPriceSummary({
 
 function formatCheckoutCurrency(value: string | number | null | undefined) {
   return formatCurrency(value).replace(/\.00$/, '');
+}
+
+function formatCategoryCount(categoryName: string, count: number) {
+  const normalized = categoryName.trim().toLowerCase();
+  let label = categoryName.trim();
+
+  if (normalized.includes('starter')) label = count === 1 ? 'Starter' : 'Starters';
+  else if (normalized.includes('bread')) label = count === 1 ? 'Bread' : 'Breads';
+  else if (normalized.includes('curry')) label = count === 1 ? 'Curry' : 'Curries';
+  else if (normalized.includes('biryani')) label = count === 1 ? 'Biryani' : 'Biryanis';
+  else if (normalized.includes('rice')) label = count === 1 ? 'Rice' : 'Rice Items';
+  else if (normalized.includes('dessert') || normalized.includes('sweet'))
+    label = count === 1 ? 'Dessert' : 'Desserts';
+  else if (normalized.includes('accompaniment'))
+    label = count === 1 ? 'Accompaniment' : 'Accompaniments';
+  else if (count === 1 && label.toLowerCase().endsWith('s'))
+    label = label.slice(0, -1);
+
+  return `${count} ${label}`;
 }
 
 function CutleryOptions({

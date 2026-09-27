@@ -25,6 +25,7 @@ import {
   subscribeToCartCleared,
 } from '../../lib/cart-state';
 import { formatCurrency } from '../../lib/format';
+import { sortMenuCategories } from '../../lib/menu-category-order';
 import { orderByKgImage } from '../../lib/catalog-display';
 import { useSessionStore } from '../../store/session.store';
 import { useOrderBuilderStore } from '../../store/order-builder.store';
@@ -323,7 +324,7 @@ export function KgOrderBuilder() {
     }
   }
 
-  const groups =
+  const groups = sortMenuCategories(
     config?.categoryRules
       .map((rule) => ({
         ...rule,
@@ -335,7 +336,9 @@ export function KgOrderBuilder() {
             (diet === 'ALL' || (diet === 'VEG' ? item.isVeg : !item.isVeg)),
         ),
       }))
-      .filter((rule) => rule.items.length) ?? [];
+      .filter((rule) => rule.items.length) ?? [],
+    (rule) => rule.category.name,
+  );
   const quoteById = new Map(
     quote?.items.map((item) => [item.menuItemId, item]) ?? [],
   );

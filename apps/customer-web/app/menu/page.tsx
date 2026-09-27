@@ -18,6 +18,7 @@ import { usePublicSettings } from '../../components/public-settings-provider';
 import { DataImage } from '../../components/data-image';
 import { apiRequest } from '../../lib/api';
 import { formatCategoryLabel } from '../../lib/format';
+import { sortMenuCategories } from '../../lib/menu-category-order';
 import {
   generateWhatsAppLink,
   whatsappMessages,
@@ -357,6 +358,10 @@ export default function PublicMenuPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const mobileInitialCategorySet = useRef(false);
+  const orderedCategories = useMemo(
+    () => sortMenuCategories(categories, (category) => category.name),
+    [categories],
+  );
 
   const sortedItems = useMemo(() => {
     return [...items].sort((a, b) => {
@@ -370,7 +375,7 @@ export default function PublicMenuPage() {
   }, [items, sort]);
 
   const menuSections = useMemo(() => {
-    const configured = categories
+    const configured = orderedCategories
       .map((category) => ({
         category,
         items: sortedItems.filter((item) => item.category?.id === category.id),
@@ -392,7 +397,7 @@ export default function PublicMenuPage() {
       fallback.set(item.category.id, current);
     });
     return Array.from(fallback.values());
-  }, [categories, sortedItems]);
+  }, [orderedCategories, sortedItems]);
 
   const categoryCounts = useMemo(() => {
     return countItems.reduce((counts, item) => {
@@ -464,7 +469,7 @@ export default function PublicMenuPage() {
       {/* ① Sticky category navigation */}
       <div className="mx-auto flex max-w-[1600px]">
         <MenuSidebar
-          categories={categories}
+          categories={orderedCategories}
           activeId={categoryId}
           onChange={setCategoryId}
           categoryCounts={categoryCounts}
@@ -508,7 +513,7 @@ export default function PublicMenuPage() {
                 className="mb-0 flex gap-1.5 overflow-x-auto pb-1"
                 style={{ scrollbarWidth: 'none' }}
               >
-                {categories.map((cat) => {
+                {orderedCategories.map((cat) => {
                   const Icon = getCatIcon(cat.name);
                   return (
                     <button

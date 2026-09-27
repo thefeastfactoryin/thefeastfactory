@@ -22,6 +22,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { apiRequest } from '../../lib/api';
 import { notifyCartCleared } from '../../lib/cart-state';
 import { formatCategoryLabel } from '../../lib/format';
+import { sortMenuCategories } from '../../lib/menu-category-order';
 import { useDeliveryLocationStore } from '../../store/delivery-location.store';
 import { useOrderBuilderStore } from '../../store/order-builder.store';
 import { useSessionStore } from '../../store/session.store';
@@ -104,7 +105,9 @@ export function PackageGridPage({
                 : row.type === type),
           );
         setPackages(visible);
-        setCategories(categoryRows);
+        setCategories(
+          sortMenuCategories(categoryRows, (category) => category.name),
+        );
         const pairs = await Promise.all(
           visible.map(
             async (row) =>
@@ -427,18 +430,20 @@ export function PackageGridPage({
               const includedCategoryIds = new Set(
                 included.map((item) => item.categoryId),
               );
-              const missingCategories =
+              const missingCategories = sortMenuCategories(
                 pkg.type === 'CUSTOM_PACKAGE'
                   ? categories
                   : categories.filter(
                       (category) => !includedCategoryIds.has(category.id),
-                    );
+                    ),
+                (category) => category.name,
+              );
               const isVeg =
                 included.length > 0 && included.every((item) => item.isVeg);
               const visibleIncluded = included.slice(0, 6);
               const remainingIncluded = included.slice(6);
-              const categoryHighlights = (config?.categoryRules ?? []).flatMap(
-                (rule) => {
+              const categoryHighlights = sortMenuCategories(
+                (config?.categoryRules ?? []).flatMap((rule) => {
                   const count = rule.items.filter(
                     (item) =>
                       item.role === 'INCLUDED' && !item.swapForMenuItemId,
@@ -446,7 +451,8 @@ export function PackageGridPage({
                   return count
                     ? [{ categoryName: rule.category.name, count }]
                     : [];
-                },
+                }),
+                (category) => category.categoryName,
               );
               const mealBoxDisplayName = isMealBox
                 ? formatMealBoxDisplayName(pkg.name)

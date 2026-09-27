@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo } from 'react';
 import { formatCategoryLabel, formatCurrency } from '../../lib/format';
+import { sortMenuCategories } from '../../lib/menu-category-order';
 import { cn } from '../../lib/utils';
 import { Button } from '../ui/button';
 import { DataImage } from '../data-image';
@@ -63,14 +64,17 @@ export function PackageDetailsModal({
 
   const includedByCategory = useMemo(
     () =>
-      config?.categoryRules
-        .map((rule) => ({
-          rule,
-          items: rule.items.filter(
-            (item) => item.role === 'INCLUDED' && !item.swapForMenuItemId,
-          ),
-        }))
-        .filter(({ items }) => items.length) ?? [],
+      sortMenuCategories(
+        config?.categoryRules
+          .map((rule) => ({
+            rule,
+            items: rule.items.filter(
+              (item) => item.role === 'INCLUDED' && !item.swapForMenuItemId,
+            ),
+          }))
+          .filter(({ items }) => items.length) ?? [],
+        ({ rule }) => rule.category.name,
+      ),
     [config],
   );
   const swapCount =
