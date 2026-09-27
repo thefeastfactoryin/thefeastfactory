@@ -207,11 +207,13 @@ function parsePlaceAddress(
 export function AddressMapPicker({
   onAddress,
   initialPosition,
+  inlineMobileSearch = false,
   onSearchFocusChange,
   onSearchError,
 }: {
   onAddress: (address: MapAddress) => void;
   initialPosition?: { latitude: string; longitude: string };
+  inlineMobileSearch?: boolean;
   /** Reports whether the place search field currently has focus, so a parent
    * sheet can free up room (or hide overlapping controls) while the mobile
    * keyboard is open. */
@@ -225,10 +227,14 @@ export function AddressMapPicker({
   const map = useRef<google.maps.Map | null>(null);
   const marker = useRef<google.maps.Marker | null>(null);
   const geocoder = useRef<google.maps.Geocoder | null>(null);
+  const searchToken = useRef<google.maps.places.AutocompleteSessionToken | null>(null);
   const initialPositionRef = useRef(initialPosition);
   const [status, setStatus] = useState<PickerStatus>('idle');
   const [message, setMessage] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
+  const [searchReady, setSearchReady] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [suggestions, setSuggestions] = useState<google.maps.places.AutocompleteSuggestion[]>([]);
   const apiKey = publicEnv.googleMapsApiKey;
 
   async function selectPosition(
@@ -265,11 +271,88 @@ export function AddressMapPicker({
         longitude: position.lng.toFixed(8),
       });
       setStatus('error');
-      setMessage(
-        'We saved the map pin, but could not resolve its postal address. Please complete the fields manually.',
-      );
+      setMessage('');
     }
   }
+
+  async function selectPlace(prediction: google.maps.places.PlacePrediction) {
+    setSuggestions([]);
+    setSearchQuery(prediction.text.text);
+    setSearchFocused(false);
+    onSearchFocusChange?.(false);
+    setStatus('geocoding');
+    setMessage('Loading the selected place…');
+    try {
+      const place = prediction.toPlace();
+      await place.fetchFields({
+        fields: [
+          'addressComponents',
+          'displayName',
+          'formattedAddress',
+          'location',
+          'viewport',
+        ],
+      });
+      const location = place.location;
+      if (!location) throw new Error('Selected place has no location');
+      const position = { lat: location.lat(), lng: location.lng() };
+      marker.current?.setPosition(position);
+      if (place.viewport) map.current?.fitBounds(place.viewport);
+      else {
+        map.current?.panTo(position);
+        map.current?.setZoom(17);
+      }
+      let address = parsePlaceAddress(place, position);
+      if (!address.pincode && geocoder.current) {
+        const response = await geocoder.current.geocode({ location: position });
+        if (response.results[0]) address = parseAddress(response.results[0], position);
+      }
+      onAddress(address);
+      setStatus('ready');
+      setMessage(
+        address.pincode
+          ? 'Location selected. Review the address below.'
+          : 'Location selected, but the pincode needs to be entered manually.',
+      );
+    } catch (reason) {
+      console.error('[AddressMapPicker] Place selection failed', reason);
+      setStatus('error');
+      setMessage('We could not load that place. Try another result or choose a point on the map.');
+      onSearchError?.();
+    } finally {
+      searchToken.current = null;
+    }
+  }
+
+  useEffect(() => {
+    if (!inlineMobileSearch || !searchReady || !searchFocused || searchQuery.trim().length < 2) {
+      return;
+    }
+    let active = true;
+    const timer = window.setTimeout(() => {
+      searchToken.current ??= new google.maps.places.AutocompleteSessionToken();
+      void google.maps.places.AutocompleteSuggestion.fetchAutocompleteSuggestions({
+        input: searchQuery.trim(),
+        includedRegionCodes: ['in'],
+        language: 'en',
+        region: 'in',
+        sessionToken: searchToken.current,
+      })
+        .then(({ suggestions: results }) => {
+          if (active) setSuggestions(results.filter((result) => result.placePrediction));
+        })
+        .catch(() => {
+          if (active) {
+            setSuggestions([]);
+            setMessage('Place search is temporarily unavailable. Choose a point on the map.');
+          }
+        });
+    }, 250);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [inlineMobileSearch, searchQuery, searchReady, searchFocused]);
 
   useEffect(() => {
     if (!apiKey || !mapElement.current || !searchElement.current) return;
@@ -309,8 +392,6 @@ export function AddressMapPicker({
         if (center) activeMap.setCenter(center);
       });
     };
-    setStatus('loading-map');
-    setMessage('Loading Google Maps…');
 
     configureGoogleMaps(apiKey);
     Promise.all([
@@ -347,6 +428,7 @@ export function AddressMapPicker({
           },
         });
         geocoder.current = new google.maps.Geocoder();
+        setSearchReady(true);
 
         placeAutocomplete = new placesLibrary.PlaceAutocompleteElement({
           includedRegionCodes: ['in'],
@@ -360,52 +442,7 @@ export function AddressMapPicker({
           // place details finish loading, so the result is never hidden
           // behind it (success or failure).
           placeAutocomplete?.blur();
-          setStatus('geocoding');
-          setMessage('Loading the selected place…');
-          try {
-            const place = event.placePrediction.toPlace();
-            await place.fetchFields({
-              fields: [
-                'addressComponents',
-                'displayName',
-                'formattedAddress',
-                'location',
-                'viewport',
-              ],
-            });
-            const location = place.location;
-            if (!location) throw new Error('Selected place has no location');
-            const position = { lat: location.lat(), lng: location.lng() };
-            marker.current?.setPosition(position);
-            if (place.viewport) map.current?.fitBounds(place.viewport);
-            else {
-              map.current?.panTo(position);
-              map.current?.setZoom(17);
-            }
-            let address = parsePlaceAddress(place, position);
-            if (!address.pincode && geocoder.current) {
-              const response = await geocoder.current.geocode({
-                location: position,
-              });
-              if (response.results[0]) {
-                address = parseAddress(response.results[0], position);
-              }
-            }
-            onAddress(address);
-            setStatus('ready');
-            setMessage(
-              address.pincode
-                ? 'Location selected. Review the address below.'
-                : 'Location selected, but the pincode needs to be entered manually.',
-            );
-          } catch (reason) {
-            console.error('[AddressMapPicker] Place selection failed', reason);
-            setStatus('error');
-            setMessage(
-              'We could not load that place. Try another result or choose a point on the map.',
-            );
-            onSearchError?.();
-          }
+          void selectPlace(event.placePrediction);
         });
         placeAutocomplete.addEventListener('gmp-error', () => {
           placeAutocomplete?.blur();
@@ -430,9 +467,6 @@ export function AddressMapPicker({
             void selectPosition({ lat: position.lat(), lng: position.lng() });
         });
         setStatus('idle');
-        setMessage(
-          'Search, choose a point on the map, drag the pin, or use your current location.',
-        );
         const initial = initialPositionRef.current;
         if (initial) {
           const latitude = Number(initial.latitude);
@@ -543,16 +577,36 @@ export function AddressMapPicker({
           </span>
           <div
             ref={searchElement}
-            className="map-place-search min-h-12 min-w-0 flex-1"
+            className={`map-place-search min-h-12 min-w-0 flex-1 ${inlineMobileSearch ? 'max-md:hidden' : ''}`}
             aria-label="Search Google Maps"
           />
+          {inlineMobileSearch && (
+            <input
+              type="search"
+              value={searchQuery}
+              disabled={!searchReady}
+              placeholder={searchReady ? 'Search for an address or venue' : 'Loading search…'}
+              aria-label="Search Google Maps"
+              aria-controls="mobile-place-suggestions"
+              aria-expanded={suggestions.length > 0}
+              onFocus={() => {
+                setSearchFocused(true);
+                onSearchFocusChange?.(true);
+              }}
+              onChange={(event) => {
+                setSearchQuery(event.target.value);
+                setSuggestions([]);
+              }}
+              className="h-12 w-full min-w-0 flex-1 rounded-xl bg-white px-3 text-base text-foreground outline-none placeholder:text-muted-foreground md:hidden"
+            />
+          )}
         </div>
         <Button
           type="button"
           variant="outline"
           onClick={useCurrentLocation}
           disabled={busy}
-          className={`h-12 rounded-xl border-primary/25 bg-primary/[0.04] px-5 font-semibold text-primary shadow-sm hover:border-primary/40 hover:bg-primary/10 hover:text-primary ${searchFocused ? 'max-md:hidden' : ''}`}
+          className={`h-12 rounded-xl border-primary/25 bg-primary/[0.04] px-5 font-semibold text-primary shadow-sm hover:border-primary/40 hover:bg-primary/10 hover:text-primary ${searchFocused && !inlineMobileSearch ? 'max-md:hidden' : ''}`}
         >
           {status === 'locating' ? (
             <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
@@ -562,8 +616,43 @@ export function AddressMapPicker({
           Use my location
         </Button>
       </div>
+      {inlineMobileSearch && suggestions.length > 0 && (
+        <div
+          id="mobile-place-suggestions"
+          className="mt-2 max-h-48 overflow-y-auto rounded-xl border border-border bg-white shadow-sm md:hidden"
+          role="listbox"
+          aria-label="Matching locations"
+        >
+          {suggestions.map((suggestion) => {
+            const prediction = suggestion.placePrediction;
+            if (!prediction) return null;
+            return (
+              <button
+                key={prediction.placeId}
+                type="button"
+                role="option"
+                aria-selected="false"
+                onClick={() => void selectPlace(prediction)}
+                className="flex min-h-12 w-full items-start gap-2 border-b border-border/60 px-3 py-2 text-left text-sm last:border-b-0 hover:bg-primary/[0.05]"
+              >
+                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                <span className="min-w-0">
+                  <strong className="block font-semibold text-foreground">
+                    {prediction.mainText?.text ?? prediction.text.text}
+                  </strong>
+                  {prediction.secondaryText?.text && (
+                    <span className="block text-xs text-muted-foreground">
+                      {prediction.secondaryText.text}
+                    </span>
+                  )}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
       <div
-        className={`relative mt-3 overflow-hidden rounded-2xl border-2 border-white bg-muted shadow-[0_16px_40px_rgba(74,43,35,0.14)] ring-1 ring-border sm:border-4 ${searchFocused ? 'max-md:hidden' : ''}`}
+        className={`relative mt-3 overflow-hidden rounded-2xl border-2 border-white bg-muted shadow-[0_16px_40px_rgba(74,43,35,0.14)] ring-1 ring-border sm:border-4 ${searchFocused && !inlineMobileSearch ? 'max-md:hidden' : ''}`}
       >
         <div
           ref={mapElement}
@@ -578,17 +667,19 @@ export function AddressMapPicker({
           </span>
         </div>
       </div>
-      <div
-        className={`mt-3 flex min-h-12 items-start gap-2 rounded-xl border px-3.5 py-3 text-sm leading-5 ${statusStyle} ${searchFocused ? 'max-md:hidden' : ''}`}
-        role="status"
-      >
-        {busy ? (
-          <LoaderCircle className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-primary" />
-        ) : (
-          <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-        )}
-        <span>{message}</span>
-      </div>
+      {message && (
+        <div
+          className={`mt-3 flex min-h-12 items-start gap-2 rounded-xl border px-3.5 py-3 text-sm leading-5 ${statusStyle} ${searchFocused && !inlineMobileSearch ? 'max-md:hidden' : ''}`}
+          role="status"
+        >
+          {busy ? (
+            <LoaderCircle className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-primary" />
+          ) : (
+            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+          )}
+          <span>{message}</span>
+        </div>
+      )}
     </div>
   );
 }

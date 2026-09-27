@@ -2,6 +2,7 @@
 
 import type {
   CartSummary,
+  LocationResolution,
   OperatingRegion,
   UserAddress,
 } from '@aranyam/shared-types';
@@ -35,6 +36,15 @@ import { Field } from './ui/form';
 import { usePublicSettings } from './public-settings-provider';
 
 type DeliveryTimeSlot = { value: string; label: string };
+
+export type VenueServiceability =
+  | 'checking'
+  | 'serviceable'
+  | 'outside'
+  | 'closed'
+  | 'missing-pin'
+  | 'missing'
+  | 'error';
 
 function buildDeliveryTimeSlots(
   startTime: string,
@@ -408,6 +418,8 @@ export function SelectionContextPanel({
   checkoutCompact = false,
   deliveryService,
   onSaved,
+  onAddAddress,
+  onVenueStatusChange,
 }: {
   cartId: string;
   packageVersionId: string;
@@ -418,6 +430,8 @@ export function SelectionContextPanel({
   checkoutCompact?: boolean;
   deliveryService?: ReactNode;
   onSaved?: (cart: CartSummary) => void;
+  onAddAddress?: () => void;
+  onVenueStatusChange?: (status: VenueServiceability) => void;
 }) {
   const sidebar = variant === 'sidebar';
   const publicSettings = usePublicSettings();
@@ -446,6 +460,7 @@ export function SelectionContextPanel({
   const [expanded, setExpanded] = useState(!sidebar);
   const [addressesExpanded, setAddressesExpanded] = useState(false);
   const [checkoutEditing, setCheckoutEditing] = useState(true);
+  const [venueStatus, setVenueStatus] = useState<VenueServiceability>('checking');
   const [guestInput, setGuestInput] = useState(String(guestCount));
   const hydrated = useRef(false);
   const onSavedRef = useRef(onSaved);
@@ -571,7 +586,56 @@ export function SelectionContextPanel({
   ]);
 
   useEffect(() => {
+    if (!checkoutCompact || !session) return;
+    if (!addressId) {
+      setVenueStatus('missing');
+      onVenueStatusChange?.('missing');
+      return;
+    }
+    const address = addresses.find((row) => row.id === addressId);
+    if (!address) {
+      setVenueStatus('missing');
+      onVenueStatusChange?.('missing');
+      return;
+    }
+    if (!address.latitude || !address.longitude) {
+      setVenueStatus('missing-pin');
+      onVenueStatusChange?.('missing-pin');
+      return;
+    }
+    let current = true;
+    setVenueStatus('checking');
+    onVenueStatusChange?.('checking');
+    void apiRequest<LocationResolution>('/operating-regions/resolve', {
+      method: 'POST',
+      body: JSON.stringify({
+        latitude: address.latitude,
+        longitude: address.longitude,
+      }),
+    })
+      .then((resolution) => {
+        if (!current) return;
+        const next: VenueServiceability = resolution.serviceable
+          ? 'serviceable'
+          : resolution.reason === 'KITCHEN_CLOSED'
+            ? 'closed'
+            : 'outside';
+        setVenueStatus(next);
+        onVenueStatusChange?.(next);
+      })
+      .catch(() => {
+        if (!current) return;
+        setVenueStatus('error');
+        onVenueStatusChange?.('error');
+      });
+    return () => {
+      current = false;
+    };
+  }, [addressId, addresses, checkoutCompact, onVenueStatusChange, session]);
+
+  useEffect(() => {
     if (!session || !hydrated.current) return;
+    if (checkoutCompact && venueStatus !== 'serviceable') return;
     const validGuests =
       isKg || (guestCount >= minPax && (!maxPax || guestCount <= maxPax));
     if (!addressId) {
@@ -638,6 +702,8 @@ export function SelectionContextPanel({
     return () => window.clearTimeout(timer);
   }, [
     session,
+    checkoutCompact,
+    venueStatus,
     packageVersionId,
     cartId,
     addressId,
@@ -671,7 +737,6 @@ export function SelectionContextPanel({
     );
   }
 
-  const returnTo = `${pathname}?addressId=ADDRESS_ID`;
   const showCheckoutStatus =
     saving ||
     message === 'Saved to your cart.' ||
@@ -760,7 +825,7 @@ export function SelectionContextPanel({
         className={cn(
           'grid gap-3',
           checkoutCompact
-            ? 'mt-2 max-w-2xl grid-cols-2 gap-2 max-[340px]:grid-cols-1'
+            ? 'mt-4 max-w-2xl grid-cols-2 gap-3 max-[340px]:grid-cols-1'
             : 'mt-5 gap-4 rounded-2xl border border-border bg-[#fcfaf6] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]',
           !checkoutCompact && sidebar
             ? 'grid-cols-1'
@@ -862,15 +927,16 @@ export function SelectionContextPanel({
                 : 'Choose one of your saved addresses'}
           </p>
         </div>
-        <Link
+        <button
+          type="button"
           className="inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-full px-3 text-sm font-bold text-primary transition hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
-          href={`/addresses?tab=map&returnTo=${encodeURIComponent(returnTo)}`}
+          onClick={onAddAddress}
         >
           <Plus className="h-4 w-4" />
           {deliveryLocation && !deliveryLocation.savedAddressId
             ? 'Complete address'
             : 'Add new address'}
-        </Link>
+        </button>
       </div>
 
       {deliveryLocation && !deliveryLocation.savedAddressId && (
@@ -945,16 +1011,17 @@ export function SelectionContextPanel({
           })}
         </div>
       ) : (
-        <Link
-          href={`/addresses?tab=map&returnTo=${encodeURIComponent(returnTo)}`}
-          className="mt-3 flex min-h-28 flex-col items-center justify-center gap-2 rounded-xl border border-dashed bg-[#fcfaf6] p-5 text-center text-sm font-semibold text-primary transition hover:border-primary/40"
+        <button
+          type="button"
+          onClick={onAddAddress}
+          className="mt-3 flex min-h-28 w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed bg-[#fcfaf6] p-5 text-center text-sm font-semibold text-primary transition hover:border-primary/40"
         >
           <MapPinned className="h-5 w-5" />
           <span>No delivery address added</span>
           <span className="text-xs font-medium text-muted-foreground">
             Add a venue where the food should be delivered.
           </span>
-        </Link>
+        </button>
       )}
 
       <div className="mt-4 rounded-2xl border border-border bg-muted/50 p-4 text-muted-foreground">
@@ -981,8 +1048,8 @@ export function SelectionContextPanel({
 
       {checkoutCompact && (
         <>
-          <div className="mt-2 rounded-lg border border-border/60 bg-ivory/75 p-2.5 sm:p-3">
-            <div className="flex min-w-0 items-center gap-2">
+          <div className="mt-4 rounded-xl border border-border/60 bg-ivory/60 p-3 sm:p-4">
+            <div className="flex min-w-0 items-center gap-3">
               <MapPin className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
               <div className="min-w-0 flex-1">
               {selectedVenue ? (
@@ -1042,12 +1109,18 @@ export function SelectionContextPanel({
               </button>
             </div>
             {!selectedVenue && (
-              <Link
+              <button
+                type="button"
+                onClick={onAddAddress}
                 className="ml-6 inline-flex min-h-9 items-center text-sm font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-                href={`/addresses?tab=map&returnTo=${encodeURIComponent(returnTo)}`}
               >
                 Add complete address
-              </Link>
+              </button>
+            )}
+            {!selectedVenue && deliveryLocation?.resolution.reason === 'OUTSIDE_SERVICE_AREA' && (
+              <p role="alert" className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-800">
+                Your selected map location is outside our delivery area. Choose another location before continuing.
+              </p>
             )}
               {addressesExpanded && addresses.length > 0 && (
                 <div
@@ -1064,6 +1137,8 @@ export function SelectionContextPanel({
                         role="radio"
                         aria-checked={selected}
                         onClick={() => {
+                          setVenueStatus('checking');
+                          onVenueStatusChange?.('checking');
                           setAddressId(address.id);
                           setAddressesExpanded(false);
                         }}
@@ -1086,14 +1161,35 @@ export function SelectionContextPanel({
                       </button>
                     );
                   })}
-                  <Link
+                  <button
+                    type="button"
+                    onClick={onAddAddress}
                     className="inline-flex min-h-8 items-center border-t border-border/50 pt-1.5 text-sm font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-                    href={`/addresses?tab=map&returnTo=${encodeURIComponent(returnTo)}`}
                   >
                     Add another address
-                  </Link>
+                  </button>
                 </div>
               )}
+            {venueStatus === 'outside' && (
+              <p role="alert" className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-800">
+                This address is outside our delivery area. Choose another saved address or add a new one to continue.
+              </p>
+            )}
+            {venueStatus === 'closed' && (
+              <p role="alert" className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-medium text-amber-900">
+                The kitchen serving this address is currently closed. Choose another address to continue.
+              </p>
+            )}
+            {venueStatus === 'missing-pin' && (
+              <p role="alert" className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-medium text-amber-900">
+                This address needs a map pin before we can check delivery. Add a complete address to continue.
+              </p>
+            )}
+            {venueStatus === 'error' && (
+              <p role="alert" className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-medium text-amber-900">
+                We could not check delivery for this address. Try selecting it again before continuing.
+              </p>
+            )}
           </div>
           {deliveryService}
           {showCheckoutStatus && (
@@ -1111,7 +1207,7 @@ export function SelectionContextPanel({
       id={checkoutCompact ? 'checkout-delivery' : undefined}
       className={cn(
         checkoutCompact
-          ? 'rounded-lg border border-border/60 bg-ivory/55 p-3 sm:p-4'
+          ? 'rounded-2xl border border-border/70 bg-white p-4 shadow-sm sm:p-6'
           : 'rounded-2xl border border-border bg-white shadow-[0_14px_36px_-30px_rgba(75,12,23,.55)]',
         !checkoutCompact && (sidebar ? 'p-4' : 'p-5 sm:p-6'),
       )}

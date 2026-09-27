@@ -5,11 +5,14 @@ import type {
   CartSummary,
   DeliveryServiceType,
   GatewayOrder,
+  LocationResolution,
   OrderSummary,
   PackageConfiguration,
   PackageSelectionPrice,
+  AddressType,
+  UserAddress,
 } from '@aranyam/shared-types';
-import { mobileNumberSchema } from '@aranyam/validation';
+import { createAddressSchema, mobileNumberSchema } from '@aranyam/validation';
 import {
   CalendarDays,
   Check,
@@ -32,7 +35,9 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { RetryPaymentButton } from '../../components/retry-payment-button';
 import { SelectionContextPanel } from '../../components/selection-context-panel';
+import type { VenueServiceability } from '../../components/selection-context-panel';
 import { Button } from '../../components/ui/button';
+import { Field, Select } from '../../components/ui/form';
 import { Input } from '../../components/ui/input';
 import { AuthRequiredPanel, StatePanel } from '../../components/ui/state-panel';
 import { apiRequest } from '../../lib/api';
@@ -41,6 +46,8 @@ import { formatCurrency } from '../../lib/format';
 import { sortMenuCategories } from '../../lib/menu-category-order';
 import { cn } from '../../lib/utils';
 import { useOrderBuilderStore } from '../../store/order-builder.store';
+import { useAddressBookStore } from '../../store/address-book.store';
+import { useDeliveryLocationStore } from '../../store/delivery-location.store';
 import { useSessionStore } from '../../store/session.store';
 
 declare global {
@@ -79,6 +86,32 @@ type MultiCartQuote = {
   cutleryTotal?: string;
   deliveryFee: string;
   totalAmount: string;
+};
+
+type CartAddressForm = {
+  addressType: AddressType;
+  label: string;
+  addressLine1: string;
+  addressLine2: string;
+  city: string;
+  state: string;
+  pincode: string;
+  landmark: string;
+  latitude: string;
+  longitude: string;
+};
+
+const emptyCartAddressForm: CartAddressForm = {
+  addressType: 'HOME',
+  label: 'Home',
+  addressLine1: '',
+  addressLine2: '',
+  city: '',
+  state: '',
+  pincode: '',
+  landmark: '',
+  latitude: '',
+  longitude: '',
 };
 
 function withoutCartQuote(
@@ -208,6 +241,13 @@ function fixedPackageMenuRows(
 export default function CartPage() {
   const router = useRouter();
   const session = useSessionStore((state) => state.session);
+  const deliveryLocation = useDeliveryLocationStore((state) => state.location);
+  const setDeliveryLocation = useDeliveryLocationStore(
+    (state) => state.setLocation,
+  );
+  const markAddressesChanged = useAddressBookStore(
+    (state) => state.markChanged,
+  );
   const hydrate = useOrderBuilderStore((state) => state.hydrateFromCart);
   const reset = useOrderBuilderStore((state) => state.reset);
   const pendingOrderId = useOrderBuilderStore((state) => state.pendingOrderId);
@@ -237,6 +277,7 @@ export default function CartPage() {
   const [editingQuantityCartId, setEditingQuantityCartId] = useState('');
   const [error, setError] = useState('');
   const [validationLocation, setValidationLocation] = useState<'' | 'delivery' | 'contact'>('');
+  const [venueStatus, setVenueStatus] = useState<VenueServiceability>('checking');
   const [specialNotes, setSpecialNotes] = useState('');
   const [notesExpanded, setNotesExpanded] = useState(false);
   const [contactNumber, setContactNumber] = useState('');
@@ -244,10 +285,101 @@ export default function CartPage() {
   const [savingContact, setSavingContact] = useState(false);
   const [updatingDelivery, setUpdatingDelivery] = useState(false);
   const [keyboardOpen, setKeyboardOpen] = useState(false);
+  const [addressDialogOpen, setAddressDialogOpen] = useState(false);
+  const [addressForm, setAddressForm] =
+    useState<CartAddressForm>(emptyCartAddressForm);
+  const [addressSaving, setAddressSaving] = useState(false);
+  const [addressError, setAddressError] = useState('');
 
   useEffect(() => {
     setContactNumber(session?.user.mobileNumber ?? '');
   }, [session?.user.mobileNumber]);
+
+  function openAddressDialog() {
+    setAddressError('');
+    setAddressForm({
+      ...emptyCartAddressForm,
+      ...deliveryLocation?.address,
+      latitude: deliveryLocation?.latitude ?? '',
+      longitude: deliveryLocation?.longitude ?? '',
+    });
+    setAddressDialogOpen(true);
+  }
+
+  async function saveCartAddress(event: React.FormEvent) {
+    event.preventDefault();
+    if (!session) return;
+    setAddressError('');
+    const result = createAddressSchema.safeParse({
+      ...addressForm,
+      label:
+        addressForm.label.trim() ||
+        ({
+          HOME: 'Home',
+          OFFICE: 'Office',
+          EVENT_VENUE: 'Event venue',
+          OTHER: 'Other',
+        }[addressForm.addressType] ?? undefined),
+      addressLine2: addressForm.addressLine2.trim() || undefined,
+      landmark: addressForm.landmark.trim() || undefined,
+      latitude: addressForm.latitude || undefined,
+      longitude: addressForm.longitude || undefined,
+      isDefault: false,
+    });
+    if (!result.success) {
+      setAddressError(
+        result.error.issues[0]?.message ?? 'Please check the address details.',
+      );
+      return;
+    }
+    setAddressSaving(true);
+    try {
+      const created = await apiRequest<UserAddress>(
+        '/me/addresses',
+        { method: 'POST', body: JSON.stringify(result.data) },
+        session.accessToken,
+      );
+      markAddressesChanged();
+      if (created.latitude && created.longitude) {
+        const resolution = await apiRequest<LocationResolution>(
+          '/operating-regions/resolve',
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              latitude: created.latitude,
+              longitude: created.longitude,
+            }),
+          },
+          session.accessToken,
+        );
+        setDeliveryLocation({
+          latitude: created.latitude,
+          longitude: created.longitude,
+          label:
+            created.label ||
+            created.addressLine2 ||
+            created.addressLine1 ||
+            created.city,
+          source: 'saved',
+          savedAddressId: created.id,
+          address: {
+            addressLine1: created.addressLine1,
+            addressLine2: created.addressLine2 ?? undefined,
+            city: created.city,
+            state: created.state,
+            pincode: created.pincode,
+            landmark: created.landmark ?? undefined,
+          },
+          resolution,
+        });
+      }
+      setAddressDialogOpen(false);
+    } catch (reason) {
+      setAddressError((reason as Error).message);
+    } finally {
+      setAddressSaving(false);
+    }
+  }
 
   const loadQuote = useCallback(
     async (currentCartId?: string) => {
@@ -817,7 +949,7 @@ export default function CartPage() {
   }
 
   async function pay() {
-    if (!session || !cart || !ready || !multiCartQuote?.valid) return;
+    if (!session || !cart || !ready || venueStatus !== 'serviceable' || !multiCartQuote?.valid) return;
     const validatedContactNumber = mobileNumberSchema.safeParse(contactNumber);
     if (!validatedContactNumber.success) {
       setError('Enter a valid 10-digit contact number to continue.');
@@ -926,6 +1058,28 @@ export default function CartPage() {
   }
 
   function requestPayment() {
+    if (venueStatus !== 'serviceable') {
+      setValidationLocation('delivery');
+      setError(
+        venueStatus === 'outside' ||
+          (venueStatus === 'missing' &&
+            deliveryLocation?.resolution.reason === 'OUTSIDE_SERVICE_AREA')
+          ? 'This location is outside our delivery area. Choose another address to continue.'
+          : venueStatus === 'closed'
+            ? 'The kitchen serving this location is currently closed. Choose another address to continue.'
+            : venueStatus === 'checking'
+              ? 'Checking delivery availability for this address. Please wait a moment.'
+              : venueStatus === 'missing-pin'
+                ? 'This address needs a map pin before we can check delivery.'
+                : venueStatus === 'error'
+                  ? 'We could not check delivery for this address. Select it again and retry.'
+                  : 'Choose a delivery address to continue.',
+      );
+      document
+        .getElementById('checkout-delivery')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
     if (!ready) {
       const missingAddress = activeCarts.some(
         (entry) => !entry.event?.address || !entry.event.region,
@@ -1042,18 +1196,18 @@ export default function CartPage() {
         strategy="afterInteractive"
       />
 
-      <div className="mx-auto w-full max-w-[1320px] px-3 py-2 sm:px-5 sm:py-4 lg:px-8">
-        <h1 className="mb-2 font-sans text-base font-semibold leading-6 text-foreground sm:mb-3 sm:text-xl">
+      <div className="mx-auto w-full max-w-[1320px] px-4 py-5 sm:px-6 sm:py-7 lg:px-8 lg:py-10">
+        <h1 className="mb-5 font-sans text-2xl font-semibold leading-tight text-foreground sm:mb-7 sm:text-3xl">
           Checkout
         </h1>
         {!pendingOrder && (
-          <section className="mb-2 overflow-hidden rounded-lg border border-border/60 bg-white/90">
-              <div className="border-b border-border/60 bg-ivory-warm/70 px-3 py-2 sm:px-4">
-              <h2 className="font-sans text-base font-semibold leading-5 text-primary">
+          <section className="mb-5 overflow-hidden rounded-2xl border border-border/70 bg-white shadow-sm sm:mb-7">
+            <div className="border-b border-border/60 bg-ivory-warm/60 px-4 py-4 sm:px-6">
+              <h2 className="font-sans text-lg font-semibold leading-6 text-foreground">
                 Your order <span className="text-muted-foreground">({activeCarts.length})</span>
               </h2>
             </div>
-            <div className="divide-y divide-border/60 px-3 sm:px-4">
+            <div className="divide-y divide-border/60 px-4 sm:px-6">
               {orderSummaries.map(({ cart: packageCart, itemCount, guestCount, weightKg }) => {
                 const packageQuote = multiCartQuote?.carts.find(
                   (entry) => entry.cartId === packageCart.id,
@@ -1070,26 +1224,26 @@ export default function CartPage() {
                     ? 'Included menu'
                     : 'No dishes selected';
                 return (
-                  <article key={packageCart.id} className="min-w-0 py-1 first:pt-1 last:pb-0.5">
-                    <div className="flex min-w-0 items-center justify-between gap-2">
-                      <h3 className="min-w-0 flex-1 break-words font-sans text-sm font-semibold leading-5 text-foreground">
-                          {packageCart.package.name}
+                  <article key={packageCart.id} className="min-w-0 py-4 sm:py-5">
+                    <div className="flex min-w-0 items-start justify-between gap-4">
+                      <h3 className="min-w-0 flex-1 break-words font-sans text-base font-semibold leading-6 text-foreground">
+                        {packageCart.package.name}
                       </h3>
-                      <strong className="money-text shrink-0 text-sm font-semibold text-foreground">
-                          {packageQuote
-                            ? formatCheckoutCurrency(packageQuote.subtotalAmount)
-                            : quoteLoading ? 'Updating' : ''}
+                      <strong className="money-text shrink-0 text-base font-semibold text-foreground">
+                        {packageQuote
+                          ? formatCheckoutCurrency(packageQuote.subtotalAmount)
+                          : quoteLoading ? 'Updating' : ''}
                       </strong>
                     </div>
-                    <p className="mt-0.5 text-xs leading-4 text-muted-foreground">
+                    <p className="mt-1 text-sm leading-5 text-muted-foreground">
                       {packageCart.package.type === 'ORDER_BY_KG'
                         ? `${weightKg} kg · ${menuSummary}`
                         : `${guestCount} ${packageCart.package.type === 'MEAL_BOX' ? 'boxes' : 'guests'} · ${menuSummary}`}
                     </p>
-                    <div className="mt-0.5 flex min-h-9 flex-wrap items-center gap-x-4 gap-y-0">
+                    <div className="mt-2 flex min-h-9 flex-wrap items-center gap-x-5 gap-y-1">
                       <Link
                         href={menuHref}
-                        className="inline-flex min-h-9 items-center text-xs font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                        className="inline-flex min-h-9 items-center text-sm font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                       >
                         Edit menu
                       </Link>
@@ -1101,7 +1255,7 @@ export default function CartPage() {
                               current === packageCart.id ? '' : packageCart.id,
                             )
                           }
-                          className="inline-flex min-h-9 items-center text-xs font-medium text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                          className="inline-flex min-h-9 items-center text-sm font-medium text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                         >
                           {editingQuantityCartId === packageCart.id
                             ? 'Done'
@@ -1120,8 +1274,8 @@ export default function CartPage() {
                     </div>
                     {editingQuantityCartId === packageCart.id &&
                       packageCart.package.type !== 'ORDER_BY_KG' && (
-                        <div className="mt-1 flex items-center justify-between border-t border-border/50 pt-2">
-                          <span className="text-xs font-medium text-muted-foreground">
+                        <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-3">
+                          <span className="text-sm font-medium text-muted-foreground">
                             {packageCart.package.type === 'MEAL_BOX' ? 'Box count' : 'Guest count'}
                           </span>
                           <div className="flex h-10 items-center overflow-hidden rounded-md border bg-white">
@@ -1164,7 +1318,7 @@ export default function CartPage() {
             </div>
             <Link
               href="/packages"
-              className="inline-flex min-h-9 items-center text-xs font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              className="inline-flex min-h-12 items-center px-4 text-sm font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:px-6"
             >
               <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
               Add another package
@@ -1178,8 +1332,8 @@ export default function CartPage() {
           </div>
         )}
 
-        <div className="grid gap-x-10 gap-y-2.5 lg:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.9fr)] lg:items-start">
-          <div className="min-w-0 space-y-2.5">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.9fr)] lg:items-start lg:gap-8">
+          <div className="min-w-0 space-y-5">
             {pendingOrder ? (
               <EventSummary cart={cart} />
             ) : (
@@ -1208,6 +1362,8 @@ export default function CartPage() {
                     </>
                   }
                   onSaved={onEventSaved}
+                  onAddAddress={openAddressDialog}
+                  onVenueStatusChange={setVenueStatus}
                 />
                 {validationLocation === 'delivery' && error && (
                   <p role="alert" className="mt-1 text-sm font-medium text-red-800">
@@ -1220,7 +1376,7 @@ export default function CartPage() {
             {!pendingOrder && (
               <section
                 id="checkout-contact"
-                className="rounded-lg border border-border/60 bg-white/80 p-3 sm:p-4"
+                className="rounded-2xl border border-border/70 bg-white p-4 shadow-sm sm:p-6"
               >
                   <div className="flex items-center justify-between gap-4">
                     <div className="min-w-0">
@@ -1279,7 +1435,7 @@ export default function CartPage() {
                       {error}
                     </p>
                   )}
-                <div className="mt-1.5 border-t border-border/60 pt-1">
+                <div className="mt-4 border-t border-border/60 pt-4">
                   {specialNotes && !notesExpanded ? (
                     <div className="flex items-start justify-between gap-4">
                       <div className="min-w-0">
@@ -1343,8 +1499,8 @@ export default function CartPage() {
           </div>
 
           <aside className="h-fit lg:sticky lg:top-24">
-            <section className="rounded-lg border border-border/60 bg-white/80 p-3 sm:p-4">
-              <div className="mb-2 flex items-center justify-between gap-3">
+            <section className="rounded-2xl border border-border/70 bg-white p-4 shadow-sm sm:p-6">
+              <div className="mb-4 flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <h2 className="font-sans text-base font-semibold leading-5 text-foreground">
                     {pendingOrder ? 'Payment pending' : 'Price breakdown'}
@@ -1395,7 +1551,7 @@ export default function CartPage() {
                   )}
                   <div className="hidden lg:block">
                     <Button
-                      className="mt-3 h-11 w-full"
+                      className="mt-5 h-12 w-full"
                       onClick={requestPayment}
                       disabled={quoteLoading || paying}
                     >
@@ -1411,6 +1567,189 @@ export default function CartPage() {
             </section>
           </aside>
         </div>
+
+        {addressDialogOpen && (
+          <div
+            className="fixed inset-0 z-[100] flex items-end bg-slate-950/60 backdrop-blur-sm sm:items-center sm:justify-center sm:p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cart-address-title"
+          >
+            <button
+              type="button"
+              className="absolute inset-0"
+              aria-label="Close address form"
+              onClick={() => setAddressDialogOpen(false)}
+            />
+            <form
+              onSubmit={saveCartAddress}
+              className="relative max-h-[92dvh] w-full max-w-2xl overflow-y-auto rounded-t-2xl bg-white p-4 shadow-2xl sm:rounded-2xl sm:p-6"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex min-w-0 items-start gap-3">
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+                    <MapPin className="h-5 w-5" aria-hidden="true" />
+                  </span>
+                  <div>
+                    <h2
+                      id="cart-address-title"
+                      className="font-sans text-xl font-semibold text-foreground"
+                    >
+                      Complete delivery address
+                    </h2>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAddressDialogOpen(false)}
+                  className="min-h-10 shrink-0 px-2 text-sm font-semibold text-primary"
+                >
+                  Close
+                </button>
+              </div>
+
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                <Field label="Address type">
+                  <Select
+                    value={addressForm.addressType}
+                    onChange={(event) => {
+                      const addressType = event.target.value as AddressType;
+                      setAddressForm((current) => ({
+                        ...current,
+                        addressType,
+                        label:
+                          addressType === 'OTHER'
+                            ? ''
+                            : current.label ||
+                              (addressType === 'OFFICE'
+                                ? 'Office'
+                                : addressType === 'EVENT_VENUE'
+                                  ? 'Event venue'
+                                  : 'Home'),
+                      }));
+                    }}
+                  >
+                    <option value="HOME">Home</option>
+                    <option value="OFFICE">Work</option>
+                    <option value="EVENT_VENUE">Event venue</option>
+                    <option value="OTHER">Other</option>
+                  </Select>
+                </Field>
+                <Field label="Address label" optional>
+                  <Input
+                    value={addressForm.label}
+                    maxLength={50}
+                    placeholder="e.g. Home or event venue"
+                    onChange={(event) =>
+                      setAddressForm((current) => ({
+                        ...current,
+                        label: event.target.value,
+                      }))
+                    }
+                  />
+                </Field>
+                <Field label="House, building or street" className="sm:col-span-2">
+                  <Input
+                    value={addressForm.addressLine1}
+                    maxLength={255}
+                    required
+                    onChange={(event) =>
+                      setAddressForm((current) => ({
+                        ...current,
+                        addressLine1: event.target.value,
+                      }))
+                    }
+                  />
+                </Field>
+                <Field label="Area / locality" optional>
+                  <Input
+                    value={addressForm.addressLine2}
+                    maxLength={255}
+                    onChange={(event) =>
+                      setAddressForm((current) => ({
+                        ...current,
+                        addressLine2: event.target.value,
+                      }))
+                    }
+                  />
+                </Field>
+                <Field label="Landmark" optional>
+                  <Input
+                    value={addressForm.landmark}
+                    maxLength={255}
+                    placeholder="Nearby landmark"
+                    onChange={(event) =>
+                      setAddressForm((current) => ({
+                        ...current,
+                        landmark: event.target.value,
+                      }))
+                    }
+                  />
+                </Field>
+                <Field label="City">
+                  <Input
+                    value={addressForm.city}
+                    maxLength={100}
+                    required
+                    onChange={(event) =>
+                      setAddressForm((current) => ({
+                        ...current,
+                        city: event.target.value,
+                      }))
+                    }
+                  />
+                </Field>
+                <Field label="State">
+                  <Input
+                    value={addressForm.state}
+                    maxLength={100}
+                    required
+                    onChange={(event) =>
+                      setAddressForm((current) => ({
+                        ...current,
+                        state: event.target.value,
+                      }))
+                    }
+                  />
+                </Field>
+                <Field label="Pincode" className="sm:col-span-2">
+                  <Input
+                    value={addressForm.pincode}
+                    inputMode="numeric"
+                    pattern="[0-9]{6}"
+                    minLength={6}
+                    maxLength={6}
+                    required
+                    onChange={(event) =>
+                      setAddressForm((current) => ({
+                        ...current,
+                        pincode: event.target.value.replace(/\D/g, ''),
+                      }))
+                    }
+                  />
+                </Field>
+              </div>
+              {addressError && (
+                <p role="alert" className="mt-4 text-sm font-medium text-red-800">
+                  {addressError}
+                </p>
+              )}
+              <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setAddressDialogOpen(false)}
+                  disabled={addressSaving}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={addressSaving}>
+                  {addressSaving ? 'Saving address…' : 'Save and use address'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        )}
 
         {clearCartOpen && !pendingOrder && (
           <div
@@ -1583,13 +1922,13 @@ function MultiCartPriceSummary({
     : 'Delivery';
   return (
     <div>
-      <details className="group">
-        <summary className="flex min-h-9 cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+      <details className="group rounded-xl bg-ivory/60 px-3 sm:px-4">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
           <span className="group-open:hidden">View breakdown</span>
           <span className="hidden group-open:inline">Hide breakdown</span>
           <span aria-hidden="true" className="text-lg leading-none">{`+`}</span>
         </summary>
-        <div className="space-y-2 border-t border-border/60 py-2 text-xs">
+        <div className="space-y-3 border-t border-border/60 py-4 text-sm">
           {aggregate.carts.map(({ cartId, quote }) => {
             const packageCart = cartById.get(cartId);
             return (
@@ -1602,9 +1941,7 @@ function MultiCartPriceSummary({
           })}
           <PriceLine
             label={deliveryLabel}
-            value={Number(aggregate.deliveryFee) === 0
-              ? 'Included'
-              : formatCheckoutCurrency(aggregate.deliveryFee)}
+            value={formatCheckoutCurrency(aggregate.deliveryFee)}
           />
           {extraCutleryCount > 0 && (
             <PriceLine
@@ -1618,9 +1955,9 @@ function MultiCartPriceSummary({
           />
         </div>
       </details>
-      <div className="mt-1 flex items-center justify-between gap-4 border-t border-border pt-2">
-        <span className="text-sm font-semibold">Total</span>
-        <strong className="money-text text-lg font-bold text-primary">
+      <div className="mt-4 flex items-center justify-between gap-4 border-t border-border pt-4">
+        <span className="text-base font-semibold">Total</span>
+        <strong className="money-text text-xl font-bold text-primary">
           {formatCheckoutCurrency(aggregate.totalAmount)}
         </strong>
       </div>
@@ -1650,7 +1987,7 @@ function CutleryOptions({
   const total = Number(quote?.cutleryTotal ?? 0);
 
   return (
-    <section className="mt-3 rounded-md border border-border/55 bg-white/75 p-3">
+    <section className="mt-5 rounded-xl border border-border/70 bg-white p-4">
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-1.5">
           <Utensils className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
@@ -1660,10 +1997,10 @@ function CutleryOptions({
           {includedCount} included
         </span>
       </div>
-      <p className="mt-0.5 text-xs text-muted-foreground">
+      <p className="mt-1 text-xs leading-5 text-muted-foreground">
         Plate + Spoon · Extra {formatCurrency(unitPrice).replace(/\.00$/, '')}/set
       </p>
-      <div className="mt-2 flex items-center justify-between gap-2">
+      <div className="mt-4 flex items-center justify-between gap-2 border-t border-border/60 pt-3">
         <span className="text-xs font-medium text-muted-foreground">Extra sets</span>
         <div className="flex min-w-0 items-center gap-2">
           <div className="inline-flex h-9 items-center overflow-hidden rounded-md border border-border bg-background">
@@ -1779,12 +2116,12 @@ function DeliveryServiceOptions({
   ];
 
   return (
-    <section className="mt-3">
-      <h3 className="mb-2 font-sans text-base font-semibold leading-5 text-foreground">
+    <section className="mt-5">
+      <h3 className="mb-3 font-sans text-base font-semibold leading-5 text-foreground">
         How should we deliver
       </h3>
       <div
-        className="grid gap-1.5"
+        className="grid gap-2.5"
         role="radiogroup"
         aria-label="Delivery service"
       >
@@ -1793,15 +2130,15 @@ function DeliveryServiceOptions({
           const total = baseDelivery + addon;
           const priceLabel =
             addon === 0
-              ? total === 0
-                ? 'Included'
-                : formatCurrency(total).replace(/\.00$/, '')
+              ? quote
+                ? formatCurrency(total).replace(/\.00$/, '')
+                : '—'
               : `+${formatCurrency(addon).replace(/\.00$/, '')}`;
           return (
             <div
               key={type}
               className={cn(
-                'overflow-hidden rounded-md border transition-colors',
+                'overflow-hidden rounded-xl border transition-colors',
                 isSelected
                   ? 'border-primary/40 bg-primary/[0.055]'
                   : 'border-border/70 bg-white/85 hover:border-primary/25',
@@ -1816,10 +2153,7 @@ function DeliveryServiceOptions({
                 onClick={() =>
                   onChange(type, type === 'ASSISTED' ? helperCount : 0)
                 }
-                className={cn(
-                  'flex w-full items-center gap-2 px-2.5 py-2 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
-                  isSelected ? 'min-h-12' : 'min-h-12',
-                )}
+                className="flex min-h-16 w-full items-center gap-3 px-3 py-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:px-4"
               >
                 <span
                   className={cn(
@@ -1834,10 +2168,10 @@ function DeliveryServiceOptions({
                 </span>
                 <Icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                 <span className="min-w-0 flex-1">
-                    <strong className="block truncate whitespace-nowrap text-sm font-semibold text-foreground">
+                  <strong className="block text-sm font-semibold leading-5 text-foreground">
                     {title}
                   </strong>
-                  <span className="block truncate whitespace-nowrap text-xs leading-4 text-muted-foreground">
+                  <span className="block text-xs leading-4 text-muted-foreground">
                     {description}
                   </span>
                 </span>
