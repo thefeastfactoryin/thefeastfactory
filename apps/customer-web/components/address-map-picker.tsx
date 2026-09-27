@@ -207,9 +207,18 @@ function parsePlaceAddress(
 export function AddressMapPicker({
   onAddress,
   initialPosition,
+  onSearchFocusChange,
+  onSearchError,
 }: {
   onAddress: (address: MapAddress) => void;
   initialPosition?: { latitude: string; longitude: string };
+  /** Reports whether the place search field currently has focus, so a parent
+   * sheet can free up room (or hide overlapping controls) while the mobile
+   * keyboard is open. */
+  onSearchFocusChange?: (focused: boolean) => void;
+  /** Fired when a place fails to load, so a parent can clear any stale
+   * "selected location" state instead of showing it beside the error. */
+  onSearchError?: () => void;
 }) {
   const mapElement = useRef<HTMLDivElement>(null);
   const searchElement = useRef<HTMLDivElement>(null);
@@ -219,6 +228,7 @@ export function AddressMapPicker({
   const initialPositionRef = useRef(initialPosition);
   const [status, setStatus] = useState<PickerStatus>('idle');
   const [message, setMessage] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
   const apiKey = publicEnv.googleMapsApiKey;
 
   async function selectPosition(
@@ -267,7 +277,22 @@ export function AddressMapPicker({
     let resizeFrame = 0;
     let placeAutocomplete: google.maps.places.PlaceAutocompleteElement | null =
       null;
+    const searchContainer = searchElement.current;
     const mobileMap = window.matchMedia(MOBILE_MAP_QUERY);
+    // The Places search field lives in a Shadow DOM; focus/blur on its inner
+    // input still bubble as focusin/focusout on the host container, so track
+    // focus here to free up room for suggestions above the keyboard.
+    const handleFocusIn = () => {
+      setSearchFocused(true);
+      onSearchFocusChange?.(true);
+      searchContainer.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    };
+    const handleFocusOut = () => {
+      setSearchFocused(false);
+      onSearchFocusChange?.(false);
+    };
+    searchContainer.addEventListener('focusin', handleFocusIn);
+    searchContainer.addEventListener('focusout', handleFocusOut);
     const mapGestureHandling = () =>
       mobileMap.matches ? ('greedy' as const) : ('cooperative' as const);
     const resizeMap = () => {
@@ -331,6 +356,10 @@ export function AddressMapPicker({
         });
         placeAutocomplete.className = 'map-place-autocomplete';
         placeAutocomplete.addEventListener('gmp-select', async (event) => {
+          // Dismiss the keyboard as soon as a suggestion is tapped, before the
+          // place details finish loading, so the result is never hidden
+          // behind it (success or failure).
+          placeAutocomplete?.blur();
           setStatus('geocoding');
           setMessage('Loading the selected place…');
           try {
@@ -363,7 +392,6 @@ export function AddressMapPicker({
               }
             }
             onAddress(address);
-            placeAutocomplete?.blur();
             setStatus('ready');
             setMessage(
               address.pincode
@@ -376,13 +404,16 @@ export function AddressMapPicker({
             setMessage(
               'We could not load that place. Try another result or choose a point on the map.',
             );
+            onSearchError?.();
           }
         });
         placeAutocomplete.addEventListener('gmp-error', () => {
+          placeAutocomplete?.blur();
           setStatus('error');
           setMessage(
             'Place search is temporarily unavailable. You can still choose a point on the map.',
           );
+          onSearchError?.();
         });
         searchElement.current.replaceChildren(placeAutocomplete);
 
@@ -428,6 +459,8 @@ export function AddressMapPicker({
       window.removeEventListener('resize', resizeMap);
       window.removeEventListener('orientationchange', resizeMap);
       mobileMap.removeEventListener('change', resizeMap);
+      searchContainer.removeEventListener('focusin', handleFocusIn);
+      searchContainer.removeEventListener('focusout', handleFocusOut);
       if (map.current) google.maps.event.clearInstanceListeners(map.current);
       if (marker.current)
         google.maps.event.clearInstanceListeners(marker.current);
@@ -519,7 +552,7 @@ export function AddressMapPicker({
           variant="outline"
           onClick={useCurrentLocation}
           disabled={busy}
-          className="h-12 rounded-xl border-primary/25 bg-primary/[0.04] px-5 font-semibold text-primary shadow-sm hover:border-primary/40 hover:bg-primary/10 hover:text-primary"
+          className={`h-12 rounded-xl border-primary/25 bg-primary/[0.04] px-5 font-semibold text-primary shadow-sm hover:border-primary/40 hover:bg-primary/10 hover:text-primary ${searchFocused ? 'max-md:hidden' : ''}`}
         >
           {status === 'locating' ? (
             <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
@@ -529,7 +562,9 @@ export function AddressMapPicker({
           Use my location
         </Button>
       </div>
-      <div className="relative mt-3 overflow-hidden rounded-2xl border-2 border-white bg-muted shadow-[0_16px_40px_rgba(74,43,35,0.14)] ring-1 ring-border sm:border-4">
+      <div
+        className={`relative mt-3 overflow-hidden rounded-2xl border-2 border-white bg-muted shadow-[0_16px_40px_rgba(74,43,35,0.14)] ring-1 ring-border sm:border-4 ${searchFocused ? 'max-md:hidden' : ''}`}
+      >
         <div
           ref={mapElement}
           className="address-map-canvas h-[280px] w-full min-[390px]:h-[300px] sm:h-[420px]"
@@ -544,7 +579,7 @@ export function AddressMapPicker({
         </div>
       </div>
       <div
-        className={`mt-3 flex min-h-12 items-start gap-2 rounded-xl border px-3.5 py-3 text-sm leading-5 ${statusStyle}`}
+        className={`mt-3 flex min-h-12 items-start gap-2 rounded-xl border px-3.5 py-3 text-sm leading-5 ${statusStyle} ${searchFocused ? 'max-md:hidden' : ''}`}
         role="status"
       >
         {busy ? (

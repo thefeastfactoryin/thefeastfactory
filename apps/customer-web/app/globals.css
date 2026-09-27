@@ -400,6 +400,23 @@ body {
   box-shadow: 0 8px 24px rgb(74 43 35 / 16%) !important;
 }
 
+/* Make each suggestion row an obviously tappable target, and keep the
+   dropdown above the map/status chrome it overlaps on mobile. */
+.address-map-picker .map-place-autocomplete::part(prediction-item) {
+  min-height: 48px;
+  padding-block: 0.625rem;
+  cursor: pointer;
+}
+
+.address-map-picker .map-place-autocomplete::part(prediction-item):hover,
+.address-map-picker .map-place-autocomplete::part(prediction-item-selected) {
+  background-color: rgb(122 31 43 / 8%) !important;
+}
+
+.address-map-picker .map-search-shell {
+  isolation: isolate;
+}
+
 @media (max-width: 767px) {
   .address-map-picker .map-place-autocomplete {
     border-radius: 0.75rem;

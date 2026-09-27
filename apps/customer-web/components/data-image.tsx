@@ -1,3 +1,5 @@
+'use client';
+import { useState } from 'react';
 import type { CSSProperties } from 'react';
 import { cn } from '../lib/utils';
 
@@ -8,7 +10,9 @@ export function DataImage({ src, alt, className, loading, style }: {
   loading?: 'eager' | 'lazy';
   style?: CSSProperties;
 }) {
-  if (src) {
+  const [failed, setFailed] = useState(false);
+
+  if (src && !failed) {
     const isLocalMenuImage =
       src.startsWith('/menu-images/') && src.endsWith('/large.jpg');
     const mediumSrc = isLocalMenuImage
@@ -31,6 +35,7 @@ export function DataImage({ src, alt, className, loading, style }: {
         className={className}
         loading={loading}
         style={style}
+        onError={() => setFailed(true)}
       />
     );
   }

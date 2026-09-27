@@ -192,7 +192,7 @@ export function PackageDetailsModal({
                             </span>
                           )}
                         </div>
-                        <div className="divide-y sm:hidden">
+                        <div className="sm:hidden">
                           {items.map((item) => (
                             <div
                               key={item.id}

@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import {
   Inter,
   Playfair_Display,
@@ -24,6 +24,15 @@ export const metadata: Metadata = {
   title: 'The Feast Factory',
   description:
     'Plan catering events, customize menus, and place orders with The Feast Factory.',
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  // Lets mobile browsers shrink the layout viewport (instead of just the
+  // visual viewport) when the keyboard opens, so 100dvh sheets and sticky
+  // bottom bars stay correctly sized instead of being covered.
+  interactiveWidget: 'resizes-content',
 };
 
 export default function RootLayout({
