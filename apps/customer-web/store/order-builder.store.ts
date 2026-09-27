@@ -44,13 +44,11 @@ type OrderBuilderState = {
   package?: CartPackage;
   event?: CartEvent;
   dbCartId?: string;
-  pendingOrderId?: string;
   guestCount: number;
   selectedItems: SelectedItem[];
   setPackage: (pkg: CartPackage) => void;
   setEvent: (event: CartEvent) => void;
   setDbCartId: (cartId?: string) => void;
-  setPendingOrderId: (orderId?: string) => void;
   setGuestCount: (guestCount: number) => void;
   toggleItem: (item: SelectedItem, maxSelections: number) => boolean;
   toggleSwap: (item: SelectedItem) => boolean;
@@ -81,7 +79,6 @@ export const useOrderBuilderStore = create<OrderBuilderState>()(
         }),
       setEvent: (event) => set({ event }),
       setDbCartId: (cartId) => set({ dbCartId: cartId }),
-      setPendingOrderId: (orderId) => set({ pendingOrderId: orderId }),
       setGuestCount: (guestCount) => set({ guestCount }),
       toggleItem: (item, maxSelections) => {
         const state = get();
@@ -168,7 +165,6 @@ export const useOrderBuilderStore = create<OrderBuilderState>()(
       hydrateFromCart: (cart) =>
         set({
           dbCartId: cart.id,
-          pendingOrderId: cart.pendingOrderId ?? undefined,
           package: {
             packageId: cart.package.id,
             packageVersionId: cart.packageVersionId,
@@ -215,7 +211,6 @@ export const useOrderBuilderStore = create<OrderBuilderState>()(
           package: undefined,
           event: undefined,
           dbCartId: undefined,
-          pendingOrderId: undefined,
           guestCount: 0,
           selectedItems: [],
         }),

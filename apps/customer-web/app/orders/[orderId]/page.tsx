@@ -227,11 +227,8 @@ export default function OrderPage() {
                   </h2>
                 </div>
                 <p className="my-3 text-sm leading-6 text-muted-foreground">
-                  This attempt remains in your cart until payment is completed.
+                  This order is saved separately from your active cart. Check its payment status here.
                 </p>
-                <Button asChild>
-                  <Link href="/cart">Return to cart</Link>
-                </Button>
               </section>
             )}
 
