@@ -14,6 +14,7 @@ import type {
 } from '@aranyam/shared-types';
 import { createAddressSchema, mobileNumberSchema } from '@aranyam/validation';
 import {
+  CalendarDays,
   Check,
   LockKeyhole,
   MapPin,
@@ -26,11 +27,13 @@ import {
   Utensils,
   UserRound,
   Trash2,
+  Users,
 } from 'lucide-react';
 import Link from 'next/link';
 import Script from 'next/script';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { RetryPaymentButton } from '../../components/retry-payment-button';
 import { SelectionContextPanel } from '../../components/selection-context-panel';
 import type { VenueServiceability } from '../../components/selection-context-panel';
 import { Button } from '../../components/ui/button';
@@ -251,6 +254,10 @@ export default function CartPage() {
   );
   const hydrate = useOrderBuilderStore((state) => state.hydrateFromCart);
   const reset = useOrderBuilderStore((state) => state.reset);
+  const pendingOrderId = useOrderBuilderStore((state) => state.pendingOrderId);
+  const setPendingOrderId = useOrderBuilderStore(
+    (state) => state.setPendingOrderId,
+  );
 
   const [cart, setCart] = useState<CartSummary>();
   const [activeCarts, setActiveCarts] = useState<CartSummary[]>([]);
@@ -258,6 +265,12 @@ export default function CartPage() {
   const [configByCartId, setConfigByCartId] = useState<Record<string, PackageConfiguration>>({});
   const [quote, setQuote] = useState<PackageSelectionPrice>();
   const [multiCartQuote, setMultiCartQuote] = useState<MultiCartQuote>();
+  const [pendingOrder, setPendingOrder] = useState<OrderSummary>();
+  const [pendingBatch, setPendingBatch] = useState<{
+    orderCount: number;
+    orderIds: string[];
+    totalAmount: string;
+  }>();
   const [loading, setLoading] = useState(true);
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [cartReloadKey, setCartReloadKey] = useState(0);
@@ -439,24 +452,23 @@ export default function CartPage() {
     setLoading(true);
     async function load() {
       try {
-        const allCarts = await apiRequest<CartSummary[]>(
-          '/cart/all',
-          {},
-          session!.accessToken,
-        );
+        const [value, allCarts] = await Promise.all([
+          apiRequest<CartSummary | null>('/cart', {}, session!.accessToken),
+          apiRequest<CartSummary[]>('/cart/all', {}, session!.accessToken),
+        ]);
         if (!active) return;
         setActiveCarts(allCarts);
         publishCheckoutCartCount(allCarts.length);
-        const currentCart = allCarts[0];
+        const currentCart =
+          allCarts.find((entry) => entry.id === value?.id) ??
+          allCarts[0] ??
+          (value?.pendingOrderId ? value : undefined);
         if (!currentCart) {
           missingCartRecoveryAttempts.current = 0;
           reset();
           setCart(undefined);
-          setConfig(undefined);
-          setConfigByCartId({});
           setQuote(undefined);
           setMultiCartQuote(undefined);
-          setError('');
           return;
         }
         setCart(currentCart);
@@ -493,7 +505,29 @@ export default function CartPage() {
             ),
           );
         }
-        await loadQuote(currentCart.id);
+        if (currentCart.pendingOrderId) {
+          const order = await apiRequest<OrderSummary>(
+            `/orders/${currentCart.pendingOrderId}`,
+            {},
+            session!.accessToken,
+          );
+          const batch = await apiRequest<{
+            orderCount: number;
+            orderIds: string[];
+            totalAmount: string;
+          }>(
+            `/orders/${currentCart.pendingOrderId}/payment-batch`,
+            {},
+            session!.accessToken,
+          );
+          if (active) {
+            missingCartRecoveryAttempts.current = 0;
+            setPendingOrder(order);
+            setPendingBatch(batch);
+          }
+        } else {
+          await loadQuote(currentCart.id);
+        }
       } catch (reason) {
         if (active && !recoverMissingCart(reason)) setError((reason as Error).message);
       } finally {
@@ -571,7 +605,7 @@ export default function CartPage() {
     packageCart: CartSummary,
     requestedCount: number,
   ) {
-    if (!session || updatingCartId) return;
+    if (!session || updatingCartId || pendingOrder) return;
     const guestCount = clampPackageQuantity(packageCart, requestedCount);
     if (guestCount === packageCart.guestCount) return;
     setUpdatingCartId(packageCart.id);
@@ -604,7 +638,7 @@ export default function CartPage() {
     deliveryServiceType: DeliveryServiceType,
     helperCount: number,
   ) {
-    if (!session || !cart || updatingDelivery) return;
+    if (!session || !cart || updatingDelivery || pendingOrder) return;
     setUpdatingDelivery(true);
     setError('');
     try {
@@ -639,7 +673,7 @@ export default function CartPage() {
   }
 
   async function updateCutleryExtraCount(nextCount: number) {
-    if (!session || !cart || updatingDelivery) return;
+    if (!session || !cart || updatingDelivery || pendingOrder) return;
     const cutleryExtraCount = Math.max(0, Math.round(nextCount));
     setUpdatingDelivery(true);
     setError('');
@@ -719,7 +753,7 @@ export default function CartPage() {
   }
 
   async function removeCart(cartId: string) {
-    if (!session || deletingCartId) return;
+    if (!session || deletingCartId || pendingOrder) return;
     setDeletingCartId(cartId);
     setError('');
     try {
@@ -768,7 +802,7 @@ export default function CartPage() {
   }
 
   async function clearCart() {
-    if (!session || clearingCart) return;
+    if (!session || clearingCart || pendingOrder) return;
     setClearingCart(true);
     setError('');
     try {
@@ -973,22 +1007,27 @@ export default function CartPage() {
     }
     setError('');
     setPaying(true);
-    let checkoutOrderId: string | undefined;
     try {
       await persistContactNumber(validatedContactNumber.data);
       const selectedQuote =
         multiCartQuote.carts.find((entry) => entry.cartId === cart.id)?.quote ??
         quote;
-      const orders = await apiRequest<OrderSummary[]>(
-        '/cart/checkout-all',
-        {
-          method: 'POST',
-          body: JSON.stringify({ specialNotes }),
-        },
-        session.accessToken,
-      );
+      const orders = pendingOrderId
+        ? await apiRequest<OrderSummary>(
+            `/orders/${pendingOrderId}`,
+            {},
+            session.accessToken,
+          ).then((order) => [order])
+        : await apiRequest<OrderSummary[]>(
+            '/cart/checkout-all',
+            {
+              method: 'POST',
+              body: JSON.stringify({ specialNotes }),
+            },
+            session.accessToken,
+          );
       const order = orders[0];
-      checkoutOrderId = order.id;
+      setPendingOrderId(order.id);
       const gateway =
         orders.length === 1
           ? await apiRequest<GatewayOrder>(
@@ -1039,30 +1078,31 @@ export default function CartPage() {
         modal: {
           confirm_close: true,
           ondismiss: () => {
+            setError(
+              'Payment window closed. Your order is saved and you can retry safely.',
+            );
             setPaying(false);
-            router.push(`/payment/status?orderId=${order.id}`);
           },
         },
         handler: async (response: Record<string, string>) => {
           try {
             await verifyPayment(order.id, response);
-          } catch {
+          } catch (reason) {
+            setError((reason as Error).message);
             setPaying(false);
-            router.push(`/payment/status?orderId=${order.id}`);
           }
         },
       });
-      checkout.on('payment.failed', () => {
+      checkout.on('payment.failed', (response) => {
+        setError(
+          response?.error?.description ||
+            'Payment failed. You can retry without creating another order.',
+        );
         setPaying(false);
-        router.push(`/payment/status?orderId=${order.id}`);
       });
       checkout.open();
     } catch (reason) {
-      if (checkoutOrderId) {
-        router.push(`/payment/status?orderId=${checkoutOrderId}`);
-      } else if (!recoverMissingCart(reason)) {
-        setError((reason as Error).message);
-      }
+      if (!recoverMissingCart(reason)) setError((reason as Error).message);
       setPaying(false);
     }
   }
@@ -1142,11 +1182,11 @@ export default function CartPage() {
     return (
       <div className="page-shell">
         <h1 className="mb-3 font-sans text-lg font-semibold leading-6 text-foreground sm:text-2xl">
-          Your cart
+          Checkout
         </h1>
         <AuthRequiredPanel
-          title="Sign in to view your cart"
-          description="Sign in to see your active cart and continue your order."
+          title="Sign in to resume your order"
+          description="Your menu is saved. Sign in to add event details and continue to payment."
           returnHref="/cart"
           headingLevel={2}
         />
@@ -1160,7 +1200,7 @@ export default function CartPage() {
       </main>
     );
   }
-  if (!cart || activeCarts.length === 0) {
+  if (!cart) {
     return (
       <main className="page-shell">
         <StatePanel
@@ -1176,7 +1216,9 @@ export default function CartPage() {
 
   const ready =
     activeCarts.length > 0 && activeCarts.every((entry) => eventReady(entry));
-  const mobileTotal = multiCartQuote?.totalAmount;
+  const mobileTotal = pendingOrder
+    ? (pendingBatch?.totalAmount ?? pendingOrder.totalAmount)
+    : multiCartQuote?.totalAmount;
 
   return (
     <main
@@ -1208,7 +1250,8 @@ export default function CartPage() {
         <h1 className="mb-5 font-sans text-2xl font-semibold leading-tight text-foreground sm:mb-7 sm:text-3xl">
           Checkout
         </h1>
-        <section className="mb-5 overflow-hidden rounded-2xl border border-border/70 bg-white shadow-sm sm:mb-7">
+        {!pendingOrder && (
+          <section className="mb-5 overflow-hidden rounded-2xl border border-border/70 bg-white shadow-sm sm:mb-7">
             <div className="border-b border-border/60 bg-ivory-warm/60 px-4 py-4 sm:px-6">
               <h2 className="font-sans text-lg font-semibold leading-6 text-foreground">
                 Your order <span className="text-muted-foreground">({activeCarts.length})</span>
@@ -1331,9 +1374,20 @@ export default function CartPage() {
               Add another package
             </Link>
           </section>
+        )}
+        {pendingOrder && (
+          <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            <strong>Payment is pending.</strong> Your order is safely reserved.
+            Retry payment without creating another order.
+          </div>
+        )}
 
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.9fr)] lg:items-start lg:gap-8">
           <div className="min-w-0 space-y-5">
+            {pendingOrder ? (
+              <EventSummary cart={cart} />
+            ) : (
+              <>
                 <SelectionContextPanel
                   checkoutCompact
                   cartId={cart.id}
@@ -1369,7 +1423,10 @@ export default function CartPage() {
                     {error}
                   </p>
                 )}
+              </>
+            )}
 
+            {!pendingOrder && (
               <section
                 id="checkout-contact"
                 className="rounded-2xl border border-border/70 bg-white p-4 shadow-sm sm:p-6"
@@ -1491,6 +1548,7 @@ export default function CartPage() {
                   )}
                 </div>
               </section>
+            )}
           </div>
 
           <aside className="h-fit lg:sticky lg:top-24">
@@ -1498,10 +1556,31 @@ export default function CartPage() {
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <h2 className="font-sans text-base font-semibold leading-5 text-foreground">
-                    Price breakdown
+                    {pendingOrder ? 'Payment pending' : 'Price breakdown'}
                   </h2>
                 </div>
               </div>
+              {pendingOrder ? (
+                <div>
+                  <div className="flex items-center justify-between gap-4 border-t border-border/60 pt-2">
+                    <span className="font-semibold">Total</span>
+                    <strong className="money-text text-lg font-bold text-primary">
+                      {formatCheckoutCurrency(pendingBatch?.totalAmount ?? pendingOrder.totalAmount)}
+                    </strong>
+                  </div>
+                  <div className="mt-4">
+                    <RetryPaymentButton
+                      order={pendingOrder}
+                      orderIds={pendingBatch?.orderIds}
+                    />
+                  </div>
+                  <Button asChild variant="outline" className="mt-3 w-full">
+                    <Link href={`/orders/${pendingOrder.id}`}>
+                      View saved order
+                    </Link>
+                  </Button>
+                </div>
+              ) : (
                 <div>
                   {multiCartQuote ? (
                     <MultiCartPriceSummary
@@ -1537,6 +1616,7 @@ export default function CartPage() {
                     </p>
                   </div>
                 </div>
+              )}
             </section>
           </aside>
         </div>
@@ -1724,7 +1804,7 @@ export default function CartPage() {
           </div>
         )}
 
-        {clearCartOpen && (
+        {clearCartOpen && !pendingOrder && (
           <div
             className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/60 p-4 backdrop-blur-sm"
             role="alertdialog"
@@ -1788,13 +1868,21 @@ export default function CartPage() {
                   : 'Add event details'}
             </strong>
           </div>
-          <Button
-            className="mobile-order-bar-action"
-            onClick={requestPayment}
-            disabled={quoteLoading || paying}
-          >
-            {paying ? 'Opening…' : 'Continue'}
-          </Button>
+          {pendingOrder ? (
+            <RetryPaymentButton
+              order={pendingOrder}
+              orderIds={pendingBatch?.orderIds}
+              className="mobile-order-bar-action"
+            />
+          ) : (
+            <Button
+              className="mobile-order-bar-action"
+              onClick={requestPayment}
+              disabled={quoteLoading || paying}
+            >
+              {paying ? 'Opening…' : 'Continue'}
+            </Button>
+          )}
         </div>
       </MobileOrderBar>}
     </main>
@@ -1808,6 +1896,60 @@ function eventReady(cart: CartSummary) {
     cart.event.eventDate &&
     cart.event.eventTimeStart &&
     (cart.package.type === 'ORDER_BY_KG' || cart.event.guestCount),
+  );
+}
+
+function formatVenueAddress(
+  address?: CartSummary['address'] | null,
+  maxLines = 4,
+) {
+  if (!address) return 'Not set';
+  const lines = [
+    address.label,
+    address.addressLine1,
+    address.addressLine2,
+    address.landmark ? `Landmark: ${address.landmark}` : undefined,
+    [address.city, address.pincode].filter(Boolean).join(' '),
+  ]
+    .filter(Boolean)
+    .map((line) => String(line).trim())
+    .filter(Boolean);
+  return lines.length ? lines.slice(0, maxLines).join(', ') : 'Not set';
+}
+
+function EventSummary({ cart }: { cart: CartSummary }) {
+  const address = cart.event?.address ?? cart.address;
+  return (
+    <section className="rounded-2xl border bg-white p-5 sm:p-6">
+      <p className="eyebrow">Delivery details</p>
+      <div className="mt-5 grid gap-5 sm:grid-cols-3">
+        <Info
+          icon={CalendarDays}
+          label="When"
+          value={
+            cart.event
+              ? `${cart.event.eventDate} at ${cart.event.eventTimeStart || ''}`
+              : 'Not set'
+          }
+        />
+        <Info
+          icon={Users}
+          label={
+            cart.package.type === 'ORDER_BY_KG'
+              ? 'Weight'
+              : cart.package.type === 'MEAL_BOX'
+                ? 'Boxes'
+                : 'Guests'
+          }
+          value={
+            cart.package.type === 'ORDER_BY_KG'
+              ? `${cart.items.reduce((sum, item) => sum + (item.weightGrams ?? 0), 0) / 1000} kg`
+              : String(cart.event?.guestCount ?? cart.guestCount ?? 'Not set')
+          }
+        />
+        <Info icon={MapPin} label="Venue" value={formatVenueAddress(address)} />
+      </div>
+    </section>
   );
 }
 
@@ -2138,6 +2280,28 @@ function PriceLine({ label, value }: { label: string; value: string }) {
     <div className="flex items-center justify-between gap-4">
       <span className="text-muted-foreground">{label}</span>
       <span className="money-text font-bold text-foreground">{value}</span>
+    </div>
+  );
+}
+
+function Info({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: typeof CalendarDays;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex gap-3">
+      <Icon className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+      <div>
+        <p className="text-xs font-bold text-muted-foreground">
+          {label}
+        </p>
+        <p className="mt-1 text-sm leading-6">{value}</p>
+      </div>
     </div>
   );
 }

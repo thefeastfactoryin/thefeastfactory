@@ -94,9 +94,9 @@ export default function PaymentStatusPage() {
         {paid
           ? 'Your order is confirmed.'
           : failed
-            ? loadError || 'Your order is saved. Check its status in your orders.'
+            ? loadError || 'Your order is saved and payment can be retried.'
             : confirmationDelayed
-              ? 'Your order is saved. Check its status again shortly.'
+              ? 'Your order is safe. You can retry the same payment or check the order again shortly.'
             : 'We are waiting for secure confirmation from Razorpay. This can take a few moments.'}
       </p>
       <div className="mt-8 flex gap-3">
@@ -107,7 +107,7 @@ export default function PaymentStatusPage() {
         )}
         {(failed || confirmationDelayed) && (
           <Button asChild variant="outline">
-            <Link href="/orders">All orders</Link>
+            <Link href="/cart">Retry payment</Link>
           </Button>
         )}
       </div>
