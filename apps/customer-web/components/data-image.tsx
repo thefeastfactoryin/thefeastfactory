@@ -1,11 +1,25 @@
+'use client';
+
+import type { CSSProperties } from 'react';
+import { useState } from 'react';
 import { cn } from '../lib/utils';
 
-export function DataImage({ src, alt, className }: {
+export function DataImage({
+  src,
+  alt,
+  className,
+  loading,
+  style,
+}: {
   src?: string | null;
   alt: string;
   className?: string;
+  loading?: 'eager' | 'lazy';
+  style?: CSSProperties;
 }) {
-  if (src) {
+  const [failed, setFailed] = useState(false);
+
+  if (src && !failed) {
     const isLocalMenuImage =
       src.startsWith('/menu-images/') && src.endsWith('/large.jpg');
     const mediumSrc = isLocalMenuImage
@@ -23,9 +37,16 @@ export function DataImage({ src, alt, className }: {
             ? `${thumbSrc} 192w, ${mediumSrc} 640w, ${src} 1200w`
             : undefined
         }
-        sizes={isLocalMenuImage ? '(max-width: 640px) 50vw, 400px' : undefined}
+        sizes={
+          isLocalMenuImage
+            ? '(max-width: 640px) 50vw, (max-width: 1024px) 45vw, 600px'
+            : undefined
+        }
         alt={alt}
         className={className}
+        loading={loading}
+        style={style}
+        onError={() => setFailed(true)}
       />
     );
   }

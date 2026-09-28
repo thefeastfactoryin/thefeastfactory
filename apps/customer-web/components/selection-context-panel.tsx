@@ -414,6 +414,8 @@ export function SelectionContextPanel({
   const hydrated = useRef(false);
   const onSavedRef = useRef(onSaved);
   const lastSavedKey = useRef('');
+  const desiredSaveKey = useRef('');
+  const saveQueue = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
     onSavedRef.current = onSaved;
@@ -542,52 +544,62 @@ export function SelectionContextPanel({
       eventTimeStart,
       guestCount,
     ].join(':');
+    desiredSaveKey.current = saveKey;
     if (saveKey === lastSavedKey.current) return;
     setMessage('Changes pending…');
-    const timer = window.setTimeout(async () => {
-      setSaving(true);
-      try {
-        const cart = await apiRequest<CartSummary>(
-          `/cart/${cartId}`,
-          {
-            method: 'PUT',
-            body: JSON.stringify({
-              packageVersionId,
-              addressId,
-              ...(completeEvent
-                ? {
-                    eventName: pkg?.packageName,
-                    eventDate,
-                    eventTimeStart,
-                    ...(isKg ? {} : { guestCount }),
-                  }
-                : {}),
-            }),
-          },
-          session.accessToken,
-        );
-        const address = addresses.find((row) => row.id === addressId)!;
-        setDbCartId(cart.id);
-        setEvent({
-          addressId,
-          eventName: pkg?.packageName,
-          eventDate,
-          eventTimeStart,
-          addressLabel: address.label || address.addressLine1,
-        });
-        setAssignedRegion(cart.event?.region ?? cart.region ?? null);
-        lastSavedKey.current = saveKey;
-        onSavedRef.current?.(cart);
-        setMessage(
-          completeEvent
-            ? 'Saved to your cart.'
-            : 'Address saved. Add the delivery date and time to continue.',
-        );
-      } catch (reason) {
-        setMessage((reason as Error).message);
-      } finally {
-        setSaving(false);
-      }
+    const timer = window.setTimeout(() => {
+      saveQueue.current = saveQueue.current.then(async () => {
+        // A newer edit may have been made while this save was waiting. Skip
+        // stale queued work so the last request to reach the API always
+        // contains the latest date and time.
+        if (desiredSaveKey.current !== saveKey) return;
+        setSaving(true);
+        try {
+          const cart = await apiRequest<CartSummary>(
+            `/cart/${cartId}`,
+            {
+              method: 'PUT',
+              body: JSON.stringify({
+                packageVersionId,
+                addressId,
+                ...(completeEvent
+                  ? {
+                      eventName: pkg?.packageName,
+                      eventDate,
+                      eventTimeStart,
+                      ...(isKg ? {} : { guestCount }),
+                    }
+                  : {}),
+              }),
+            },
+            session.accessToken,
+          );
+          if (desiredSaveKey.current !== saveKey) return;
+          const address = addresses.find((row) => row.id === addressId)!;
+          setDbCartId(cart.id);
+          setEvent({
+            addressId,
+            eventName: pkg?.packageName,
+            eventDate,
+            eventTimeStart,
+            addressLabel: address.label || address.addressLine1,
+          });
+          setAssignedRegion(cart.event?.region ?? cart.region ?? null);
+          lastSavedKey.current = saveKey;
+          onSavedRef.current?.(cart);
+          setMessage(
+            completeEvent
+              ? 'Saved to your cart.'
+              : 'Address saved. Add the delivery date and time to continue.',
+          );
+        } catch (reason) {
+          if (desiredSaveKey.current === saveKey) {
+            setMessage((reason as Error).message);
+          }
+        } finally {
+          if (desiredSaveKey.current === saveKey) setSaving(false);
+        }
+      });
     }, 150);
     return () => window.clearTimeout(timer);
   }, [
@@ -606,6 +618,31 @@ export function SelectionContextPanel({
     setDbCartId,
     setEvent,
   ]);
+
+  const earliestDate = useMemo(
+    () =>
+      new Date(
+        Date.now() +
+          (publicSettings?.minBookingLeadHours ?? 48) * 60 * 60 * 1000,
+      ),
+    [publicSettings?.minBookingLeadHours],
+  );
+  const firstEventDate = localDateValue(earliestDate);
+  const deliveryTimeSlots = useMemo(() => {
+    const slots = buildDeliveryTimeSlots(
+      publicSettings?.eventServiceStartTime ?? '06:00',
+      publicSettings?.eventServiceEndTime ?? '23:30',
+      publicSettings?.eventTimeIntervalMinutes ?? 30,
+    );
+    if (!eventDate || eventDate !== localDateValue(earliestDate)) return slots;
+    return slots.filter((slot) => {
+      const [hours, minutes] = slot.value.split(':').map(Number);
+      const slotDate = parseDateValue(eventDate);
+      if (!slotDate) return false;
+      slotDate.setHours(hours, minutes, 0, 0);
+      return slotDate.getTime() >= earliestDate.getTime();
+    });
+  }, [eventDate, publicSettings, earliestDate]);
 
   if (!session) {
     return (
@@ -626,19 +663,6 @@ export function SelectionContextPanel({
   }
 
   const returnTo = `${pathname}?addressId=ADDRESS_ID`;
-  const earliestDate = new Date(
-    Date.now() + (publicSettings?.minBookingLeadHours ?? 48) * 60 * 60 * 1000,
-  );
-  const firstEventDate = localDateValue(earliestDate);
-  const deliveryTimeSlots = useMemo(
-    () =>
-      buildDeliveryTimeSlots(
-        publicSettings?.eventServiceStartTime ?? '06:00',
-        publicSettings?.eventServiceEndTime ?? '23:30',
-        publicSettings?.eventTimeIntervalMinutes ?? 30,
-      ),
-    [publicSettings],
-  );
   const selectedVenue = addresses.find((address) => address.id === addressId);
   const kitchenName = assignedRegion
     ? `${assignedRegion.name} Kitchen`
@@ -657,7 +681,7 @@ export function SelectionContextPanel({
     <>
       <div
         className={cn(
-          'mt-5 grid gap-4 rounded-2xl border border-border bg-[#fcfaf6] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]',
+          'mt-4 grid gap-3 rounded-xl border border-border bg-[#fcfaf6] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] sm:mt-5 sm:gap-4 sm:rounded-2xl sm:p-4',
           sidebar
             ? 'grid-cols-1'
             : hideQuantity || isKg
@@ -764,8 +788,8 @@ export function SelectionContextPanel({
       {addresses.length > 0 ? (
         <div
           className={cn(
-            'mt-3 grid gap-3',
-            sidebar ? 'grid-cols-1' : 'sm:grid-cols-2',
+            'mt-3 flex snap-x gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:grid sm:overflow-visible sm:pb-0',
+            sidebar ? 'sm:grid-cols-1' : 'sm:grid-cols-2',
           )}
           role="radiogroup"
           aria-label="Choose delivery venue"
@@ -781,7 +805,7 @@ export function SelectionContextPanel({
                 aria-checked={selected}
                 onClick={() => setAddressId(address.id)}
                 className={cn(
-                  'relative flex min-h-24 items-start gap-3 rounded-xl border bg-white p-4 text-left transition hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30',
+                  'relative flex min-h-24 min-w-[270px] snap-start items-start gap-3 rounded-xl border bg-white p-3.5 text-left transition hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 sm:min-w-0 sm:p-4',
                   selected &&
                     'border-primary bg-primary/[0.045] ring-1 ring-primary/20',
                 )}
@@ -835,7 +859,7 @@ export function SelectionContextPanel({
         </Link>
       )}
 
-      <div className="mt-4 rounded-2xl border border-border bg-muted/50 p-4 text-muted-foreground">
+      <div className="mt-4 hidden rounded-2xl border border-border bg-muted/50 p-4 text-muted-foreground sm:block">
         <p className="text-xs font-bold uppercase tracking-[0.14em]">
           Kitchen location
         </p>
@@ -861,7 +885,7 @@ export function SelectionContextPanel({
     <section
       className={cn(
         'rounded-2xl border border-border bg-white shadow-[0_14px_36px_-30px_rgba(75,12,23,.55)]',
-        sidebar ? 'p-4' : 'p-5 sm:p-6',
+        sidebar ? 'p-4' : 'p-4 sm:p-6',
       )}
       aria-labelledby="event-context-title"
     >

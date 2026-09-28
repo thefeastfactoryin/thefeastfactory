@@ -50,6 +50,7 @@ import { apiRequest } from '../../lib/api';
 import { notifyCartCleared } from '../../lib/cart-state';
 import { formatCurrency } from '../../lib/format';
 import { formatMenuCalculation } from '../../lib/menu-price-calculation';
+import { sortMenuCategories } from '../../lib/menu-category-order';
 import { cn } from '../../lib/utils';
 import { useOrderBuilderStore } from '../../store/order-builder.store';
 import { useSessionStore } from '../../store/session.store';
@@ -166,6 +167,7 @@ export default function CartPage() {
   const [editingContact, setEditingContact] = useState(false);
   const [savingContact, setSavingContact] = useState(false);
   const [updatingDelivery, setUpdatingDelivery] = useState(false);
+  const [eventSyncing, setEventSyncing] = useState(false);
 
   useEffect(() => {
     setContactNumber(session?.user.mobileNumber ?? '');
@@ -259,6 +261,8 @@ export default function CartPage() {
   const onEventSaved = useCallback(
     (updated: CartSummary) => {
       if (!session) return;
+      setEventSyncing(true);
+      setError('');
       setCart(updated);
       setActiveCarts((current) =>
         current.map((entry) => (entry.id === updated.id ? updated : entry)),
@@ -267,7 +271,10 @@ export default function CartPage() {
       const event = updated.event;
       const addressId = event?.address?.id ?? updated.address?.id;
       const regionId = event?.region?.id ?? updated.region?.id;
-      if (!addressId || !regionId) return;
+      if (!addressId || !regionId) {
+        setEventSyncing(false);
+        return;
+      }
       const completeEvent = Boolean(event?.eventDate && event.eventTimeStart);
       void Promise.all(
         activeCarts.map((packageCart) => {
@@ -306,9 +313,12 @@ export default function CartPage() {
           if (sorted.every((entry) => eventReady(entry))) {
             return loadQuote(updated.id);
           }
+          setQuote(undefined);
+          setMultiCartQuote(undefined);
           return undefined;
         })
-        .catch((reason) => setError((reason as Error).message));
+        .catch((reason) => setError((reason as Error).message))
+        .finally(() => setEventSyncing(false));
     },
     [session, hydrate, loadQuote, activeCarts],
   );
@@ -659,8 +669,10 @@ export default function CartPage() {
 
   const groupedRows = useMemo(
     () =>
-      reviewRows.reduce<Array<{ id: string; name: string; rows: ReviewRow[] }>>(
-        (groups, row) => {
+      sortMenuCategories(
+        reviewRows.reduce<
+          Array<{ id: string; name: string; rows: ReviewRow[] }>
+        >((groups, row) => {
           const group = groups.find((entry) => entry.id === row.categoryId);
           if (group) group.rows.push(row);
           else
@@ -670,8 +682,8 @@ export default function CartPage() {
               rows: [row],
             });
           return groups;
-        },
-        [],
+        }, []),
+        (group) => group.name,
       ),
     [reviewRows],
   );
@@ -709,7 +721,8 @@ export default function CartPage() {
   }
 
   async function pay() {
-    if (!session || !cart || !ready || !multiCartQuote?.valid) return;
+    if (!session || !cart || !ready || eventSyncing || !multiCartQuote?.valid)
+      return;
     const validatedContactNumber = mobileNumberSchema.safeParse(contactNumber);
     if (!validatedContactNumber.success) {
       setError('Enter a valid 10-digit contact number to continue.');
@@ -820,8 +833,8 @@ export default function CartPage() {
   if (!session) {
     return (
       <AuthRequiredPanel
-        title="Sign in to resume your order"
-        description="Your menu is saved. Sign in to add event details and continue to payment."
+        title="Sign in to view your cart"
+        description="Sign in to see your active cart and continue your order."
         returnHref="/cart"
       />
     );
@@ -865,7 +878,7 @@ export default function CartPage() {
     : multiCartQuote?.totalAmount;
 
   return (
-    <main className="bg-background pb-44 lg:pb-28">
+    <main className="bg-background pb-28 lg:pb-28">
       <Script
         src="https://checkout.razorpay.com/v1/checkout.js"
         strategy="afterInteractive"
@@ -897,11 +910,11 @@ export default function CartPage() {
             <div>
               <p className="eyebrow hidden sm:block">Event, review & payment</p>
               <h1 className="font-serif text-[26px] font-semibold leading-tight sm:mt-2 sm:text-4xl">
-                Complete your order.
+                Checkout
               </h1>
               <p className="mt-2 hidden max-w-2xl text-sm font-medium leading-6 text-white/82 sm:block">
-                Confirm delivery details, review the full menu, then pay
-                securely.
+                Review your order and confirm the delivery details before
+                payment.
               </p>
             </div>
           </div>
@@ -1104,7 +1117,7 @@ export default function CartPage() {
                     <h2 className="mt-1 font-serif text-xl font-semibold text-foreground">
                       One delivery plan for all packages
                     </h2>
-                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                    <p className="mt-1 hidden text-sm leading-6 text-muted-foreground sm:block">
                       Venue, delivery time, serving option, cutlery, contact
                       number, and kitchen note apply to every package in this
                       cart. Only the menu section below changes when you switch
@@ -1151,7 +1164,7 @@ export default function CartPage() {
                   </span>
                   <div className="min-w-0">
                     <h2 className="font-serif text-2xl font-semibold">
-                      {isMultiCart ? `${cart.package.name} menu` : 'Your menu'}
+                      {isMultiCart ? `${cart.package.name} menu` : 'Your order'}
                     </h2>
                     <p className="mt-0.5 text-sm text-muted-foreground">
                       {isMultiCart
@@ -1212,7 +1225,7 @@ export default function CartPage() {
                       <h3 className="text-xs font-extrabold uppercase tracking-[0.14em] text-primary">
                         {activeGroup.name} ({activeGroup.rows.length})
                       </h3>
-                      <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                      <div className="mt-3 flex snap-x gap-3 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:grid md:grid-cols-2 md:overflow-visible md:pb-0 xl:grid-cols-3">
                         {activeGroup.rows.slice(0, 3).map((row) => (
                           <ReviewDishCard key={row.id} row={row} />
                         ))}
@@ -1222,7 +1235,7 @@ export default function CartPage() {
                           <summary className="cursor-pointer list-none text-center text-sm font-bold text-primary hover:underline">
                             View all dishes
                           </summary>
-                          <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                          <div className="mt-3 flex snap-x gap-3 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:grid md:grid-cols-2 md:overflow-visible md:pb-0 xl:grid-cols-3">
                             {activeGroup.rows.slice(3).map((row) => (
                               <ReviewDishCard key={row.id} row={row} />
                             ))}
@@ -1246,7 +1259,7 @@ export default function CartPage() {
             <section className="overflow-hidden rounded-2xl border border-border bg-white shadow-[0_18px_44px_-30px_rgba(75,12,23,.8)]">
               <div className="border-b p-4 pb-3 sm:p-6 sm:pb-4">
                 <p className="eyebrow">
-                  {pendingOrder ? 'Payment pending' : 'Order summary'}
+                  {pendingOrder ? 'Payment pending' : 'Price breakdown'}
                 </p>
                 <h2 className="mt-2 font-serif text-2xl font-semibold">
                   {activeCarts.length > 1
@@ -1286,7 +1299,7 @@ export default function CartPage() {
                     <div className="rounded-xl bg-muted/50 p-4 text-sm leading-6 text-muted-foreground">
                       {quoteLoading
                         ? 'Refreshing your final quote…'
-                        : 'Confirm the delivery time and venue to calculate the final total.'}
+                        : 'Confirm delivery details to calculate your total.'}
                     </div>
                   )}
                   <div className="mt-5 rounded-xl border border-border bg-ivory/60 p-3">
@@ -1399,11 +1412,16 @@ export default function CartPage() {
                         !mobileNumberSchema.safeParse(contactNumber).success ||
                         !multiCartQuote?.valid ||
                         quoteLoading ||
+                        eventSyncing ||
                         paying
                       }
                     >
                       <LockKeyhole className="mr-2 h-4 w-4" />
-                      {paying ? 'Opening payment...' : 'Proceed to Payment'}
+                      {paying
+                        ? 'Opening payment...'
+                        : eventSyncing
+                          ? 'Updating order...'
+                          : 'Proceed to Payment'}
                     </Button>
                     <p className="mt-3 flex items-center justify-center gap-2 text-center text-xs text-muted-foreground">
                       <ShieldCheck className="h-4 w-4 shrink-0" />
@@ -1488,7 +1506,7 @@ export default function CartPage() {
         </div>
       </div>
 
-      <MobileOrderBar label="Cart total and payment">
+      <MobileOrderBar checkout label="Cart total and payment">
         {error && (
           <p role="alert" className="mb-2 text-xs font-semibold text-red-700">
             {error}
@@ -1522,11 +1540,16 @@ export default function CartPage() {
                 !mobileNumberSchema.safeParse(contactNumber).success ||
                 !multiCartQuote?.valid ||
                 quoteLoading ||
+                eventSyncing ||
                 paying
               }
             >
               <LockKeyhole className="mr-2 h-4 w-4" />
-              {paying ? 'Opening…' : 'Pay securely'}
+              {paying
+                ? 'Opening…'
+                : eventSyncing
+                  ? 'Updating…'
+                  : 'Continue'}
             </Button>
           )}
         </div>
@@ -1626,7 +1649,7 @@ function ReviewDishCard({ row }: { row: ReviewRow }) {
           : 'Included';
   const adjustment = Number(row.adjustmentAmount);
   return (
-    <article className="grid min-h-[104px] grid-cols-[84px_minmax(0,1fr)] gap-3 rounded-xl border border-border bg-ivory p-2.5 transition hover:border-primary/25">
+    <article className="grid min-h-[104px] min-w-[270px] snap-start grid-cols-[84px_minmax(0,1fr)] gap-3 rounded-xl border border-border bg-ivory p-2.5 transition hover:border-primary/25 md:min-w-0">
       <span className="h-full min-h-[84px] overflow-hidden rounded-lg bg-muted">
         <DataImage
           src={row.imageUrl}
@@ -1783,67 +1806,76 @@ function MultiCartPriceSummary({
   const cutleryTotal = Number(aggregate.cutleryTotal ?? 0);
   return (
     <>
-      <div className="space-y-3 text-sm">
-        {aggregate.carts.map(({ cartId, quote }) => {
-          const packageCart = cartById.get(cartId);
-          const unitLabel =
-            packageCart?.package.type === 'MEAL_BOX' ? 'box' : 'guest';
-          return (
-            <div key={cartId} className="rounded-xl border p-3">
-              <PriceLine
-                label={packageCart?.package.name ?? quote.packageName}
-                value={formatCurrency(quote.subtotalAmount)}
-              />
-              <p className="mt-1 text-[11px] leading-5 text-muted-foreground">
-                {formatMenuCalculation({
-                  basePrice: quote.basePerPlatePrice,
-                  guestCount: quote.guestCount,
-                  unitLabel,
-                  items: quote.items,
-                })}
-              </p>
-            </div>
-          );
-        })}
-        <PriceLine
-          label="Packages subtotal"
-          value={formatCurrency(aggregate.subtotalAmount)}
-        />
-        {extraCutleryCount > 0 && (
-          <PriceLine
-            label={`Extra cutlery (${extraCutleryCount} × ₹5)`}
-            value={formatCurrency(cutleryTotal)}
-          />
-        )}
-        <div className="rounded-xl bg-muted/50 p-3">
-          <PriceLine
-            label="Delivery"
-            value={formatCurrency(aggregate.deliveryFee)}
-          />
-          {assistedPeople > 0 && (
-            <div className="mt-2 flex items-center justify-between gap-4 border-t border-border/70 pt-2 text-xs">
-              <span className="flex items-center gap-1.5 font-medium text-muted-foreground">
-                <UserRound
-                  className="h-3.5 w-3.5 text-primary"
-                  aria-hidden="true"
+      <details className="group rounded-xl bg-ivory/60 px-3 sm:px-4">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30">
+          <span className="group-open:hidden">View price breakdown</span>
+          <span className="hidden group-open:inline">Hide price breakdown</span>
+          <span aria-hidden="true" className="text-lg leading-none">
+            +
+          </span>
+        </summary>
+        <div className="space-y-3 border-t border-border/60 py-4 text-sm">
+          {aggregate.carts.map(({ cartId, quote }) => {
+            const packageCart = cartById.get(cartId);
+            const unitLabel =
+              packageCart?.package.type === 'MEAL_BOX' ? 'box' : 'guest';
+            return (
+              <div key={cartId} className="rounded-xl border p-3">
+                <PriceLine
+                  label={packageCart?.package.name ?? quote.packageName}
+                  value={formatCurrency(quote.subtotalAmount)}
                 />
-                Delivery & Serving Team
-              </span>
-              <span className="font-semibold text-foreground">
-                {assistedPeople}{' '}
-                {assistedPeople === 1 ? 'service person' : 'service persons'}
-              </span>
-            </div>
+                <p className="mt-1 text-[11px] leading-5 text-muted-foreground">
+                  {formatMenuCalculation({
+                    basePrice: quote.basePerPlatePrice,
+                    guestCount: quote.guestCount,
+                    unitLabel,
+                    items: quote.items,
+                  })}
+                </p>
+              </div>
+            );
+          })}
+          <PriceLine
+            label="Packages subtotal"
+            value={formatCurrency(aggregate.subtotalAmount)}
+          />
+          {extraCutleryCount > 0 && (
+            <PriceLine
+              label={`Extra cutlery (${extraCutleryCount} × ₹5)`}
+              value={formatCurrency(cutleryTotal)}
+            />
           )}
-          {/* {deliveryQuote?.region && (
+          <div className="rounded-xl bg-muted/50 p-3">
+            <PriceLine
+              label="Delivery"
+              value={formatCurrency(aggregate.deliveryFee)}
+            />
+            {assistedPeople > 0 && (
+              <div className="mt-2 flex items-center justify-between gap-4 border-t border-border/70 pt-2 text-xs">
+                <span className="flex items-center gap-1.5 font-medium text-muted-foreground">
+                  <UserRound
+                    className="h-3.5 w-3.5 text-primary"
+                    aria-hidden="true"
+                  />
+                  Delivery & Serving Team
+                </span>
+                <span className="font-semibold text-foreground">
+                  {assistedPeople}{' '}
+                  {assistedPeople === 1 ? 'service person' : 'service persons'}
+                </span>
+              </div>
+            )}
+            {/* {deliveryQuote?.region && (
             <p className="mt-1 text-[11px] leading-5 text-muted-foreground">
               {deliveryQuote.region.name} kitchen · {deliveryQuote.distanceKm}{' '}
               km
             </p>
           )} */}
+          </div>
         </div>
-      </div>
-      <div className="my-5 h-px bg-border" />
+      </details>
+      <div className="my-4 h-px bg-border sm:my-5" />
       <div className="flex items-end justify-between gap-4">
         <span className="font-semibold">Total</span>
         <strong className="money-text text-4xl font-extrabold text-primary">
@@ -2056,7 +2088,7 @@ function DeliveryServiceOptions({
         </div>
       </div>
       <div
-        className="flex gap-3 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="flex gap-2.5 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:gap-3"
         role="radiogroup"
         aria-label="Delivery service"
       >
@@ -2067,7 +2099,7 @@ function DeliveryServiceOptions({
             <div
               key={type}
               className={cn(
-                'relative min-w-[220px] flex-1 overflow-hidden rounded-2xl border transition',
+                'relative min-w-[210px] flex-1 overflow-hidden rounded-xl border transition sm:min-w-[220px] sm:rounded-2xl',
                 isSelected
                   ? 'border-primary bg-primary/[0.075] shadow-[0_14px_34px_-22px_rgba(75,12,23,.95)] ring-2 ring-primary/25'
                   : 'border-border bg-white hover:border-primary/40',
@@ -2088,12 +2120,12 @@ function DeliveryServiceOptions({
                 onClick={() =>
                   onChange(type, type === 'ASSISTED' ? helperCount : 0)
                 }
-                className="flex min-h-[258px] w-full flex-col p-5 text-left"
+                className="flex min-h-[168px] w-full flex-col p-3.5 text-left sm:min-h-[258px] sm:p-5"
               >
                 <span className="flex items-start justify-between gap-3">
                   <span
                     className={cn(
-                      'grid h-12 w-12 place-items-center rounded-full',
+                      'grid h-10 w-10 place-items-center rounded-full sm:h-12 sm:w-12',
                       isSelected
                         ? 'bg-primary text-white shadow-[0_8px_18px_rgba(122,31,43,0.24)]'
                         : 'bg-muted text-primary',
@@ -2113,15 +2145,15 @@ function DeliveryServiceOptions({
                     {isSelected && <Check className="h-3.5 w-3.5" />}
                   </span>
                 </span>
-                <span className="mt-5 flex flex-wrap items-center gap-2">
-                  <strong className="font-serif text-xl leading-tight text-primary">
+                <span className="mt-3 flex flex-wrap items-center gap-2 sm:mt-5">
+                  <strong className="font-serif text-lg leading-tight text-primary sm:text-xl">
                     {title}
                   </strong>
                 </span>
-                <span className="mt-2 max-w-[28ch] text-sm leading-5 text-muted-foreground">
+                <span className="mt-1 line-clamp-2 max-w-[28ch] text-xs leading-4 text-muted-foreground sm:mt-2 sm:text-sm sm:leading-5">
                   {description}
                 </span>
-                <span className="money-text mt-auto pt-5 text-base font-bold text-primary">
+                <span className="money-text mt-auto pt-3 text-sm font-bold text-primary sm:pt-5 sm:text-base">
                   {addon === 0
                     ? `Base ${formatCurrency(baseDelivery)}`
                     : `+ ${formatCurrency(addon)}`}

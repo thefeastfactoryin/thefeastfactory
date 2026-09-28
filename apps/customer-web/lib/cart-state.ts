@@ -1,14 +1,11 @@
-import { ApiRequestError } from '@aranyam/api-client';
-
 const CART_CLEARED_EVENT = 'cart-cleared';
 const CART_CLEARED_STORAGE_KEY = 'customer-cart-cleared-at';
 
 export function isClearedCartError(reason: unknown) {
-  return (
-    reason instanceof ApiRequestError
-      ? reason.status === 404
-      : reason instanceof Error && reason.message === 'Active cart not found'
-  );
+  if (!(reason instanceof Error) || reason.message !== 'Active cart not found')
+    return false;
+  if ('status' in reason) return reason.status === 404;
+  return true;
 }
 
 export function notifyCartCleared() {
@@ -16,14 +13,17 @@ export function notifyCartCleared() {
   window.dispatchEvent(new Event(CART_CLEARED_EVENT));
 }
 
-export function subscribeToCartCleared(listener: () => void) {
+export function subscribeToCartCleared(
+  listener: (source: 'local' | 'storage') => void,
+) {
   const onStorage = (event: StorageEvent) => {
-    if (event.key === CART_CLEARED_STORAGE_KEY) listener();
+    if (event.key === CART_CLEARED_STORAGE_KEY) listener('storage');
   };
-  window.addEventListener(CART_CLEARED_EVENT, listener);
+  const onLocal = () => listener('local');
+  window.addEventListener(CART_CLEARED_EVENT, onLocal);
   window.addEventListener('storage', onStorage);
   return () => {
-    window.removeEventListener(CART_CLEARED_EVENT, listener);
+    window.removeEventListener(CART_CLEARED_EVENT, onLocal);
     window.removeEventListener('storage', onStorage);
   };
 }

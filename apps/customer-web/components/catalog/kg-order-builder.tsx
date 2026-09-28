@@ -26,6 +26,8 @@ import {
   subscribeToCartCleared,
 } from '../../lib/cart-state';
 import { formatCurrency } from '../../lib/format';
+import { sortMenuCategories } from '../../lib/menu-category-order';
+import { cn } from '../../lib/utils';
 import { orderByKgImage } from '../../lib/catalog-display';
 import { useSessionStore } from '../../store/session.store';
 import { useOrderBuilderStore } from '../../store/order-builder.store';
@@ -65,6 +67,7 @@ export function KgOrderBuilder() {
   const [weights, setWeights] = useState<Weights>({});
   const [search, setSearch] = useState('');
   const [diet, setDiet] = useState('ALL');
+  const [category, setCategory] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [quoteError, setQuoteError] = useState('');
@@ -193,10 +196,7 @@ export function KgOrderBuilder() {
     session?.accessToken,
   ]);
 
-  useEffect(
-    () => subscribeToCartCleared(discardStaleCart),
-    [discardStaleCart],
-  );
+  useEffect(() => subscribeToCartCleared(discardStaleCart), [discardStaleCart]);
 
   const selectedItems = useMemo(
     () =>
@@ -324,8 +324,16 @@ export function KgOrderBuilder() {
     }
   }
 
-  const groups =
+  const categoryOptions = sortMenuCategories(
+    config?.categoryRules.map((rule) => rule.category) ?? [],
+    (option) => option.name,
+  ).filter(
+    (option, index, all) =>
+      all.findIndex((other) => other.id === option.id) === index,
+  );
+  const groups = sortMenuCategories(
     config?.categoryRules
+      .filter((rule) => !category || rule.category.id === category)
       .map((rule) => ({
         ...rule,
         items: rule.items.filter(
@@ -336,13 +344,15 @@ export function KgOrderBuilder() {
             (diet === 'ALL' || (diet === 'VEG' ? item.isVeg : !item.isVeg)),
         ),
       }))
-      .filter((rule) => rule.items.length) ?? [];
+      .filter((rule) => rule.items.length) ?? [],
+    (rule) => rule.category.name,
+  );
   const quoteById = new Map(
     quote?.items.map((item) => [item.menuItemId, item]) ?? [],
   );
   return (
-    <main className="min-h-screen overflow-x-clip bg-background pb-28 lg:pb-10 sm:[font-family:var(--font-package-sans),sans-serif]">
-      <section className="relative isolate overflow-hidden border-b bg-hero-end text-white">
+    <main className="min-h-screen overflow-x-clip bg-background pb-28 lg:pb-10">
+      <section className="relative isolate hidden overflow-hidden border-b bg-hero-end text-white sm:block">
         <img
           src={orderByKgImage}
           alt="Indian dishes prepared in bulk beside a weighing scale"
@@ -356,7 +366,7 @@ export function KgOrderBuilder() {
               Order <span className="text-accent">by KG</span>
             </h1>
             <p className="mt-3 hidden max-w-[520px] text-base font-semibold leading-6 text-white/85 sm:block sm:text-lg">
-              Choose your dishes by weight with clear, itemised pricing.
+              Choose your favourite dishes for your gathering, priced by kg.
             </p>
             <div className="mt-4 grid max-w-[600px] grid-cols-2 gap-1.5 sm:mt-5 sm:grid-cols-4 sm:gap-2">
               {[
@@ -379,6 +389,14 @@ export function KgOrderBuilder() {
             </div>
           </div>
         </div>
+      </section>
+      <section className="border-b border-border bg-background px-4 pb-3 pt-2 sm:hidden">
+        <h1 className="font-sans text-[22px] font-semibold leading-[1.12] text-charcoal">
+          Order by KG
+        </h1>
+        <p className="mt-0.5 text-[13px] leading-5 text-muted-foreground">
+          Choose your favourite dishes for your gathering, priced by kg.
+        </p>
       </section>
       <div className="mx-auto max-w-7xl px-3 py-4 sm:px-6 sm:py-5 lg:px-10">
         {error && (
@@ -457,6 +475,38 @@ export function KgOrderBuilder() {
                   <option value="NON_VEG">Non-vegetarian</option>
                 </select>
               </div>
+              <nav
+                aria-label="Dish categories"
+                className="mb-5 flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              >
+                <button
+                  type="button"
+                  onClick={() => setCategory('')}
+                  className={cn(
+                    'min-h-9 shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors',
+                    !category
+                      ? 'border-primary bg-primary text-white'
+                      : 'border-border bg-card text-muted-foreground',
+                  )}
+                >
+                  All dishes
+                </button>
+                {categoryOptions.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => setCategory(option.id)}
+                    className={cn(
+                      'min-h-9 shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors',
+                      category === option.id
+                        ? 'border-primary bg-primary text-white'
+                        : 'border-border bg-card text-muted-foreground',
+                    )}
+                  >
+                    {option.name}
+                  </button>
+                ))}
+              </nav>
               {!groups.length && (
                 <p className="rounded-xl border bg-card p-5 text-sm">
                   No dishes match your search.
@@ -477,9 +527,9 @@ export function KgOrderBuilder() {
                     {rule.items.map((item) => (
                       <article
                         key={item.id}
-                        className="group grid min-h-[148px] grid-cols-[112px_minmax(0,1fr)] overflow-hidden rounded-2xl border border-border bg-card shadow-[0_4px_18px_rgba(0,0,0,0.06)] transition-all hover:border-primary/20 hover:shadow-[0_10px_28px_rgba(0,0,0,0.10)] sm:flex sm:flex-col"
+                        className="group grid min-h-[116px] grid-cols-[96px_minmax(0,1fr)] overflow-hidden rounded-2xl border border-border bg-card shadow-[0_4px_18px_rgba(0,0,0,0.06)] transition-all hover:border-primary/20 hover:shadow-[0_10px_28px_rgba(0,0,0,0.10)] sm:flex sm:min-h-[148px] sm:flex-col"
                       >
-                        <div className="relative h-full min-h-[148px] overflow-hidden sm:h-40 sm:min-h-0">
+                        <div className="relative h-full min-h-[116px] overflow-hidden sm:h-40 sm:min-h-0">
                           <DataImage
                             src={item.imageUrl}
                             alt={item.name}
@@ -505,8 +555,8 @@ export function KgOrderBuilder() {
                             {item.isVeg ? 'Veg' : 'Non-veg'}
                           </span>
                         </div>
-                        <div className="flex min-w-0 flex-1 flex-col p-3 sm:p-4">
-                          <h3 className="text-[20px] font-bold leading-[1.12] text-foreground [font-family:var(--font-package-heading),serif]">
+                        <div className="flex min-w-0 flex-1 flex-col p-2.5 sm:p-4">
+                          <h3 className="font-serif text-[16px] font-bold leading-[1.12] text-foreground sm:text-[20px]">
                             {item.name}
                           </h3>
                           <div className="mt-1.5 flex items-baseline justify-between gap-2 sm:mt-2">
@@ -524,7 +574,7 @@ export function KgOrderBuilder() {
                               </span>
                             )}
                           </div>
-                          <span className="mt-2 inline-flex w-fit items-center gap-1 rounded-full bg-primary/[0.06] px-2 py-1 text-[9px] font-bold text-primary sm:text-[10px]">
+                          <span className="mt-1.5 hidden w-fit items-center gap-1 rounded-full bg-primary/[0.06] px-2 py-1 text-[9px] font-bold text-primary sm:inline-flex sm:text-[10px]">
                             <Scale className="h-3 w-3" aria-hidden="true" />
                             Bulk portions
                           </span>
@@ -589,8 +639,19 @@ export function KgOrderBuilder() {
               ))}
             </div>
             <aside className="rounded-2xl border bg-card p-5 lg:sticky lg:top-24">
-              <h2 className="font-serif text-2xl font-bold">Your selection</h2>
+              <p className="eyebrow text-primary">Live Summary</p>
+              <h2 className="mt-1 font-serif text-2xl font-bold">Your order</h2>
               <div className="mt-4 space-y-3" aria-live="polite">
+                {!selectedItems.length && (
+                  <div className="rounded-xl border border-border bg-[#fbf8f2] p-3 text-sm">
+                    <p className="font-bold text-foreground">
+                      No dishes added yet
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                      Add dishes by weight to build your order.
+                    </p>
+                  </div>
+                )}
                 {quote?.items.map((item) => (
                   <div key={item.menuItemId} className="border-b pb-3 text-sm">
                     <div className="flex justify-between gap-3">
@@ -617,13 +678,13 @@ export function KgOrderBuilder() {
                 )}
               </div>
               <div className="mt-5 flex justify-between font-bold">
-                <span>Food subtotal</span>
+                <span>Estimated total</span>
                 <span className="money-text">
                   {quote ? formatCurrency(quote.totalAmount) : '—'}
                 </span>
               </div>
               <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                Excluding delivery.
+                Excluding taxes
               </p>
               <Button
                 className="mt-5 w-full"
@@ -632,11 +693,9 @@ export function KgOrderBuilder() {
               >
                 {saving
                   ? 'Saving…'
-                  : session
-                    ? requestedCart
-                      ? 'Update cart'
-                      : 'Add to cart'
-                    : 'Sign in to continue'}
+                  : requestedCart
+                    ? 'Update cart'
+                    : 'View cart'}
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </aside>
@@ -656,7 +715,7 @@ export function KgOrderBuilder() {
                   ? 'Updating…'
                   : quote
                     ? formatCurrency(quote.totalAmount)
-                    : 'Select dishes'}
+                    : 'Updating total'}
               </span>
             </div>
             <Button
@@ -668,7 +727,7 @@ export function KgOrderBuilder() {
                 ? 'Saving…'
                 : requestedCart
                   ? 'Update cart'
-                  : 'Add to cart'}
+                  : 'View cart'}
               <ArrowRight className="ml-1 h-4 w-4" aria-hidden="true" />
             </Button>
           </div>

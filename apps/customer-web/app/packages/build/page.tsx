@@ -17,12 +17,21 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { apiRequest } from '../../../lib/api';
 import {
   isClearedCartError,
   subscribeToCartCleared,
 } from '../../../lib/cart-state';
+import { formatCategoryLabel } from '../../../lib/format';
+import { sortMenuCategories } from '../../../lib/menu-category-order';
 import { cn } from '../../../lib/utils';
 import { useDeliveryLocationStore } from '../../../store/delivery-location.store';
 import { useOrderBuilderStore } from '../../../store/order-builder.store';
@@ -46,7 +55,6 @@ type Dish = {
 type DishId = string;
 type CategoryFilter = 'all' | string;
 type DietFilter = 'all' | 'veg' | 'nonveg';
-type MobileTab = 'dishes' | 'summary';
 
 function dishesFromConfig(config: PackageConfiguration): Dish[] {
   return config.categoryRules.flatMap((rule) =>
@@ -190,10 +198,10 @@ function DishCatalogue({
   visible: Dish[];
 }) {
   return (
-    <aside className="flex h-[calc(100dvh-23rem)] min-h-[400px] w-full min-w-0 max-w-full flex-col overflow-hidden rounded-2xl border border-border bg-white shadow-[0_8px_22px_rgba(45,31,20,0.045)] lg:sticky lg:top-20 lg:h-auto lg:max-h-[calc(100vh-96px)] lg:min-h-0">
-      <div className="shrink-0 border-b border-border p-3">
-        <div className="space-y-2.5">
-          <label className="flex min-h-11 items-center gap-2 rounded-xl border border-border bg-[#fbf8f2] px-3 focus-within:border-primary/45 focus-within:ring-2 focus-within:ring-primary/10">
+    <aside className="flex w-full min-w-0 max-w-full flex-col overflow-hidden rounded-2xl border border-border bg-white shadow-[0_8px_22px_rgba(45,31,20,0.045)] lg:sticky lg:top-20 lg:h-auto lg:max-h-[calc(100vh-96px)] lg:min-h-0">
+      <div className="shrink-0 border-b border-border p-2 sm:p-3">
+        <div className="space-y-2 sm:space-y-2.5">
+          <label className="flex min-h-10 items-center gap-2 rounded-xl border border-border bg-[#fbf8f2] px-3 focus-within:border-primary/45 focus-within:ring-2 focus-within:ring-primary/10 sm:min-h-11">
             <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
             <span className="sr-only">Search dishes</span>
             <input
@@ -231,7 +239,7 @@ function DishCatalogue({
                 aria-checked={diet === option.id}
                 onClick={() => onDietChange(option.id as DietFilter)}
                 className={cn(
-                  'flex min-h-10 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-extrabold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30',
+                  'flex min-h-8 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-extrabold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 sm:min-h-10',
                   diet === option.id
                     ? 'bg-primary text-white shadow-sm'
                     : 'bg-white text-foreground hover:border-primary/30 hover:text-primary',
@@ -255,7 +263,7 @@ function DishCatalogue({
                   aria-pressed={active}
                   onClick={() => onCategoryChange(cat.id)}
                   className={cn(
-                    'min-h-9 shrink-0 rounded-full border px-2.5 text-[11px] font-extrabold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30',
+                    'min-h-8 shrink-0 rounded-full border px-2.5 text-[11px] font-extrabold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 sm:min-h-9',
                     active
                       ? 'border-primary bg-primary text-white'
                       : 'border-border bg-white text-foreground hover:border-primary/35 hover:text-primary',
@@ -277,22 +285,22 @@ function DishCatalogue({
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2">
-        <div className="space-y-2">
+      <div className="p-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain">
+        <div className="space-y-1.5 sm:space-y-2">
           {visible.map((dish) => {
             const selected = selectedIds.has(dish.id);
             return (
               <article
                 key={dish.id}
-                className="grid min-h-[74px] grid-cols-[46px_minmax(0,1fr)_auto] items-center gap-2 rounded-xl border border-border bg-white px-2.5 py-2 transition hover:border-primary/25 hover:bg-[#fffdf8] sm:min-h-[88px] sm:grid-cols-[56px_minmax(0,1fr)_auto] sm:gap-3 sm:px-3 sm:py-2.5"
+                className="grid min-h-[64px] grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-2 rounded-xl border border-border bg-white px-2 py-1.5 transition hover:border-primary/25 hover:bg-[#fffdf8] sm:min-h-[88px] sm:grid-cols-[56px_minmax(0,1fr)_auto] sm:gap-3 sm:px-3 sm:py-2.5"
               >
                 <Image
                   src={getDishImage(dish)}
                   alt=""
                   width={56}
                   height={56}
-                  sizes="(max-width: 639px) 46px, 56px"
-                  className="h-[46px] w-[46px] rounded-lg object-cover sm:h-14 sm:w-14"
+                  sizes="(max-width: 639px) 40px, 56px"
+                  className="h-10 w-10 rounded-lg object-cover sm:h-14 sm:w-14"
                 />
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
@@ -312,7 +320,7 @@ function DishCatalogue({
                   aria-pressed={selected}
                   onClick={() => onToggleDish(dish.id)}
                   className={cn(
-                    'inline-flex min-h-9 w-fit min-w-[68px] items-center justify-center gap-1.5 rounded-lg border px-2.5 text-xs font-extrabold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 sm:min-h-10 sm:min-w-[84px] sm:px-3 sm:text-sm',
+                    'inline-flex min-h-8 w-fit min-w-[58px] items-center justify-center gap-1.5 rounded-lg border px-2 text-xs font-extrabold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 sm:min-h-10 sm:min-w-[84px] sm:px-3 sm:text-sm',
                     selected
                       ? 'border-primary bg-primary text-white hover:bg-primary/90'
                       : 'border-primary/45 bg-white text-primary hover:bg-primary/5',
@@ -493,7 +501,6 @@ function BuildPackageContent() {
   const [order, setOrder] = useState<DishId[]>([]);
   const [guestCount, setGuestCount] = useState(150);
   const [guestInput, setGuestInput] = useState('150');
-  const [mobileTab, setMobileTab] = useState<MobileTab>('dishes');
   const [dishes, setDishes] = useState<Dish[]>([]);
   const [config, setConfig] = useState<PackageConfiguration>();
   const [saving, setSaving] = useState(false);
@@ -607,12 +614,16 @@ function BuildPackageContent() {
     return () => {
       active = false;
     };
-  }, [cartId, discardStaleCart, dishes, packageVersionId, session, setDbCartId]);
+  }, [
+    cartId,
+    discardStaleCart,
+    dishes,
+    packageVersionId,
+    session,
+    setDbCartId,
+  ]);
 
-  useEffect(
-    () => subscribeToCartCleared(discardStaleCart),
-    [discardStaleCart],
-  );
+  useEffect(() => subscribeToCartCleared(discardStaleCart), [discardStaleCart]);
 
   const visible = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -629,10 +640,15 @@ function BuildPackageContent() {
     Array<{ id: CategoryFilter; label: string }>
   >(() => {
     const seen = new Map<string, string>();
-    for (const dish of dishes) seen.set(dish.categoryId, dish.categoryName);
+    for (const dish of dishes) {
+      seen.set(dish.categoryId, formatCategoryLabel(dish.categoryName));
+    }
     return [
       { id: 'all', label: 'All' },
-      ...Array.from(seen.entries()).map(([id, label]) => ({ id, label })),
+      ...sortMenuCategories(
+        Array.from(seen.entries()).map(([id, label]) => ({ id, label })),
+        (category) => category.label,
+      ),
     ];
   }, [dishes]);
 
@@ -788,7 +804,7 @@ function BuildPackageContent() {
   );
 
   const builderHeader = (
-    <div className="relative overflow-hidden rounded-2xl bg-[hsl(var(--hero-end))] px-4 py-4 text-white shadow-[0_8px_24px_rgba(45,20,20,0.12)] sm:px-7 sm:py-5">
+    <div className="flex flex-col gap-2 border-b border-border/50 bg-background py-1 sm:relative sm:block sm:overflow-hidden sm:rounded-2xl sm:border-0 sm:bg-[hsl(var(--hero-end))] sm:px-7 sm:py-5 sm:text-white sm:shadow-[0_8px_24px_rgba(45,20,20,0.12)]">
       <div
         className="absolute -right-10 -top-24 hidden h-56 w-56 rounded-full border-[28px] border-accent/15 sm:block"
         aria-hidden="true"
@@ -805,15 +821,14 @@ function BuildPackageContent() {
       </div>
       <div className="relative flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <div className="min-w-0 max-w-[560px] sm:pr-24">
-          <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-accent">
+          <p className="hidden text-[11px] font-extrabold uppercase tracking-[0.16em] text-accent sm:block">
             Build your menu
           </p>
-          <h1 className="mt-1 font-serif text-[25px] font-bold leading-[1.05] text-white sm:text-[34px]">
+          <h1 className="font-sans text-[22px] font-semibold leading-[1.12] text-charcoal sm:mt-1 sm:font-serif sm:text-[34px] sm:font-bold sm:leading-[1.05] sm:text-white">
             Build Your Own Package
           </h1>
           <p className="mt-1.5 hidden text-sm font-semibold leading-5 text-white/75 sm:block">
-            Choose your favourite dishes and customize a menu that fits your
-            occasion.
+            Pick the dishes your guests will enjoy.
           </p>
         </div>
         <div className="relative shrink-0 sm:w-[244px] [&>div]:border-white/15 [&>div]:bg-white/95">
@@ -863,48 +878,11 @@ function BuildPackageContent() {
 
   return (
     <main className="min-h-screen overflow-x-clip bg-background pb-32 lg:pb-16">
-      <div className="sticky top-[60px] z-30 border-b border-border bg-background/95 backdrop-blur lg:hidden">
-        <div className="mx-auto grid max-w-[720px] grid-cols-2 gap-1 px-4 py-2">
-          {[
-            ['dishes', 'Add Dishes'],
-            ['summary', 'Summary'],
-          ].map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setMobileTab(id as MobileTab)}
-              className={cn(
-                'min-h-11 rounded-full border px-2 text-xs font-extrabold transition',
-                mobileTab === id
-                  ? 'border-primary bg-primary text-white'
-                  : 'border-border bg-white text-foreground',
-              )}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="mx-auto w-full min-w-0 max-w-6xl px-4 py-4 sm:px-5 lg:px-6">
+      <div className="mx-auto w-full min-w-0 max-w-6xl px-4 py-2 sm:px-5 sm:py-4 lg:px-6">
         {builderHeader}
-        <div className="mt-4 grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
-          <div
-            className={cn(
-              mobileTab === 'dishes' ? 'block' : 'hidden',
-              'min-w-0 lg:block',
-            )}
-          >
-            {catalogue}
-          </div>
-          <div
-            className={cn(
-              mobileTab === 'summary' ? 'block' : 'hidden',
-              'lg:block',
-            )}
-          >
-            {summary}
-          </div>
+        <div className="mt-2 grid min-w-0 gap-2 sm:mt-4 sm:gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+          <div className="min-w-0">{catalogue}</div>
+          <div className="hidden lg:block">{summary}</div>
         </div>
       </div>
 
@@ -1004,7 +982,11 @@ function BuildPackageContent() {
 
       <MobileOrderBar label="Custom menu total and cart">
         <div className="mobile-order-bar-row">
-          <div className="mobile-order-bar-summary">
+          <button
+            type="button"
+            onClick={() => setSummaryOpen(true)}
+            className="mobile-order-bar-summary text-left"
+          >
             <p className="mobile-order-bar-label">
               {order.length} selected for {guestCount} guests
             </p>
@@ -1013,7 +995,7 @@ function BuildPackageContent() {
                 ? formatCurrency(estimatedSubtotal)
                 : 'Select dishes'}
             </p>
-          </div>
+          </button>
           <button
             type="button"
             disabled={order.length === 0 || saving}

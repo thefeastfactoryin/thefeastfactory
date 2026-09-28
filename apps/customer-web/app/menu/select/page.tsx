@@ -547,7 +547,7 @@ function MenuSelectContent() {
 
   return (
     <main className="bg-ivory pb-44 text-charcoal md:pb-20 lg:pb-16">
-      <div className="border-b border-border/70 bg-ivory">
+      <div className="hidden border-b border-border/70 bg-ivory sm:block">
         <div className="mx-auto max-w-[1440px] px-3 py-2 sm:px-5 sm:py-3 lg:px-6">
           <MenuStepIndicator
             current={1}
@@ -644,7 +644,7 @@ function MenuSelectContent() {
           <div className="hidden">
             <div className="min-w-0">
               <p className="eyebrow">
-                {isMealBox ? 'Your meal box' : 'Your package menu'}
+                {isMealBox ? 'Your meal box' : "What's included"}
               </p>
               <h1 className="mt-2 max-w-3xl font-serif text-3xl font-semibold leading-tight tracking-tight text-charcoal sm:text-4xl">
                 {isMealBox ? 'Review your ' : 'Review your '}
@@ -662,8 +662,8 @@ function MenuSelectContent() {
             </span>
           </div>
 
-          <div className="grid gap-3 rounded-[18px] border border-border/80 bg-white p-3 shadow-[0_12px_32px_-28px_rgba(75,12,23,.65)] sm:grid-cols-[200px_minmax(0,1fr)] sm:items-center sm:gap-4 sm:p-4">
-            <div className="h-32 overflow-hidden rounded-xl border border-border/80 bg-muted sm:h-32">
+          <div className="grid gap-1 border-b border-border/40 bg-white py-1 sm:grid-cols-[200px_minmax(0,1fr)] sm:items-center sm:gap-4 sm:rounded-[18px] sm:border sm:p-4 sm:shadow-[0_12px_32px_-28px_rgba(75,12,23,.65)]">
+            <div className="hidden h-32 overflow-hidden rounded-xl border border-border/80 bg-muted sm:block">
               <Image
                 src={isMealBox ? '/order-mealbox.png' : '/pkg-puja.png'}
                 alt=""
@@ -675,7 +675,7 @@ function MenuSelectContent() {
             </div>
             <div className="min-w-0">
               <div className="flex flex-wrap items-start gap-2 sm:items-center sm:gap-3">
-                <h1 className="min-w-0 flex-1 font-serif text-[25px] font-semibold leading-[1.08] tracking-tight text-charcoal sm:text-[34px]">
+                <h1 className="min-w-0 flex-1 font-sans text-[22px] font-semibold leading-[1.12] text-charcoal sm:font-serif sm:text-[34px] sm:leading-[1.08]">
                   {config.packageName}
                 </h1>
                 <div className="numeric-text inline-flex h-10 shrink-0 items-center overflow-hidden rounded-lg border border-border bg-white">
@@ -697,7 +697,7 @@ function MenuSelectContent() {
                       setBoxCountInput(digits);
                     }}
                     onBlur={() => updateBoxCount(Number(boxCountInput))}
-                    className="h-10 w-14 border-x text-center text-sm font-bold outline-none"
+                    className="h-10 w-10 border-x text-center text-sm font-bold outline-none sm:w-14"
                   />
                   <button
                     type="button"
@@ -711,12 +711,12 @@ function MenuSelectContent() {
                   >
                     <Plus className="h-4 w-4" />
                   </button>
-                  <span className="px-3 text-xs font-semibold text-muted-foreground">
+                  <span className="hidden px-3 text-xs font-semibold text-muted-foreground sm:inline">
                     {isMealBox ? 'boxes' : 'guests'}
                   </span>
                 </div>
               </div>
-              <p className="mt-2 max-w-2xl text-sm leading-5 text-muted-foreground">
+              <p className="mt-0.5 max-w-2xl text-[13px] leading-5 text-muted-foreground sm:mt-2 sm:text-sm">
                 {isMealBox
                   ? 'Review the dishes included in your meal box and customise available replacements.'
                   : 'A complete traditional spread for your special occasion.'}
@@ -766,11 +766,11 @@ function MenuSelectContent() {
             </button>
           </div>
 
-          <div className="mt-4 flex items-center justify-between gap-2 rounded-xl border bg-white p-2 shadow-sm lg:hidden">
+          <div className="mt-2 flex items-center justify-between gap-2 rounded-lg border bg-white p-1.5 shadow-sm sm:mt-4 sm:rounded-xl sm:p-2 lg:hidden">
             <button
               type="button"
               onClick={() => setMobileFiltersOpen(true)}
-              className="inline-flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-lg border border-primary/20 bg-white px-3 text-sm font-bold text-primary"
+              className="inline-flex min-h-10 min-w-0 flex-1 items-center gap-2 rounded-lg border border-primary/20 bg-white px-3 text-sm font-bold text-primary sm:min-h-11"
             >
               <SlidersHorizontal className="h-4 w-4 shrink-0" />
               <span className="truncate">Filters & categories</span>
@@ -797,13 +797,13 @@ function MenuSelectContent() {
             />
           )}
 
-          {extrasExpanded && !isMealBox && extraRows.length > 0 && (
+          {extrasExpanded && !isMealBox && (
             <section className="mt-4 rounded-xl border border-border/80 bg-white/70 p-4 shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="eyebrow">Optional extras</p>
                   <h2 className="mt-1 font-serif text-xl font-semibold text-charcoal">
-                    Add something more
+                    Add something extra
                   </h2>
                 </div>
                 <span className="text-xs font-bold text-primary">
@@ -811,12 +811,19 @@ function MenuSelectContent() {
                 </span>
               </div>
               <p className="mt-2 text-xs text-muted-foreground">
-                {selectedExtras.length
-                  ? `${selectedExtras.length} ${selectedExtras.length === 1 ? 'extra' : 'extras'} selected`
-                  : 'Your included menu is complete without extras.'}
+                Add something extra — completely optional.
               </p>
-              <div className="mt-4 grid gap-3">
-                {visibleExtras.map((row) => (
+              {extraRows.length === 0 ? (
+                <p className="mt-4 border-y border-border/50 bg-white px-3 py-4 text-sm text-muted-foreground">
+                  No extras available for this package.
+                </p>
+              ) : visibleExtras.length === 0 ? (
+                <p className="mt-4 border-y border-border/50 bg-white px-3 py-4 text-sm text-muted-foreground">
+                  No extras match these filters.
+                </p>
+              ) : (
+                <div className="mt-4 grid gap-3">
+                  {visibleExtras.map((row) => (
                   <ExtraRow
                     key={`${row.rule.id}-${row.item.id}`}
                     row={row}
@@ -835,13 +842,13 @@ function MenuSelectContent() {
                       })
                     }
                   />
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </section>
           )}
 
-          {((!extrasExpanded && visibleIncluded.length === 0) ||
-            (extrasExpanded && visibleExtras.length === 0)) && (
+          {!extrasExpanded && visibleIncluded.length === 0 && (
             <div className="mt-6 rounded-2xl border border-border/80 bg-white p-6 text-center shadow-sm sm:mt-8 sm:p-10">
               <Search className="mx-auto h-6 w-6 text-muted-foreground" />
               <h2 className="mt-3 font-semibold">No matching dishes</h2>
@@ -898,11 +905,14 @@ function MenuSelectContent() {
             onClick={() => setMobileSummaryOpen(true)}
             className="mobile-order-bar-summary"
           >
-            <span className="mobile-order-bar-label">
-              View summary · {summaryRows.length} dishes
-            </span>
             <span className="mobile-order-bar-total">
-              {formatCurrency(menuSubtotal)}
+              {formatCurrency(menuSubtotal).replace(/\.00$/, '')}
+            </span>
+            <span className="mobile-order-bar-label font-medium normal-case tracking-normal">
+              {summaryRows.length} dishes
+              {selectedExtras.length > 0 &&
+                ` · ${selectedExtras.length} extras`}
+              {' · View summary ›'}
             </span>
           </button>
           <Button
@@ -1008,7 +1018,7 @@ function MenuStepIndicator({
   guestCount: number;
   isMealBox: boolean;
 }) {
-  const steps = [context, 'Menu', 'Event & payment'];
+  const steps = [context, 'Menu', 'Event'];
   const subtitles = [
     `${packageName} • ${guestCount} ${isMealBox ? 'boxes' : 'guests'}`,
     'Review & customise',
@@ -1223,9 +1233,9 @@ function MenuSections({
     : rows;
 
   return (
-    <div className="mt-4 space-y-3">
+    <div className="mt-2 space-y-2 sm:mt-4 sm:space-y-3">
       <div className="flex items-center justify-end">
-        <label className="inline-flex min-h-11 items-center gap-2 text-xs font-semibold text-muted-foreground">
+        <label className="inline-flex min-h-9 items-center gap-2 text-xs font-semibold text-muted-foreground sm:min-h-11">
           <span>Show only replaceable</span>
           <button
             type="button"
@@ -1298,11 +1308,11 @@ function DishRow({
   onDetails: () => void;
 }) {
   return (
-    <article className="grid min-w-0 grid-cols-[72px_minmax(0,1fr)] gap-3 bg-white px-3 py-3 transition hover:bg-ivory/45 sm:grid-cols-[92px_minmax(0,1fr)_170px] sm:items-center sm:px-4">
+    <article className="grid min-w-0 grid-cols-[52px_minmax(0,1fr)_auto] items-center gap-2 bg-white px-2 py-2.5 transition hover:bg-ivory/45 sm:grid-cols-[92px_minmax(0,1fr)_170px] sm:gap-3 sm:px-4 sm:py-3">
       <button
         type="button"
         onClick={onDetails}
-        className="h-[68px] overflow-hidden rounded-lg bg-muted sm:h-[84px]"
+        className="h-12 w-[52px] overflow-hidden rounded-md bg-muted sm:h-[84px] sm:w-auto sm:rounded-lg"
         aria-label={`View details for ${item.name}`}
       >
         <DataImage
@@ -1317,7 +1327,7 @@ function DishRow({
         className="min-h-11 min-w-0 text-left"
       >
         <span className="flex flex-wrap items-center gap-2">
-          <strong className="min-w-0 break-words font-serif text-[16px] leading-tight text-charcoal sm:text-[17px]">
+          <strong className="min-w-0 break-words font-sans text-[14px] font-semibold leading-[1.2] text-charcoal sm:font-serif sm:text-[17px]">
             {item.name}
           </strong>
           <DietBadge isVeg={item.isVeg} />
@@ -1330,13 +1340,13 @@ function DishRow({
           </span>
         )}
       </button>
-      <div className="col-span-2 sm:col-span-1 sm:justify-self-end">
+      <div className="justify-self-end sm:justify-self-end">
         <button
           type="button"
           onClick={onSwap}
           disabled={!swappable}
           className={cn(
-            'inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border px-3 text-xs font-bold transition sm:min-w-32',
+            'inline-flex min-h-10 items-center justify-center gap-1 px-1 text-[11px] font-bold transition sm:min-w-32 sm:gap-2 sm:rounded-lg sm:border sm:px-3 sm:text-xs',
             swappable
               ? 'border-primary/35 bg-white text-primary hover:bg-primary/[0.04]'
               : 'cursor-not-allowed border-border bg-muted/50 text-muted-foreground/70',

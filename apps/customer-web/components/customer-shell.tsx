@@ -167,6 +167,7 @@ export function CustomerShell({
     : 0;
   const cartActive = mounted && (cartCount > 0 || pathname === '/cart');
   const desktopLinks = navLinks;
+  const isCheckoutRoute = pathname === '/cart';
   const isFocusedFlow = [
     '/packages/build',
     '/menu/select',
@@ -180,7 +181,13 @@ export function CustomerShell({
   ].some((route) => pathname.startsWith(route));
 
   return (
-    <div className="min-h-screen pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">
+    <div
+      className={cn(
+        'min-h-screen',
+        !isCheckoutRoute &&
+          'pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0',
+      )}
+    >
       {/* ─── Desktop header ─── */}
       <header className="sticky top-0 z-40 border-b border-border bg-white/95 backdrop-blur-xl">
         <div className="mx-auto flex h-14 max-w-[1536px] items-center justify-between gap-1.5 px-3 sm:h-[78px] sm:gap-3 sm:px-6 lg:px-10">
@@ -428,7 +435,7 @@ export function CustomerShell({
       <div className={isFocusedFlow ? 'hidden lg:block' : ''}>
         <Footer />
       </div>
-      {conciergeReady && <WhatsAppConcierge />}
+      {conciergeReady && !isCheckoutRoute && <WhatsAppConcierge />}
 
       {accountOpen && (
         <div className="fixed inset-0 z-[70] md:hidden">
@@ -540,89 +547,94 @@ export function CustomerShell({
       )}
 
       {/* ─── Mobile bottom nav ─── */}
-      <nav
-        className="fixed inset-x-0 bottom-0 z-[60] grid min-h-[calc(4rem+env(safe-area-inset-bottom))] grid-cols-5 border-t border-border/80 bg-card/95 pb-[max(.25rem,env(safe-area-inset-bottom))] shadow-[0_-10px_30px_rgba(45,31,20,0.10)] backdrop-blur-xl md:hidden"
-        aria-label="Primary mobile navigation"
-      >
-        {mobilePrimaryLinks.map(({ href, label, icon: Icon, activePaths }) => {
-          const active =
-            matchesMobilePath(pathname, activePaths) &&
-            !(
-              href === '/packages' &&
-              (pathname.startsWith('/packages/meal-boxes') ||
-                pathname.startsWith('/packages/build'))
-            );
-          return (
-            <Link
-              key={href + label}
-              href={href}
-              className={cn(
-                'group relative flex min-h-14 flex-col items-center justify-center gap-0.5 px-1 pt-1 text-[10px] font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/30 active:scale-[0.97]',
-                active
-                  ? 'text-primary'
-                  : 'text-muted-foreground hover:text-foreground',
-              )}
-              aria-current={active ? 'page' : undefined}
-              aria-label={`${label}${active ? ', current page' : ''}`}
-            >
-              <span
-                className={cn(
-                  'grid h-7 min-w-10 place-items-center rounded-full px-2 transition-colors',
-                  active
-                    ? 'bg-primary/[0.10] text-primary'
-                    : 'group-hover:bg-muted',
-                )}
-              >
-                <Icon className="h-[19px] w-[19px]" aria-hidden="true" />
-              </span>
-              <span>{label}</span>
-              {href === '/cart' && cartCount > 0 && (
-                <span className="absolute right-[18%] top-1 grid h-4 min-w-4 place-items-center rounded-full bg-accent px-1 text-[9px] font-extrabold text-accent-foreground shadow-sm">
-                  {cartCount}
-                </span>
-              )}
-            </Link>
-          );
-        })}
-        <button
-          type="button"
-          onClick={() => {
-            setAccountOpen(false);
-            setMobileMenuOpen((open) => !open);
-          }}
-          className={cn(
-            'group relative flex min-h-14 flex-col items-center justify-center gap-0.5 px-1 pt-1 text-[10px] font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/30 active:scale-[0.97]',
-            mobileMenuOpen || matchesMobilePath(pathname, mobileMoreActivePaths)
-              ? 'text-primary'
-              : 'text-muted-foreground hover:text-foreground',
-          )}
-          aria-expanded={mobileMenuOpen}
-          aria-controls="mobile-more-menu"
-          aria-label={
-            mobileMenuOpen ? 'Close more navigation' : 'Open more navigation'
-          }
+      {!isCheckoutRoute && (
+        <nav
+          className="fixed inset-x-0 bottom-0 z-[60] grid min-h-[calc(4rem+env(safe-area-inset-bottom))] grid-cols-5 border-t border-border/80 bg-card/95 pb-[max(.25rem,env(safe-area-inset-bottom))] shadow-[0_-10px_30px_rgba(45,31,20,0.10)] backdrop-blur-xl md:hidden"
+          aria-label="Primary mobile navigation"
         >
-          <span
+          {mobilePrimaryLinks.map(
+            ({ href, label, icon: Icon, activePaths }) => {
+              const active =
+                matchesMobilePath(pathname, activePaths) &&
+                !(
+                  href === '/packages' &&
+                  (pathname.startsWith('/packages/meal-boxes') ||
+                    pathname.startsWith('/packages/build'))
+                );
+              return (
+                <Link
+                  key={href + label}
+                  href={href}
+                  className={cn(
+                    'group relative flex min-h-14 flex-col items-center justify-center gap-0.5 px-1 pt-1 text-[10px] font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/30 active:scale-[0.97]',
+                    active
+                      ? 'text-primary'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                  aria-current={active ? 'page' : undefined}
+                  aria-label={`${label}${active ? ', current page' : ''}`}
+                >
+                  <span
+                    className={cn(
+                      'grid h-7 min-w-10 place-items-center rounded-full px-2 transition-colors',
+                      active
+                        ? 'bg-primary/[0.10] text-primary'
+                        : 'group-hover:bg-muted',
+                    )}
+                  >
+                    <Icon className="h-[19px] w-[19px]" aria-hidden="true" />
+                  </span>
+                  <span>{label}</span>
+                  {href === '/cart' && cartCount > 0 && (
+                    <span className="absolute right-[18%] top-1 grid h-4 min-w-4 place-items-center rounded-full bg-accent px-1 text-[9px] font-extrabold text-accent-foreground shadow-sm">
+                      {cartCount}
+                    </span>
+                  )}
+                </Link>
+              );
+            },
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setAccountOpen(false);
+              setMobileMenuOpen((open) => !open);
+            }}
             className={cn(
-              'grid h-7 min-w-10 place-items-center rounded-full px-2 transition-colors',
+              'group relative flex min-h-14 flex-col items-center justify-center gap-0.5 px-1 pt-1 text-[10px] font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/30 active:scale-[0.97]',
               mobileMenuOpen ||
                 matchesMobilePath(pathname, mobileMoreActivePaths)
-                ? 'bg-primary/[0.10] text-primary'
-                : 'group-hover:bg-muted',
+                ? 'text-primary'
+                : 'text-muted-foreground hover:text-foreground',
             )}
+            aria-expanded={mobileMenuOpen}
+            aria-controls="mobile-more-menu"
+            aria-label={
+              mobileMenuOpen ? 'Close more navigation' : 'Open more navigation'
+            }
           >
-            {mobileMenuOpen ? (
-              <X className="h-[19px] w-[19px]" aria-hidden="true" />
-            ) : (
-              <MoreHorizontal
-                className="h-[19px] w-[19px]"
-                aria-hidden="true"
-              />
-            )}
-          </span>
-          <span>More</span>
-        </button>
-      </nav>
+            <span
+              className={cn(
+                'grid h-7 min-w-10 place-items-center rounded-full px-2 transition-colors',
+                mobileMenuOpen ||
+                  matchesMobilePath(pathname, mobileMoreActivePaths)
+                  ? 'bg-primary/[0.10] text-primary'
+                  : 'group-hover:bg-muted',
+              )}
+            >
+              {mobileMenuOpen ? (
+                <X className="h-[19px] w-[19px]" aria-hidden="true" />
+              ) : (
+                <MoreHorizontal
+                  className="h-[19px] w-[19px]"
+                  aria-hidden="true"
+                />
+              )}
+            </span>
+            <span>More</span>
+          </button>
+        </nav>
+      )}
     </div>
   );
 }

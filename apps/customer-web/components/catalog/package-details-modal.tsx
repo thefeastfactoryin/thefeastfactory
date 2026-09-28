@@ -16,6 +16,7 @@ import {
   X,
 } from 'lucide-react';
 import { useEffect, useMemo } from 'react';
+import { sortMenuCategories } from '../../lib/menu-category-order';
 import { cn } from '../../lib/utils';
 import { Button } from '../ui/button';
 import { DataImage } from '../data-image';
@@ -48,14 +49,17 @@ export function PackageDetailsModal({
 
   const includedByCategory = useMemo(
     () =>
-      config?.categoryRules
-        .map((rule) => ({
-          rule,
-          items: rule.items.filter(
-            (item) => item.role === 'INCLUDED' && !item.swapForMenuItemId,
-          ),
-        }))
-        .filter(({ items }) => items.length) ?? [],
+      sortMenuCategories(
+        config?.categoryRules
+          .map((rule) => ({
+            rule,
+            items: rule.items.filter(
+              (item) => item.role === 'INCLUDED' && !item.swapForMenuItemId,
+            ),
+          }))
+          .filter(({ items }) => items.length) ?? [],
+        ({ rule }) => rule.category.name,
+      ),
     [config],
   );
   const swapCount =
@@ -85,9 +89,9 @@ export function PackageDetailsModal({
         aria-label="Close package details"
         onClick={onClose}
       />
-      <section className="relative flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:max-w-5xl sm:rounded-3xl">
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="relative h-56 overflow-hidden bg-muted sm:h-72">
+      <section className="relative flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:h-auto sm:max-h-[92vh] sm:max-w-5xl sm:rounded-3xl">
+        <div className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain pb-6 sm:pb-0">
+          <div className="relative aspect-[2.6/1] min-h-[8rem] overflow-hidden bg-muted sm:aspect-auto sm:h-72">
             <DataImage
               src={pkg.imageUrl}
               alt={`${pkg.name} presentation`}
@@ -97,13 +101,13 @@ export function PackageDetailsModal({
             <button
               type="button"
               onClick={onClose}
-              className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-full border border-white/40 bg-black/25 text-white backdrop-blur hover:bg-black/45"
+              className="absolute right-3 top-3 grid h-10 w-10 place-items-center rounded-full border border-white/40 bg-black/25 text-white backdrop-blur hover:bg-black/45 sm:right-4 sm:top-4"
               aria-label="Close package details"
             >
               <X className="h-4 w-4" />
             </button>
-            <div className="absolute inset-x-0 bottom-0 p-5 text-white sm:p-7">
-              <span className="inline-flex rounded-full border border-white/25 bg-black/25 px-3 py-1 text-[10px] font-bold uppercase tracking-[.16em] backdrop-blur">
+            <div className="absolute inset-x-0 bottom-0 p-4 text-white sm:p-7">
+              <span className="hidden rounded-full border border-white/25 bg-black/25 px-3 py-1 text-[10px] font-bold uppercase tracking-[.16em] backdrop-blur sm:inline-flex">
                 {pkg.type === 'MEAL_BOX'
                   ? 'Meal box'
                   : pkg.isCustom
@@ -112,17 +116,17 @@ export function PackageDetailsModal({
               </span>
               <h2
                 id="package-details-title"
-                className="mt-3 font-serif text-3xl font-bold sm:text-4xl"
+                className="font-serif text-2xl font-bold sm:mt-3 sm:text-4xl"
               >
                 {pkg.name}
               </h2>
             </div>
           </div>
 
-          <div className="grid gap-7 p-5 sm:p-7 lg:grid-cols-[minmax(0,1fr)_280px]">
+          <div className="grid gap-4 px-4 py-2 sm:gap-7 sm:p-7 lg:grid-cols-[minmax(0,1fr)_280px]">
             <div className="min-w-0">
               {pkg.description && (
-                <p className="text-sm leading-6 text-muted-foreground sm:text-base">
+                <p className="text-sm leading-5 text-muted-foreground sm:text-base sm:leading-6">
                   {pkg.description}
                 </p>
               )}
@@ -137,22 +141,47 @@ export function PackageDetailsModal({
                   ))}
                 </div>
               ) : includedByCategory.length ? (
-                <div className="mt-7 space-y-7">
+                <div className="mt-3 space-y-4 sm:mt-7 sm:space-y-7">
                   <div>
-                    <p className="eyebrow">What is included</p>
-                    <h3 className="mt-2 font-serif text-2xl font-bold">
-                      Your package menu
+                    <p className="eyebrow hidden sm:block">What is included</p>
+                    <h3 className="font-serif text-lg font-bold sm:mt-2 sm:text-2xl">
+                      {pkg.type === 'MEAL_BOX'
+                        ? "What's in this box"
+                        : "What's included"}
                     </h3>
                   </div>
                   {includedByCategory.map(({ rule, items }) => (
                     <section key={rule.id}>
-                      <div className="mb-3 flex items-center justify-between gap-3 border-b pb-2">
+                      <div className="mb-3 hidden items-center justify-between gap-3 border-b pb-2 sm:flex">
                         <h4 className="font-bold">{rule.category.name}</h4>
                         <span className="text-xs font-semibold text-muted-foreground">
                           {items.length} {items.length === 1 ? 'item' : 'items'}
                         </span>
                       </div>
-                      <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="divide-y sm:hidden">
+                        {items.map((item) => (
+                          <div
+                            key={item.id}
+                            className="grid grid-cols-[40px_minmax(0,1fr)_5rem] items-center gap-2 py-1.5 first:pt-0"
+                          >
+                            <div className="h-10 w-10 overflow-hidden rounded-md bg-muted">
+                              <DataImage
+                                src={item.imageUrl}
+                                alt={item.name}
+                                className="h-full w-full object-cover"
+                                loading="lazy"
+                              />
+                            </div>
+                            <p className="min-w-0 text-sm font-medium leading-5 text-foreground">
+                              {item.name}
+                            </p>
+                            <span className="truncate text-right text-[11px] font-semibold text-muted-foreground">
+                              {rule.category.name}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="hidden gap-3 sm:grid sm:grid-cols-2">
                         {items.map((item) => (
                           <div
                             key={item.id}
@@ -198,7 +227,7 @@ export function PackageDetailsModal({
               )}
             </div>
 
-            <aside className="h-fit rounded-2xl border bg-muted/35 p-5 lg:sticky lg:top-5">
+            <aside className="hidden h-fit rounded-2xl border bg-muted/35 p-5 lg:sticky lg:top-5 lg:block">
               <p className="text-xs font-bold uppercase tracking-[.14em] text-muted-foreground">
                 Package essentials
               </p>
@@ -247,7 +276,7 @@ export function PackageDetailsModal({
           </div>
         </div>
 
-        <footer className="shrink-0 border-t bg-white/95 p-4 backdrop-blur sm:px-7">
+        <footer className="shrink-0 border-t bg-white/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:px-7 sm:py-4">
           <div className="mx-auto flex max-w-5xl items-center justify-between gap-4">
             <div className="hidden sm:block">
               <p className="font-bold">{pkg.name}</p>
@@ -256,7 +285,7 @@ export function PackageDetailsModal({
               </p>
             </div>
             <Button
-              className="h-12 w-full rounded-full px-7 sm:ml-auto sm:w-auto"
+              className="h-11 w-full rounded-full px-7 sm:ml-auto sm:h-12 sm:w-auto"
               disabled={!config || !version || selecting}
               onClick={onSelect}
             >
@@ -264,7 +293,9 @@ export function PackageDetailsModal({
                 ? 'Selecting…'
                 : pkg.isCustom
                   ? 'Build this menu'
-                  : 'Select package'}
+                  : pkg.type === 'MEAL_BOX'
+                    ? 'Select Meal Box'
+                    : 'Select package'}
               {!selecting && <ArrowRight className="ml-2 h-4 w-4" />}
             </Button>
           </div>

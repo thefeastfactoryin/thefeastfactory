@@ -17,6 +17,7 @@ import { StatePanel } from '../../components/ui/state-panel';
 import { usePublicSettings } from '../../components/public-settings-provider';
 import { DataImage } from '../../components/data-image';
 import { apiRequest } from '../../lib/api';
+import { sortMenuCategories } from '../../lib/menu-category-order';
 import {
   generateWhatsAppLink,
   whatsappMessages,
@@ -377,7 +378,10 @@ export default function PublicMenuPage() {
   }, [items, sort]);
 
   const menuSections = useMemo(() => {
-    const configured = categories
+    const configured = sortMenuCategories(
+      categories,
+      (category) => category.name,
+    )
       .map((category) => ({
         category,
         items: sortedItems.filter((item) => item.category?.id === category.id),
@@ -398,7 +402,10 @@ export default function PublicMenuPage() {
       current.items.push(item);
       fallback.set(item.category.id, current);
     });
-    return Array.from(fallback.values());
+    return sortMenuCategories(
+      Array.from(fallback.values()),
+      (entry) => entry.category.name,
+    );
   }, [categories, sortedItems]);
 
   const categoryCounts = useMemo(() => {

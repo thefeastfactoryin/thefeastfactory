@@ -26,14 +26,15 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   catalogCopy,
   offeringDisplay,
   orderByKgImage,
 } from '../lib/catalog-display';
 import { apiRequest } from '../lib/api';
-import { notifyCartCleared } from '../lib/cart-state';
+import { notifyCartCleared, subscribeToCartCleared } from '../lib/cart-state';
+import { sortMenuCategories } from '../lib/menu-category-order';
 import { DataImage } from '../components/data-image';
 import {
   PackageChangeDialog,
@@ -50,8 +51,34 @@ const heroTags = [
   { label: 'No Palm Oil', icon: CircleOff },
   { label: 'No Artificial Colors', icon: Leaf },
   { label: 'FSSAI Certified', icon: BadgeCheck },
-  { label: 'Delivered Piping Hot', icon: Flame },
+  { label: 'Delivered Hot', icon: Flame },
 ];
+const orderOptionCopy = {
+  PACKAGES: {
+    title: 'Packages',
+    description: 'Curated menus for every celebration',
+    image: '/order-occasion.png',
+    alt: 'A complete catered spread prepared for a celebration',
+  },
+  MEAL_BOX: {
+    title: 'Meal Boxes',
+    description: 'Complete meals, individually packed',
+    image: '/order-mealbox.png',
+    alt: 'An individual compartment meal box',
+  },
+  ORDER_BY_KG: {
+    title: 'Order by KG',
+    description: 'Your favourite dishes, by the kilo',
+    image: '/order-by-kg-bulk.png',
+    alt: 'Bulk dishes prepared for ordering by weight',
+  },
+  CUSTOM_MENU: {
+    title: 'Build Your Own',
+    description: 'Pick your dishes. Make it yours.',
+    image: '/order-build.png',
+    alt: 'A varied spread of dishes for a custom menu',
+  },
+} as const;
 const heroImages = [
   {
     src: '/office-hero.png',
@@ -102,6 +129,7 @@ export default function HomePage() {
   const [selecting, setSelecting] = useState('');
   const [selectionError, setSelectionError] = useState('');
   const [activeCartCount, setActiveCartCount] = useState(0);
+  const cartCountVersion = useRef(0);
   const [activeHeroImage, setActiveHeroImage] = useState(0);
   const [kgAvailableAtLocation, setKgAvailableAtLocation] = useState(true);
   useEffect(() => {
@@ -152,14 +180,33 @@ export default function HomePage() {
   }, [deliveryLocation?.resolution.region?.id]);
 
   useEffect(() => {
+    const version = ++cartCountVersion.current;
     if (!session) {
       setActiveCartCount(0);
       return;
     }
     apiRequest<CartSummary[]>('/cart/all', {}, session.accessToken)
-      .then((rows) => setActiveCartCount(rows.length))
-      .catch(() => setActiveCartCount(0));
+      .then((rows) => {
+        if (version === cartCountVersion.current)
+          setActiveCartCount(rows.length);
+      })
+      .catch(() => {
+        if (version === cartCountVersion.current) setActiveCartCount(0);
+      });
+    return () => {
+      cartCountVersion.current += 1;
+    };
   }, [session]);
+
+  useEffect(
+    () =>
+      subscribeToCartCleared(() => {
+        cartCountVersion.current += 1;
+        setActiveCartCount(0);
+        reset();
+      }),
+    [reset],
+  );
 
   async function selectPackage(pkg: PackageSummary, confirmed = false) {
     if (!pkg.activeVersion || selecting) return;
@@ -228,7 +275,7 @@ export default function HomePage() {
     await selectPackage(pkg, true);
   }
 
-  const offeringOrder = ['MEAL_BOX', 'PACKAGES', 'ORDER_BY_KG', 'CUSTOM_MENU'];
+  const offeringOrder = ['PACKAGES', 'MEAL_BOX', 'ORDER_BY_KG', 'CUSTOM_MENU'];
   const homeOfferings = offerings
     .filter(
       (offering) =>
@@ -251,29 +298,19 @@ export default function HomePage() {
         <div className="mx-auto w-full max-w-[1536px] px-4 sm:px-6 lg:px-12">
           <div className="grid min-w-0 items-center gap-5 py-5 sm:gap-8 sm:py-8 lg:min-h-[430px] lg:grid-cols-[0.94fr_1.2fr] lg:gap-12 lg:py-5">
             <div className="min-w-0 max-w-[590px]">
-              <p className="eyebrow">Premium bulk catering</p>
               <h1 className="mt-3 max-w-[570px] font-serif text-[38px] font-bold leading-[1.02] tracking-[-0.03em] sm:text-[48px] lg:text-[58px] lg:leading-[0.98]">
-                Premium food for every{' '}
-                <span className="italic text-accent">occasion</span>
+                Food for every gathering, made simple.
               </h1>
               <p className="mt-4 max-w-[550px] text-[14px] leading-6 text-white/80 sm:text-[15px] sm:leading-7 lg:text-base">
-                <span className="sm:hidden">
-                  Fresh catering for celebrations, offices and group events,
-                  prepared with care and delivered on time.
-                </span>
-                <span className="hidden sm:inline">
-                  Premium catering for birthdays, housewarmings, pujas and
-                  family gatherings, with thoughtful menus for corporate events
-                  too. Freshly prepared, beautifully presented and delivered on
-                  time.
-                </span>
+                Good food for bringing people together, without the planning
+                stress.
               </p>
 
               <Link
-                href="/packages"
+                href="#ordering-styles"
                 className="mt-5 inline-flex h-12 items-center justify-center gap-2 rounded-full bg-accent px-7 text-sm font-extrabold text-accent-foreground shadow-[0_10px_28px_rgba(211,163,58,0.30)] transition-all duration-250 ease-premium hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_14px_34px_rgba(211,163,58,0.38)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-primary sm:text-[15px]"
               >
-                Order Now <ArrowRight className="h-5 w-5" />
+                Order now <ArrowRight className="h-5 w-5" />
               </Link>
 
               <div
@@ -314,30 +351,31 @@ export default function HomePage() {
         </div>
       </section>
 
-      <KitchenLocationsSection
-        locations={kitchenLocations}
-        className="bg-ivory px-4 py-5 sm:px-6 lg:px-10 lg:py-6"
-        variant="compact"
-      />
-
-      <section id="ordering-styles" className="bg-ivory py-8 sm:py-10 lg:py-12">
-        <div className="mx-auto grid w-full max-w-[1440px] gap-4 px-4 sm:grid-cols-2 sm:px-6 xl:grid-cols-4 lg:gap-5 lg:px-10">
+      <section id="ordering-styles" className="bg-ivory py-5 sm:py-10 lg:py-12">
+        <div className="mx-auto w-full max-w-[1440px] px-4 sm:px-6 lg:px-10">
+          <div className="mb-3 max-w-[540px] sm:mb-4">
+            <p className="eyebrow hidden sm:block">Choose your order style</p>
+            <h2 className="mt-2 font-serif text-[22px] font-bold leading-[1.1] tracking-[-0.02em] text-foreground sm:text-[30px]">
+              How would you like to order?
+            </h2>
+          </div>
+          <div className="grid grid-cols-2 gap-2.5 sm:gap-4 xl:grid-cols-4 lg:gap-5">
           {homeOfferings.map((offering) => {
             const display = offeringDisplay[offering.code];
             const Icon = offeringIcons[offering.code] ?? PackageIcon;
-            const imageSrc =
-              offeringFallbackImages[offering.code] ?? offering.imageUrl!;
-            const isCustomPackage = offering.code === 'CUSTOM_MENU';
+            const copy =
+              orderOptionCopy[offering.code as keyof typeof orderOptionCopy];
+            const imageSrc = copy?.image ?? offeringFallbackImages[offering.code] ?? offering.imageUrl!;
             return (
               <Link
                 key={offering.id}
                 href={display.href}
-                className="group flex flex-col overflow-hidden rounded-[20px] border border-primary/15 bg-card shadow-[0_12px_34px_rgba(74,43,35,0.08)] transition-all duration-300 ease-premium hover:-translate-y-1 hover:border-primary/30 hover:shadow-card-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                className="group flex min-w-0 flex-col overflow-hidden rounded-xl border border-primary/15 bg-card shadow-[0_5px_18px_rgba(74,43,35,0.07)] transition-all duration-300 ease-premium hover:-translate-y-1 hover:border-primary/30 hover:shadow-card-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 sm:rounded-[20px] sm:shadow-[0_12px_34px_rgba(74,43,35,0.08)]"
               >
-                <div className="relative h-[170px] shrink-0 overflow-hidden bg-muted sm:h-[190px] lg:h-[220px]">
+                <div className="relative h-[84px] shrink-0 overflow-hidden bg-muted sm:h-[190px] lg:h-[220px]">
                   <img
                     src={imageSrc}
-                    alt={`${offering.title} catering presentation`}
+                    alt={copy?.alt ?? `${offering.title} catering presentation`}
                     className="h-full w-full object-cover transition-transform duration-500 ease-premium group-hover:scale-[1.035] motion-reduce:transition-none"
                   />
                   {/* <span className="absolute left-4 top-4 rounded-full bg-white/95 px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.12em] text-primary shadow-sm">
@@ -350,26 +388,25 @@ export default function HomePage() {
                           : 'Create your own menu'}
                   </span> */}
                 </div>
-                <div className="relative flex min-h-[142px] flex-1 flex-col px-5 pb-5 pt-7 lg:px-6 lg:pb-6">
-                  <span className="absolute -top-5 left-5 grid h-11 w-11 place-items-center rounded-full border border-border bg-ivory text-primary shadow-sm lg:left-6">
+                <div className="relative flex min-h-[92px] flex-1 flex-col px-2.5 pb-2.5 pt-2 sm:min-h-[142px] sm:px-5 sm:pb-5 sm:pt-7 lg:px-6 lg:pb-6">
+                  <span className="absolute -top-5 left-5 hidden h-11 w-11 place-items-center rounded-full border border-border bg-ivory text-primary shadow-sm sm:grid lg:left-6">
                     <Icon className="h-5 w-5" aria-hidden="true" />
                   </span>
-                  <h3 className="font-serif text-[26px] font-bold leading-tight tracking-tight text-foreground lg:text-[30px]">
-                    {isCustomPackage ? 'Custom Package' : offering.title}
+                  <h3 className="font-sans text-[16px] font-semibold leading-[1.08] text-foreground sm:font-serif sm:text-[26px] sm:font-bold sm:leading-tight sm:tracking-tight lg:text-[30px]">
+                    {copy?.title ?? offering.title}
                   </h3>
-                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                    {offering.description}
+                  <p className="mt-1 line-clamp-2 text-[11.5px] leading-[1.25] text-muted-foreground sm:text-sm sm:leading-6">
+                    {copy?.description ?? offering.description}
                   </p>
-                  <span className="mt-auto inline-flex items-center gap-2 pt-3 text-sm font-bold text-primary">
-                    {isCustomPackage
-                      ? 'Explore custom package'
-                      : offering.ctaLabel || 'Explore'}
+                  <span className="mt-auto inline-flex items-center gap-1 pt-2 text-[11px] font-bold text-primary sm:gap-2 sm:pt-3 sm:text-sm">
+                    {offering.ctaLabel || 'Explore'}
                     <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1 motion-reduce:transition-none" />
                   </span>
                 </div>
               </Link>
             );
           })}
+          </div>
         </div>
       </section>
 
@@ -392,7 +429,10 @@ export default function HomePage() {
           <div className="mt-6 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:grid sm:grid-cols-2 sm:overflow-visible sm:pb-0 lg:grid-cols-3">
             {packages.map((pkg) => {
               const version = pkg.activeVersion!;
-              const includes = configs[pkg.id]?.categoryRules.slice(0, 3) ?? [];
+              const includes = sortMenuCategories(
+                configs[pkg.id]?.categoryRules ?? [],
+                (rule) => rule.category.name,
+              ).slice(0, 3);
               return (
                 <article
                   key={pkg.id}
@@ -477,6 +517,62 @@ export default function HomePage() {
               {selectionError}
             </p>
           )}
+        </div>
+      </section>
+
+      <KitchenLocationsSection
+        locations={kitchenLocations}
+        className="bg-ivory px-4 py-5 sm:px-6 lg:px-10 lg:py-6"
+        variant="compact"
+      />
+
+      <section className="bg-background py-5 lg:py-7">
+        <div className="mx-auto w-full max-w-[1440px] px-4 sm:px-6 lg:px-10">
+          <div className="mb-4 max-w-[540px]">
+            <p className="eyebrow">Simple process</p>
+            <h2 className="mt-2 font-serif text-[24px] font-bold leading-[1.1] tracking-[-0.02em] text-foreground sm:text-[28px]">
+              How it works
+            </h2>
+          </div>
+          <div className="grid gap-3 md:grid-cols-3">
+            {[
+              {
+                step: '01',
+                title: 'Choose your food',
+                description:
+                  'Pick a package, meal boxes, bulk dishes or create your own menu.',
+              },
+              {
+                step: '02',
+                title: 'Add event details',
+                description:
+                  'Tell us your guest count, delivery location, date and time.',
+              },
+              {
+                step: '03',
+                title: 'Review & confirm',
+                description:
+                  'Review your menu, total and delivery details before payment.',
+              },
+            ].map((item) => (
+              <div
+                key={item.step}
+                className="rounded-xl border border-border bg-card p-3 sm:p-4"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="grid h-8 w-8 place-items-center rounded-full bg-primary/10 text-[11px] font-extrabold text-primary">
+                    {item.step}
+                  </span>
+                  <h3 className="text-base font-bold text-foreground">
+                    {item.title}
+                  </h3>
+                </div>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  {item.description}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 

@@ -18,9 +18,13 @@ import {
   Users,
 } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiRequest } from '../../lib/api';
-import { notifyCartCleared } from '../../lib/cart-state';
+import {
+  notifyCartCleared,
+  subscribeToCartCleared,
+} from '../../lib/cart-state';
+import { sortMenuCategories } from '../../lib/menu-category-order';
 import { useDeliveryLocationStore } from '../../store/delivery-location.store';
 import { useOrderBuilderStore } from '../../store/order-builder.store';
 import { useSessionStore } from '../../store/session.store';
@@ -67,6 +71,7 @@ export function PackageGridPage({
   );
   const [pendingIntent, setPendingIntent] = useState<SelectionIntent>('select');
   const [activeCartCount, setActiveCartCount] = useState(0);
+  const cartCountVersion = useRef(0);
 
   useEffect(() => {
     Promise.all([
@@ -87,7 +92,7 @@ export function PackageGridPage({
                 : row.type === type),
           );
         setPackages(visible);
-        setCategories(categoryRows);
+        setCategories(sortMenuCategories(categoryRows, (row) => row.name));
         const pairs = await Promise.all(
           visible.map(
             async (row) =>
@@ -107,14 +112,33 @@ export function PackageGridPage({
   }, [type, searchParams]);
 
   useEffect(() => {
+    const version = ++cartCountVersion.current;
     if (!session) {
       setActiveCartCount(0);
       return;
     }
     apiRequest<CartSummary[]>('/cart/all', {}, session.accessToken)
-      .then((rows) => setActiveCartCount(rows.length))
-      .catch(() => setActiveCartCount(0));
+      .then((rows) => {
+        if (version === cartCountVersion.current)
+          setActiveCartCount(rows.length);
+      })
+      .catch(() => {
+        if (version === cartCountVersion.current) setActiveCartCount(0);
+      });
+    return () => {
+      cartCountVersion.current += 1;
+    };
   }, [session]);
+
+  useEffect(
+    () =>
+      subscribeToCartCleared(() => {
+        cartCountVersion.current += 1;
+        setActiveCartCount(0);
+        reset();
+      }),
+    [reset],
+  );
 
   const shown = useMemo(() => {
     const visible = packages.filter((pkg) => {
@@ -265,8 +289,8 @@ export function PackageGridPage({
         ]),
   ];
   return (
-    <main className="min-h-screen overflow-x-clip bg-background sm:[font-family:var(--font-package-sans),sans-serif]">
-      <section className="relative isolate overflow-hidden border-b bg-hero-end text-white">
+    <main className="min-h-screen overflow-x-clip bg-background">
+      <section className="relative isolate hidden overflow-hidden border-b bg-hero-end text-white sm:block">
         <img
           src={isMealBox ? '/order-mealbox.png' : '/packages-hero-plated.png'}
           alt={
@@ -311,11 +335,21 @@ export function PackageGridPage({
           </div>
         </div>
       </section>
-      <div className="mx-auto w-full max-w-7xl px-4 pb-2 pt-4 sm:px-6 sm:pt-6 lg:px-8 lg:pt-7">
+      <section className="border-b border-border bg-background px-4 pb-3 pt-2 sm:hidden">
+        <h1 className="font-serif text-[28px] font-bold leading-[1.08] text-foreground">
+          {isMealBox ? 'Meal Boxes' : 'Occasion Packages'}
+        </h1>
+        <p className="mt-0.5 text-sm leading-[1.35] text-muted-foreground">
+          {isMealBox
+            ? description
+            : "Choose a complete menu for your gathering and see exactly what's included."}
+        </p>
+      </section>
+      <div className="mx-auto w-full max-w-7xl px-4 pb-2 pt-2 sm:px-6 sm:pt-6 lg:px-8 lg:pt-7">
         <div className="mb-5 hidden text-center sm:block">
           <div className="flex items-center justify-center gap-3">
             <span className="h-px w-8 rounded-full bg-accent/45" />
-            <h2 className="text-2xl font-bold leading-tight text-foreground [font-family:var(--font-package-heading),serif] sm:text-3xl">
+            <h2 className="font-serif text-2xl font-bold leading-tight text-foreground sm:text-3xl">
               {isMealBox
                 ? 'Choose the right box for your group'
                 : 'Find the right menu for your celebration'}
@@ -324,12 +358,17 @@ export function PackageGridPage({
           </div>
         </div>
         {type === 'MEAL_BOX' && (
-          <div className="mb-6 flex flex-wrap gap-2" aria-label="Diet filter">
+          <div
+            className="mb-4 flex w-full overflow-hidden rounded-xl border border-border bg-muted/60 p-0.5 sm:mb-6 sm:w-auto sm:gap-2 sm:overflow-visible sm:rounded-full sm:border-0 sm:bg-transparent sm:p-0"
+            aria-label="Diet filter"
+            role="group"
+          >
             {(['all', 'veg', 'non-veg'] as const).map((value) => (
               <button
                 key={value}
                 onClick={() => setDiet(value)}
-                className={`rounded-full px-4 py-2 text-sm font-bold ${diet === value ? 'bg-primary text-white' : 'border bg-white text-foreground'}`}
+                aria-pressed={diet === value}
+                className={`min-h-10 flex-1 px-3 text-sm font-bold transition-colors sm:flex-none sm:rounded-full sm:px-4 sm:py-2 ${diet === value ? 'rounded-lg bg-primary text-white shadow-sm sm:rounded-full' : 'rounded-lg text-foreground hover:bg-white/70 sm:border sm:bg-white'}`}
               >
                 {value === 'all'
                   ? 'All boxes'
@@ -420,10 +459,16 @@ export function PackageGridPage({
                   <button
                     type="button"
                     onClick={() => updateDetails(pkg.id)}
-                    className="block w-full text-left"
+                    className={`w-full text-left ${isMealBox ? 'flex items-stretch sm:block' : 'block'}`}
                     aria-label={`View details for ${pkg.name}`}
                   >
-                    <div className="relative h-[160px] shrink-0 overflow-hidden bg-muted/50 sm:h-[168px]">
+                    <div
+                      className={`relative shrink-0 overflow-hidden bg-muted/50 ${
+                        isMealBox
+                          ? 'aspect-square w-[34%] self-start sm:h-[168px] sm:w-full sm:aspect-auto'
+                          : 'h-[128px] w-full sm:h-[168px]'
+                      }`}
+                    >
                       <DataImage
                         src={pkg.imageUrl}
                         alt={`${pkg.name} presentation`}
@@ -432,16 +477,16 @@ export function PackageGridPage({
                       <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent opacity-80" />
                       {pkg.type === 'MEAL_BOX' && (
                         <span
-                          className={`absolute right-4 top-4 rounded-full border border-white/25 px-3 py-1 text-xs font-bold text-white shadow-sm ${isVeg ? 'bg-emerald-700/90' : 'bg-red-700/90'}`}
+                          className={`absolute right-3 top-3 hidden rounded-full border border-white/25 px-3 py-1 text-xs font-bold text-white shadow-sm sm:inline-flex ${isVeg ? 'bg-emerald-700/90' : 'bg-red-700/90'}`}
                         >
                           {isVeg ? 'Veg' : 'Non-Veg'}
                         </span>
                       )}
                     </div>
-                    <div className="flex flex-col bg-white px-4 pb-3 pt-4">
+                    <div className="flex min-w-0 flex-1 flex-col bg-white px-3 py-3 sm:flex-none sm:px-4 sm:pb-3 sm:pt-4">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <h2 className="text-[20px] font-bold leading-[1.12] text-foreground [font-family:var(--font-package-heading),serif]">
+                          <h2 className="line-clamp-2 font-serif text-[16px] font-bold leading-[1.15] text-foreground sm:line-clamp-none sm:text-[20px]">
                             {pkg.name}
                           </h2>
                           <p className="mt-1.5 hidden line-clamp-2 min-h-[38px] text-[13px] leading-[1.42] text-muted-foreground sm:block">
@@ -449,7 +494,21 @@ export function PackageGridPage({
                           </p>
                         </div>
                       </div>
-                      <div className="mt-3 grid grid-cols-2 overflow-hidden rounded-[14px] border border-border bg-ivory">
+                      <div className="mt-2 flex flex-wrap items-baseline gap-x-1.5 text-[11px] text-muted-foreground sm:hidden">
+                        <strong className="money-text text-[16px] font-extrabold text-primary">
+                          &#8377;{version.basePricePerPlate}
+                        </strong>
+                        <span>/ guest</span>
+                        <span aria-hidden="true">·</span>
+                        <span className="font-semibold text-foreground/80">
+                          {version.minGuestCount}
+                          {version.maxGuestCount
+                            ? `–${version.maxGuestCount}`
+                            : '+'}{' '}
+                          guests
+                        </span>
+                      </div>
+                      <div className="mt-3 hidden grid-cols-2 overflow-hidden rounded-[14px] border border-border bg-ivory sm:grid">
                         <div className="border-r border-border px-3 py-2">
                           <p className="text-[10.5px] font-extrabold uppercase tracking-[0.12em] text-muted-foreground">
                             From
@@ -498,8 +557,8 @@ export function PackageGridPage({
                       </span>
                     </div>
                   </button>
-                  <div className="mt-auto px-4 pb-4">
-                    <div>
+                  <div className="mt-auto px-3 pb-3 sm:px-4 sm:pb-4">
+                    <div className="hidden sm:block">
                       <div className="mb-2 flex items-center justify-between gap-3 text-[12px] font-extrabold text-charcoal">
                         <p>Highlights</p>
                       </div>
@@ -623,7 +682,7 @@ export function PackageGridPage({
                     <button
                       type="button"
                       onClick={() => updateDetails(pkg.id)}
-                      className="mt-4 flex h-10 w-full items-center justify-center gap-2 rounded-full border border-primary/45 bg-white px-4 text-[13px] font-extrabold text-primary shadow-[0_7px_15px_rgba(116,28,42,0.06)] transition-all hover:-translate-y-0.5 hover:border-primary hover:bg-primary/[0.035]"
+                      className="mt-2 flex h-10 w-full items-center justify-center gap-2 rounded-full border border-primary/45 bg-white px-3 text-[12px] font-extrabold text-primary shadow-[0_7px_15px_rgba(116,28,42,0.06)] transition-all hover:-translate-y-0.5 hover:border-primary hover:bg-primary/[0.035] sm:mt-4 sm:px-4 sm:text-[13px]"
                     >
                       View menu
                       <ArrowRight className="h-4 w-4" />
@@ -632,7 +691,7 @@ export function PackageGridPage({
                       type="button"
                       onClick={() => choose(pkg)}
                       disabled={Boolean(selecting)}
-                      className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-full bg-primary px-4 text-[13.5px] font-extrabold text-white shadow-[0_7px_15px_rgba(116,28,42,0.12)] transition-all hover:-translate-y-0.5 hover:bg-primary/90 disabled:opacity-60"
+                      className="mt-2 flex h-10 w-full items-center justify-center gap-2 rounded-full bg-primary px-3 text-[12px] font-extrabold text-white shadow-[0_7px_15px_rgba(116,28,42,0.12)] transition-all hover:-translate-y-0.5 hover:bg-primary/90 disabled:opacity-60 sm:h-11 sm:px-4 sm:text-[13.5px]"
                     >
                       {selecting === pkg.id
                         ? 'Selecting...'

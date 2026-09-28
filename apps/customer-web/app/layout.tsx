@@ -1,11 +1,5 @@
-import type { Metadata } from 'next';
-import {
-  Cormorant_Garamond,
-  Inter,
-  Nunito_Sans,
-  Playfair_Display,
-  Zilla_Slab,
-} from 'next/font/google';
+import type { Metadata, Viewport } from 'next';
+import { Inter, Playfair_Display } from 'next/font/google';
 import './globals.css';
 import { CustomerShell } from '../components/customer-shell';
 import { PublicSettingsProvider } from '../components/public-settings-provider';
@@ -16,29 +10,11 @@ const inter = Inter({
   weight: ['400', '500', '600', '700'],
 });
 
-const cormorantGaramond = Cormorant_Garamond({
-  subsets: ['latin'],
-  variable: '--font-home-display',
-  weight: ['600'],
-});
-
 const playfair = Playfair_Display({
   subsets: ['latin'],
   variable: '--font-heading',
   weight: ['400', '500', '600', '700', '800', '900'],
   style: ['normal', 'italic'],
-});
-
-const nunitoSans = Nunito_Sans({
-  subsets: ['latin'],
-  variable: '--font-package-sans',
-  weight: ['400', '600', '700', '800'],
-});
-
-const zillaSlab = Zilla_Slab({
-  subsets: ['latin'],
-  variable: '--font-package-heading',
-  weight: ['400', '500', '600', '700'],
 });
 
 export const metadata: Metadata = {
@@ -47,13 +23,19 @@ export const metadata: Metadata = {
     'Plan catering events, customize menus, and place orders with The Feast Factory.',
 };
 
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  interactiveWidget: 'resizes-content',
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
       <body
-        className={`${inter.variable} ${cormorantGaramond.variable} ${playfair.variable} ${nunitoSans.variable} ${zillaSlab.variable} font-sans antialiased`}
+        className={`${inter.variable} ${playfair.variable} font-sans antialiased`}
       >
         <PublicSettingsProvider>
           <CustomerShell>{children}</CustomerShell>

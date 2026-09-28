@@ -28,6 +28,7 @@ import {
 } from '../../../components/ui/state-panel';
 import { apiRequest, downloadAuthenticated } from '../../../lib/api';
 import { formatCurrency, formatStatus } from '../../../lib/format';
+import { sortMenuCategories } from '../../../lib/menu-category-order';
 import { cn } from '../../../lib/utils';
 import { useSessionStore } from '../../../store/session.store';
 
@@ -64,14 +65,17 @@ export default function OrderPage() {
 
   const menuGroups = useMemo(() => {
     if (!order) return [];
-    return order.selectedItems.reduce<
-      Array<{ name: string; items: OrderSelectedItem[] }>
-    >((groups, item) => {
-      const group = groups.find((entry) => entry.name === item.categoryName);
-      if (group) group.items.push(item);
-      else groups.push({ name: item.categoryName, items: [item] });
-      return groups;
-    }, []);
+    return sortMenuCategories(
+      order.selectedItems.reduce<
+        Array<{ name: string; items: OrderSelectedItem[] }>
+      >((groups, item) => {
+        const group = groups.find((entry) => entry.name === item.categoryName);
+        if (group) group.items.push(item);
+        else groups.push({ name: item.categoryName, items: [item] });
+        return groups;
+      }, []),
+      (group) => group.name,
+    );
   }, [order]);
 
   if (!session)
@@ -223,7 +227,8 @@ export default function OrderPage() {
                   </h2>
                 </div>
                 <p className="my-3 text-sm leading-6 text-muted-foreground">
-                  This attempt remains in your cart until payment is completed.
+                  This order is saved separately from your active cart. Check
+                  its payment status here.
                 </p>
                 <Button asChild>
                   <Link href="/cart">Return to cart</Link>
