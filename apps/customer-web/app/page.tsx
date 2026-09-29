@@ -22,10 +22,7 @@ import {
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import {
-  catalogCopy,
-  offeringDisplay,
-} from '../lib/catalog-display';
+import { catalogCopy, offeringDisplay } from '../lib/catalog-display';
 import { apiRequest } from '../lib/api';
 import { notifyCartCleared, subscribeToCartCleared } from '../lib/cart-state';
 import { DataImage } from '../components/data-image';
@@ -182,7 +179,8 @@ export default function HomePage() {
     }
     apiRequest<CartSummary[]>('/cart/all', {}, session.accessToken)
       .then((rows) => {
-        if (version === cartCountVersion.current) setActiveCartCount(rows.length);
+        if (version === cartCountVersion.current)
+          setActiveCartCount(rows.length);
       })
       .catch(() => {
         if (version === cartCountVersion.current) setActiveCartCount(0);
@@ -193,11 +191,12 @@ export default function HomePage() {
   }, [session]);
 
   useEffect(
-    () => subscribeToCartCleared(() => {
-      cartCountVersion.current += 1;
-      setActiveCartCount(0);
-      reset();
-    }),
+    () =>
+      subscribeToCartCleared(() => {
+        cartCountVersion.current += 1;
+        setActiveCartCount(0);
+        reset();
+      }),
     [reset],
   );
 
@@ -289,49 +288,34 @@ export default function HomePage() {
         }}
       >
         <div className="mx-auto w-full max-w-[1536px] px-4 sm:px-6 lg:px-12">
-          <div className="grid min-w-0 items-center gap-4 py-7 sm:gap-6 sm:py-9 lg:min-h-[540px] lg:grid-cols-[0.9fr_1.1fr] lg:gap-10 lg:py-10">
+          <div className="grid min-w-0 items-center gap-5 py-6 sm:gap-8 sm:py-8 lg:min-h-[450px] lg:grid-cols-[0.94fr_1.2fr] lg:gap-12 lg:py-7">
             <div className="min-w-0 max-w-[590px]">
-              {/* <p className="eyebrow">Food for gatherings</p> */}
-              <h1 className="mt-3 max-w-[570px] font-serif text-[30px] font-bold leading-[1.04] tracking-[-0.03em] sm:text-[38px] lg:text-[48px] lg:leading-[0.98]">
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent sm:text-xs">
+                Catering, made personal
+              </p>
+              <h1 className="mt-3 max-w-[570px] font-serif text-[34px] font-bold leading-[1.02] tracking-[-0.035em] sm:text-[44px] lg:text-[56px] lg:leading-[0.98]">
                 Food for every gathering, made simple.
               </h1>
-              <p className="mt-4 max-w-[540px] text-[14px] leading-6 text-white/80 sm:text-[15px] sm:leading-7">
-                Good food for bringing people together, without the planning stress.
+              <p className="mt-4 max-w-[540px] text-[14px] leading-6 text-white/80 sm:text-[15px] sm:leading-7 lg:text-base">
+                Good food for bringing people together, without the planning
+                stress.
               </p>
 
               <Link
                 href="#ordering-styles"
-                className="mt-5 inline-flex h-11 w-fit items-center justify-center gap-1.5 rounded-xl bg-accent px-4 text-sm font-extrabold text-accent-foreground shadow-[0_10px_28px_rgba(211,163,58,0.30)] transition-all duration-250 ease-premium hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_14px_34px_rgba(211,163,58,0.38)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-primary sm:px-5 sm:text-[15px]"
+                className="mt-5 inline-flex h-12 w-fit items-center justify-center gap-2 rounded-full bg-accent px-6 text-sm font-extrabold text-accent-foreground shadow-[0_10px_28px_rgba(211,163,58,0.30)] transition-all duration-250 ease-premium hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_14px_34px_rgba(211,163,58,0.38)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-primary sm:px-7 sm:text-[15px]"
               >
                 Order now <ArrowRight className="h-5 w-5" />
               </Link>
 
               <div
-                className="mt-3 grid max-w-xl grid-cols-2 gap-x-4 gap-y-2 sm:hidden"
+                className="mt-4 flex max-w-xl gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:flex-wrap sm:overflow-visible lg:max-w-[540px]"
                 aria-label="Service trust signals"
               >
                 {heroTags.map(({ label, icon: Icon }) => (
                   <div
                     key={label}
-                    className="flex min-w-0 items-center gap-1.5 text-[10.5px] font-medium leading-tight text-white/75"
-                  >
-                    <Icon
-                      className="h-3 w-3 shrink-0 text-accent"
-                      aria-hidden="true"
-                    />
-                    <span className="min-w-0">{label}</span>
-                  </div>
-                ))}
-              </div>
-
-              <div
-                className="mt-4 hidden max-w-xl flex-wrap gap-2 lg:max-w-[540px] sm:flex"
-                aria-label="Service trust signals"
-              >
-                {heroTags.map(({ label, icon: Icon }) => (
-                  <div
-                    key={label}
-                    className="inline-flex min-h-8 items-center gap-2 rounded-full bg-white/[0.08] px-3 py-1.5 text-[10.5px] font-medium text-white/90 ring-1 ring-inset ring-white/15 sm:min-h-9 sm:px-3.5 sm:text-[11px]"
+                    className="inline-flex h-8 shrink-0 items-center gap-2 rounded-full bg-white/[0.08] px-3 text-[10.5px] font-medium text-white/90 ring-1 ring-inset ring-white/15 sm:h-9 sm:px-3.5 sm:text-[11px]"
                   >
                     <Icon
                       className="h-3.5 w-3.5 shrink-0 text-accent"
@@ -344,7 +328,7 @@ export default function HomePage() {
             </div>
 
             <div className="relative min-w-0 lg:-mr-8">
-              <div className="relative h-[240px] overflow-hidden rounded-[18px] border border-accent/15 shadow-[0_20px_40px_rgba(0,0,0,0.28)] sm:h-[320px] sm:aspect-[16/9] sm:rounded-[24px] lg:h-[490px] lg:aspect-auto lg:rounded-[26px] lg:shadow-[0_28px_60px_rgba(0,0,0,0.32)]">
+              <div className="relative h-[184px] overflow-hidden rounded-[20px] border border-accent/20 shadow-[0_22px_52px_rgba(0,0,0,0.30)] sm:h-auto sm:aspect-[16/9] sm:rounded-[24px] lg:h-[400px] lg:aspect-auto lg:rounded-[28px]">
                 {heroImages.map((image, index) => (
                   <img
                     key={image.src}
@@ -364,7 +348,7 @@ export default function HomePage() {
 
       <section
         id="ordering-styles"
-        className="scroll-mt-14 bg-ivory py-5 sm:scroll-mt-[78px] sm:py-6 lg:py-7"
+        className="scroll-mt-14 bg-ivory py-7 sm:scroll-mt-[78px] sm:py-10 lg:py-12"
       >
         <div className="mx-auto w-full max-w-[1440px] px-4 sm:px-6 lg:px-10">
           <div className="mb-3 max-w-[540px] sm:mb-4">
@@ -380,21 +364,19 @@ export default function HomePage() {
             {homeOfferings.map((offering) => {
               const display = offeringDisplay[offering.code];
               const copy =
-                orderOptionCopy[
-                  offering.code as keyof typeof orderOptionCopy
-                ];
+                orderOptionCopy[offering.code as keyof typeof orderOptionCopy];
               if (!copy) return null;
               return (
                 <Link
                   key={offering.id}
                   href={display.href}
-                  className="group flex min-h-[174px] min-w-0 flex-col overflow-hidden rounded-[10px] border border-primary/15 bg-card text-left transition-colors hover:border-primary/35 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-ivory"
+                  className="group flex min-h-[178px] min-w-0 flex-col overflow-hidden rounded-2xl border border-primary/10 bg-card text-left shadow-[0_8px_24px_-18px_rgba(75,12,23,.55)] transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_14px_32px_-20px_rgba(75,12,23,.65)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-ivory"
                 >
-                  <div className="h-[84px] shrink-0 overflow-hidden bg-muted">
+                  <div className="relative h-[90px] shrink-0 overflow-hidden bg-muted">
                     <img
                       src={copy.image}
                       alt={copy.alt}
-                      className="h-full w-full object-cover"
+                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
                       style={{ objectPosition: copy.imagePosition }}
                     />
                   </div>
@@ -418,12 +400,13 @@ export default function HomePage() {
           <div className="hidden gap-2.5 sm:grid sm:grid-cols-2 xl:grid-cols-4">
             {homeOfferings.map((offering) => {
               const display = offeringDisplay[offering.code];
-              const copy = orderOptionCopy[offering.code as keyof typeof orderOptionCopy];
+              const copy =
+                orderOptionCopy[offering.code as keyof typeof orderOptionCopy];
               return (
                 <Link
                   key={offering.id}
                   href={display.href}
-                  className="group flex min-h-[122px] flex-col justify-between rounded-[12px] border border-border bg-card p-3 transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:bg-white hover:shadow-card-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 lg:p-4"
+                  className="group flex min-h-[122px] flex-col justify-between rounded-2xl border border-border/80 bg-card p-3 shadow-[0_10px_28px_-24px_rgba(75,12,23,.6)] transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:bg-white hover:shadow-card-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 lg:p-4"
                 >
                   <div className="mb-3 h-24 overflow-hidden rounded-[8px] bg-muted lg:h-40 lg:rounded-[10px]">
                     {copy && (
@@ -482,7 +465,7 @@ export default function HomePage() {
               return (
                 <article
                   key={pkg.id}
-                  className="group overflow-hidden rounded-[12px] border border-border/80 bg-card shadow-[0_2px_12px_rgba(0,0,0,0.04)] transition-colors hover:border-primary/25 hover:bg-white"
+                  className="group overflow-hidden rounded-2xl border border-border/80 bg-card shadow-[0_10px_30px_-22px_rgba(75,12,23,.55)] transition-all hover:-translate-y-0.5 hover:border-primary/25 hover:bg-white"
                 >
                   <button
                     type="button"
@@ -512,7 +495,8 @@ export default function HomePage() {
                         </span>
                         ₹{formatDiscoveryPrice(version.basePricePerPlate)}
                         <span className="text-[10px] font-medium text-muted-foreground">
-                          {' '}/ person
+                          {' '}
+                          / person
                         </span>
                       </p>
                       <p className="mt-1 line-clamp-2 text-[10.5px] font-normal leading-[1.25] text-muted-foreground/85">
@@ -645,18 +629,40 @@ export default function HomePage() {
           </div>
           <div className="grid gap-3 md:grid-cols-3">
             {[
-              { step: '01', title: 'Choose your food', description: 'Pick a package, meal boxes, bulk dishes or create your own menu.' },
-              { step: '02', title: 'Add event details', description: 'Tell us your guest count, delivery location, date and time.' },
-              { step: '03', title: 'Review & confirm', description: 'Review your menu, total and delivery details before payment.' },
+              {
+                step: '01',
+                title: 'Choose your food',
+                description:
+                  'Pick a package, meal boxes, bulk dishes or create your own menu.',
+              },
+              {
+                step: '02',
+                title: 'Add event details',
+                description:
+                  'Tell us your guest count, delivery location, date and time.',
+              },
+              {
+                step: '03',
+                title: 'Review & confirm',
+                description:
+                  'Review your menu, total and delivery details before payment.',
+              },
             ].map((item) => (
-              <div key={item.step} className="rounded-[12px] border border-border bg-card p-3 sm:p-4">
+              <div
+                key={item.step}
+                className="rounded-[12px] border border-border bg-card p-3 sm:p-4"
+              >
                 <div className="flex items-center gap-3">
                   <span className="grid h-8 w-8 place-items-center rounded-full bg-primary/10 text-[11px] font-extrabold text-primary">
                     {item.step}
                   </span>
-                  <h3 className="text-base font-bold text-foreground">{item.title}</h3>
+                  <h3 className="text-base font-bold text-foreground">
+                    {item.title}
+                  </h3>
                 </div>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.description}</p>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  {item.description}
+                </p>
               </div>
             ))}
           </div>

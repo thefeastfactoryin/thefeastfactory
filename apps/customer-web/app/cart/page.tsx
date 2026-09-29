@@ -14,6 +14,7 @@ import type {
 } from '@aranyam/shared-types';
 import { createAddressSchema, mobileNumberSchema } from '@aranyam/validation';
 import {
+  AlertCircle,
   CalendarDays,
   Check,
   LockKeyhole,
@@ -28,14 +29,23 @@ import {
   UserRound,
   Trash2,
   Users,
+  X,
 } from 'lucide-react';
 import Link from 'next/link';
 import Script from 'next/script';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RetryPaymentButton } from '../../components/retry-payment-button';
+import { DataImage } from '../../components/data-image';
+import {
+  AddressMapPicker,
+  type MapAddress,
+} from '../../components/address-map-picker';
 import { SelectionContextPanel } from '../../components/selection-context-panel';
-import type { VenueServiceability } from '../../components/selection-context-panel';
+import type {
+  CheckoutFieldState,
+  VenueServiceability,
+} from '../../components/selection-context-panel';
 import { Button } from '../../components/ui/button';
 import { Field, Select } from '../../components/ui/form';
 import { Input } from '../../components/ui/input';
@@ -91,6 +101,74 @@ type MultiCartQuote = {
   deliveryFee: string;
   totalAmount: string;
 };
+
+type CheckoutValidationIssue =
+  | 'address'
+  | 'coordinates'
+  | 'outside'
+  | 'closed'
+  | 'checking'
+  | 'availability'
+  | 'date'
+  | 'time'
+  | 'contact'
+  | 'quote'
+  | 'payment'
+  | 'details';
+
+const checkoutIssueTitles: Record<CheckoutValidationIssue, string> = {
+  address: 'Delivery address required',
+  coordinates: 'Map location required',
+  outside: 'Outside our delivery area',
+  closed: 'Delivery is unavailable here',
+  checking: 'Checking delivery availability',
+  availability: 'Unable to confirm delivery',
+  date: 'Delivery date required',
+  time: 'Delivery time required',
+  contact: 'Valid contact number required',
+  quote: 'Unable to calculate the total',
+  payment: 'Payment needs attention',
+  details: 'Complete the required details',
+};
+
+function friendlyCheckoutError(reason: unknown) {
+  const raw = reason instanceof Error ? reason.message : String(reason ?? '');
+  const rules: Array<[RegExp, string]> = [
+    [
+      /outside.{0,30}(service|delivery)|not.{0,20}serviceable|service.{0,20}area/i,
+      'This location is outside our delivery area. Choose another address to continue.',
+    ],
+    [
+      /latitude|longitude|coordinates?|map\s*pin/i,
+      'This address needs a map pin. Search for the venue or select its location on the map.',
+    ],
+    [
+      /kitchen.{0,30}(closed|inactive|unavailable)|delivery.{0,20}closed/i,
+      'The kitchen serving this location is currently closed. Choose another address to continue.',
+    ],
+    [
+      /event.{0,15}date|delivery.{0,15}date|date.{0,15}required/i,
+      'Choose a delivery date to continue.',
+    ],
+    [
+      /event.{0,15}time|delivery.{0,15}time|time.{0,15}(required|slot|unavailable)/i,
+      'Choose an available delivery time to continue.',
+    ],
+    [
+      /phone|mobile|contact.{0,15}(required|invalid)/i,
+      'Enter a valid 10-digit contact number to continue.',
+    ],
+    [
+      /quote|price.{0,15}(changed|unavailable)|total.{0,15}calculate/i,
+      'We could not calculate the latest total. Review the delivery details and try again.',
+    ],
+  ];
+  return (
+    rules.find(([pattern]) => pattern.test(raw))?.[1] ||
+    raw ||
+    'Something went wrong. Review the order details and try again.'
+  );
+}
 
 type CartAddressForm = {
   addressType: AddressType;
@@ -262,7 +340,9 @@ export default function CartPage() {
   const [cart, setCart] = useState<CartSummary>();
   const [activeCarts, setActiveCarts] = useState<CartSummary[]>([]);
   const [config, setConfig] = useState<PackageConfiguration>();
-  const [configByCartId, setConfigByCartId] = useState<Record<string, PackageConfiguration>>({});
+  const [configByCartId, setConfigByCartId] = useState<
+    Record<string, PackageConfiguration>
+  >({});
   const [quote, setQuote] = useState<PackageSelectionPrice>();
   const [multiCartQuote, setMultiCartQuote] = useState<MultiCartQuote>();
   const [pendingOrder, setPendingOrder] = useState<OrderSummary>();
@@ -283,8 +363,19 @@ export default function CartPage() {
   const [updatingCartId, setUpdatingCartId] = useState('');
   const [editingQuantityCartId, setEditingQuantityCartId] = useState('');
   const [error, setError] = useState('');
-  const [validationLocation, setValidationLocation] = useState<'' | 'delivery' | 'contact'>('');
-  const [venueStatus, setVenueStatus] = useState<VenueServiceability>('checking');
+  const [validationIssue, setValidationIssue] =
+    useState<CheckoutValidationIssue>();
+  const [venueStatus, setVenueStatus] =
+    useState<VenueServiceability>('checking');
+  const [checkoutFields, setCheckoutFields] = useState<CheckoutFieldState>({
+    hasAddress: false,
+    hasCoordinates: false,
+    hasDate: false,
+    hasTime: false,
+    saving: true,
+  });
+  const [eventSyncing, setEventSyncing] = useState(false);
+  const eventSyncVersion = useRef(0);
   const [specialNotes, setSpecialNotes] = useState('');
   const [notesExpanded, setNotesExpanded] = useState(false);
   const [contactNumber, setContactNumber] = useState('');
@@ -299,8 +390,48 @@ export default function CartPage() {
   const [addressError, setAddressError] = useState('');
 
   useEffect(() => {
+    if (!validationIssue) return;
+    const resolved =
+      (validationIssue === 'address' && checkoutFields.hasAddress) ||
+      (validationIssue === 'coordinates' && checkoutFields.hasCoordinates) ||
+      (validationIssue === 'date' && checkoutFields.hasDate) ||
+      (validationIssue === 'time' && checkoutFields.hasTime) ||
+      ((validationIssue === 'outside' ||
+        validationIssue === 'closed' ||
+        validationIssue === 'availability') &&
+        venueStatus === 'serviceable') ||
+      (validationIssue === 'checking' &&
+        !checkoutFields.saving &&
+        !eventSyncing &&
+        !quoteLoading &&
+        venueStatus !== 'checking');
+    if (!resolved) return;
+    setValidationIssue(undefined);
+    setError('');
+  }, [
+    checkoutFields,
+    eventSyncing,
+    quoteLoading,
+    validationIssue,
+    venueStatus,
+  ]);
+
+  useEffect(() => {
     setContactNumber(session?.user.mobileNumber ?? '');
   }, [session?.user.mobileNumber]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const paymentResult = params.get('payment');
+    if (paymentResult !== 'failed' && paymentResult !== 'cancelled') return;
+    setValidationIssue('payment');
+    setError(
+      paymentResult === 'cancelled'
+        ? 'Payment was cancelled. Your order is saved and ready to retry.'
+        : 'Payment was not completed. Your order is saved and you can retry safely.',
+    );
+    window.history.replaceState({}, '', '/cart');
+  }, []);
 
   function openAddressDialog() {
     setAddressError('');
@@ -313,10 +444,42 @@ export default function CartPage() {
     setAddressDialogOpen(true);
   }
 
+  function useMappedAddress(address: MapAddress) {
+    setAddressForm((current) => ({
+      ...current,
+      addressLine1: address.addressLine1 || current.addressLine1,
+      addressLine2: address.addressLine2 || current.addressLine2,
+      city: address.city || current.city,
+      state: address.state || current.state,
+      pincode: address.pincode || current.pincode,
+      landmark: address.landmark || current.landmark,
+      latitude: address.latitude,
+      longitude: address.longitude,
+    }));
+    setAddressError('');
+  }
+
   async function saveCartAddress(event: React.FormEvent) {
     event.preventDefault();
     if (!session) return;
     setAddressError('');
+    const latitude = Number(addressForm.latitude);
+    const longitude = Number(addressForm.longitude);
+    if (
+      !addressForm.latitude.trim() ||
+      !addressForm.longitude.trim() ||
+      !Number.isFinite(latitude) ||
+      latitude < -90 ||
+      latitude > 90 ||
+      !Number.isFinite(longitude) ||
+      longitude < -180 ||
+      longitude > 180
+    ) {
+      setAddressError(
+        'Search for the venue or select a point on the map before saving.',
+      );
+      return;
+    }
     const result = createAddressSchema.safeParse({
       ...addressForm,
       label:
@@ -326,11 +489,12 @@ export default function CartPage() {
           OFFICE: 'Office',
           EVENT_VENUE: 'Event venue',
           OTHER: 'Other',
-        }[addressForm.addressType] ?? undefined),
+        }[addressForm.addressType] ??
+          undefined),
       addressLine2: addressForm.addressLine2.trim() || undefined,
       landmark: addressForm.landmark.trim() || undefined,
-      latitude: addressForm.latitude || undefined,
-      longitude: addressForm.longitude || undefined,
+      latitude: addressForm.latitude,
+      longitude: addressForm.longitude,
       isDefault: false,
     });
     if (!result.success) {
@@ -348,38 +512,46 @@ export default function CartPage() {
       );
       markAddressesChanged();
       if (created.latitude && created.longitude) {
-        const resolution = await apiRequest<LocationResolution>(
-          '/operating-regions/resolve',
-          {
-            method: 'POST',
-            body: JSON.stringify({
-              latitude: created.latitude,
-              longitude: created.longitude,
-            }),
-          },
-          session.accessToken,
-        );
-        setDeliveryLocation({
-          latitude: created.latitude,
-          longitude: created.longitude,
-          label:
-            created.label ||
-            created.addressLine2 ||
-            created.addressLine1 ||
-            created.city,
-          source: 'saved',
-          savedAddressId: created.id,
-          address: {
-            addressLine1: created.addressLine1,
-            addressLine2: created.addressLine2 ?? undefined,
-            city: created.city,
-            state: created.state,
-            pincode: created.pincode,
-            landmark: created.landmark ?? undefined,
-          },
-          resolution,
-        });
+        try {
+          const resolution = await apiRequest<LocationResolution>(
+            '/operating-regions/resolve',
+            {
+              method: 'POST',
+              body: JSON.stringify({
+                latitude: created.latitude,
+                longitude: created.longitude,
+              }),
+            },
+          );
+          setDeliveryLocation({
+            latitude: created.latitude,
+            longitude: created.longitude,
+            label:
+              created.label ||
+              created.addressLine2 ||
+              created.addressLine1 ||
+              created.city,
+            source: 'saved',
+            savedAddressId: created.id,
+            address: {
+              addressLine1: created.addressLine1,
+              addressLine2: created.addressLine2 ?? undefined,
+              city: created.city,
+              state: created.state,
+              pincode: created.pincode,
+              landmark: created.landmark ?? undefined,
+            },
+            resolution,
+          });
+        } catch {
+          // The address is already saved. The checkout panel will retry the
+          // serviceability check when it refreshes the saved address list.
+        }
       }
+      setAddressForm(emptyCartAddressForm);
+      setAddressError('');
+      setError('');
+      setValidationIssue(undefined);
       setAddressDialogOpen(false);
     } catch (reason) {
       setAddressError((reason as Error).message);
@@ -405,11 +577,12 @@ export default function CartPage() {
   }, []);
 
   useEffect(
-    () => subscribeToCartCleared((source) => {
-      if (source === 'storage') {
-        recoverMissingCart(new Error('Active cart not found'));
-      }
-    }),
+    () =>
+      subscribeToCartCleared((source) => {
+        if (source === 'storage') {
+          recoverMissingCart(new Error('Active cart not found'));
+        }
+      }),
     [recoverMissingCart],
   );
 
@@ -437,7 +610,8 @@ export default function CartPage() {
       } catch (reason) {
         setQuote(undefined);
         setMultiCartQuote(undefined);
-        if (!recoverMissingCart(reason)) setError((reason as Error).message);
+        if (!recoverMissingCart(reason))
+          setError(friendlyCheckoutError(reason));
       } finally {
         setQuoteLoading(false);
       }
@@ -473,7 +647,9 @@ export default function CartPage() {
         }
         setCart(currentCart);
         setSpecialNotes(currentCart.specialNotes ?? '');
-        setContactNumber(currentCart.contactNumber || session!.user.mobileNumber);
+        setContactNumber(
+          currentCart.contactNumber || session!.user.mobileNumber,
+        );
         hydrate(currentCart);
         const configuration = await apiRequest<PackageConfiguration>(
           `/package-versions/${currentCart.packageVersionId}/configuration`,
@@ -486,9 +662,10 @@ export default function CartPage() {
               return [packageCart.id, configuration] as const;
             }
             try {
-              const packageConfiguration = await apiRequest<PackageConfiguration>(
-                `/package-versions/${packageCart.packageVersionId}/configuration`,
-              );
+              const packageConfiguration =
+                await apiRequest<PackageConfiguration>(
+                  `/package-versions/${packageCart.packageVersionId}/configuration`,
+                );
               return [packageCart.id, packageConfiguration] as const;
             } catch {
               return undefined;
@@ -529,7 +706,8 @@ export default function CartPage() {
           await loadQuote(currentCart.id);
         }
       } catch (reason) {
-        if (active && !recoverMissingCart(reason)) setError((reason as Error).message);
+        if (active && !recoverMissingCart(reason))
+          setError(friendlyCheckoutError(reason));
       } finally {
         if (active && !recoveringCart.current) setLoading(false);
       }
@@ -543,8 +721,10 @@ export default function CartPage() {
   const onEventSaved = useCallback(
     (updated: CartSummary) => {
       if (!session) return;
+      const syncVersion = ++eventSyncVersion.current;
+      setEventSyncing(true);
       setError('');
-      setValidationLocation('');
+      setValidationIssue(undefined);
       setCart(updated);
       setActiveCarts((current) =>
         current.map((entry) => (entry.id === updated.id ? updated : entry)),
@@ -553,7 +733,10 @@ export default function CartPage() {
       const event = updated.event;
       const addressId = event?.address?.id ?? updated.address?.id;
       const regionId = event?.region?.id ?? updated.region?.id;
-      if (!addressId || !regionId) return;
+      if (!addressId || !regionId) {
+        if (syncVersion === eventSyncVersion.current) setEventSyncing(false);
+        return;
+      }
       const completeEvent = Boolean(event?.eventDate && event.eventTimeStart);
       void Promise.all(
         activeCarts.map((packageCart) => {
@@ -595,7 +778,11 @@ export default function CartPage() {
           return undefined;
         })
         .catch((reason) => {
-          if (!recoverMissingCart(reason)) setError((reason as Error).message);
+          if (!recoverMissingCart(reason))
+            setError(friendlyCheckoutError(reason));
+        })
+        .finally(() => {
+          if (syncVersion === eventSyncVersion.current) setEventSyncing(false);
         });
     },
     [session, hydrate, loadQuote, activeCarts, recoverMissingCart],
@@ -628,7 +815,7 @@ export default function CartPage() {
       }
       await loadQuote(cart?.id ?? updated.id);
     } catch (reason) {
-      if (!recoverMissingCart(reason)) setError((reason as Error).message);
+      if (!recoverMissingCart(reason)) setError(friendlyCheckoutError(reason));
     } finally {
       setUpdatingCartId('');
     }
@@ -666,7 +853,7 @@ export default function CartPage() {
       }
       await loadQuote(cart.id);
     } catch (reason) {
-      if (!recoverMissingCart(reason)) setError((reason as Error).message);
+      if (!recoverMissingCart(reason)) setError(friendlyCheckoutError(reason));
     } finally {
       setUpdatingDelivery(false);
     }
@@ -701,7 +888,7 @@ export default function CartPage() {
       }
       await loadQuote(cart.id);
     } catch (reason) {
-      if (!recoverMissingCart(reason)) setError((reason as Error).message);
+      if (!recoverMissingCart(reason)) setError(friendlyCheckoutError(reason));
     } finally {
       setUpdatingDelivery(false);
     }
@@ -735,18 +922,18 @@ export default function CartPage() {
   async function saveContactNumber() {
     const validated = mobileNumberSchema.safeParse(contactNumber);
     if (!validated.success) {
-      setValidationLocation('contact');
+      setValidationIssue('contact');
       setError('Enter a valid 10-digit contact number to continue.');
       return;
     }
     setSavingContact(true);
-    setValidationLocation('');
+    setValidationIssue(undefined);
     setError('');
     try {
       await persistContactNumber(validated.data);
       setEditingContact(false);
     } catch (reason) {
-      if (!recoverMissingCart(reason)) setError((reason as Error).message);
+      if (!recoverMissingCart(reason)) setError(friendlyCheckoutError(reason));
     } finally {
       setSavingContact(false);
     }
@@ -795,7 +982,7 @@ export default function CartPage() {
         await loadQuote(detailCartId);
       }
     } catch (reason) {
-      if (!recoverMissingCart(reason)) setError((reason as Error).message);
+      if (!recoverMissingCart(reason)) setError(friendlyCheckoutError(reason));
     } finally {
       setDeletingCartId('');
     }
@@ -818,7 +1005,7 @@ export default function CartPage() {
       notifyCartCleared();
       window.dispatchEvent(new Event('cart-updated'));
     } catch (reason) {
-      if (!recoverMissingCart(reason)) setError((reason as Error).message);
+      if (!recoverMissingCart(reason)) setError(friendlyCheckoutError(reason));
     } finally {
       setClearingCart(false);
     }
@@ -965,6 +1152,13 @@ export default function CartPage() {
     return {
       cart: packageCart,
       groups,
+      previewImages: (
+        packageConfiguration?.categoryRules.flatMap((rule) =>
+          rule.items.map((item) => item.imageUrl),
+        ) ?? []
+      )
+        .filter((imageUrl): imageUrl is string => Boolean(imageUrl))
+        .slice(0, 3),
       itemCount: groups.reduce((count, group) => count + group.rows.length, 0),
       guestCount:
         packageQuote?.guestCount ??
@@ -999,12 +1193,21 @@ export default function CartPage() {
   }
 
   async function pay() {
-    if (!session || !cart || !ready || venueStatus !== 'serviceable' || !multiCartQuote?.valid) return;
+    if (
+      !session ||
+      !cart ||
+      !ready ||
+      venueStatus !== 'serviceable' ||
+      !multiCartQuote?.valid
+    )
+      return;
     const validatedContactNumber = mobileNumberSchema.safeParse(contactNumber);
     if (!validatedContactNumber.success) {
+      setValidationIssue('contact');
       setError('Enter a valid 10-digit contact number to continue.');
       return;
     }
+    setValidationIssue(undefined);
     setError('');
     setPaying(true);
     try {
@@ -1028,6 +1231,18 @@ export default function CartPage() {
           );
       const order = orders[0];
       setPendingOrderId(order.id);
+      setPendingOrder(order);
+      setPendingBatch(
+        orders.length > 1
+          ? {
+              orderCount: orders.length,
+              orderIds: orders.map((row) => row.id),
+              totalAmount: orders
+                .reduce((sum, row) => sum + Number(row.totalAmount), 0)
+                .toFixed(2),
+            }
+          : undefined,
+      );
       const gateway =
         orders.length === 1
           ? await apiRequest<GatewayOrder>(
@@ -1078,6 +1293,7 @@ export default function CartPage() {
         modal: {
           confirm_close: true,
           ondismiss: () => {
+            setValidationIssue('payment');
             setError(
               'Payment window closed. Your order is saved and you can retry safely.',
             );
@@ -1088,12 +1304,14 @@ export default function CartPage() {
           try {
             await verifyPayment(order.id, response);
           } catch (reason) {
-            setError((reason as Error).message);
+            setValidationIssue('payment');
+            setError(friendlyCheckoutError(reason));
             setPaying(false);
           }
         },
       });
       checkout.on('payment.failed', (response) => {
+        setValidationIssue('payment');
         setError(
           response?.error?.description ||
             'Payment failed. You can retry without creating another order.',
@@ -1102,68 +1320,117 @@ export default function CartPage() {
       });
       checkout.open();
     } catch (reason) {
-      if (!recoverMissingCart(reason)) setError((reason as Error).message);
+      if (!recoverMissingCart(reason)) {
+        setValidationIssue('payment');
+        setError(friendlyCheckoutError(reason));
+      }
       setPaying(false);
     }
   }
 
   function requestPayment() {
+    const showDeliveryIssue = (
+      issue: CheckoutValidationIssue,
+      message: string,
+    ) => {
+      setValidationIssue(issue);
+      setError(message);
+      document
+        .getElementById('checkout-delivery')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
+
+    if (!checkoutFields.hasAddress || venueStatus === 'missing') {
+      showDeliveryIssue(
+        'address',
+        'Choose or add a complete delivery address to continue.',
+      );
+      return;
+    }
+
+    if (!checkoutFields.hasCoordinates || venueStatus === 'missing-pin') {
+      showDeliveryIssue(
+        'coordinates',
+        'This address needs a map pin. Search for the venue or select its location on the map.',
+      );
+      return;
+    }
+
+    if (!checkoutFields.hasDate) {
+      showDeliveryIssue('date', 'Choose a delivery date to continue.');
+      window.setTimeout(() => {
+        document
+          .querySelector<HTMLElement>(
+            '#checkout-delivery [aria-label="Choose delivery date"]',
+          )
+          ?.focus();
+      }, 250);
+      return;
+    }
+
+    if (!checkoutFields.hasTime) {
+      showDeliveryIssue(
+        'time',
+        'Choose an available delivery time to continue.',
+      );
+      window.setTimeout(() => {
+        document
+          .querySelector<HTMLElement>(
+            '#checkout-delivery [aria-label="Choose delivery time"]',
+          )
+          ?.focus();
+      }, 250);
+      return;
+    }
+
     if (venueStatus !== 'serviceable') {
-      setValidationLocation('delivery');
-      setError(
+      const isOutside =
         venueStatus === 'outside' ||
-          (venueStatus === 'missing' &&
-            deliveryLocation?.resolution.reason === 'OUTSIDE_SERVICE_AREA')
+        deliveryLocation?.resolution.reason === 'OUTSIDE_SERVICE_AREA';
+      showDeliveryIssue(
+        isOutside
+          ? 'outside'
+          : venueStatus === 'closed'
+            ? 'closed'
+            : venueStatus === 'checking'
+              ? 'checking'
+              : 'availability',
+        isOutside
           ? 'This location is outside our delivery area. Choose another address to continue.'
           : venueStatus === 'closed'
             ? 'The kitchen serving this location is currently closed. Choose another address to continue.'
             : venueStatus === 'checking'
-              ? 'Checking delivery availability for this address. Please wait a moment.'
-              : venueStatus === 'missing-pin'
-                ? 'This address needs a map pin before we can check delivery.'
-                : venueStatus === 'error'
-                  ? 'We could not check delivery for this address. Select it again and retry.'
-                  : 'Choose a delivery address to continue.',
+              ? 'We are checking delivery availability for this address. Please wait a moment and try again.'
+              : 'We could not confirm delivery for this address. Select the address again or choose another one.',
       );
-      document
-        .getElementById('checkout-delivery')
-        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
-    if (!ready) {
-      const missingAddress = activeCarts.some(
-        (entry) => !entry.event?.address || !entry.event.region,
+
+    if (checkoutFields.saving || eventSyncing || !ready) {
+      showDeliveryIssue(
+        'checking',
+        'Your address, date, and time are still being saved. Please wait a moment and try again.',
       );
-      const missingDate = activeCarts.some((entry) => !entry.event?.eventDate);
-      const missingTime = activeCarts.some(
-        (entry) => !entry.event?.eventTimeStart,
+      return;
+    }
+
+    if (quoteLoading) {
+      showDeliveryIssue(
+        'checking',
+        'Your latest delivery total is still updating. Please wait a moment.',
       );
-      setValidationLocation('delivery');
-      setError(
-        missingAddress
-          ? 'Add a delivery address to continue.'
-          : missingDate
-            ? 'Choose a delivery date to continue.'
-            : missingTime
-              ? 'Choose a delivery time to continue.'
-              : 'Complete the required delivery details to continue.',
+      return;
+    }
+    if (!multiCartQuote?.valid) {
+      showDeliveryIssue(
+        'quote',
+        'We could not calculate the latest total. Review the delivery details and try again.',
       );
-      document
-        .getElementById('checkout-delivery')
-        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      window.setTimeout(() => {
-        const selector = missingDate
-          ? '[aria-label="Choose delivery date"]'
-          : missingTime
-            ? '[aria-label="Choose delivery time"]'
-            : 'a[href^="/addresses"]';
-        document.querySelector<HTMLElement>(`#checkout-delivery ${selector}`)?.focus();
-      }, 250);
       return;
     }
     if (!mobileNumberSchema.safeParse(contactNumber).success) {
       setEditingContact(true);
-      setValidationLocation('contact');
+      setValidationIssue('contact');
       setError('Enter a valid 10-digit contact number to continue.');
       document
         .getElementById('checkout-contact')
@@ -1174,7 +1441,8 @@ export default function CartPage() {
       );
       return;
     }
-    setValidationLocation('');
+    setValidationIssue(undefined);
+    setError('');
     void pay();
   }
 
@@ -1222,7 +1490,7 @@ export default function CartPage() {
 
   return (
     <main
-      className="bg-background pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-10"
+      className="min-h-screen bg-[radial-gradient(circle_at_top_left,hsl(var(--primary)/.07),transparent_30%),linear-gradient(to_bottom,hsl(var(--ivory)),hsl(var(--background))_18rem)] pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-12"
       onFocusCapture={(event) => {
         if (
           event.target instanceof HTMLInputElement ||
@@ -1246,129 +1514,266 @@ export default function CartPage() {
         strategy="afterInteractive"
       />
 
-      <div className="mx-auto w-full max-w-[1320px] px-4 py-5 sm:px-6 sm:py-7 lg:px-8 lg:py-10">
-        <h1 className="mb-5 font-sans text-2xl font-semibold leading-tight text-foreground sm:mb-7 sm:text-3xl">
-          Checkout
-        </h1>
-        {!pendingOrder && (
-          <section className="mb-5 overflow-hidden rounded-2xl border border-border/70 bg-white shadow-sm sm:mb-7">
-            <div className="border-b border-border/60 bg-ivory-warm/60 px-4 py-4 sm:px-6">
-              <h2 className="font-sans text-lg font-semibold leading-6 text-foreground">
-                Your order <span className="text-muted-foreground">({activeCarts.length})</span>
-              </h2>
+      <div className="mx-auto w-full max-w-[1320px] px-3 py-4 sm:px-6 sm:py-7 lg:px-8 lg:py-10">
+        <header className="mb-4 overflow-hidden rounded-2xl border border-primary/10 bg-[linear-gradient(120deg,hsl(var(--hero-start)),hsl(var(--primary)))] px-4 py-4 text-white shadow-[0_18px_50px_-32px_rgba(75,12,23,.9)] sm:mb-7 sm:rounded-3xl sm:px-7 sm:py-6">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white/10 text-accent ring-1 ring-inset ring-white/15 sm:h-12 sm:w-12">
+              <ShoppingBag
+                className="h-5 w-5 sm:h-6 sm:w-6"
+                aria-hidden="true"
+              />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent sm:text-xs">
+                Almost there
+              </p>
+              <h1 className="mt-0.5 font-serif text-2xl font-bold leading-tight sm:text-3xl">
+                Review and checkout
+              </h1>
+              <p className="mt-1 hidden text-sm text-white/70 sm:block">
+                Confirm your menu and delivery details, then pay securely.
+              </p>
             </div>
-            <div className="divide-y divide-border/60 px-4 sm:px-6">
-              {orderSummaries.map(({ cart: packageCart, itemCount, guestCount, weightKg }) => {
-                const packageQuote = multiCartQuote?.carts.find(
-                  (entry) => entry.cartId === packageCart.id,
-                )?.quote;
-                const menuHref =
-                  packageCart.package.type === 'ORDER_BY_KG'
-                    ? `/order-by-kg?packageVersionId=${packageCart.packageVersionId}&cartId=${packageCart.id}`
-                    : packageCart.package.type === 'CUSTOM_PACKAGE'
-                      ? `/packages/build?packageVersionId=${packageCart.packageVersionId}&cartId=${packageCart.id}`
-                      : `/menu/select?packageVersionId=${packageCart.packageVersionId}&cartId=${packageCart.id}`;
-                const menuSummary = itemCount > 0
-                  ? `${itemCount} ${itemCount === 1 ? 'dish' : 'dishes'}`
-                  : packageCart.package.type === 'FIXED_PACKAGE'
-                    ? 'Included menu'
-                    : 'No dishes selected';
-                return (
-                  <article key={packageCart.id} className="min-w-0 py-4 sm:py-5">
-                    <div className="flex min-w-0 items-start justify-between gap-4">
-                      <h3 className="min-w-0 flex-1 break-words font-sans text-base font-semibold leading-6 text-foreground">
-                        {packageCart.package.name}
-                      </h3>
-                      <strong className="money-text shrink-0 text-base font-semibold text-foreground">
-                        {packageQuote
-                          ? formatCheckoutCurrency(packageQuote.subtotalAmount)
-                          : quoteLoading ? 'Updating' : ''}
-                      </strong>
-                    </div>
-                    <p className="mt-1 text-sm leading-5 text-muted-foreground">
-                      {packageCart.package.type === 'ORDER_BY_KG'
-                        ? `${weightKg} kg · ${menuSummary}`
-                        : `${guestCount} ${packageCart.package.type === 'MEAL_BOX' ? 'boxes' : 'guests'} · ${menuSummary}`}
-                    </p>
-                    <div className="mt-2 flex min-h-9 flex-wrap items-center gap-x-5 gap-y-1">
-                      <Link
-                        href={menuHref}
-                        className="inline-flex min-h-9 items-center text-sm font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-                      >
-                        Edit menu
-                      </Link>
-                      {packageCart.package.type !== 'ORDER_BY_KG' && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setEditingQuantityCartId((current) =>
-                              current === packageCart.id ? '' : packageCart.id,
-                            )
-                          }
-                          className="inline-flex min-h-9 items-center text-sm font-medium text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-                        >
-                          {editingQuantityCartId === packageCart.id
-                            ? 'Done'
-                            : `Change ${packageCart.package.type === 'MEAL_BOX' ? 'boxes' : 'guests'}`}
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        aria-label={`Remove ${packageCart.package.name} from cart`}
-                        disabled={Boolean(deletingCartId)}
-                        onClick={() => void removeCart(packageCart.id)}
-                        className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-red-50 hover:text-red-700 disabled:opacity-40"
-                      >
-                        <Trash2 className="h-4 w-4" aria-hidden="true" />
-                      </button>
-                    </div>
-                    {editingQuantityCartId === packageCart.id &&
-                      packageCart.package.type !== 'ORDER_BY_KG' && (
-                        <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-3">
-                          <span className="text-sm font-medium text-muted-foreground">
-                            {packageCart.package.type === 'MEAL_BOX' ? 'Box count' : 'Guest count'}
-                          </span>
-                          <div className="flex h-10 items-center overflow-hidden rounded-md border bg-white">
-                            <button
-                              type="button"
-                              aria-label={`Decrease count for ${packageCart.package.name}`}
-                              disabled={Boolean(updatingCartId) || guestCount <= packageCart.package.minGuestCount}
-                              onClick={() => void updatePackageQuantity(packageCart, guestCount - 1)}
-                              className="grid h-10 w-10 place-items-center text-primary disabled:opacity-30"
-                            >
-                              <Minus className="h-3.5 w-3.5" />
-                            </button>
-                            <input
-                              aria-label={`Count for ${packageCart.package.name}`}
-                              inputMode="numeric"
-                              defaultValue={guestCount}
-                              key={`${packageCart.id}-${guestCount}`}
-                              onBlur={(event) => {
-                                const next = clampPackageQuantity(packageCart, Number(event.target.value));
-                                event.currentTarget.value = String(next);
-                                void updatePackageQuantity(packageCart, next);
-                              }}
-                              className="h-10 w-14 border-x text-center text-sm font-bold outline-none"
+          </div>
+        </header>
+        {error && !(pendingOrder && validationIssue === 'payment') && (
+          <section
+            role="alert"
+            aria-live="assertive"
+            className={cn(
+              'mb-4 flex items-start gap-3 rounded-2xl border px-4 py-3.5 shadow-sm sm:mb-6 sm:px-5 sm:py-4',
+              validationIssue === 'checking'
+                ? 'border-amber-200 bg-amber-50 text-amber-950'
+                : 'border-red-200 bg-red-50 text-red-950',
+            )}
+          >
+            <span
+              className={cn(
+                'mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full',
+                validationIssue === 'checking'
+                  ? 'bg-amber-100 text-amber-700'
+                  : 'bg-red-100 text-red-700',
+              )}
+            >
+              <AlertCircle className="h-4 w-4" aria-hidden="true" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <h2 className="text-sm font-bold">
+                {validationIssue
+                  ? checkoutIssueTitles[validationIssue]
+                  : 'Please review your order'}
+              </h2>
+              <p className="mt-0.5 text-sm leading-5 opacity-90">{error}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setError('');
+                setValidationIssue(undefined);
+              }}
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-full transition hover:bg-black/[0.06] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current"
+              aria-label="Dismiss error"
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </section>
+        )}
+        {!pendingOrder && (
+          <section className="mb-5 overflow-hidden rounded-2xl border border-border/70 bg-white shadow-[0_16px_44px_-34px_rgba(75,12,23,.7)] sm:mb-7 sm:rounded-3xl">
+            <div className="flex items-center justify-between gap-3 border-b border-border/60 bg-gradient-to-r from-primary/[0.055] to-accent/[0.08] px-4 py-3.5 sm:px-6 sm:py-4">
+              <h2 className="flex items-center gap-2 font-serif text-lg font-semibold leading-6 text-foreground sm:text-xl">
+                <Package className="h-4 w-4 text-primary" aria-hidden="true" />
+                Your order{' '}
+                <span className="text-muted-foreground">
+                  ({activeCarts.length})
+                </span>
+              </h2>
+              <Link
+                href="/packages"
+                className="hidden text-xs font-bold text-primary hover:underline sm:inline"
+              >
+                + Add package
+              </Link>
+            </div>
+            <div className="divide-y divide-border/60 px-3 sm:px-6">
+              {orderSummaries.map(
+                ({
+                  cart: packageCart,
+                  previewImages,
+                  itemCount,
+                  guestCount,
+                  weightKg,
+                }) => {
+                  const packageQuote = multiCartQuote?.carts.find(
+                    (entry) => entry.cartId === packageCart.id,
+                  )?.quote;
+                  const menuHref =
+                    packageCart.package.type === 'ORDER_BY_KG'
+                      ? `/order-by-kg?packageVersionId=${packageCart.packageVersionId}&cartId=${packageCart.id}`
+                      : packageCart.package.type === 'CUSTOM_PACKAGE'
+                        ? `/packages/build?packageVersionId=${packageCart.packageVersionId}&cartId=${packageCart.id}`
+                        : `/menu/select?packageVersionId=${packageCart.packageVersionId}&cartId=${packageCart.id}`;
+                  const menuSummary =
+                    itemCount > 0
+                      ? `${itemCount} ${itemCount === 1 ? 'dish' : 'dishes'}`
+                      : packageCart.package.type === 'FIXED_PACKAGE'
+                        ? 'Included menu'
+                        : 'No dishes selected';
+                  return (
+                    <article
+                      key={packageCart.id}
+                      className="min-w-0 py-3.5 sm:py-5"
+                    >
+                      <div className="grid min-w-0 grid-cols-[72px_minmax(0,1fr)] gap-3 sm:grid-cols-[92px_minmax(0,1fr)] sm:gap-4">
+                        <div className="relative h-[72px] overflow-hidden rounded-xl bg-muted shadow-inner sm:h-[92px] sm:rounded-2xl">
+                          {previewImages[0] ? (
+                            <DataImage
+                              src={previewImages[0]}
+                              alt={`${packageCart.package.name} menu`}
+                              className="h-full w-full object-cover"
                             />
+                          ) : (
+                            <div className="grid h-full w-full place-items-center bg-gradient-to-br from-primary/10 to-accent/20 text-primary">
+                              <Utensils
+                                className="h-6 w-6"
+                                aria-hidden="true"
+                              />
+                            </div>
+                          )}
+                          <span className="absolute bottom-1.5 right-1.5 rounded-full bg-white/90 px-1.5 py-0.5 text-[9px] font-bold text-primary shadow-sm">
+                            {itemCount || 'Menu'}
+                          </span>
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex min-w-0 items-start justify-between gap-3">
+                            <h3 className="min-w-0 flex-1 break-words font-sans text-[15px] font-semibold leading-5 text-foreground sm:text-base sm:leading-6">
+                              {packageCart.package.name}
+                            </h3>
+                            <strong className="money-text shrink-0 text-sm font-bold text-primary sm:text-base">
+                              {packageQuote
+                                ? formatCheckoutCurrency(
+                                    packageQuote.subtotalAmount,
+                                  )
+                                : quoteLoading
+                                  ? 'Updating'
+                                  : ''}
+                            </strong>
+                          </div>
+                          <p className="mt-1 text-xs leading-5 text-muted-foreground sm:text-sm">
+                            {packageCart.package.type === 'ORDER_BY_KG'
+                              ? `${weightKg} kg · ${menuSummary}`
+                              : `${guestCount} ${packageCart.package.type === 'MEAL_BOX' ? 'boxes' : 'guests'} · ${menuSummary}`}
+                          </p>
+                          <div className="mt-1.5 flex min-h-8 flex-wrap items-center gap-x-3 gap-y-1 sm:gap-x-5">
+                            <Link
+                              href={menuHref}
+                              className="inline-flex min-h-8 items-center rounded-full bg-primary/[0.06] px-3 text-xs font-bold text-primary transition hover:bg-primary/[0.1] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:text-sm"
+                            >
+                              Edit menu
+                            </Link>
+                            {packageCart.package.type !== 'ORDER_BY_KG' && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setEditingQuantityCartId((current) =>
+                                    current === packageCart.id
+                                      ? ''
+                                      : packageCart.id,
+                                  )
+                                }
+                                className="inline-flex min-h-8 items-center text-xs font-semibold text-muted-foreground hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:text-sm"
+                              >
+                                {editingQuantityCartId === packageCart.id
+                                  ? 'Done'
+                                  : `Change ${packageCart.package.type === 'MEAL_BOX' ? 'boxes' : 'guests'}`}
+                              </button>
+                            )}
                             <button
                               type="button"
-                              aria-label={`Increase count for ${packageCart.package.name}`}
-                              disabled={Boolean(updatingCartId) || Boolean(packageCart.package.maxGuestCount && guestCount >= packageCart.package.maxGuestCount)}
-                              onClick={() => void updatePackageQuantity(packageCart, guestCount + 1)}
-                              className="grid h-10 w-10 place-items-center text-primary disabled:opacity-30"
+                              aria-label={`Remove ${packageCart.package.name} from cart`}
+                              disabled={Boolean(deletingCartId)}
+                              onClick={() => void removeCart(packageCart.id)}
+                              className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted-foreground transition hover:bg-red-50 hover:text-red-700 disabled:opacity-40"
                             >
-                              <Plus className="h-3.5 w-3.5" />
+                              <Trash2 className="h-4 w-4" aria-hidden="true" />
                             </button>
                           </div>
                         </div>
-                      )}
-                  </article>
-                );
-              })}
+                      </div>
+                      {editingQuantityCartId === packageCart.id &&
+                        packageCart.package.type !== 'ORDER_BY_KG' && (
+                          <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-3">
+                            <span className="text-sm font-medium text-muted-foreground">
+                              {packageCart.package.type === 'MEAL_BOX'
+                                ? 'Box count'
+                                : 'Guest count'}
+                            </span>
+                            <div className="flex h-10 items-center overflow-hidden rounded-md border bg-white">
+                              <button
+                                type="button"
+                                aria-label={`Decrease count for ${packageCart.package.name}`}
+                                disabled={
+                                  Boolean(updatingCartId) ||
+                                  guestCount <=
+                                    packageCart.package.minGuestCount
+                                }
+                                onClick={() =>
+                                  void updatePackageQuantity(
+                                    packageCart,
+                                    guestCount - 1,
+                                  )
+                                }
+                                className="grid h-10 w-10 place-items-center text-primary disabled:opacity-30"
+                              >
+                                <Minus className="h-3.5 w-3.5" />
+                              </button>
+                              <input
+                                aria-label={`Count for ${packageCart.package.name}`}
+                                inputMode="numeric"
+                                defaultValue={guestCount}
+                                key={`${packageCart.id}-${guestCount}`}
+                                onBlur={(event) => {
+                                  const next = clampPackageQuantity(
+                                    packageCart,
+                                    Number(event.target.value),
+                                  );
+                                  event.currentTarget.value = String(next);
+                                  void updatePackageQuantity(packageCart, next);
+                                }}
+                                className="h-10 w-14 border-x text-center text-sm font-bold outline-none"
+                              />
+                              <button
+                                type="button"
+                                aria-label={`Increase count for ${packageCart.package.name}`}
+                                disabled={
+                                  Boolean(updatingCartId) ||
+                                  Boolean(
+                                    packageCart.package.maxGuestCount &&
+                                    guestCount >=
+                                      packageCart.package.maxGuestCount,
+                                  )
+                                }
+                                onClick={() =>
+                                  void updatePackageQuantity(
+                                    packageCart,
+                                    guestCount + 1,
+                                  )
+                                }
+                                className="grid h-10 w-10 place-items-center text-primary disabled:opacity-30"
+                              >
+                                <Plus className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                    </article>
+                  );
+                },
+              )}
             </div>
             <Link
               href="/packages"
-              className="inline-flex min-h-12 items-center px-4 text-sm font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:px-6"
+              className="inline-flex min-h-12 items-center px-4 text-sm font-bold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:hidden"
             >
               <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
               Add another package
@@ -1376,13 +1781,35 @@ export default function CartPage() {
           </section>
         )}
         {pendingOrder && (
-          <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-            <strong>Payment is pending.</strong> Your order is safely reserved.
-            Retry payment without creating another order.
-          </div>
+          <section className="mb-5 overflow-hidden rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 shadow-[0_16px_40px_-32px_rgba(146,64,14,.65)] sm:rounded-3xl">
+            <div className="flex items-start gap-3 p-4 sm:items-center sm:p-5">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-amber-100 text-amber-700 ring-1 ring-inset ring-amber-200">
+                <AlertCircle className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <h2 className="font-serif text-lg font-bold text-amber-950">
+                  Payment not completed
+                </h2>
+                <p className="mt-1 text-sm leading-5 text-amber-900/80">
+                  {validationIssue === 'payment' && error
+                    ? error
+                    : 'Your order is safely reserved. Retry payment without creating another order.'}
+                </p>
+              </div>
+              <div className="hidden shrink-0 items-center gap-2 lg:flex">
+                <Button asChild variant="outline">
+                  <Link href={`/orders/${pendingOrder.id}`}>View order</Link>
+                </Button>
+                <RetryPaymentButton
+                  order={pendingOrder}
+                  orderIds={pendingBatch?.orderIds}
+                />
+              </div>
+            </div>
+          </section>
         )}
 
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.9fr)] lg:items-start lg:gap-8">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1.55fr)_minmax(340px,0.9fr)] lg:items-start lg:gap-8">
           <div className="min-w-0 space-y-5">
             {pendingOrder ? (
               <EventSummary cart={cart} />
@@ -1414,85 +1841,89 @@ export default function CartPage() {
                   onSaved={onEventSaved}
                   onAddAddress={openAddressDialog}
                   onVenueStatusChange={setVenueStatus}
+                  onCheckoutStateChange={setCheckoutFields}
                   onMissingCart={() =>
                     recoverMissingCart(new Error('Active cart not found'))
                   }
                 />
-                {validationLocation === 'delivery' && error && (
-                  <p role="alert" className="mt-1 text-sm font-medium text-red-800">
-                    {error}
-                  </p>
-                )}
               </>
             )}
 
             {!pendingOrder && (
               <section
                 id="checkout-contact"
-                className="rounded-2xl border border-border/70 bg-white p-4 shadow-sm sm:p-6"
+                className="rounded-2xl border border-border/70 bg-white p-4 shadow-[0_16px_42px_-34px_rgba(75,12,23,.65)] sm:rounded-3xl sm:p-6"
               >
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="min-w-0">
-                      <h2 className="font-sans text-base font-semibold leading-5 text-foreground">Contact</h2>
-                    </div>
-                    <button
-                      type="button"
-                      disabled={savingContact}
-                      onClick={() =>
-                        editingContact
-                          ? void saveContactNumber()
-                          : setEditingContact(true)
-                      }
-                      className="inline-flex min-h-8 shrink-0 items-center px-1 text-xs font-medium text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60"
-                    >
-                      {savingContact ? 'Saving…' : editingContact ? 'Save' : 'Edit'}
-                    </button>
-                  </div>
-                  {!editingContact && (
-                    <p className="mt-0.5 text-sm text-muted-foreground">
-                      {contactNumber ? `+91 ${contactNumber}` : 'Add a contact number'}
-                    </p>
-                  )}
-                  {editingContact && (
-                    <div className="mt-2 flex min-h-12 max-w-sm items-center overflow-hidden rounded-lg border border-input bg-white focus-within:ring-2 focus-within:ring-primary/30">
-                      <label
-                        htmlFor="cart-contact-number"
-                        className="border-r px-3 text-sm font-semibold text-muted-foreground"
-                      >
-                        +91
-                      </label>
-                      <Input
-                        id="cart-contact-number"
-                        aria-label="Contact number"
-                        type="tel"
-                        inputMode="numeric"
-                        autoComplete="tel"
-                        autoFocus
-                        value={contactNumber}
-                        onChange={(event) => {
-                          setContactNumber(
-                            event.target.value.replace(/\D/g, '').slice(0, 10),
-                          );
-                          setError('');
-                          setValidationLocation('');
-                        }}
-                        maxLength={10}
-                        placeholder="9876543210"
-                        required
-                        className="min-h-11 rounded-none border-0 focus-visible:ring-0"
+                <div className="flex items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <h2 className="flex items-center gap-2 font-serif text-lg font-semibold leading-5 text-foreground">
+                      <UserRound
+                        className="h-4 w-4 text-primary"
+                        aria-hidden="true"
                       />
-                    </div>
-                  )}
-                  {validationLocation === 'contact' && error && (
-                    <p role="alert" className="mt-2 text-sm font-medium text-red-800">
-                      {error}
-                    </p>
-                  )}
+                      Contact and kitchen note
+                    </h2>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={savingContact}
+                    onClick={() =>
+                      editingContact
+                        ? void saveContactNumber()
+                        : setEditingContact(true)
+                    }
+                    className="inline-flex min-h-8 shrink-0 items-center px-1 text-xs font-medium text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60"
+                  >
+                    {savingContact
+                      ? 'Saving…'
+                      : editingContact
+                        ? 'Save'
+                        : 'Edit'}
+                  </button>
+                </div>
+                {!editingContact && (
+                  <p className="mt-0.5 text-sm text-muted-foreground">
+                    {contactNumber
+                      ? `+91 ${contactNumber}`
+                      : 'Add a contact number'}
+                  </p>
+                )}
+                {editingContact && (
+                  <div className="mt-2 flex min-h-12 max-w-sm items-center overflow-hidden rounded-lg border border-input bg-white focus-within:ring-2 focus-within:ring-primary/30">
+                    <label
+                      htmlFor="cart-contact-number"
+                      className="border-r px-3 text-sm font-semibold text-muted-foreground"
+                    >
+                      +91
+                    </label>
+                    <Input
+                      id="cart-contact-number"
+                      aria-label="Contact number"
+                      type="tel"
+                      inputMode="numeric"
+                      autoComplete="tel"
+                      autoFocus
+                      value={contactNumber}
+                      onChange={(event) => {
+                        setContactNumber(
+                          event.target.value.replace(/\D/g, '').slice(0, 10),
+                        );
+                        setError('');
+                      }}
+                      maxLength={10}
+                      placeholder="9876543210"
+                      required
+                      className="min-h-11 rounded-none border-0 focus-visible:ring-0"
+                    />
+                  </div>
+                )}
                 <div className="mt-4 border-t border-border/60 pt-4">
                   {specialNotes && !notesExpanded ? (
                     <div className="flex items-start justify-between gap-4">
                       <div className="min-w-0">
-                        <p className="text-xs font-semibold text-foreground">Kitchen note</p>
+                        <p className="text-xs font-semibold text-foreground">
+                          Kitchen note
+                        </p>
                         <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
                           “{specialNotes}”
                         </p>
@@ -1512,7 +1943,10 @@ export default function CartPage() {
                         className="flex items-center justify-between gap-4 text-sm font-semibold"
                       >
                         <span className="flex items-center gap-2">
-                          <MessageSquareText className="h-4 w-4 text-primary" aria-hidden="true" />
+                          <MessageSquareText
+                            className="h-4 w-4 text-primary"
+                            aria-hidden="true"
+                          />
                           Special request for the kitchen
                         </span>
                         <span className="text-xs font-normal text-muted-foreground">
@@ -1522,7 +1956,9 @@ export default function CartPage() {
                       <textarea
                         id="special-kitchen-request"
                         value={specialNotes}
-                        onChange={(event) => setSpecialNotes(event.target.value)}
+                        onChange={(event) =>
+                          setSpecialNotes(event.target.value)
+                        }
                         placeholder="e.g. Keep the food mildly spiced and pack chutney separately."
                         maxLength={1000}
                         rows={3}
@@ -1552,71 +1988,65 @@ export default function CartPage() {
           </div>
 
           <aside className="h-fit lg:sticky lg:top-24">
-            <section className="rounded-2xl border border-border/70 bg-white p-4 shadow-sm sm:p-6">
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <h2 className="font-sans text-base font-semibold leading-5 text-foreground">
-                    {pendingOrder ? 'Payment pending' : 'Price breakdown'}
-                  </h2>
-                </div>
-              </div>
-              {pendingOrder ? (
-                <div>
-                  <div className="flex items-center justify-between gap-4 border-t border-border/60 pt-2">
-                    <span className="font-semibold">Total</span>
-                    <strong className="money-text text-lg font-bold text-primary">
-                      {formatCheckoutCurrency(pendingBatch?.totalAmount ?? pendingOrder.totalAmount)}
-                    </strong>
+            <section className="overflow-hidden rounded-2xl border border-border/70 bg-white shadow-[0_22px_54px_-38px_rgba(75,12,23,.85)] sm:rounded-3xl">
+              <div className="h-1.5 bg-gradient-to-r from-primary via-primary/80 to-accent" />
+              <div className="p-4 sm:p-6">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <h2 className="font-sans text-base font-semibold leading-5 text-foreground">
+                      {pendingOrder ? 'Payment pending' : 'Price breakdown'}
+                    </h2>
                   </div>
-                  <div className="mt-4">
-                    <RetryPaymentButton
-                      order={pendingOrder}
-                      orderIds={pendingBatch?.orderIds}
-                    />
-                  </div>
-                  <Button asChild variant="outline" className="mt-3 w-full">
-                    <Link href={`/orders/${pendingOrder.id}`}>
-                      View saved order
-                    </Link>
-                  </Button>
                 </div>
-              ) : (
-                <div>
-                  {multiCartQuote ? (
-                    <MultiCartPriceSummary
-                      carts={activeCarts}
-                      aggregate={multiCartQuote}
-                    />
-                  ) : (
-                    <p className="text-sm leading-5 text-muted-foreground">
-                      {quoteLoading
-                        ? 'Refreshing your final quote…'
-                        : 'Confirm delivery details to calculate your total.'}
-                    </p>
-                  )}
-                  {error && !validationLocation && (
-                    <p
-                      role="alert"
-                      className="mt-3 text-sm font-medium text-red-800"
-                    >
-                      {error}
-                    </p>
-                  )}
-                  <div className="hidden lg:block">
-                    <Button
-                      className="mt-5 h-12 w-full"
-                      onClick={requestPayment}
-                      disabled={quoteLoading || paying}
-                    >
-                      {paying ? 'Opening payment…' : 'Continue'}
+                {pendingOrder ? (
+                  <div>
+                    <div className="flex items-center justify-between gap-4 border-t border-border/60 pt-2">
+                      <span className="font-semibold">Total</span>
+                      <strong className="money-text text-lg font-bold text-primary">
+                        {formatCheckoutCurrency(
+                          pendingBatch?.totalAmount ?? pendingOrder.totalAmount,
+                        )}
+                      </strong>
+                    </div>
+                    <Button asChild variant="outline" className="mt-3 w-full">
+                      <Link href={`/orders/${pendingOrder.id}`}>
+                        View saved order
+                      </Link>
                     </Button>
-                    <p className="mt-1.5 flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
-                      <LockKeyhole className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                      Secure payment
-                    </p>
                   </div>
-                </div>
-              )}
+                ) : (
+                  <div>
+                    {multiCartQuote ? (
+                      <MultiCartPriceSummary
+                        carts={activeCarts}
+                        aggregate={multiCartQuote}
+                      />
+                    ) : (
+                      <p className="text-sm leading-5 text-muted-foreground">
+                        {quoteLoading
+                          ? 'Refreshing your final quote…'
+                          : 'Confirm delivery details to calculate your total.'}
+                      </p>
+                    )}
+                    <div className="hidden lg:block">
+                      <Button
+                        className="mt-5 h-12 w-full"
+                        onClick={requestPayment}
+                        disabled={quoteLoading || paying}
+                      >
+                        {paying ? 'Opening payment…' : 'Continue'}
+                      </Button>
+                      <p className="mt-1.5 flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
+                        <LockKeyhole
+                          className="h-3.5 w-3.5 shrink-0"
+                          aria-hidden="true"
+                        />
+                        Secure payment
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
             </section>
           </aside>
         </div>
@@ -1648,8 +2078,11 @@ export default function CartPage() {
                       id="cart-address-title"
                       className="font-sans text-xl font-semibold text-foreground"
                     >
-                      Complete delivery address
+                      Add delivery address
                     </h2>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground sm:text-sm">
+                      Pin the location first, then confirm the address details.
+                    </p>
                   </div>
                 </div>
                 <button
@@ -1661,7 +2094,49 @@ export default function CartPage() {
                 </button>
               </div>
 
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              {addressError && (
+                <div
+                  role="alert"
+                  className="mt-4 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm font-medium text-red-900"
+                >
+                  <AlertCircle
+                    className="mt-0.5 h-4 w-4 shrink-0 text-red-700"
+                    aria-hidden="true"
+                  />
+                  <span>{addressError}</span>
+                </div>
+              )}
+
+              <div className="mt-5">
+                <AddressMapPicker
+                  onAddress={useMappedAddress}
+                  initialPosition={
+                    addressForm.latitude && addressForm.longitude
+                      ? {
+                          latitude: addressForm.latitude,
+                          longitude: addressForm.longitude,
+                        }
+                      : undefined
+                  }
+                  inlineMobileSearch
+                />
+                {addressForm.latitude && addressForm.longitude && (
+                  <p className="mt-3 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs font-semibold text-emerald-800">
+                    <Check className="h-4 w-4 shrink-0" aria-hidden="true" />
+                    Location pinned. Review the complete address below.
+                  </p>
+                )}
+              </div>
+
+              <div className="mt-5 flex items-center gap-3">
+                <span className="h-px flex-1 bg-border" />
+                <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+                  Complete address
+                </span>
+                <span className="h-px flex-1 bg-border" />
+              </div>
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <Field label="Address type">
                   <Select
                     value={addressForm.addressType}
@@ -1701,7 +2176,10 @@ export default function CartPage() {
                     }
                   />
                 </Field>
-                <Field label="House, building or street" className="sm:col-span-2">
+                <Field
+                  label="House, building or street"
+                  className="sm:col-span-2"
+                >
                   <Input
                     value={addressForm.addressLine1}
                     maxLength={255}
@@ -1782,11 +2260,6 @@ export default function CartPage() {
                   />
                 </Field>
               </div>
-              {addressError && (
-                <p role="alert" className="mt-4 text-sm font-medium text-red-800">
-                  {addressError}
-                </p>
-              )}
               <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                 <Button
                   type="button"
@@ -1853,49 +2326,46 @@ export default function CartPage() {
             </section>
           </div>
         )}
-
       </div>
 
-      {!keyboardOpen && <MobileOrderBar checkout label="Checkout total and continue">
-        <div className="mobile-order-bar-row">
-          <div className="mobile-order-bar-summary">
-            <span className="mobile-order-bar-label">Payable total</span>
-            <strong className="mobile-order-bar-total">
-              {mobileTotal != null
-                ? formatCheckoutCurrency(mobileTotal)
-                : quoteLoading
-                  ? 'Updating…'
-                  : 'Add event details'}
-            </strong>
+      {!keyboardOpen && (
+        <MobileOrderBar checkout label="Checkout total and continue">
+          <div className="mobile-order-bar-row">
+            <div className="mobile-order-bar-summary">
+              <span className="mobile-order-bar-label">Payable total</span>
+              <strong className="mobile-order-bar-total">
+                {mobileTotal != null
+                  ? formatCheckoutCurrency(mobileTotal)
+                  : quoteLoading
+                    ? 'Updating…'
+                    : 'Add event details'}
+              </strong>
+            </div>
+            {pendingOrder ? (
+              <RetryPaymentButton
+                order={pendingOrder}
+                orderIds={pendingBatch?.orderIds}
+                className="mobile-order-bar-action"
+              />
+            ) : (
+              <Button
+                className="mobile-order-bar-action"
+                onClick={requestPayment}
+                disabled={quoteLoading || paying}
+              >
+                {paying ? 'Opening…' : 'Continue'}
+              </Button>
+            )}
           </div>
-          {pendingOrder ? (
-            <RetryPaymentButton
-              order={pendingOrder}
-              orderIds={pendingBatch?.orderIds}
-              className="mobile-order-bar-action"
-            />
-          ) : (
-            <Button
-              className="mobile-order-bar-action"
-              onClick={requestPayment}
-              disabled={quoteLoading || paying}
-            >
-              {paying ? 'Opening…' : 'Continue'}
-            </Button>
-          )}
-        </div>
-      </MobileOrderBar>}
+        </MobileOrderBar>
+      )}
     </main>
   );
 }
 
 function eventReady(cart: CartSummary) {
   return Boolean(
-    cart.event?.address &&
-    cart.event.region &&
-    cart.event.eventDate &&
-    cart.event.eventTimeStart &&
-    (cart.package.type === 'ORDER_BY_KG' || cart.event.guestCount),
+    cart.event?.address && cart.event.eventDate && cart.event.eventTimeStart,
   );
 }
 
@@ -2043,7 +2513,10 @@ function CutleryOptions({
     <section className="mt-5 rounded-xl border border-border/70 bg-white p-4">
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-1.5">
-          <Utensils className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+          <Utensils
+            className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+            aria-hidden="true"
+          />
           <h3 className="text-sm font-semibold text-foreground">Cutlery</h3>
         </div>
         <span className="shrink-0 text-xs font-medium text-muted-foreground">
@@ -2051,10 +2524,13 @@ function CutleryOptions({
         </span>
       </div>
       <p className="mt-1 text-xs leading-5 text-muted-foreground">
-        Plate + Spoon · Extra {formatCurrency(unitPrice).replace(/\.00$/, '')}/set
+        Plate + Spoon · Extra {formatCurrency(unitPrice).replace(/\.00$/, '')}
+        /set
       </p>
       <div className="mt-4 flex items-center justify-between gap-2 border-t border-border/60 pt-3">
-        <span className="text-xs font-medium text-muted-foreground">Extra sets</span>
+        <span className="text-xs font-medium text-muted-foreground">
+          Extra sets
+        </span>
         <div className="flex min-w-0 items-center gap-2">
           <div className="inline-flex h-9 items-center overflow-hidden rounded-md border border-border bg-background">
             <button
@@ -2219,7 +2695,10 @@ function DeliveryServiceOptions({
                 >
                   {isSelected && <Check className="h-3 w-3" />}
                 </span>
-                <Icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <Icon
+                  className="h-4 w-4 shrink-0 text-muted-foreground"
+                  aria-hidden="true"
+                />
                 <span className="min-w-0 flex-1">
                   <strong className="block text-sm font-semibold leading-5 text-foreground">
                     {title}
@@ -2297,9 +2776,7 @@ function Info({
     <div className="flex gap-3">
       <Icon className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
       <div>
-        <p className="text-xs font-bold text-muted-foreground">
-          {label}
-        </p>
+        <p className="text-xs font-bold text-muted-foreground">{label}</p>
         <p className="mt-1 text-sm leading-6">{value}</p>
       </div>
     </div>

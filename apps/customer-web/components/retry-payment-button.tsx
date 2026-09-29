@@ -19,7 +19,11 @@ export function RetryPaymentButton({
 }) {
   const session = useSessionStore((s) => s.session);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
+  const returnToCart = (result: 'failed' | 'cancelled') => {
+    window.location.assign(
+      `/cart?payment=${result}&orderId=${encodeURIComponent(order.id)}`,
+    );
+  };
   async function verify(
     gateway: GatewayOrder,
     paymentId: string,
@@ -37,12 +41,13 @@ export function RetryPaymentButton({
       },
       session!.accessToken,
     );
-    window.location.assign(`/payment/status?orderId=${order.id}&status=success`);
+    window.location.assign(
+      `/payment/status?orderId=${order.id}&status=success`,
+    );
   }
   async function retry() {
     if (!session) return;
     setBusy(true);
-    setError('');
     try {
       const batchIds = [...new Set(orderIds ?? [order.id])];
       const gateway =
@@ -61,11 +66,7 @@ export function RetryPaymentButton({
               session.accessToken,
             );
       if (gateway.localMode) {
-        await verify(
-          gateway,
-          `local_payment_${Date.now()}`,
-          'local_success',
-        );
+        await verify(gateway, `local_payment_${Date.now()}`, 'local_success');
         return;
       }
       if (!window.Razorpay) {
@@ -86,8 +87,7 @@ export function RetryPaymentButton({
         modal: {
           confirm_close: true,
           ondismiss: () => {
-            setError('Payment window closed. You can retry safely.');
-            setBusy(false);
+            returnToCart('cancelled');
           },
         },
         handler: async (response: Record<string, string>) => {
@@ -98,22 +98,18 @@ export function RetryPaymentButton({
               response.razorpay_signature,
             );
           } catch (reason) {
-            setError((reason as Error).message);
-            setBusy(false);
+            console.error('[RetryPayment] Verification failed', reason);
+            returnToCart('failed');
           }
         },
       });
-      checkout.on('payment.failed', (response) => {
-        setError(
-          response?.error?.description ||
-            'Payment failed. You can retry safely.',
-        );
-        setBusy(false);
+      checkout.on('payment.failed', () => {
+        returnToCart('failed');
       });
       checkout.open();
     } catch (reason) {
-      setError((reason as Error).message);
-      setBusy(false);
+      console.error('[RetryPayment] Could not open payment', reason);
+      returnToCart('failed');
     }
   }
   return (
@@ -125,7 +121,6 @@ export function RetryPaymentButton({
       <Button onClick={retry} disabled={busy} className={cn(className)}>
         {busy ? 'Opening payment…' : 'Retry payment'}
       </Button>
-      {error && <p className="mt-2 text-sm text-red-700">{error}</p>}
     </>
   );
 }

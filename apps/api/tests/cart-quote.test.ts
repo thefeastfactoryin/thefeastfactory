@@ -633,3 +633,53 @@ test('active cart queries exclude expired carts while allowing legacy null expir
     expiryScope[1].expiresAt && expiryScope[1].expiresAt.gt instanceof Date,
   );
 });
+
+test('expired carts older than 30 days are hard-deleted without touching order carts', async () => {
+  let lookupWhere: Record<string, unknown> | undefined;
+  let lookups = 0;
+  const deletedItemCartIds: string[] = [];
+  const deletedCartIds: string[] = [];
+  const transactionClient = {
+    cartItem: {
+      deleteMany: async ({
+        where,
+      }: {
+        where: { cartId: { in: string[] } };
+      }) => {
+        deletedItemCartIds.push(...where.cartId.in);
+        return { count: where.cartId.in.length };
+      },
+    },
+    cart: {
+      deleteMany: async ({ where }: { where: { id: { in: string[] } } }) => {
+        deletedCartIds.push(...where.id.in);
+        return { count: where.id.in.length };
+      },
+    },
+  };
+  const prisma = {
+    cart: {
+      findMany: async ({ where }: { where: Record<string, unknown> }) => {
+        lookupWhere = where;
+        lookups += 1;
+        return lookups === 1 ? [{ id: 'expired-cart-1' }] : [];
+      },
+    },
+    $transaction: async (
+      callback: (tx: typeof transactionClient) => Promise<{ count: number }>,
+    ) => callback(transactionClient),
+  };
+  const service = new CartService(
+    prisma as never,
+    {} as never,
+    {} as never,
+    {} as never,
+  );
+
+  assert.equal(await service.purgeExpiredCarts(), 1);
+  assert.deepEqual(deletedItemCartIds, ['expired-cart-1']);
+  assert.deepEqual(deletedCartIds, ['expired-cart-1']);
+  assert.deepEqual(lookupWhere?.order, { is: null });
+  assert.ok((lookupWhere?.expiresAt as { lt: Date }).lt instanceof Date);
+  assert.ok((lookupWhere?.updatedAt as { lt: Date }).lt instanceof Date);
+});

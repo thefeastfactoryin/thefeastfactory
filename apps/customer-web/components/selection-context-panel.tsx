@@ -47,6 +47,14 @@ export type VenueServiceability =
   | 'missing'
   | 'error';
 
+export type CheckoutFieldState = {
+  hasAddress: boolean;
+  hasCoordinates: boolean;
+  hasDate: boolean;
+  hasTime: boolean;
+  saving: boolean;
+};
+
 function buildDeliveryTimeSlots(
   startTime: string,
   endTime: string,
@@ -169,10 +177,12 @@ function ThemedDatePicker({
           open && 'border-primary/50 ring-2 ring-primary/15',
         )}
       >
-        <span className={cn(
-          'grid shrink-0 place-items-center rounded-md bg-primary/[0.06] text-primary',
-          compact ? 'h-6 w-6' : 'h-8 w-8 rounded-lg bg-primary/[0.07]',
-        )}>
+        <span
+          className={cn(
+            'grid shrink-0 place-items-center rounded-md bg-primary/[0.06] text-primary',
+            compact ? 'h-6 w-6' : 'h-8 w-8 rounded-lg bg-primary/[0.07]',
+          )}
+        >
           <CalendarDays className="h-4 w-4" />
         </span>
         <span
@@ -214,7 +224,9 @@ function ThemedDatePicker({
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
-            <strong className="font-sans text-lg font-semibold">{monthLabel}</strong>
+            <strong className="font-sans text-lg font-semibold">
+              {monthLabel}
+            </strong>
             <button
               type="button"
               aria-label="Next month"
@@ -323,10 +335,12 @@ function ThemedTimePicker({
           open && 'border-primary/50 ring-2 ring-primary/15',
         )}
       >
-        <span className={cn(
-          'grid shrink-0 place-items-center rounded-md bg-primary/[0.06] text-primary',
-          compact ? 'h-6 w-6' : 'h-8 w-8 rounded-lg bg-primary/[0.07]',
-        )}>
+        <span
+          className={cn(
+            'grid shrink-0 place-items-center rounded-md bg-primary/[0.06] text-primary',
+            compact ? 'h-6 w-6' : 'h-8 w-8 rounded-lg bg-primary/[0.07]',
+          )}
+        >
           <Clock3 className="h-4 w-4" />
         </span>
         <span
@@ -336,7 +350,9 @@ function ThemedTimePicker({
             !value && 'font-normal text-muted-foreground',
           )}
         >
-          {selectedSlot?.label || value || (compact ? 'Choose time' : 'Choose a time')}
+          {selectedSlot?.label ||
+            value ||
+            (compact ? 'Choose time' : 'Choose a time')}
         </span>
         <ChevronDown
           className={cn(
@@ -421,6 +437,7 @@ export function SelectionContextPanel({
   onSaved,
   onAddAddress,
   onVenueStatusChange,
+  onCheckoutStateChange,
   onMissingCart,
 }: {
   cartId: string;
@@ -434,6 +451,7 @@ export function SelectionContextPanel({
   onSaved?: (cart: CartSummary) => void;
   onAddAddress?: () => void;
   onVenueStatusChange?: (status: VenueServiceability) => void;
+  onCheckoutStateChange?: (state: CheckoutFieldState) => void;
   onMissingCart?: () => void;
 }) {
   const sidebar = variant === 'sidebar';
@@ -463,7 +481,8 @@ export function SelectionContextPanel({
   const [expanded, setExpanded] = useState(!sidebar);
   const [addressesExpanded, setAddressesExpanded] = useState(false);
   const [checkoutEditing, setCheckoutEditing] = useState(true);
-  const [venueStatus, setVenueStatus] = useState<VenueServiceability>('checking');
+  const [venueStatus, setVenueStatus] =
+    useState<VenueServiceability>('checking');
   const [guestInput, setGuestInput] = useState(String(guestCount));
   const hydrated = useRef(false);
   const onSavedRef = useRef(onSaved);
@@ -759,9 +778,9 @@ export function SelectionContextPanel({
     message === 'Saved to your cart.' ||
     Boolean(
       message &&
-        !message.startsWith('Complete all required fields') &&
-        !message.startsWith('Address saved. Add the delivery date') &&
-        !message.startsWith('Changes pending'),
+      !message.startsWith('Complete all required fields') &&
+      !message.startsWith('Address saved. Add the delivery date') &&
+      !message.startsWith('Changes pending'),
     );
   const earliestDate = new Date(
     Date.now() + (publicSettings?.minBookingLeadHours ?? 48) * 60 * 60 * 1000,
@@ -777,8 +796,7 @@ export function SelectionContextPanel({
     [publicSettings],
   );
   const minimumDeliveryInstant =
-    Date.now() +
-    (publicSettings?.minBookingLeadHours ?? 48) * 60 * 60 * 1000;
+    Date.now() + (publicSettings?.minBookingLeadHours ?? 48) * 60 * 60 * 1000;
   const isTimeAvailable = (slot: DeliveryTimeSlot) =>
     !eventDate ||
     new Date(`${eventDate}T${slot.value}:00.000+05:30`).getTime() >=
@@ -795,6 +813,38 @@ export function SelectionContextPanel({
     }
   }, [deliveryTimeSlots, eventDate, eventTimeStart, minimumDeliveryInstant]);
   const selectedVenue = addresses.find((address) => address.id === addressId);
+  const selectedLatitude = Number(selectedVenue?.latitude);
+  const selectedLongitude = Number(selectedVenue?.longitude);
+  const selectedVenueHasCoordinates = Boolean(
+    selectedVenue?.latitude &&
+    selectedVenue?.longitude &&
+    Number.isFinite(selectedLatitude) &&
+    selectedLatitude >= -90 &&
+    selectedLatitude <= 90 &&
+    Number.isFinite(selectedLongitude) &&
+    selectedLongitude >= -180 &&
+    selectedLongitude <= 180,
+  );
+
+  useEffect(() => {
+    if (!checkoutCompact) return;
+    onCheckoutStateChange?.({
+      hasAddress: Boolean(selectedVenue),
+      hasCoordinates: selectedVenueHasCoordinates,
+      hasDate: Boolean(eventDate),
+      hasTime: Boolean(eventTimeStart),
+      saving,
+    });
+  }, [
+    checkoutCompact,
+    eventDate,
+    eventTimeStart,
+    onCheckoutStateChange,
+    saving,
+    selectedVenue,
+    selectedVenueHasCoordinates,
+  ]);
+
   const checkoutDetailsComplete = Boolean(
     selectedVenue && eventDate && eventTimeStart && assignedRegion,
   );
@@ -838,228 +888,235 @@ export function SelectionContextPanel({
     }).format(new Date(`${date}T${time}:00+05:30`));
   const fields = (
     <>
-      {(!checkoutCompact || checkoutEditing || !checkoutDetailsComplete) && <div
-        className={cn(
-          'grid gap-3',
-          checkoutCompact
-            ? 'mt-4 max-w-2xl grid-cols-2 gap-3 max-[340px]:grid-cols-1'
-            : 'mt-5 gap-4 rounded-2xl border border-border bg-[#fcfaf6] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]',
-          !checkoutCompact && sidebar
-            ? 'grid-cols-1'
-            : !checkoutCompact && (hideQuantity || isKg)
-              ? 'md:grid-cols-2'
-              : !checkoutCompact
-                ? 'md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_224px]'
-                : '',
-        )}
-      >
-        <Field
-          label="Delivery date"
-          className={checkoutCompact ? '[&>span]:sr-only' : undefined}
+      {(!checkoutCompact || checkoutEditing || !checkoutDetailsComplete) && (
+        <div
+          className={cn(
+            'grid gap-3',
+            checkoutCompact
+              ? 'mt-4 max-w-2xl grid-cols-2 gap-3 max-[340px]:grid-cols-1'
+              : 'mt-5 gap-4 rounded-2xl border border-border bg-[#fcfaf6] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]',
+            !checkoutCompact && sidebar
+              ? 'grid-cols-1'
+              : !checkoutCompact && (hideQuantity || isKg)
+                ? 'md:grid-cols-2'
+                : !checkoutCompact
+                  ? 'md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_224px]'
+                  : '',
+          )}
         >
-          <ThemedDatePicker
-            min={firstEventDate}
-            value={eventDate}
-            onChange={setEventDate}
-            compact={checkoutCompact}
-          />
-        </Field>
-        <Field
-          label="Delivery time"
-          className={checkoutCompact ? '[&>span]:sr-only' : undefined}
-        >
-          <ThemedTimePicker
-            value={eventTimeStart}
-            onChange={setEventTimeStart}
-            slots={deliveryTimeSlots}
-            isSlotAvailable={isTimeAvailable}
-            compact={checkoutCompact}
-          />
-        </Field>
-        {checkoutCompact && !eventTimeStart && earliestSuggestion && (
-          <p className="col-span-full -mt-1 text-xs leading-5 text-muted-foreground">
-            Earliest available: {formattedEventSlot(earliestSuggestion.date, earliestSuggestion.time)}
-          </p>
-        )}
-        {!hideQuantity && !isKg && (
-          <div>
-            <span className="mb-2 block text-sm font-semibold">
-              {guestLabel}
-            </span>
-            <div className="flex min-h-12 items-center justify-between rounded-xl border bg-white px-2">
-              <button
-                type="button"
-                aria-label={`Decrease ${guestLabel.toLowerCase()}`}
-                onClick={() => commitGuestCount(String(guestCount - 1))}
-                disabled={guestCount <= minPax}
-                className="grid h-9 w-9 place-items-center rounded-lg text-primary transition hover:bg-primary/5 disabled:opacity-35"
-              >
-                <Minus className="h-4 w-4" />
-              </button>
-              <label className="flex items-center gap-2">
-                <Users className="h-4 w-4 text-primary" />
-                <span className="sr-only">{guestLabel}</span>
-                <input
-                  inputMode="numeric"
-                  value={guestInput}
-                  onChange={(event) =>
-                    setGuestInput(event.target.value.replace(/\D/g, ''))
-                  }
-                  onBlur={() => commitGuestCount(guestInput)}
-                  className="w-16 bg-transparent text-center font-sans text-xl font-semibold outline-none"
-                  required
-                />
-              </label>
-              <button
-                type="button"
-                aria-label={`Increase ${guestLabel.toLowerCase()}`}
-                onClick={() => commitGuestCount(String(guestCount + 1))}
-                disabled={Boolean(maxPax && guestCount >= maxPax)}
-                className="grid h-9 w-9 place-items-center rounded-lg text-primary transition hover:bg-primary/5 disabled:opacity-35"
-              >
-                <Plus className="h-4 w-4" />
-              </button>
-            </div>
-            <p className="mt-1.5 text-xs text-muted-foreground">
-              {minPax} minimum{maxPax ? ` · ${maxPax} maximum` : ''}
+          <Field
+            label="Delivery date"
+            className={checkoutCompact ? '[&>span]:sr-only' : undefined}
+          >
+            <ThemedDatePicker
+              min={firstEventDate}
+              value={eventDate}
+              onChange={setEventDate}
+              compact={checkoutCompact}
+            />
+          </Field>
+          <Field
+            label="Delivery time"
+            className={checkoutCompact ? '[&>span]:sr-only' : undefined}
+          >
+            <ThemedTimePicker
+              value={eventTimeStart}
+              onChange={setEventTimeStart}
+              slots={deliveryTimeSlots}
+              isSlotAvailable={isTimeAvailable}
+              compact={checkoutCompact}
+            />
+          </Field>
+          {checkoutCompact && !eventTimeStart && earliestSuggestion && (
+            <p className="col-span-full -mt-1 text-xs leading-5 text-muted-foreground">
+              Earliest available:{' '}
+              {formattedEventSlot(
+                earliestSuggestion.date,
+                earliestSuggestion.time,
+              )}
             </p>
-          </div>
-        )}
-      </div>}
+          )}
+          {!hideQuantity && !isKg && (
+            <div>
+              <span className="mb-2 block text-sm font-semibold">
+                {guestLabel}
+              </span>
+              <div className="flex min-h-12 items-center justify-between rounded-xl border bg-white px-2">
+                <button
+                  type="button"
+                  aria-label={`Decrease ${guestLabel.toLowerCase()}`}
+                  onClick={() => commitGuestCount(String(guestCount - 1))}
+                  disabled={guestCount <= minPax}
+                  className="grid h-9 w-9 place-items-center rounded-lg text-primary transition hover:bg-primary/5 disabled:opacity-35"
+                >
+                  <Minus className="h-4 w-4" />
+                </button>
+                <label className="flex items-center gap-2">
+                  <Users className="h-4 w-4 text-primary" />
+                  <span className="sr-only">{guestLabel}</span>
+                  <input
+                    inputMode="numeric"
+                    value={guestInput}
+                    onChange={(event) =>
+                      setGuestInput(event.target.value.replace(/\D/g, ''))
+                    }
+                    onBlur={() => commitGuestCount(guestInput)}
+                    className="w-16 bg-transparent text-center font-sans text-xl font-semibold outline-none"
+                    required
+                  />
+                </label>
+                <button
+                  type="button"
+                  aria-label={`Increase ${guestLabel.toLowerCase()}`}
+                  onClick={() => commitGuestCount(String(guestCount + 1))}
+                  disabled={Boolean(maxPax && guestCount >= maxPax)}
+                  className="grid h-9 w-9 place-items-center rounded-lg text-primary transition hover:bg-primary/5 disabled:opacity-35"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                {minPax} minimum{maxPax ? ` · ${maxPax} maximum` : ''}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       {!checkoutCompact && deliveryService}
 
       {!checkoutCompact && (
         <>
-      <div className="mt-6 flex items-center justify-between gap-4">
-        <div>
-          <h3 className="text-sm font-bold">Delivery venue</h3>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {selectedVenue
-              ? selectedVenue.isDefault
-                ? 'Your default saved address is selected automatically'
-                : 'Saved address selected'
-              : deliveryLocation
-                ? 'Complete the address details for the location selected on the home page'
-                : 'Choose one of your saved addresses'}
-          </p>
-        </div>
-        <button
-          type="button"
-          className="inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-full px-3 text-sm font-bold text-primary transition hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
-          onClick={onAddAddress}
-        >
-          <Plus className="h-4 w-4" />
-          {deliveryLocation && !deliveryLocation.savedAddressId
-            ? 'Complete address'
-            : 'Add new address'}
-        </button>
-      </div>
+          <div className="mt-6 flex items-center justify-between gap-4">
+            <div>
+              <h3 className="text-sm font-bold">Delivery venue</h3>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {selectedVenue
+                  ? selectedVenue.isDefault
+                    ? 'Your default saved address is selected automatically'
+                    : 'Saved address selected'
+                  : deliveryLocation
+                    ? 'Complete the address details for the location selected on the home page'
+                    : 'Choose one of your saved addresses'}
+              </p>
+            </div>
+            <button
+              type="button"
+              className="inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-full px-3 text-sm font-bold text-primary transition hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+              onClick={onAddAddress}
+            >
+              <Plus className="h-4 w-4" />
+              {deliveryLocation && !deliveryLocation.savedAddressId
+                ? 'Complete address'
+                : 'Add new address'}
+            </button>
+          </div>
 
-      {deliveryLocation && !deliveryLocation.savedAddressId && (
-        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-          <p className="font-bold">{deliveryLocation.label}</p>
-          <p className="mt-1 text-xs leading-5">
-            Your map location is ready. Add the house, building or venue details
-            before checkout so the kitchen receives an exact delivery address.
-          </p>
-        </div>
-      )}
-
-      {addresses.length > 0 ? (
-        <div
-          className={cn(
-            'mt-3 grid gap-3',
-            sidebar ? 'grid-cols-1' : 'sm:grid-cols-2',
+          {deliveryLocation && !deliveryLocation.savedAddressId && (
+            <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+              <p className="font-bold">{deliveryLocation.label}</p>
+              <p className="mt-1 text-xs leading-5">
+                Your map location is ready. Add the house, building or venue
+                details before checkout so the kitchen receives an exact
+                delivery address.
+              </p>
+            </div>
           )}
-          role="radiogroup"
-          aria-label="Choose delivery venue"
-        >
-          {addresses.map((address) => {
-            const Icon = addressIcon(address);
-            const selected = address.id === addressId;
-            return (
-              <button
-                key={address.id}
-                type="button"
-                role="radio"
-                aria-checked={selected}
-                onClick={() => setAddressId(address.id)}
-                className={cn(
-                  'relative flex min-h-24 items-start gap-3 rounded-xl border bg-white p-4 text-left transition hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30',
-                  selected &&
-                    'border-primary bg-primary/[0.045] ring-1 ring-primary/20',
-                )}
-              >
-                <span
-                  className={cn(
-                    'grid h-9 w-9 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground',
-                    selected && 'bg-primary text-white',
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="flex flex-wrap items-center gap-2 pr-6">
-                    <strong className="truncate text-sm">
-                      {address.label ||
-                        address.addressType.toLowerCase().replace('_', ' ')}
-                    </strong>
-                    {address.isDefault && (
-                      <span className="rounded-full bg-secondary/15 px-2 py-0.5 text-[10px] font-bold text-secondary-foreground">
-                        Default
+
+          {addresses.length > 0 ? (
+            <div
+              className={cn(
+                'mt-3 grid gap-3',
+                sidebar ? 'grid-cols-1' : 'sm:grid-cols-2',
+              )}
+              role="radiogroup"
+              aria-label="Choose delivery venue"
+            >
+              {addresses.map((address) => {
+                const Icon = addressIcon(address);
+                const selected = address.id === addressId;
+                return (
+                  <button
+                    key={address.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => setAddressId(address.id)}
+                    className={cn(
+                      'relative flex min-h-24 items-start gap-3 rounded-xl border bg-white p-4 text-left transition hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30',
+                      selected &&
+                        'border-primary bg-primary/[0.045] ring-1 ring-primary/20',
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        'grid h-9 w-9 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground',
+                        selected && 'bg-primary text-white',
+                      )}
+                    >
+                      <Icon className="h-4 w-4" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex flex-wrap items-center gap-2 pr-6">
+                        <strong className="truncate text-sm">
+                          {address.label ||
+                            address.addressType.toLowerCase().replace('_', ' ')}
+                        </strong>
+                        {address.isDefault && (
+                          <span className="rounded-full bg-secondary/15 px-2 py-0.5 text-[10px] font-bold text-secondary-foreground">
+                            Default
+                          </span>
+                        )}
+                      </span>
+                      <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+                        {address.addressLine1}
+                        {address.addressLine2
+                          ? `, ${address.addressLine2}`
+                          : ''}
+                        <br />
+                        {address.city}, {address.state} {address.pincode}
+                      </span>
+                    </span>
+                    {selected && (
+                      <span className="absolute right-3 top-3 grid h-5 w-5 place-items-center rounded-full bg-primary text-white">
+                        <Check className="h-3 w-3" />
                       </span>
                     )}
-                  </span>
-                  <span className="mt-1 block text-xs leading-5 text-muted-foreground">
-                    {address.addressLine1}
-                    {address.addressLine2 ? `, ${address.addressLine2}` : ''}
-                    <br />
-                    {address.city}, {address.state} {address.pincode}
-                  </span>
-                </span>
-                {selected && (
-                  <span className="absolute right-3 top-3 grid h-5 w-5 place-items-center rounded-full bg-primary text-white">
-                    <Check className="h-3 w-3" />
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={onAddAddress}
-          className="mt-3 flex min-h-28 w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed bg-[#fcfaf6] p-5 text-center text-sm font-semibold text-primary transition hover:border-primary/40"
-        >
-          <MapPinned className="h-5 w-5" />
-          <span>No delivery address added</span>
-          <span className="text-xs font-medium text-muted-foreground">
-            Add a venue where the food should be delivered.
-          </span>
-        </button>
-      )}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={onAddAddress}
+              className="mt-3 flex min-h-28 w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed bg-[#fcfaf6] p-5 text-center text-sm font-semibold text-primary transition hover:border-primary/40"
+            >
+              <MapPinned className="h-5 w-5" />
+              <span>No delivery address added</span>
+              <span className="text-xs font-medium text-muted-foreground">
+                Add a venue where the food should be delivered.
+              </span>
+            </button>
+          )}
 
-      <div className="mt-4 rounded-2xl border border-border bg-muted/50 p-4 text-muted-foreground">
-        <p className="text-xs font-bold">
-          Kitchen location
-        </p>
-        <p className="mt-2 text-sm font-bold text-foreground/60">
-          {kitchenName}
-        </p>
-        <p className="mt-1 text-xs leading-5">{kitchenAddress}</p>
-      </div>
+          <div className="mt-4 rounded-2xl border border-border bg-muted/50 p-4 text-muted-foreground">
+            <p className="text-xs font-bold">Kitchen location</p>
+            <p className="mt-2 text-sm font-bold text-foreground/60">
+              {kitchenName}
+            </p>
+            <p className="mt-1 text-xs leading-5">{kitchenAddress}</p>
+          </div>
 
-      <div className="mt-4 border-t pt-4">
-        <p
-          className="flex min-w-0 items-center gap-2 text-xs leading-5 text-muted-foreground"
-          role="status"
-        >
-          <CalendarClock className="h-4 w-4 shrink-0 text-primary" />
-          {saving ? 'Saving…' : message}
-        </p>
-      </div>
+          <div className="mt-4 border-t pt-4">
+            <p
+              className="flex min-w-0 items-center gap-2 text-xs leading-5 text-muted-foreground"
+              role="status"
+            >
+              <CalendarClock className="h-4 w-4 shrink-0 text-primary" />
+              {saving ? 'Saving…' : message}
+            </p>
+          </div>
         </>
       )}
 
@@ -1067,40 +1124,43 @@ export function SelectionContextPanel({
         <>
           <div className="mt-4 rounded-xl border border-border/60 bg-ivory/60 p-3 sm:p-4">
             <div className="flex min-w-0 items-center gap-3">
-              <MapPin className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+              <MapPin
+                className="h-4 w-4 shrink-0 text-primary"
+                aria-hidden="true"
+              />
               <div className="min-w-0 flex-1">
-              {selectedVenue ? (
-                <>
-                  <p className="truncate text-sm font-semibold leading-5 text-foreground">
-                    {selectedVenue.label || selectedVenue.addressLine1}
-                    {!checkoutEditing && eventDate && eventTimeStart && (
-                      <> · {formattedEventSlot(eventDate, eventTimeStart)}</>
-                    )}
-                  </p>
-                  <p className="truncate text-xs leading-4 text-muted-foreground">
-                    {[
-                      selectedVenue.addressLine1,
-                      selectedVenue.addressLine2,
-                      selectedVenue.city,
-                      selectedVenue.state,
-                      selectedVenue.pincode,
-                    ]
-                      .filter(Boolean)
-                      .join(', ')}
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="truncate text-sm font-semibold leading-5 text-foreground">
-                    {deliveryLocation?.label || 'Choose a delivery address'}
-                  </p>
-                  <p className="truncate text-xs leading-4 text-muted-foreground">
-                    {checkoutDetailsComplete
-                      ? formattedEventSlot(eventDate, eventTimeStart)
-                      : 'Delivery date and time need confirmation'}
-                  </p>
-                </>
-              )}
+                {selectedVenue ? (
+                  <>
+                    <p className="truncate text-sm font-semibold leading-5 text-foreground">
+                      {selectedVenue.label || selectedVenue.addressLine1}
+                      {!checkoutEditing && eventDate && eventTimeStart && (
+                        <> · {formattedEventSlot(eventDate, eventTimeStart)}</>
+                      )}
+                    </p>
+                    <p className="truncate text-xs leading-4 text-muted-foreground">
+                      {[
+                        selectedVenue.addressLine1,
+                        selectedVenue.addressLine2,
+                        selectedVenue.city,
+                        selectedVenue.state,
+                        selectedVenue.pincode,
+                      ]
+                        .filter(Boolean)
+                        .join(', ')}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="truncate text-sm font-semibold leading-5 text-foreground">
+                      {deliveryLocation?.label || 'Choose a delivery address'}
+                    </p>
+                    <p className="truncate text-xs leading-4 text-muted-foreground">
+                      {checkoutDetailsComplete
+                        ? formattedEventSlot(eventDate, eventTimeStart)
+                        : 'Delivery date and time need confirmation'}
+                    </p>
+                  </>
+                )}
               </div>
               <button
                 type="button"
@@ -1134,78 +1194,53 @@ export function SelectionContextPanel({
                 Add complete address
               </button>
             )}
-            {!selectedVenue && deliveryLocation?.resolution.reason === 'OUTSIDE_SERVICE_AREA' && (
-              <p role="alert" className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-800">
-                Your selected map location is outside our delivery area. Choose another location before continuing.
-              </p>
-            )}
-              {addressesExpanded && addresses.length > 0 && (
-                <div
-                  className="mt-2 grid gap-1"
-                  role="radiogroup"
-                  aria-label="Choose delivery address"
-                >
-                  {addresses.map((address) => {
-                    const selected = address.id === addressId;
-                    return (
-                      <button
-                        key={address.id}
-                        type="button"
-                        role="radio"
-                        aria-checked={selected}
-                        onClick={() => {
-                          setVenueStatus('checking');
-                          onVenueStatusChange?.('checking');
-                          setAddressId(address.id);
-                          setAddressesExpanded(false);
-                        }}
-                        className={cn(
-                          'flex min-h-10 items-center justify-between gap-3 border-t border-border/50 py-1.5 text-left text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary',
-                          selected && 'text-primary',
-                        )}
-                      >
-                        <span className="min-w-0">
-                          <strong className="block truncate">
-                            {address.label || address.addressLine1}
-                          </strong>
-                          <span className="block truncate text-xs text-muted-foreground">
-                            {[address.addressLine1, address.city, address.pincode]
-                              .filter(Boolean)
-                              .join(', ')}
-                          </span>
+            {addressesExpanded && addresses.length > 0 && (
+              <div
+                className="mt-2 grid gap-1"
+                role="radiogroup"
+                aria-label="Choose delivery address"
+              >
+                {addresses.map((address) => {
+                  const selected = address.id === addressId;
+                  return (
+                    <button
+                      key={address.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      onClick={() => {
+                        setVenueStatus('checking');
+                        onVenueStatusChange?.('checking');
+                        setAddressId(address.id);
+                        setAddressesExpanded(false);
+                      }}
+                      className={cn(
+                        'flex min-h-10 items-center justify-between gap-3 border-t border-border/50 py-1.5 text-left text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary',
+                        selected && 'text-primary',
+                      )}
+                    >
+                      <span className="min-w-0">
+                        <strong className="block truncate">
+                          {address.label || address.addressLine1}
+                        </strong>
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {[address.addressLine1, address.city, address.pincode]
+                            .filter(Boolean)
+                            .join(', ')}
                         </span>
-                        {selected && <Check className="h-4 w-4 shrink-0" />}
-                      </button>
-                    );
-                  })}
-                  <button
-                    type="button"
-                    onClick={onAddAddress}
-                    className="inline-flex min-h-8 items-center border-t border-border/50 pt-1.5 text-sm font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-                  >
-                    Add another address
-                  </button>
-                </div>
-              )}
-            {venueStatus === 'outside' && (
-              <p role="alert" className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-800">
-                This address is outside our delivery area. Choose another saved address or add a new one to continue.
-              </p>
-            )}
-            {venueStatus === 'closed' && (
-              <p role="alert" className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-medium text-amber-900">
-                The kitchen serving this address is currently closed. Choose another address to continue.
-              </p>
-            )}
-            {venueStatus === 'missing-pin' && (
-              <p role="alert" className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-medium text-amber-900">
-                This address needs a map pin before we can check delivery. Add a complete address to continue.
-              </p>
-            )}
-            {venueStatus === 'error' && (
-              <p role="alert" className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-medium text-amber-900">
-                We could not check delivery for this address. Try selecting it again before continuing.
-              </p>
+                      </span>
+                      {selected && <Check className="h-4 w-4 shrink-0" />}
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={onAddAddress}
+                  className="inline-flex min-h-8 items-center border-t border-border/50 pt-1.5 text-sm font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                >
+                  Add another address
+                </button>
+              </div>
             )}
           </div>
           {deliveryService}

@@ -1,7 +1,10 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
+  OnModuleDestroy,
+  OnModuleInit,
 } from '@nestjs/common';
 import {
   CartStatus,
@@ -44,15 +47,77 @@ const cartInclude = Prisma.validator<Prisma.CartInclude>()({
 });
 type CartWithDetails = Prisma.CartGetPayload<{ include: typeof cartInclude }>;
 const CUTLERY_UNIT_PRICE = new Prisma.Decimal('5.00');
+const CART_RETENTION_DAYS = 30;
+const CART_CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const CART_CLEANUP_BATCH_SIZE = 500;
 
 @Injectable()
-export class CartService {
+export class CartService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(CartService.name);
+  private cleanupTimer?: ReturnType<typeof setInterval>;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly pricing: PricingService,
     private readonly orders: OrdersService,
     private readonly regions: OperatingRegionsService,
   ) {}
+
+  onModuleInit() {
+    void this.purgeExpiredCarts();
+    this.cleanupTimer = setInterval(
+      () => void this.purgeExpiredCarts(),
+      CART_CLEANUP_INTERVAL_MS,
+    );
+    this.cleanupTimer.unref?.();
+  }
+
+  onModuleDestroy() {
+    if (this.cleanupTimer) clearInterval(this.cleanupTimer);
+  }
+
+  async purgeExpiredCarts() {
+    const retentionCutoff = new Date(
+      Date.now() - CART_RETENTION_DAYS * 24 * 60 * 60 * 1000,
+    );
+    let deletedCount = 0;
+    try {
+      while (true) {
+        const staleCarts = await this.prisma.cart.findMany({
+          where: {
+            status: {
+              in: [CartStatus.ACTIVE, CartStatus.ABANDONED, CartStatus.EXPIRED],
+            },
+            expiresAt: { lt: new Date() },
+            updatedAt: { lt: retentionCutoff },
+            order: { is: null },
+          },
+          select: { id: true },
+          take: CART_CLEANUP_BATCH_SIZE,
+        });
+        if (!staleCarts.length) break;
+        const ids = staleCarts.map((cart) => cart.id);
+        const deleted = await this.prisma.$transaction(async (tx) => {
+          await tx.cartItem.deleteMany({ where: { cartId: { in: ids } } });
+          return tx.cart.deleteMany({
+            where: { id: { in: ids }, order: { is: null } },
+          });
+        });
+        deletedCount += deleted.count;
+        if (staleCarts.length < CART_CLEANUP_BATCH_SIZE) break;
+      }
+      if (deletedCount > 0) {
+        this.logger.log(`Purged ${deletedCount} expired carts`);
+      }
+      return deletedCount;
+    } catch (error) {
+      this.logger.error(
+        'Expired cart cleanup failed',
+        error instanceof Error ? error.stack : String(error),
+      );
+      return 0;
+    }
+  }
 
   async upsert(userId: string, dto: UpdateCartDto) {
     const version = await this.assertPackageVersion(dto.packageVersionId);

@@ -3,13 +3,18 @@
 import type { OrderSummary } from '@aranyam/shared-types';
 import { CheckCircle, Clock3, XCircle } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Button } from '../../../components/ui/button';
 import { apiRequest } from '../../../lib/api';
 import { useSessionStore } from '../../../store/session.store';
-import { AuthRequiredPanel, StatePanel } from '../../../components/ui/state-panel';
+import {
+  AuthRequiredPanel,
+  StatePanel,
+} from '../../../components/ui/state-panel';
 
 export default function PaymentStatusPage() {
+  const router = useRouter();
   const session = useSessionStore((state) => state.session);
   const [orderId, setOrderId] = useState('');
   const [order, setOrder] = useState<OrderSummary>();
@@ -35,6 +40,10 @@ export default function PaymentStatusPage() {
           session.accessToken,
         );
         if (!active) return;
+        if (next.paymentStatus === 'FAILED') {
+          router.replace(`/cart?payment=failed&orderId=${orderId}`);
+          return;
+        }
         setOrder(next);
         setLoadError('');
         attempts += 1;
@@ -52,7 +61,7 @@ export default function PaymentStatusPage() {
       active = false;
       if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [session, orderId]);
+  }, [session, orderId, router]);
   const paid = order?.paymentStatus === 'PAID';
   const failed = order?.paymentStatus === 'FAILED' || Boolean(loadError);
   const Icon = paid ? CheckCircle : failed ? XCircle : Clock3;
@@ -88,7 +97,7 @@ export default function PaymentStatusPage() {
             ? 'Payment failed'
             : confirmationDelayed
               ? 'Confirmation is taking longer'
-            : 'Confirming payment'}
+              : 'Confirming payment'}
       </h1>
       <p className="mt-2 text-muted-foreground">
         {paid
@@ -97,7 +106,7 @@ export default function PaymentStatusPage() {
             ? loadError || 'Your order is saved and payment can be retried.'
             : confirmationDelayed
               ? 'Your order is safe. You can retry the same payment or check the order again shortly.'
-            : 'We are waiting for secure confirmation from Razorpay. This can take a few moments.'}
+              : 'We are waiting for secure confirmation from Razorpay. This can take a few moments.'}
       </p>
       <div className="mt-8 flex gap-3">
         {orderId && (
