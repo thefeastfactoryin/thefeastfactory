@@ -1,8 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import {
-  Inter,
-  Playfair_Display,
-} from 'next/font/google';
+import { Inter, Playfair_Display } from 'next/font/google';
 import './globals.css';
 import { CustomerShell } from '../components/customer-shell';
 import { PublicSettingsProvider } from '../components/public-settings-provider';
@@ -24,6 +21,13 @@ export const metadata: Metadata = {
   title: 'The Feast Factory',
   description:
     'Plan catering events, customize menus, and place orders with The Feast Factory.',
+  icons: {
+    icon: [{ url: '/favicon-circle.png', type: 'image/png', sizes: '512x512' }],
+    shortcut: '/favicon-circle.png',
+    apple: [
+      { url: '/favicon-circle.png', type: 'image/png', sizes: '512x512' },
+    ],
+  },
 };
 
 export const viewport: Viewport = {

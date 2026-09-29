@@ -470,13 +470,7 @@ test('item replacement targets the requested customer cart', async () => {
   assert.equal(lookupWhere?.id, 'cart-2');
   assert.equal(lookupWhere?.userId, 'user-1');
   assert.equal(lookupWhere?.status, 'ACTIVE');
-  const expiryScope = lookupWhere?.OR as Array<{
-    expiresAt: null | { gt: Date };
-  }>;
-  assert.equal(expiryScope[0].expiresAt, null);
-  assert.ok(
-    expiryScope[1].expiresAt && expiryScope[1].expiresAt.gt instanceof Date,
-  );
+  assert.equal(lookupWhere?.OR, undefined);
 });
 
 test('batch checkout validates every cart before creating any order', async () => {
@@ -607,7 +601,7 @@ test('batch checkout applies one trimmed kitchen instruction to every cart', asy
   ]);
 });
 
-test('active cart queries exclude expired carts while allowing legacy null expiry', async () => {
+test('active cart queries keep saved carts regardless of old expiry timestamps', async () => {
   let lookupWhere: Record<string, unknown> | undefined;
   const prisma = {
     cart: {
@@ -625,16 +619,11 @@ test('active cart queries exclude expired carts while allowing legacy null expir
   );
 
   assert.deepEqual(await service.getAllActive('user-1'), []);
-  const expiryScope = lookupWhere?.OR as Array<{
-    expiresAt: null | { gt: Date };
-  }>;
-  assert.equal(expiryScope[0].expiresAt, null);
-  assert.ok(
-    expiryScope[1].expiresAt && expiryScope[1].expiresAt.gt instanceof Date,
-  );
+  assert.equal(lookupWhere?.status, 'ACTIVE');
+  assert.equal(lookupWhere?.OR, undefined);
 });
 
-test('expired carts older than 30 days are hard-deleted without touching order carts', async () => {
+test('only abandoned or expired carts older than 30 days are hard-deleted', async () => {
   let lookupWhere: Record<string, unknown> | undefined;
   let lookups = 0;
   const deletedItemCartIds: string[] = [];
@@ -680,6 +669,7 @@ test('expired carts older than 30 days are hard-deleted without touching order c
   assert.deepEqual(deletedItemCartIds, ['expired-cart-1']);
   assert.deepEqual(deletedCartIds, ['expired-cart-1']);
   assert.deepEqual(lookupWhere?.order, { is: null });
+  assert.deepEqual(lookupWhere?.status, { in: ['ABANDONED', 'EXPIRED'] });
   assert.ok((lookupWhere?.expiresAt as { lt: Date }).lt instanceof Date);
   assert.ok((lookupWhere?.updatedAt as { lt: Date }).lt instanceof Date);
 });

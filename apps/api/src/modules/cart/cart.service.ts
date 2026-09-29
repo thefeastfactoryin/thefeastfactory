@@ -12,6 +12,7 @@ import {
   OrderStatus,
   PackageType,
   Prisma,
+  SelectedItemRole,
 } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -22,6 +23,7 @@ import {
   positiveIntegerSetting,
 } from '../../common/setting-values';
 import { OrdersService } from '../orders/orders.service';
+import { cartFingerprint, type CheckoutSnapshot } from './checkout-snapshot';
 import { PricingService } from '../pricing/pricing.service';
 import { OperatingRegionsService } from '../operating-regions/operating-regions.service';
 import { CreateCartDto } from './dto/create-cart.dto';
@@ -86,7 +88,7 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
         const staleCarts = await this.prisma.cart.findMany({
           where: {
             status: {
-              in: [CartStatus.ACTIVE, CartStatus.ABANDONED, CartStatus.EXPIRED],
+              in: [CartStatus.ABANDONED, CartStatus.EXPIRED],
             },
             expiresAt: { lt: new Date() },
             updatedAt: { lt: retentionCutoff },
@@ -543,6 +545,184 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
     return orders;
   }
 
+  async preparePayment(
+    userId: string,
+    specialNotes?: string,
+  ): Promise<CheckoutSnapshot> {
+    const initial = await this.prisma.cart.findMany({
+      where: {
+        userId,
+        status: CartStatus.ACTIVE,
+        ...this.unexpiredCartScope(),
+      },
+      include: this.cartInclude(),
+      orderBy: { updatedAt: 'asc' },
+    });
+    if (!initial.length) throw new NotFoundException('Active cart not found');
+    await this.saveCheckoutInstructions(
+      userId,
+      initial.map((cart) => cart.id),
+      specialNotes,
+    );
+    const aggregate = await this.quoteAll(userId);
+    const carts = await this.prisma.cart.findMany({
+      where: {
+        id: { in: initial.map((cart) => cart.id) },
+        userId,
+        status: CartStatus.ACTIVE,
+      },
+      include: this.cartInclude(),
+    });
+    if (
+      carts.length !== initial.length ||
+      aggregate.carts.length !== initial.length
+    ) {
+      throw new BadRequestException(
+        'Your cart changed. Review it and try payment again.',
+      );
+    }
+    const byId = new Map(carts.map((cart) => [cart.id, cart]));
+    const sharedDeliveryFee = this.batchDeliveryFee(
+      aggregate.carts.map((row) => row.quote),
+    );
+    const sharedCutleryTotal = this.batchCutleryTotal(
+      aggregate.carts.map((row) => row.quote),
+    );
+    const sharedExtraCount = Math.max(
+      0,
+      ...carts.map((cart) => cart.cutleryExtraCount),
+    );
+    const snapshots: CheckoutSnapshot['carts'] = [];
+
+    for (const [index, original] of initial.entries()) {
+      const cart = byId.get(original.id);
+      const quote = aggregate.carts.find(
+        (row) => row.cartId === original.id,
+      )?.quote;
+      if (
+        !cart ||
+        !quote ||
+        !cart.addressId ||
+        !cart.eventDate ||
+        !cart.eventTimeStart ||
+        !cart.contactNumber ||
+        !quote.region?.id ||
+        (!cart.guestCount &&
+          cart.packageVersion.package.type !== PackageType.ORDER_BY_KG)
+      ) {
+        throw new BadRequestException(
+          'Complete delivery details before payment.',
+        );
+      }
+      const originalItems = cartFingerprint({
+        ...original,
+        specialNotes: cart.specialNotes,
+      });
+      if (originalItems !== cartFingerprint(cart)) {
+        throw new BadRequestException(
+          'Your cart changed. Review it and try payment again.',
+        );
+      }
+      const selectedItems: CheckoutSnapshot['carts'][number]['selectedItems'] =
+        quote.items.map((item) => ({
+          categoryId: item.categoryId,
+          menuItemId: item.menuItemId,
+          replacedMenuItemId: item.replacedMenuItemId ?? null,
+          role: item.role,
+          quantity: item.quantity,
+          weightGrams: item.weightGrams ?? null,
+          pricePerKg: item.pricePerKg ?? null,
+          lineTotal: item.lineTotal ?? null,
+          menuItemName: item.menuItemName,
+          categoryName: item.categoryName,
+          replacedMenuItemName: item.replacedMenuItemName ?? null,
+          isVeg: item.isVeg,
+          itemPrice: item.itemPrice,
+          includedValue: item.includedValue,
+          adjustmentAmount: item.adjustmentAmount,
+        }));
+      if (cart.packageVersion.package.type === PackageType.FIXED_PACKAGE) {
+        const replaced = new Set(
+          selectedItems.map((item) => item.replacedMenuItemId),
+        );
+        const included = await this.prisma.packageMenuItem.findMany({
+          where: {
+            packageVersionId: cart.packageVersionId,
+            role: 'INCLUDED',
+            isAvailable: true,
+            menuItemId: {
+              notIn: [...replaced].filter((id): id is string => Boolean(id)),
+            },
+          },
+          include: { menuItem: true, category: true },
+        });
+        selectedItems.push(
+          ...included.map((row) => ({
+            categoryId: row.categoryId,
+            menuItemId: row.menuItemId,
+            replacedMenuItemId: null,
+            role: SelectedItemRole.INCLUDED,
+            quantity: 1,
+            weightGrams: null,
+            pricePerKg: null,
+            lineTotal: null,
+            menuItemName: row.menuItem.name,
+            categoryName: row.category.name,
+            replacedMenuItemName: null,
+            isVeg: row.menuItem.isVeg,
+            itemPrice: row.menuItem.generalPrice.toFixed(2),
+            includedValue: row.menuItem.generalPrice.toFixed(2),
+            adjustmentAmount: '0.00',
+          })),
+        );
+      }
+      const deliveryFee =
+        index === 0 ? sharedDeliveryFee : new Prisma.Decimal(0);
+      const cutleryTotal =
+        index === 0 ? sharedCutleryTotal : new Prisma.Decimal(0);
+      snapshots.push({
+        cartId: cart.id,
+        cartFingerprint: cartFingerprint(cart),
+        addressId: cart.addressId,
+        regionId: quote.region.id,
+        eventName: cart.eventName,
+        eventDate: cart.eventDate.toISOString(),
+        eventTimeStart: cart.eventTimeStart.toISOString(),
+        specialNotes: cart.specialNotes,
+        contactNumber: cart.contactNumber,
+        packageType: cart.packageVersion.package.type,
+        packageName: quote.packageName,
+        packageVersionNo: cart.packageVersion.versionNo,
+        guestCount: quote.guestCount,
+        basePerPlatePrice: quote.basePerPlatePrice,
+        totalCustomizationCharges: quote.totalCustomizationCharges,
+        finalPerPlatePrice: quote.finalPerPlatePrice,
+        totalAmount: new Prisma.Decimal(quote.subtotalAmount)
+          .plus(deliveryFee)
+          .plus(cutleryTotal)
+          .toFixed(2),
+        distanceKm: quote.distanceKm,
+        deliveryFee: deliveryFee.toFixed(2),
+        deliveryServiceType: quote.deliveryServiceType,
+        helperCount: quote.helperCount,
+        cutleryIncludedCount: quote.cutleryIncludedCount,
+        cutleryExtraCount: index === 0 ? sharedExtraCount : 0,
+        cutleryUnitPrice: quote.cutleryUnitPrice,
+        cutleryTotal: cutleryTotal.toFixed(2),
+        selectedItems,
+      });
+    }
+    return {
+      carts: snapshots,
+      totalAmount: snapshots
+        .reduce(
+          (sum, cart) => sum.plus(cart.totalAmount),
+          new Prisma.Decimal(0),
+        )
+        .toFixed(2),
+    };
+  }
+
   private batchDeliveryFee(quotes: Array<{ deliveryFee: string }>) {
     return quotes.reduce((highest, quote) => {
       const fee = new Prisma.Decimal(quote.deliveryFee);
@@ -838,6 +1018,7 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
       lastQuotedAt: cart.lastQuotedAt?.toISOString() ?? null,
       createdAt: cart.createdAt.toISOString(),
       updatedAt: cart.updatedAt.toISOString(),
+      paymentTryCount: cart.paymentTryCount,
       pendingOrderId:
         cart.order?.orderStatus === OrderStatus.PENDING_PAYMENT
           ? cart.order.id
@@ -913,15 +1094,15 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
   }
 
   private expiryDate() {
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 14);
-    return expiresAt;
+    // An active cart ends only on successful payment or customer deletion.
+    return null;
   }
 
   private unexpiredCartScope() {
-    return {
-      OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
-    };
+    // Active carts remain available until the customer removes them or a
+    // verified payment consumes them. An old expiry timestamp is not a reason
+    // to hide a saved cart.
+    return {};
   }
 
   private async validateEventDetails(
@@ -932,7 +1113,7 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
   ) {
     const [address, version, settingRows] = await Promise.all([
       this.prisma.userAddress.findFirst({
-        where: { id: dto.addressId!, userId },
+        where: { id: dto.addressId!, userId, deletedAt: null },
       }),
       this.prisma.packageVersion.findFirst({
         include: { package: true },
@@ -1059,7 +1240,7 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
     helperCount = 0,
   ) {
     const address = await this.prisma.userAddress.findFirst({
-      where: { id: addressId, userId },
+      where: { id: addressId, userId, deletedAt: null },
     });
     if (!address) {
       throw new BadRequestException('Address does not belong to customer');

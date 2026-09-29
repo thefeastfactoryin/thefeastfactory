@@ -1,8 +1,4 @@
-import {
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateAddressDto } from './dto/create-address.dto';
@@ -43,7 +39,7 @@ export class UsersService {
     await this.getProfile(userId);
 
     const addresses = await this.prisma.userAddress.findMany({
-      where: { userId },
+      where: { userId, deletedAt: null },
       orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
     });
 
@@ -60,11 +56,12 @@ export class UsersService {
     return this.prisma.$transaction(async (tx) => {
       const shouldSetDefault =
         dto.isDefault ??
-        (await tx.userAddress.count({ where: { userId } })) === 0;
+        (await tx.userAddress.count({ where: { userId, deletedAt: null } })) ===
+          0;
 
       if (shouldSetDefault) {
         await tx.userAddress.updateMany({
-          where: { userId },
+          where: { userId, deletedAt: null },
           data: { isDefault: false },
         });
       }
@@ -91,7 +88,7 @@ export class UsersService {
     return this.prisma.$transaction(async (tx) => {
       if (dto.isDefault) {
         await tx.userAddress.updateMany({
-          where: { userId },
+          where: { userId, deletedAt: null },
           data: { isDefault: false },
         });
       }
@@ -111,22 +108,16 @@ export class UsersService {
 
   async deleteAddress(userId: string, addressId: string) {
     const address = await this.assertAddressOwner(userId, addressId);
-    const [cartReferences, orderReferences] = await Promise.all([
-      this.prisma.cart.count({ where: { addressId } }),
-      this.prisma.order.count({ where: { addressId } }),
-    ]);
-    if (cartReferences > 0 || orderReferences > 0) {
-      throw new ConflictException(
-        'This address is used by a cart or order and cannot be deleted',
-      );
-    }
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.userAddress.delete({ where: { id: address.id } });
+      await tx.userAddress.update({
+        where: { id: address.id },
+        data: { deletedAt: new Date(), isDefault: false },
+      });
 
       if (!address.isDefault) return;
       const nextAddress = await tx.userAddress.findFirst({
-        where: { userId },
+        where: { userId, deletedAt: null, id: { not: address.id } },
         orderBy: { createdAt: 'desc' },
       });
       if (nextAddress) {
@@ -145,7 +136,7 @@ export class UsersService {
 
     await this.prisma.$transaction([
       this.prisma.userAddress.updateMany({
-        where: { userId },
+        where: { userId, deletedAt: null },
         data: { isDefault: false },
       }),
       this.prisma.userAddress.update({
@@ -159,7 +150,7 @@ export class UsersService {
 
   private async assertAddressOwner(userId: string, addressId: string) {
     const address = await this.prisma.userAddress.findFirst({
-      where: { id: addressId, userId },
+      where: { id: addressId, userId, deletedAt: null },
     });
 
     if (!address) {

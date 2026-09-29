@@ -125,9 +125,13 @@ export default function AddressesPage() {
       ...form,
       label:
         form.label.trim() ||
-        ({ HOME: 'Home', OFFICE: 'Office', EVENT_VENUE: 'Event venue', OTHER: 'Other' }[
-          form.addressType
-        ] ?? undefined),
+        ({
+          HOME: 'Home',
+          OFFICE: 'Office',
+          EVENT_VENUE: 'Event venue',
+          OTHER: 'Other',
+        }[form.addressType] ??
+          undefined),
       addressLine2: form.addressLine2.trim() || undefined,
       landmark: form.landmark.trim() || undefined,
       latitude: form.latitude || undefined,
@@ -223,12 +227,7 @@ export default function AddressesPage() {
       setAddressToDelete(undefined);
       await load();
     } catch (reason) {
-      const message = (reason as Error).message;
-      setDeleteError(
-        message.includes('used by a cart or order')
-          ? 'This address is linked to a cart or past order and cannot be deleted.'
-          : message,
-      );
+      setDeleteError((reason as Error).message);
     } finally {
       setDeleting(false);
     }
@@ -332,9 +331,11 @@ export default function AddressesPage() {
             onSubmit={add}
             className="address-form h-fit scroll-mt-20 rounded-none border-0 bg-transparent p-0 shadow-none lg:surface-card lg:p-5"
           >
-
             {mapSelectionMessage && (
-              <p role="status" className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-900">
+              <p
+                role="status"
+                className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-900"
+              >
                 {mapSelectionMessage}
               </p>
             )}
@@ -358,20 +359,24 @@ export default function AddressesPage() {
                   <option value="OTHER">Other</option>
                 </Select>
               </Field>
-              {form.addressType === 'OTHER' && <Field label="Label" optional optionalInline className="col-span-2 lg:col-span-1">
-                <Input
-                  placeholder="e.g. Parents' home"
-                  maxLength={50}
-                  value={form.label}
-                  onChange={(event) =>
-                    setForm({ ...form, label: event.target.value })
-                  }
-                />
-              </Field>}
-              <Field
-                label="Address"
-                className="col-span-2 lg:col-span-1"
-              >
+              {form.addressType === 'OTHER' && (
+                <Field
+                  label="Label"
+                  optional
+                  optionalInline
+                  className="col-span-2 lg:col-span-1"
+                >
+                  <Input
+                    placeholder="e.g. Parents' home"
+                    maxLength={50}
+                    value={form.label}
+                    onChange={(event) =>
+                      setForm({ ...form, label: event.target.value })
+                    }
+                  />
+                </Field>
+              )}
+              <Field label="Address" className="col-span-2 lg:col-span-1">
                 <Input
                   placeholder="House, flat, building, or street"
                   maxLength={255}
@@ -445,7 +450,12 @@ export default function AddressesPage() {
                   required
                 />
               </Field>
-              <Field label="Landmark" optional optionalInline className="col-span-2 lg:col-span-1">
+              <Field
+                label="Landmark"
+                optional
+                optionalInline
+                className="col-span-2 lg:col-span-1"
+              >
                 <Input
                   placeholder="Nearby landmark"
                   maxLength={255}
@@ -467,9 +477,7 @@ export default function AddressesPage() {
             />
 
             {form.latitude && form.longitude && (
-              <p className="mt-2 text-xs text-emerald-700">
-                Location pinned
-              </p>
+              <p className="mt-2 text-xs text-emerald-700">Location pinned</p>
             )}
 
             {error && (
@@ -480,7 +488,10 @@ export default function AddressesPage() {
                 {error}
               </p>
             )}
-            <Button className="mt-3 hidden w-full rounded-xl lg:inline-flex" disabled={submitting}>
+            <Button
+              className="mt-3 hidden w-full rounded-xl lg:inline-flex"
+              disabled={submitting}
+            >
               {submitting ? 'Saving address…' : 'Save address'}
             </Button>
           </form>
@@ -578,7 +589,9 @@ export default function AddressesPage() {
             type="button"
             className="mx-auto h-12 w-full max-w-2xl rounded-xl"
             disabled={submitting}
-            onClick={() => document.querySelector<HTMLFormElement>('form')?.requestSubmit()}
+            onClick={() =>
+              document.querySelector<HTMLFormElement>('form')?.requestSubmit()
+            }
           >
             {submitting ? 'Saving address...' : 'Save address'}
           </Button>
@@ -614,15 +627,23 @@ export default function AddressesPage() {
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <h2 id="delete-address-title" className="mt-4 font-sans text-xl font-semibold">
+            <h2
+              id="delete-address-title"
+              className="mt-4 font-sans text-xl font-semibold"
+            >
               Delete this address?
             </h2>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              {addressToDelete.label || addressToDelete.addressLine1} will be removed from your saved addresses.
-              {addressToDelete.isDefault && ' Your next saved address will become the default.'}
+              {addressToDelete.label || addressToDelete.addressLine1} will be
+              removed from your saved addresses.
+              {addressToDelete.isDefault &&
+                ' Your next saved address will become the default.'}
             </p>
             {deleteError && (
-              <p role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+              <p
+                role="alert"
+                className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800"
+              >
                 {deleteError}
               </p>
             )}

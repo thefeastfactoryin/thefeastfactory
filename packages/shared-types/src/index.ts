@@ -290,6 +290,7 @@ export type CartSummary = {
   createdAt: string;
   updatedAt: string;
   pendingOrderId?: string | null;
+  paymentTryCount?: number;
   specialNotes?: string | null;
   contactNumber: string;
   deliveryServiceType: DeliveryServiceType;

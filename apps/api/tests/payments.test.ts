@@ -29,7 +29,10 @@ const baseRefund = {
 
 function service(prisma: object, generated: string[] = []) {
   return new PaymentsService(
-    prisma as never,
+    {
+      checkoutAttempt: { findUnique: async () => null },
+      ...prisma,
+    } as never,
     { get: () => undefined } as never,
     {
       generateOrderDocuments: async (id: string) => generated.push(id),

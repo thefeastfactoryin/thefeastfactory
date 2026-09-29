@@ -30,6 +30,25 @@ final result: passed
 
 ---
 
+# Cart cutlery control — Design QA
+
+- Source visual truth: user-provided checkout/cutlery screenshot in this chat.
+- Implementation: `apps/customer-web/app/cart/page.tsx` (`CutleryOptions`)
+- Viewports checked in the Codex in-app browser: 390 × 844 and the default desktop surface.
+- States checked: no extra sets and one extra set.
+
+## Findings
+
+The card now uses one aligned row: cutlery icon, heading with the included-count pill, Plate + Spoon detail, per-set price, and the Add extra action. After adding a set, the action changes in place to the editable minus/count/plus control. The duplicate visual subtotal was removed from the control row and remains represented in the price breakdown and accessible help text.
+
+At 390 px, both idle and one-extra states remain inside the card with no overlap, clipping, or horizontal scrolling. The action remains visibly associated with the cutlery details rather than floating in a separate grid column.
+
+No actionable P0, P1, or P2 visual defects remain.
+
+final result: passed
+
+---
+
 # Checkout address chooser — Design QA
 
 - Source visual truth: `/var/folders/wl/lwjjyh6n1szd4mshv7057nm00000gn/T/codex-clipboard-65826796-feba-4c3d-93b0-2967d81c3495.png`

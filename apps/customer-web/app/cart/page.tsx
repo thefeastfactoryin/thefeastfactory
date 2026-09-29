@@ -347,10 +347,6 @@ export default function CartPage() {
   );
   const hydrate = useOrderBuilderStore((state) => state.hydrateFromCart);
   const reset = useOrderBuilderStore((state) => state.reset);
-  const pendingOrderId = useOrderBuilderStore((state) => state.pendingOrderId);
-  const setPendingOrderId = useOrderBuilderStore(
-    (state) => state.setPendingOrderId,
-  );
 
   const [cart, setCart] = useState<CartSummary>();
   const [activeCarts, setActiveCarts] = useState<CartSummary[]>([]);
@@ -372,6 +368,9 @@ export default function CartPage() {
   const missingCartRecoveryAttempts = useRef(0);
   const recoveringCart = useRef(false);
   const [paying, setPaying] = useState(false);
+  const paymentWindowHandled = useRef(false);
+  const [paymentNotice, setPaymentNotice] = useState('');
+  const [paymentNeedsReview, setPaymentNeedsReview] = useState(false);
   const [deletingCartId, setDeletingCartId] = useState('');
   const [clearCartOpen, setClearCartOpen] = useState(false);
   const [clearingCart, setClearingCart] = useState(false);
@@ -435,6 +434,12 @@ export default function CartPage() {
   useEffect(() => {
     setContactNumber(session?.user.mobileNumber ?? '');
   }, [session?.user.mobileNumber]);
+
+  useEffect(() => {
+    if (!paymentNotice) return;
+    const timeout = window.setTimeout(() => setPaymentNotice(''), 6000);
+    return () => window.clearTimeout(timeout);
+  }, [paymentNotice]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1183,11 +1188,12 @@ export default function CartPage() {
     };
   });
 
-  async function verifyPayment(
-    orderId: string,
-    response: Record<string, string>,
-  ) {
-    await apiRequest(
+  async function verifyPayment(response: Record<string, string>) {
+    const verified = await apiRequest<{
+      success: boolean;
+      orderId?: string;
+      needsReview?: boolean;
+    }>(
       '/payments/razorpay/verify',
       {
         method: 'POST',
@@ -1199,8 +1205,18 @@ export default function CartPage() {
       },
       session!.accessToken,
     );
+    if (!verified.success || !verified.orderId) {
+      setPaymentNeedsReview(true);
+      setValidationIssue('payment');
+      setError(
+        'Payment was received but needs manual confirmation. Do not retry payment; please contact support.',
+      );
+      setPaying(false);
+      return;
+    }
     reset();
-    router.push(`/payment/status?orderId=${orderId}&status=success`);
+    notifyCartCleared();
+    router.push(`/payment/status?orderId=${verified.orderId}&status=success`);
   }
 
   async function pay() {
@@ -1220,58 +1236,25 @@ export default function CartPage() {
     }
     setValidationIssue(undefined);
     setError('');
+    setPaymentNotice('');
+    paymentWindowHandled.current = false;
     setPaying(true);
     try {
       await persistContactNumber(validatedContactNumber.data);
       const selectedQuote =
         multiCartQuote.carts.find((entry) => entry.cartId === cart.id)?.quote ??
         quote;
-      const orders = pendingOrderId
-        ? await apiRequest<OrderSummary>(
-            `/orders/${pendingOrderId}`,
-            {},
-            session.accessToken,
-          ).then((order) => [order])
-        : await apiRequest<OrderSummary[]>(
-            '/cart/checkout-all',
-            {
-              method: 'POST',
-              body: JSON.stringify({ specialNotes }),
-            },
-            session.accessToken,
-          );
-      const order = orders[0];
-      setPendingOrderId(order.id);
-      setPendingOrder(order);
-      setPendingBatch(
-        orders.length > 1
-          ? {
-              orderCount: orders.length,
-              orderIds: orders.map((row) => row.id),
-              totalAmount: orders
-                .reduce((sum, row) => sum + Number(row.totalAmount), 0)
-                .toFixed(2),
-            }
-          : undefined,
+      const gateway = await apiRequest<GatewayOrder>(
+        '/payments/razorpay/cart-order',
+        {
+          method: 'POST',
+          body: JSON.stringify({ specialNotes }),
+        },
+        session.accessToken,
       );
-      const gateway =
-        orders.length === 1
-          ? await apiRequest<GatewayOrder>(
-              `/orders/${order.id}/payments/razorpay-order`,
-              { method: 'POST' },
-              session.accessToken,
-            )
-          : await apiRequest<GatewayOrder>(
-              '/payments/razorpay/batch-order',
-              {
-                method: 'POST',
-                body: JSON.stringify({ orderIds: orders.map((row) => row.id) }),
-              },
-              session.accessToken,
-            );
 
       if (gateway.localMode) {
-        await verifyPayment(order.id, {
+        await verifyPayment({
           razorpay_order_id: gateway.id,
           razorpay_payment_id: `local_payment_${Date.now()}`,
           razorpay_signature: 'local_success',
@@ -1289,11 +1272,11 @@ export default function CartPage() {
         currency: gateway.currency,
         name: 'The Feast Factory',
         description:
-          orders.length === 1
+          activeCarts.length === 1
             ? cart.package.type === 'ORDER_BY_KG'
               ? `${cart.package.name} · ${cart.items.reduce((sum, item) => sum + (item.weightGrams ?? 0), 0) / 1000} kg`
               : `${cart.package.name} for ${selectedQuote?.guestCount ?? cart.guestCount ?? cart.package.minGuestCount} guests`
-            : `${orders.length} packages in one checkout`,
+            : `${activeCarts.length} packages in one checkout`,
         order_id: gateway.id,
         prefill: {
           name: session.user.name ?? '',
@@ -1304,28 +1287,30 @@ export default function CartPage() {
         modal: {
           confirm_close: true,
           ondismiss: () => {
-            setValidationIssue('payment');
-            setError(
-              'Payment window closed. Your order is saved and you can retry safely.',
-            );
+            if (paymentWindowHandled.current) return;
+            setPaymentNotice("Payment couldn't be completed, please retry.");
             setPaying(false);
           },
         },
         handler: async (response: Record<string, string>) => {
+          paymentWindowHandled.current = true;
           try {
-            await verifyPayment(order.id, response);
+            await verifyPayment(response);
           } catch (reason) {
             setValidationIssue('payment');
             setError(friendlyCheckoutError(reason));
+            if (String(reason).includes('Payment captured'))
+              setPaymentNeedsReview(true);
             setPaying(false);
           }
         },
       });
       checkout.on('payment.failed', (response) => {
+        paymentWindowHandled.current = true;
         setValidationIssue('payment');
         setError(
           response?.error?.description ||
-            'Payment failed. You can retry without creating another order.',
+            'Payment failed. Your cart is saved; retry here once the payment status is confirmed.',
         );
         setPaying(false);
       });
@@ -1334,6 +1319,8 @@ export default function CartPage() {
       if (!recoverMissingCart(reason)) {
         setValidationIssue('payment');
         setError(friendlyCheckoutError(reason));
+        if (String(reason).includes('Payment captured'))
+          setPaymentNeedsReview(true);
       }
       setPaying(false);
     }
@@ -1535,155 +1522,192 @@ export default function CartPage() {
         strategy="afterInteractive"
       />
 
-      <div className="mx-auto w-full max-w-[1320px] px-3 py-4 sm:px-6 sm:py-7 lg:px-8 lg:py-10">
-        <header className="mb-4 overflow-hidden rounded-2xl border border-primary/10 bg-[linear-gradient(120deg,hsl(var(--hero-start)),hsl(var(--primary)))] px-4 py-4 text-white shadow-[0_18px_50px_-32px_rgba(75,12,23,.9)] sm:mb-7 sm:rounded-3xl sm:px-7 sm:py-6">
-          <div className="flex items-center gap-3 sm:gap-4">
-            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white/10 text-accent ring-1 ring-inset ring-white/15 sm:h-12 sm:w-12">
-              <ShoppingBag
-                className="h-5 w-5 sm:h-6 sm:w-6"
-                aria-hidden="true"
-              />
-            </span>
-            <div className="min-w-0">
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent sm:text-xs">
-                Almost there
-              </p>
-              <h1 className="mt-0.5 font-serif text-2xl font-bold leading-tight sm:text-3xl">
-                Review and checkout
-              </h1>
-              <p className="mt-1 hidden text-sm text-white/70 sm:block">
-                Confirm your menu and delivery details, then pay securely.
-              </p>
+      {paymentNotice && (
+        <div
+          role="alert"
+          className="fixed inset-x-4 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-[70] mx-auto flex max-w-md items-center gap-3 rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-900 shadow-lg lg:bottom-6"
+        >
+          <AlertCircle className="h-5 w-5 shrink-0" aria-hidden="true" />
+          <span className="flex-1">{paymentNotice}</span>
+          <button
+            type="button"
+            onClick={() => setPaymentNotice('')}
+            aria-label="Dismiss payment error"
+            className="rounded-full p-1 hover:bg-red-100"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
+      )}
+
+      <section className="relative isolate hidden overflow-hidden border-b bg-hero-end text-white sm:block">
+        <img
+          src="/packages-hero-plated.png"
+          alt="A curated catering spread ready for checkout"
+          className="absolute inset-0 -z-20 h-full w-full object-cover object-center"
+        />
+        <div className="absolute inset-0 -z-10 bg-[linear-gradient(90deg,hsl(var(--hero-end)/0.99)_0%,hsl(var(--hero-start)/0.94)_40%,hsl(var(--hero-start)/0.32)_72%,rgba(0,0,0,0.08)_100%)]" />
+        <div className="container-pad flex min-h-[238px] items-center py-5 sm:min-h-[300px] sm:py-7 lg:min-h-[330px] lg:px-16 lg:py-9">
+          <div className="max-w-[620px]">
+            <p className="eyebrow">Almost there</p>
+            <h1 className="mt-2 font-serif text-[34px] font-bold leading-[1.12] tracking-[-0.015em] text-white sm:text-[44px] lg:text-[50px]">
+              Review and <span className="text-accent">checkout</span>
+            </h1>
+            <p className="mt-3 max-w-[520px] text-base font-semibold leading-6 text-white/85 sm:text-lg">
+              Confirm your menu, delivery details, and final total before secure
+              payment.
+            </p>
+            <div className="mt-5 grid max-w-[600px] grid-cols-4 gap-2">
+              {[
+                { Icon: ShoppingBag, label: 'Menu reviewed' },
+                { Icon: Truck, label: 'Delivery details' },
+                { Icon: Utensils, label: 'Serving add-ons' },
+                { Icon: LockKeyhole, label: 'Secure payment' },
+              ].map(({ Icon, label }) => (
+                <div
+                  key={label}
+                  className="flex min-h-11 items-center gap-2 rounded-xl border border-white/10 bg-black/15 px-2.5 py-2 text-white backdrop-blur-sm"
+                >
+                  <Icon
+                    className="h-[18px] w-[18px] shrink-0 text-accent"
+                    aria-hidden="true"
+                    strokeWidth={2}
+                  />
+                  <span className="text-[11px] font-extrabold leading-tight">
+                    {label}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
-        </header>
+        </div>
+      </section>
+
+      <div className="mx-auto w-full max-w-[1320px] px-3 py-4 sm:px-6 sm:py-7 lg:px-8 lg:py-10">
         {error &&
           !paying &&
           validationIssue !== 'payment' &&
           !(!pendingOrder && inlineDeliveryField) && (
-          <section
-            role="alert"
-            aria-live="assertive"
-            className={cn(
-              'mb-4 flex items-start gap-3 rounded-2xl border px-4 py-3.5 shadow-sm sm:mb-6 sm:px-5 sm:py-4',
-              validationIssue === 'checking'
-                ? 'border-amber-200 bg-amber-50 text-amber-950'
-                : 'border-red-200 bg-red-50 text-red-950',
-            )}
-          >
-            <span
+            <section
+              role="alert"
+              aria-live="assertive"
               className={cn(
-                'mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full',
+                'mb-4 flex items-start gap-3 rounded-2xl border px-4 py-3.5 shadow-sm sm:mb-6 sm:px-5 sm:py-4',
                 validationIssue === 'checking'
-                  ? 'bg-amber-100 text-amber-700'
-                  : 'bg-red-100 text-red-700',
+                  ? 'border-amber-200 bg-amber-50 text-amber-950'
+                  : 'border-red-200 bg-red-50 text-red-950',
               )}
             >
-              <AlertCircle className="h-4 w-4" aria-hidden="true" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <h2 className="text-sm font-bold">
-                {validationIssue
-                  ? checkoutIssueTitles[validationIssue]
-                  : 'Please review your order'}
-              </h2>
-              <p className="mt-0.5 text-sm leading-5 opacity-90">{error}</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                setError('');
-                setValidationIssue(undefined);
-              }}
-              className="grid h-8 w-8 shrink-0 place-items-center rounded-full transition hover:bg-black/[0.06] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current"
-              aria-label="Dismiss error"
-            >
-              <X className="h-4 w-4" aria-hidden="true" />
-            </button>
-          </section>
-        )}
+              <span
+                className={cn(
+                  'mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full',
+                  validationIssue === 'checking'
+                    ? 'bg-amber-100 text-amber-700'
+                    : 'bg-red-100 text-red-700',
+                )}
+              >
+                <AlertCircle className="h-4 w-4" aria-hidden="true" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-sm font-bold">
+                  {validationIssue
+                    ? checkoutIssueTitles[validationIssue]
+                    : 'Please review your order'}
+                </h2>
+                <p className="mt-0.5 text-sm leading-5 opacity-90">{error}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setError('');
+                  setValidationIssue(undefined);
+                }}
+                className="grid h-8 w-8 shrink-0 place-items-center rounded-full transition hover:bg-black/[0.06] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current"
+                aria-label="Dismiss error"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </section>
+          )}
         <section className="mb-5 overflow-hidden rounded-2xl border border-border/70 bg-white shadow-[0_16px_44px_-34px_rgba(75,12,23,.7)] sm:mb-7 sm:rounded-3xl">
-            <div className="flex items-center justify-between gap-3 border-b border-border/60 bg-gradient-to-r from-primary/[0.055] to-accent/[0.08] px-4 py-3.5 sm:px-6 sm:py-4">
-              <h2 className="flex items-center gap-2 font-sans text-lg font-semibold leading-6 text-foreground sm:text-xl">
-                <Package className="h-4 w-4 text-primary" aria-hidden="true" />
-                Your order{' '}
-                <span className="text-muted-foreground">
-                  ({activeCarts.length})
-                </span>
-              </h2>
-              {!pendingOrder && (
-                <Link
-                  href="/packages"
-                  className="hidden text-xs font-bold text-primary hover:underline sm:inline"
-                >
-                  + Add package
-                </Link>
-              )}
-            </div>
-            <div className="divide-y divide-border/60 px-3 sm:px-6">
-              {orderSummaries.map(
-                ({ cart: packageCart, itemCount, guestCount, weightKg }) => {
-                  const packageQuote = multiCartQuote?.carts.find(
-                    (entry) => entry.cartId === packageCart.id,
-                  )?.quote;
-                  const menuHref =
-                    packageCart.package.type === 'ORDER_BY_KG'
-                      ? `/order-by-kg?packageVersionId=${packageCart.packageVersionId}&cartId=${packageCart.id}`
-                      : packageCart.package.type === 'CUSTOM_PACKAGE'
-                        ? `/packages/build?packageVersionId=${packageCart.packageVersionId}&cartId=${packageCart.id}`
-                        : `/menu/select?packageVersionId=${packageCart.packageVersionId}&cartId=${packageCart.id}`;
-                  const menuSummary =
-                    itemCount > 0
-                      ? `${itemCount} ${itemCount === 1 ? 'dish' : 'dishes'}`
-                      : packageCart.package.type === 'FIXED_PACKAGE'
-                        ? 'Included menu'
-                        : 'No dishes selected';
-                  return (
-                    <article
-                      key={packageCart.id}
-                      className="min-w-0 py-3.5 sm:py-5"
-                    >
-                      <div className="grid min-w-0 grid-cols-[72px_minmax(0,1fr)] gap-3 sm:grid-cols-[92px_minmax(0,1fr)] sm:gap-4">
-                        <div className="relative h-[72px] overflow-hidden rounded-xl bg-muted shadow-inner sm:h-[92px] sm:rounded-2xl">
-                          {packageCart.package.imageUrl ? (
-                            <DataImage
-                              src={packageCart.package.imageUrl}
-                              alt={packageCart.package.name}
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            <div className="grid h-full w-full place-items-center bg-gradient-to-br from-primary/10 to-accent/20 text-primary">
-                              <Utensils
-                                className="h-6 w-6"
-                                aria-hidden="true"
-                              />
-                            </div>
-                          )}
-                          <span className="absolute bottom-1.5 right-1.5 rounded-full bg-white/90 px-1.5 py-0.5 text-[9px] font-bold text-primary shadow-sm">
-                            {itemCount || 'Menu'}
-                          </span>
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex min-w-0 items-start justify-between gap-3">
-                            <h3 className="min-w-0 flex-1 break-words font-sans text-[15px] font-semibold leading-5 text-foreground sm:text-base sm:leading-6">
-                              {packageCart.package.name}
-                            </h3>
-                            <strong className="money-text shrink-0 text-sm font-bold text-primary sm:text-base">
-                              {packageQuote
-                                ? formatCheckoutCurrency(
-                                    packageQuote.subtotalAmount,
-                                  )
-                                : quoteLoading
-                                  ? 'Updating'
-                                  : ''}
-                            </strong>
+          <div className="flex items-center justify-between gap-3 border-b border-border/60 bg-gradient-to-r from-primary/[0.055] to-accent/[0.08] px-4 py-3.5 sm:px-6 sm:py-4">
+            <h2 className="flex items-center gap-2 font-sans text-lg font-semibold leading-6 text-foreground sm:text-xl">
+              <Package className="h-4 w-4 text-primary" aria-hidden="true" />
+              Your order{' '}
+              <span className="text-muted-foreground">
+                ({activeCarts.length})
+              </span>
+            </h2>
+            {!pendingOrder && (
+              <Link
+                href="/packages"
+                className="hidden text-xs font-bold text-primary hover:underline sm:inline"
+              >
+                + Add package
+              </Link>
+            )}
+          </div>
+          <div className="divide-y divide-border/60 px-3 sm:px-6">
+            {orderSummaries.map(
+              ({ cart: packageCart, itemCount, guestCount, weightKg }) => {
+                const packageQuote = multiCartQuote?.carts.find(
+                  (entry) => entry.cartId === packageCart.id,
+                )?.quote;
+                const menuHref =
+                  packageCart.package.type === 'ORDER_BY_KG'
+                    ? `/order-by-kg?packageVersionId=${packageCart.packageVersionId}&cartId=${packageCart.id}`
+                    : packageCart.package.type === 'CUSTOM_PACKAGE'
+                      ? `/packages/build?packageVersionId=${packageCart.packageVersionId}&cartId=${packageCart.id}`
+                      : `/menu/select?packageVersionId=${packageCart.packageVersionId}&cartId=${packageCart.id}`;
+                const menuSummary =
+                  itemCount > 0
+                    ? `${itemCount} ${itemCount === 1 ? 'dish' : 'dishes'}`
+                    : packageCart.package.type === 'FIXED_PACKAGE'
+                      ? 'Included menu'
+                      : 'No dishes selected';
+                return (
+                  <article
+                    key={packageCart.id}
+                    className="min-w-0 py-3.5 sm:py-5"
+                  >
+                    <div className="grid min-w-0 grid-cols-[72px_minmax(0,1fr)] gap-3 sm:grid-cols-[92px_minmax(0,1fr)] sm:gap-4">
+                      <div className="relative h-[72px] overflow-hidden rounded-xl bg-muted shadow-inner sm:h-[92px] sm:rounded-2xl">
+                        {packageCart.package.imageUrl ? (
+                          <DataImage
+                            src={packageCart.package.imageUrl}
+                            alt={packageCart.package.name}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="grid h-full w-full place-items-center bg-gradient-to-br from-primary/10 to-accent/20 text-primary">
+                            <Utensils className="h-6 w-6" aria-hidden="true" />
                           </div>
-                          <p className="mt-1 text-xs leading-5 text-muted-foreground sm:text-sm">
-                            {packageCart.package.type === 'ORDER_BY_KG'
-                              ? `${weightKg} kg · ${menuSummary}`
-                              : `${guestCount} ${packageCart.package.type === 'MEAL_BOX' ? 'boxes' : 'guests'} · ${menuSummary}`}
-                          </p>
-                          {!pendingOrder && (
+                        )}
+                        <span className="absolute bottom-1.5 right-1.5 rounded-full bg-white/90 px-1.5 py-0.5 text-[9px] font-bold text-primary shadow-sm">
+                          {itemCount || 'Menu'}
+                        </span>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex min-w-0 items-start justify-between gap-3">
+                          <h3 className="min-w-0 flex-1 break-words font-sans text-[15px] font-semibold leading-5 text-foreground sm:text-base sm:leading-6">
+                            {packageCart.package.name}
+                          </h3>
+                          <strong className="money-text shrink-0 text-sm font-bold text-primary sm:text-base">
+                            {packageQuote
+                              ? formatCheckoutCurrency(
+                                  packageQuote.subtotalAmount,
+                                )
+                              : quoteLoading
+                                ? 'Updating'
+                                : ''}
+                          </strong>
+                        </div>
+                        <p className="mt-1 text-xs leading-5 text-muted-foreground sm:text-sm">
+                          {packageCart.package.type === 'ORDER_BY_KG'
+                            ? `${weightKg} kg · ${menuSummary}`
+                            : `${guestCount} ${packageCart.package.type === 'MEAL_BOX' ? 'boxes' : 'guests'} · ${menuSummary}`}
+                        </p>
+                        {!pendingOrder && (
                           <div className="mt-1.5 flex min-h-8 flex-wrap items-center gap-x-3 gap-y-1 sm:gap-x-5">
                             <Link
                               href={menuHref}
@@ -1718,89 +1742,89 @@ export default function CartPage() {
                               <Trash2 className="h-4 w-4" aria-hidden="true" />
                             </button>
                           </div>
-                          )}
-                        </div>
-                      </div>
-                      {!pendingOrder && editingQuantityCartId === packageCart.id &&
-                        packageCart.package.type !== 'ORDER_BY_KG' && (
-                          <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-3">
-                            <span className="text-sm font-medium text-muted-foreground">
-                              {packageCart.package.type === 'MEAL_BOX'
-                                ? 'Box count'
-                                : 'Guest count'}
-                            </span>
-                            <div className="flex h-10 items-center overflow-hidden rounded-md border bg-white">
-                              <button
-                                type="button"
-                                aria-label={`Decrease count for ${packageCart.package.name}`}
-                                disabled={
-                                  Boolean(updatingCartId) ||
-                                  guestCount <=
-                                    packageCart.package.minGuestCount
-                                }
-                                onClick={() =>
-                                  void updatePackageQuantity(
-                                    packageCart,
-                                    guestCount - 1,
-                                  )
-                                }
-                                className="grid h-10 w-10 place-items-center text-primary disabled:opacity-30"
-                              >
-                                <Minus className="h-3.5 w-3.5" />
-                              </button>
-                              <input
-                                aria-label={`Count for ${packageCart.package.name}`}
-                                inputMode="numeric"
-                                defaultValue={guestCount}
-                                key={`${packageCart.id}-${guestCount}`}
-                                onBlur={(event) => {
-                                  const next = clampPackageQuantity(
-                                    packageCart,
-                                    Number(event.target.value),
-                                  );
-                                  event.currentTarget.value = String(next);
-                                  void updatePackageQuantity(packageCart, next);
-                                }}
-                                className="h-10 w-14 border-x text-center text-sm font-bold outline-none"
-                              />
-                              <button
-                                type="button"
-                                aria-label={`Increase count for ${packageCart.package.name}`}
-                                disabled={
-                                  Boolean(updatingCartId) ||
-                                  Boolean(
-                                    packageCart.package.maxGuestCount &&
-                                    guestCount >=
-                                      packageCart.package.maxGuestCount,
-                                  )
-                                }
-                                onClick={() =>
-                                  void updatePackageQuantity(
-                                    packageCart,
-                                    guestCount + 1,
-                                  )
-                                }
-                                className="grid h-10 w-10 place-items-center text-primary disabled:opacity-30"
-                              >
-                                <Plus className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          </div>
                         )}
-                    </article>
-                  );
-                },
-              )}
-            </div>
-            {!pendingOrder && (
-              <Link
-                href="/packages"
-                className="inline-flex min-h-12 items-center px-4 text-sm font-bold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:hidden"
-              >
-                <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
-                Add another package
-              </Link>
+                      </div>
+                    </div>
+                    {!pendingOrder &&
+                      editingQuantityCartId === packageCart.id &&
+                      packageCart.package.type !== 'ORDER_BY_KG' && (
+                        <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-3">
+                          <span className="text-sm font-medium text-muted-foreground">
+                            {packageCart.package.type === 'MEAL_BOX'
+                              ? 'Box count'
+                              : 'Guest count'}
+                          </span>
+                          <div className="flex h-10 items-center overflow-hidden rounded-md border bg-white">
+                            <button
+                              type="button"
+                              aria-label={`Decrease count for ${packageCart.package.name}`}
+                              disabled={
+                                Boolean(updatingCartId) ||
+                                guestCount <= packageCart.package.minGuestCount
+                              }
+                              onClick={() =>
+                                void updatePackageQuantity(
+                                  packageCart,
+                                  guestCount - 1,
+                                )
+                              }
+                              className="grid h-10 w-10 place-items-center text-primary disabled:opacity-30"
+                            >
+                              <Minus className="h-3.5 w-3.5" />
+                            </button>
+                            <input
+                              aria-label={`Count for ${packageCart.package.name}`}
+                              inputMode="numeric"
+                              defaultValue={guestCount}
+                              key={`${packageCart.id}-${guestCount}`}
+                              onBlur={(event) => {
+                                const next = clampPackageQuantity(
+                                  packageCart,
+                                  Number(event.target.value),
+                                );
+                                event.currentTarget.value = String(next);
+                                void updatePackageQuantity(packageCart, next);
+                              }}
+                              className="h-10 w-14 border-x text-center text-sm font-bold outline-none"
+                            />
+                            <button
+                              type="button"
+                              aria-label={`Increase count for ${packageCart.package.name}`}
+                              disabled={
+                                Boolean(updatingCartId) ||
+                                Boolean(
+                                  packageCart.package.maxGuestCount &&
+                                  guestCount >=
+                                    packageCart.package.maxGuestCount,
+                                )
+                              }
+                              onClick={() =>
+                                void updatePackageQuantity(
+                                  packageCart,
+                                  guestCount + 1,
+                                )
+                              }
+                              className="grid h-10 w-10 place-items-center text-primary disabled:opacity-30"
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                  </article>
+                );
+              },
             )}
+          </div>
+          {!pendingOrder && (
+            <Link
+              href="/packages"
+              className="inline-flex min-h-12 items-center px-4 text-sm font-bold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:hidden"
+            >
+              <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
+              Add another package
+            </Link>
+          )}
         </section>
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1.55fr)_minmax(340px,0.9fr)] lg:items-start lg:gap-8">
           <div className="min-w-0 space-y-5">
@@ -1854,8 +1878,13 @@ export default function CartPage() {
               >
                 <h2 className="sr-only">Contact and kitchen note</h2>
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs">
-                  <UserRound className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
-                  <span className="font-medium text-muted-foreground">Mobile</span>
+                  <UserRound
+                    className="h-3.5 w-3.5 text-primary"
+                    aria-hidden="true"
+                  />
+                  <span className="font-medium text-muted-foreground">
+                    Mobile
+                  </span>
                   {!editingContact ? (
                     <>
                       <span className="font-semibold text-foreground">
@@ -1888,7 +1917,9 @@ export default function CartPage() {
                           value={contactNumber}
                           onChange={(event) => {
                             setContactNumber(
-                              event.target.value.replace(/\D/g, '').slice(0, 10),
+                              event.target.value
+                                .replace(/\D/g, '')
+                                .slice(0, 10),
                             );
                             setError('');
                           }}
@@ -1954,7 +1985,9 @@ export default function CartPage() {
                         className="inline-flex min-h-7 shrink-0 items-center gap-1.5 text-xs font-medium text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                       >
                         <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-                        {specialNotes ? 'Edit kitchen note' : 'Add kitchen note'}
+                        {specialNotes
+                          ? 'Edit kitchen note'
+                          : 'Add kitchen note'}
                       </button>
                       {specialNotes && (
                         <p className="min-w-0 truncate text-xs text-muted-foreground">
@@ -1993,7 +2026,9 @@ export default function CartPage() {
                       <RetryPaymentButton
                         order={pendingOrder}
                         orderIds={pendingBatch?.orderIds}
-                        label={paymentError ? 'Retry payment' : 'Pay securely'}
+                        label={
+                          paymentError ? 'Retry payment' : 'Secure payment'
+                        }
                         className="mt-5 h-12 w-full"
                         onStart={startRetryPayment}
                         onFailure={reportRetryFailure}
@@ -2023,21 +2058,23 @@ export default function CartPage() {
                       <Button
                         className="mt-5 h-12 w-full"
                         onClick={requestPayment}
-                        disabled={quoteLoading || paying}
+                        disabled={quoteLoading || paying || paymentNeedsReview}
                       >
-                        {paying ? 'Opening payment…' : 'Pay securely'}
+                        {!paying && (
+                          <LockKeyhole
+                            className="mr-2 h-4 w-4"
+                            aria-hidden="true"
+                          />
+                        )}
+                        {paying ? 'Opening payment…' : 'Secure payment'}
                       </Button>
                       {paymentError && (
                         <p role="alert" className="mt-2 text-sm text-red-700">
                           {paymentError}
                         </p>
                       )}
-                      <p className="mt-1.5 flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
-                        <LockKeyhole
-                          className="h-3.5 w-3.5 shrink-0"
-                          aria-hidden="true"
-                        />
-                        Secure payment
+                      <p className="mt-1.5 text-center text-xs text-muted-foreground">
+                        Redirects to our payment partner.
                       </p>
                     </div>
                   </div>
@@ -2342,7 +2379,7 @@ export default function CartPage() {
                 order={pendingOrder}
                 orderIds={pendingBatch?.orderIds}
                 className="mobile-order-bar-action"
-                label={paymentError ? 'Retry payment' : 'Pay securely'}
+                label={paymentError ? 'Retry payment' : 'Secure payment'}
                 onStart={startRetryPayment}
                 onFailure={reportRetryFailure}
               />
@@ -2350,14 +2387,20 @@ export default function CartPage() {
               <Button
                 className="mobile-order-bar-action"
                 onClick={requestPayment}
-                disabled={quoteLoading || paying}
+                disabled={quoteLoading || paying || paymentNeedsReview}
               >
-                {paying ? 'Opening…' : 'Pay securely'}
+                {!paying && (
+                  <LockKeyhole className="mr-2 h-4 w-4" aria-hidden="true" />
+                )}
+                {paying ? 'Opening…' : 'Secure payment'}
               </Button>
             )}
           </div>
           {paymentError && (
-            <p role="alert" className="mx-auto mt-1.5 max-w-2xl px-1 text-xs leading-4 text-red-700">
+            <p
+              role="alert"
+              className="mx-auto mt-1.5 max-w-2xl px-1 text-xs leading-4 text-red-700"
+            >
               {paymentError}
             </p>
           )}
@@ -2515,41 +2558,52 @@ function CutleryOptions({
 
   return (
     <section className="mt-4 rounded-xl border border-border/70 bg-white p-3 sm:mt-5 sm:p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-1.5">
+      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 sm:gap-3">
+        <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary/[0.08] sm:h-9 sm:w-9">
           <Utensils
-            className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+            className="h-4 w-4 text-primary sm:h-[18px] sm:w-[18px]"
             aria-hidden="true"
           />
-          <h3 className="text-sm font-semibold text-foreground">Cutlery</h3>
         </div>
-        <span className="shrink-0 rounded-full bg-primary/[0.08] px-2 py-0.5 text-[11px] font-semibold text-primary sm:py-1 sm:text-xs">
-          {includedCount} included
-        </span>
-      </div>
-      <div className="mt-2 flex items-center justify-between gap-1.5">
-        <p className="min-w-0 truncate whitespace-nowrap text-[11px] leading-4 text-muted-foreground sm:text-xs sm:leading-5">
-          Plate + Spoon · Extra {formatCurrency(unitPrice).replace(/\.00$/, '')}
-          /set
-        </p>
+        <div className="min-w-0">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+            <h3 className="text-[15px] font-semibold leading-5 text-foreground sm:text-base">
+              Cutlery
+            </h3>
+            <span className="rounded-full bg-primary/[0.08] px-2 py-0.5 text-[11px] font-semibold leading-4 text-primary sm:text-xs">
+              {includedCount} included
+            </span>
+          </div>
+          <p className="mt-0.5 truncate text-[11px] leading-4 text-muted-foreground sm:text-xs">
+            Plate + Spoon
+          </p>
+        </div>
         {extraCount <= 0 ? (
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={() => onChange(1)}
-            className="inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-md border border-border bg-background px-2 text-[11px] font-semibold text-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 sm:h-8 sm:px-2.5 sm:text-xs"
-          >
-            <Plus className="h-2.5 w-2.5 sm:h-3 sm:w-3" aria-hidden="true" />
-            Add extra
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <span className="money-text hidden text-[11px] font-semibold text-muted-foreground min-[360px]:inline sm:text-xs">
+              {formatCurrency(unitPrice).replace(/\.00$/, '')}/set
+            </span>
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => onChange(1)}
+              className="inline-flex h-8 shrink-0 items-center justify-center gap-1 rounded-lg border border-primary/25 bg-primary/[0.04] px-2.5 text-[11px] font-semibold text-primary transition hover:border-primary/40 hover:bg-primary/[0.08] disabled:cursor-not-allowed disabled:opacity-50 sm:h-9 sm:px-3 sm:text-xs"
+            >
+              <Plus className="h-3 w-3" aria-hidden="true" />
+              Add extra
+            </button>
+          </div>
         ) : (
-          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-            <div className="inline-flex h-7 shrink-0 items-center overflow-hidden rounded-md border border-border bg-background sm:h-8">
+          <div className="flex shrink-0 items-center gap-2">
+            <span className="money-text hidden text-[11px] font-semibold text-muted-foreground min-[360px]:inline sm:text-xs">
+              {formatCurrency(unitPrice).replace(/\.00$/, '')}/set
+            </span>
+            <div className="inline-flex h-8 shrink-0 items-center overflow-hidden rounded-lg border border-primary/25 bg-background sm:h-9">
               <button
                 type="button"
                 disabled={disabled}
                 onClick={() => onChange(extraCount - 1)}
-                className="grid h-7 w-7 place-items-center text-foreground/75 transition hover:bg-muted hover:text-foreground disabled:opacity-50 sm:h-8 sm:w-8"
+                className="grid h-8 w-8 place-items-center text-primary transition hover:bg-primary/[0.08] disabled:opacity-50 sm:h-9 sm:w-9"
                 aria-label={
                   extraCount === 1
                     ? 'Remove extra cutlery sets'
@@ -2589,14 +2643,14 @@ function CutleryOptions({
                     .replace(/\D/g, '')
                     .slice(0, 5);
                 }}
-                className="money-text h-7 w-7 border-x border-border bg-transparent text-center text-xs font-semibold text-foreground outline-none focus:bg-muted disabled:opacity-60 sm:h-8 sm:w-8 sm:text-sm"
+                className="money-text h-8 w-8 border-x border-primary/20 bg-transparent text-center text-xs font-semibold text-foreground outline-none focus:bg-primary/[0.05] disabled:opacity-60 sm:h-9 sm:w-9 sm:text-sm"
                 aria-describedby="additional-cutlery-help"
               />
               <button
                 type="button"
                 disabled={disabled}
                 onClick={() => onChange(extraCount + 1)}
-                className="grid h-7 w-7 place-items-center text-foreground/75 transition hover:bg-muted hover:text-foreground disabled:opacity-50 sm:h-8 sm:w-8"
+                className="grid h-8 w-8 place-items-center text-primary transition hover:bg-primary/[0.08] disabled:opacity-50 sm:h-9 sm:w-9"
                 aria-label="Increase extra cutlery sets"
               >
                 <Plus className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
@@ -2604,9 +2658,10 @@ function CutleryOptions({
             </div>
             <span
               id="additional-cutlery-help"
-              className="money-text min-w-7 text-right text-[11px] font-semibold text-foreground sm:min-w-8 sm:text-xs"
+              className="sr-only"
             >
-              {formatCurrency(total).replace(/\.00$/, '')}
+              {extraCount} extra cutlery sets at {formatCurrency(unitPrice)} per
+              set. Total {formatCurrency(total)}.
             </span>
           </div>
         )}

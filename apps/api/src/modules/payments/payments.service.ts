@@ -9,6 +9,8 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  CartStatus,
+  CheckoutAttemptStatus,
   OrderStatus,
   PaymentStatus,
   Prisma,
@@ -20,6 +22,12 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { OperationsService } from '../operations/operations.service';
 import { VerifyPaymentDto } from './dto/verify-payment.dto';
 import { OrderNotificationService } from '../notifications/order-notification.service';
+import { CartService } from '../cart/cart.service';
+import {
+  cartFingerprint,
+  type CheckoutSnapshot,
+} from '../cart/checkout-snapshot';
+import { storedEventInstant } from '../../common/event-time';
 
 type GatewayPayment = {
   id: string;
@@ -54,7 +62,132 @@ export class PaymentsService {
     private readonly config: ConfigService,
     private readonly operations: OperationsService,
     @Optional() private readonly notifications?: OrderNotificationService,
+    @Optional() private readonly carts?: CartService,
   ) {}
+
+  async createCartGatewayOrder(userId: string, specialNotes?: string) {
+    this.assertPaymentModeAvailable();
+    if (!this.carts)
+      throw new ServiceUnavailableException('Cart checkout is unavailable');
+    const snapshot = await this.carts.preparePayment(userId, specialNotes);
+    await this.assertNoUnconfirmedCapture(userId, snapshot);
+    const amount = this.paymentAmountInSubunits(
+      new Prisma.Decimal(snapshot.totalAmount),
+    );
+    const currency = await this.currency();
+    const attemptId = crypto.randomUUID();
+    const gatewayOrder = this.isConfigured()
+      ? await this.createRazorpayOrder(`cart-${attemptId}`, amount, currency)
+      : { id: `local_cart_${attemptId}`, amount, currency };
+    await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.cart.updateMany({
+        where: {
+          id: { in: snapshot.carts.map((cart) => cart.cartId) },
+          userId,
+          status: CartStatus.ACTIVE,
+        },
+        data: { paymentTryCount: { increment: 1 } },
+      });
+      if (updated.count !== snapshot.carts.length) {
+        throw new BadRequestException(
+          'Your cart changed. Review it and try payment again.',
+        );
+      }
+      await tx.checkoutAttempt.create({
+        data: {
+          id: attemptId,
+          userId,
+          razorpayOrderId: gatewayOrder.id,
+          amount: snapshot.totalAmount,
+          currency,
+          snapshot: snapshot as unknown as Prisma.InputJsonValue,
+        },
+      });
+    });
+    return {
+      keyId: this.keyId() || 'local',
+      ...gatewayOrder,
+      localMode: !this.isConfigured(),
+      attemptId,
+    };
+  }
+
+  private async assertNoUnconfirmedCapture(
+    userId: string,
+    snapshot: CheckoutSnapshot,
+  ) {
+    const cartIds = new Set(snapshot.carts.map((cart) => cart.cartId));
+    const attempts = await this.prisma.checkoutAttempt.findMany({
+      where: {
+        userId,
+        status: {
+          in: [
+            CheckoutAttemptStatus.PENDING,
+            CheckoutAttemptStatus.FAILED,
+            CheckoutAttemptStatus.PROCESSING,
+            CheckoutAttemptStatus.NEEDS_REVIEW,
+          ],
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    for (const attempt of attempts) {
+      const prior = attempt.snapshot as unknown as CheckoutSnapshot;
+      if (!prior?.carts?.some((cart) => cartIds.has(cart.cartId))) continue;
+      if (
+        attempt.status === CheckoutAttemptStatus.NEEDS_REVIEW ||
+        attempt.status === CheckoutAttemptStatus.PROCESSING ||
+        (!this.isConfigured() && attempt.razorpayPaymentId)
+      ) {
+        throw new ServiceUnavailableException(
+          'Payment captured; order confirmation is pending. Do not retry payment. Contact support.',
+        );
+      }
+      if (!this.isConfigured()) continue;
+      let gateway: GatewayOrderDetails;
+      try {
+        gateway = (await this.client().orders.fetch(
+          attempt.razorpayOrderId,
+        )) as GatewayOrderDetails;
+      } catch {
+        throw new ServiceUnavailableException(
+          'Could not check the previous payment. Do not retry until its status is confirmed.',
+        );
+      }
+      if (gateway.status === 'paid' || Number(gateway.amount_paid ?? 0) > 0) {
+        throw new ServiceUnavailableException(
+          'Payment captured; order confirmation is pending. Do not retry payment. Contact support.',
+        );
+      }
+      if (gateway.status === 'attempted') {
+        let gatewayPayments: { items: Array<{ status: string }> };
+        try {
+          gatewayPayments = await this.client().orders.fetchPayments(
+            attempt.razorpayOrderId,
+          );
+        } catch {
+          throw new ServiceUnavailableException(
+            'Could not check the previous payment. Do not retry until its status is confirmed.',
+          );
+        }
+        if (
+          !gatewayPayments.items.length ||
+          gatewayPayments.items.some((payment) => payment.status !== 'failed')
+        ) {
+          throw new ServiceUnavailableException(
+            'The previous payment is still being checked. Do not retry until its status is confirmed.',
+          );
+        }
+        await this.prisma.checkoutAttempt.updateMany({
+          where: { id: attempt.id, status: CheckoutAttemptStatus.PENDING },
+          data: {
+            status: CheckoutAttemptStatus.FAILED,
+            failureReason: 'All provider payment attempts failed',
+          },
+        });
+      }
+    }
+  }
 
   async createGatewayOrder(userId: string, orderId: string) {
     this.assertPaymentModeAvailable();
@@ -277,6 +410,63 @@ export class PaymentsService {
 
   async verify(userId: string, dto: VerifyPaymentDto) {
     this.assertPaymentModeAvailable();
+    const cartAttempt = await this.prisma.checkoutAttempt.findUnique({
+      where: { razorpayOrderId: dto.razorpayOrderId },
+    });
+    if (cartAttempt) {
+      if (cartAttempt.userId !== userId)
+        throw new NotFoundException('Payment not found');
+      if (cartAttempt.status === CheckoutAttemptStatus.PAID) {
+        const ids = cartAttempt.orderIds as string[] | null;
+        return { success: true, orderId: ids?.[0], orderIds: ids ?? [] };
+      }
+      const expectedSignature = this.isConfigured()
+        ? crypto
+            .createHmac('sha256', this.keySecret())
+            .update(`${dto.razorpayOrderId}|${dto.razorpayPaymentId}`)
+            .digest('hex')
+        : 'local_success';
+      if (!this.safeEqual(dto.razorpaySignature, expectedSignature)) {
+        throw new BadRequestException('Invalid payment signature');
+      }
+      let captured: GatewayPayment = {
+        id: dto.razorpayPaymentId,
+        order_id: dto.razorpayOrderId,
+        amount: this.paymentAmountInSubunits(cartAttempt.amount),
+        status: 'captured',
+        method: 'local',
+      };
+      if (this.isConfigured()) {
+        captured = (await this.client().payments.fetch(
+          dto.razorpayPaymentId,
+        )) as GatewayPayment;
+        if (
+          captured.order_id !== dto.razorpayOrderId ||
+          Number(captured.amount) !==
+            this.paymentAmountInSubunits(cartAttempt.amount) ||
+          captured.status !== 'captured'
+        ) {
+          throw new BadRequestException(
+            'Payment details could not be reconciled',
+          );
+        }
+      }
+      try {
+        return await this.finalizeCartAttempt(
+          cartAttempt.id,
+          captured,
+          dto.razorpaySignature,
+        );
+      } catch (error) {
+        console.error(
+          '[Payments] Captured cart payment could not be finalized',
+          error,
+        );
+        throw new ServiceUnavailableException(
+          'Payment captured; order confirmation is pending. Do not retry payment. Contact support.',
+        );
+      }
+    }
     const payment = await this.prisma.payment.findFirst({
       where: { razorpayOrderId: dto.razorpayOrderId, order: { userId } },
       include: { order: true },
@@ -338,6 +528,224 @@ export class PaymentsService {
       );
     }
     return { success: true, orderId: payment.orderId };
+  }
+
+  private async finalizeCartAttempt(
+    attemptId: string,
+    gatewayPayment: GatewayPayment,
+    signature?: string,
+  ) {
+    const result = await this.prisma.$transaction(
+      async (tx) => {
+        const attempt = await tx.checkoutAttempt.findUniqueOrThrow({
+          where: { id: attemptId },
+        });
+        if (attempt.status === CheckoutAttemptStatus.PAID) {
+          const ids = attempt.orderIds as string[] | null;
+          return {
+            success: true,
+            orderId: ids?.[0],
+            orderIds: ids ?? [],
+            created: false,
+          };
+        }
+        if (attempt.status === CheckoutAttemptStatus.NEEDS_REVIEW) {
+          return { success: false, needsReview: true, created: false };
+        }
+        const snapshot = attempt.snapshot as unknown as CheckoutSnapshot;
+        if (
+          !snapshot?.carts?.length ||
+          new Prisma.Decimal(snapshot.totalAmount).toFixed(2) !==
+            attempt.amount.toFixed(2) ||
+          Number(gatewayPayment.amount) !==
+            this.paymentAmountInSubunits(attempt.amount) ||
+          gatewayPayment.order_id !== attempt.razorpayOrderId ||
+          gatewayPayment.status !== 'captured'
+        ) {
+          throw new BadRequestException(
+            'Captured payment details could not be reconciled',
+          );
+        }
+        const claimed = await tx.checkoutAttempt.updateMany({
+          where: {
+            id: attemptId,
+            status: {
+              in: [CheckoutAttemptStatus.PENDING, CheckoutAttemptStatus.FAILED],
+            },
+          },
+          data: {
+            status: CheckoutAttemptStatus.PROCESSING,
+            razorpayPaymentId: gatewayPayment.id,
+          },
+        });
+        if (claimed.count === 0) {
+          const current = await tx.checkoutAttempt.findUniqueOrThrow({
+            where: { id: attemptId },
+          });
+          const ids = current.orderIds as string[] | null;
+          return current.status === CheckoutAttemptStatus.PAID
+            ? {
+                success: true,
+                orderId: ids?.[0],
+                orderIds: ids ?? [],
+                created: false,
+              }
+            : { success: false, needsReview: true, created: false };
+        }
+        const sourceCartIds = snapshot.carts.map((cart) => cart.cartId);
+        const priorOrders = await tx.order.count({
+          where: { sourceCartId: { in: sourceCartIds } },
+        });
+        if (priorOrders > 0) {
+          await tx.checkoutAttempt.update({
+            where: { id: attemptId },
+            data: {
+              status: CheckoutAttemptStatus.NEEDS_REVIEW,
+              failureReason:
+                'A captured payment already exists for this cart; review for refund',
+            },
+          });
+          return { success: false, needsReview: true, created: false };
+        }
+        const checkoutBatchId =
+          snapshot.carts.length > 1 ? crypto.randomUUID() : null;
+        const orderIds: string[] = [];
+        for (const cart of snapshot.carts) {
+          const eventDate = new Date(cart.eventDate);
+          const eventTimeStart = new Date(cart.eventTimeStart);
+          const leadHours = Math.floor(
+            (storedEventInstant(eventDate, eventTimeStart).getTime() -
+              Date.now()) /
+              3_600_000,
+          );
+          const order = await tx.order.create({
+            data: {
+              orderNumber: `ORD-${new Date().toISOString().slice(2, 10).replaceAll('-', '')}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`,
+              userId: attempt.userId,
+              sourceCartId: cart.cartId,
+              checkoutBatchId,
+              regionId: cart.regionId,
+              addressId: cart.addressId,
+              eventName: cart.eventName,
+              eventDate,
+              eventTimeStart,
+              specialNotes: cart.specialNotes,
+              contactNumber: cart.contactNumber,
+              packageType: cart.packageType,
+              guestCount: cart.guestCount,
+              basePerPlatePrice: cart.basePerPlatePrice,
+              totalCustomizationCharges: cart.totalCustomizationCharges,
+              finalPerPlatePrice: cart.finalPerPlatePrice,
+              totalAmount: cart.totalAmount,
+              distanceKm: cart.distanceKm,
+              deliveryFee: cart.deliveryFee,
+              deliveryServiceType: cart.deliveryServiceType,
+              helperCount: cart.helperCount,
+              cutleryIncludedCount: cart.cutleryIncludedCount,
+              cutleryExtraCount: cart.cutleryExtraCount,
+              cutleryUnitPrice: cart.cutleryUnitPrice,
+              cutleryTotal: cart.cutleryTotal,
+              packageName: cart.packageName,
+              packageVersionNo: cart.packageVersionNo,
+              orderStatus: OrderStatus.CONFIRMED,
+              paymentStatus: PaymentStatus.PAID,
+              bookingLeadHours: leadHours,
+              selectedItems: { create: cart.selectedItems },
+              statusHistory: {
+                create: {
+                  toStatus: OrderStatus.CONFIRMED,
+                  notes: 'Payment verified',
+                },
+              },
+              payments: {
+                create: {
+                  amount: cart.totalAmount,
+                  paymentStatus: PaymentStatus.PAID,
+                  razorpayOrderId: attempt.razorpayOrderId,
+                  razorpayPaymentId: gatewayPayment.id,
+                  razorpaySignature: signature,
+                  paymentMethod: gatewayPayment.method,
+                  paidAt: new Date(),
+                  gatewayResponse:
+                    gatewayPayment as unknown as Prisma.InputJsonValue,
+                },
+              },
+            },
+            select: { id: true },
+          });
+          orderIds.push(order.id);
+        }
+        for (const paidCart of snapshot.carts) {
+          await tx.$queryRaw`SELECT id FROM "carts" WHERE id = ${paidCart.cartId} FOR UPDATE`;
+          const current = await tx.cart.findUnique({
+            where: { id: paidCart.cartId },
+            include: { items: true },
+          });
+          if (current?.status !== CartStatus.ACTIVE) continue;
+          if (cartFingerprint(current) !== paidCart.cartFingerprint) {
+            // A late capture must not discard edits made after the gateway opened.
+            // Give those edits a fresh cart ID so a future payment is independent.
+            await tx.cart.create({
+              data: {
+                userId: current.userId,
+                packageVersionId: current.packageVersionId,
+                addressId: current.addressId,
+                regionId: current.regionId,
+                eventName: current.eventName,
+                eventDate: current.eventDate,
+                eventTimeStart: current.eventTimeStart,
+                guestCount: current.guestCount,
+                distanceKm: current.distanceKm,
+                deliveryFee: current.deliveryFee,
+                deliveryServiceType: current.deliveryServiceType,
+                helperCount: current.helperCount,
+                cutleryIncludedCount: current.cutleryIncludedCount,
+                cutleryExtraCount: current.cutleryExtraCount,
+                cutleryUnitPrice: current.cutleryUnitPrice,
+                contactNumber: current.contactNumber,
+                specialNotes: current.specialNotes,
+                status: CartStatus.ACTIVE,
+                expiresAt: current.expiresAt,
+                lastQuotedAt: current.lastQuotedAt,
+                items: {
+                  create: current.items.map((item) => ({
+                    categoryId: item.categoryId,
+                    menuItemId: item.menuItemId,
+                    replacedMenuItemId: item.replacedMenuItemId,
+                    role: item.role,
+                    quantity: item.quantity,
+                    weightGrams: item.weightGrams,
+                  })),
+                },
+              },
+            });
+          }
+          await tx.cartItem.deleteMany({ where: { cartId: paidCart.cartId } });
+          await tx.cart.delete({ where: { id: paidCart.cartId } });
+        }
+        await tx.checkoutAttempt.update({
+          where: { id: attemptId },
+          data: {
+            status: CheckoutAttemptStatus.PAID,
+            orderIds,
+            failureReason: null,
+          },
+        });
+        return { success: true, orderId: orderIds[0], orderIds, created: true };
+      },
+      { timeout: 30_000 },
+    );
+    if (result.success && result.created) {
+      for (const orderId of result.orderIds ?? []) {
+        try {
+          await this.operations.generateOrderDocuments(orderId);
+        } catch (error) {
+          console.error('[Payments] Order document generation failed', error);
+        }
+        void this.notifications?.notifyConfirmedOrder(orderId);
+      }
+    }
+    return result;
   }
 
   async webhook(
@@ -500,6 +908,13 @@ export class PaymentsService {
     if (eventType === 'payment.captured') {
       const entity = payload.payload?.payment?.entity;
       if (!entity?.id || !entity.order_id) return;
+      const cartAttempt = await this.prisma.checkoutAttempt.findUnique({
+        where: { razorpayOrderId: entity.order_id },
+      });
+      if (cartAttempt) {
+        await this.finalizeCartAttempt(cartAttempt.id, entity);
+        return;
+      }
       const payments = await this.prisma.payment.findMany({
         where: { razorpayOrderId: entity.order_id },
       });
@@ -526,6 +941,22 @@ export class PaymentsService {
     if (eventType === 'payment.failed') {
       const entity = payload.payload?.payment?.entity;
       if (!entity?.order_id) return;
+      const cartAttempt = await this.prisma.checkoutAttempt.findUnique({
+        where: { razorpayOrderId: entity.order_id },
+      });
+      if (cartAttempt) {
+        await this.prisma.checkoutAttempt.updateMany({
+          where: {
+            id: cartAttempt.id,
+            status: CheckoutAttemptStatus.PENDING,
+          },
+          data: {
+            status: CheckoutAttemptStatus.FAILED,
+            failureReason: entity.error_description || 'Payment failed',
+          },
+        });
+        return;
+      }
       const payments = await this.prisma.payment.findMany({
         where: { razorpayOrderId: entity.order_id },
         include: { order: true },

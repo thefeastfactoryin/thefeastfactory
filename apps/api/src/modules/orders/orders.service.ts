@@ -122,6 +122,7 @@ export class OrdersService {
             orderNumber: this.orderNumber(),
             userId,
             cartId,
+            sourceCartId: cartId,
             checkoutBatchId,
             regionId: assignment.region.id,
             addressId,

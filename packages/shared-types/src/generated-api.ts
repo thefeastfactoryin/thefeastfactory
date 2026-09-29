@@ -785,38 +785,6 @@ export interface paths {
         readonly patch?: never;
         readonly trace?: never;
     };
-    readonly "/cart/checkout": {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path?: never;
-            readonly cookie?: never;
-        };
-        readonly get?: never;
-        readonly put?: never;
-        readonly post: operations["CartController_checkoutCurrent"];
-        readonly delete?: never;
-        readonly options?: never;
-        readonly head?: never;
-        readonly patch?: never;
-        readonly trace?: never;
-    };
-    readonly "/cart/checkout-all": {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path?: never;
-            readonly cookie?: never;
-        };
-        readonly get?: never;
-        readonly put?: never;
-        readonly post: operations["CartController_checkoutAll"];
-        readonly delete?: never;
-        readonly options?: never;
-        readonly head?: never;
-        readonly patch?: never;
-        readonly trace?: never;
-    };
     readonly "/cart/items": {
         readonly parameters: {
             readonly query?: never;
@@ -1233,6 +1201,22 @@ export interface paths {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/payments/razorpay/cart-order": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        readonly post: operations["PaymentsController_createFromCart"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/payments/razorpay/verify": {
         readonly parameters: {
             readonly query?: never;
@@ -1559,6 +1543,7 @@ export interface components {
             /** Format: uuid */
             readonly addressId?: string;
             readonly contactNumber?: string;
+            readonly cutleryExtraCount?: number;
             /** @enum {string} */
             readonly deliveryServiceType?: "STANDARD" | "DOORSTEP" | "ASSISTED";
             readonly eventDate?: string;
@@ -2972,52 +2957,6 @@ export interface operations {
             };
         };
     };
-    readonly CartController_checkoutCurrent: {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path?: never;
-            readonly cookie?: never;
-        };
-        readonly requestBody: {
-            readonly content: {
-                readonly "application/json": components["schemas"]["CheckoutCartDto"];
-            };
-        };
-        readonly responses: {
-            readonly 201: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": Record<string, never>;
-                };
-            };
-        };
-    };
-    readonly CartController_checkoutAll: {
-        readonly parameters: {
-            readonly query?: never;
-            readonly header?: never;
-            readonly path?: never;
-            readonly cookie?: never;
-        };
-        readonly requestBody: {
-            readonly content: {
-                readonly "application/json": components["schemas"]["CheckoutCartDto"];
-            };
-        };
-        readonly responses: {
-            readonly 201: {
-                headers: {
-                    readonly [name: string]: unknown;
-                };
-                content: {
-                    readonly "application/json": readonly Record<string, never>[];
-                };
-            };
-        };
-    };
     readonly CartController_replaceCurrentItems: {
         readonly parameters: {
             readonly query?: never;
@@ -3592,6 +3531,27 @@ export interface operations {
             };
         };
     };
+    readonly PaymentsController_createFromCart: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["CheckoutCartDto"];
+            };
+        };
+        readonly responses: {
+            readonly 201: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     readonly PaymentsController_verify: {
         readonly parameters: {
             readonly query?: never;
@@ -3609,7 +3569,9 @@ export interface operations {
                 headers: {
                     readonly [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    readonly "application/json": Record<string, never>;
+                };
             };
         };
     };

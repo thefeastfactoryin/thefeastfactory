@@ -18,11 +18,23 @@ import { VerifyPaymentDto } from './dto/verify-payment.dto';
 import { PaymentsService } from './payments.service';
 import type { RazorpayWebhookPayload } from './payments.service';
 import { CreateBatchPaymentDto } from './dto/create-batch-payment.dto';
+import { CheckoutCartDto } from '../cart/dto/checkout-cart.dto';
 
 @ApiTags('payments')
 @Controller()
 export class PaymentsController {
   constructor(private readonly payments: PaymentsService) {}
+
+  @Post('payments/razorpay/cart-order')
+  @ApiBearerAuth()
+  @UseGuards(CustomerAuthGuard)
+  createFromCart(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: CheckoutCartDto,
+  ) {
+    return this.payments.createCartGatewayOrder(user.sub, dto.specialNotes);
+  }
+
   @Post('orders/:id/payments/razorpay-order')
   @ApiBearerAuth()
   @UseGuards(CustomerAuthGuard)

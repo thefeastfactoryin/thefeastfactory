@@ -1,0 +1,251 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import {
+  CheckoutAttemptStatus,
+  OrderStatus,
+  PaymentStatus,
+  PackageType,
+  Prisma,
+} from '@prisma/client';
+import type { CheckoutSnapshot } from '../src/modules/cart/checkout-snapshot';
+import { CartService } from '../src/modules/cart/cart.service';
+import { PaymentsService } from '../src/modules/payments/payments.service';
+
+const snapshot: CheckoutSnapshot = {
+  totalAmount: '1499.00',
+  carts: [
+    {
+      cartId: 'cart-1',
+      cartFingerprint: 'unchanged',
+      addressId: 'address-1',
+      regionId: 'region-1',
+      eventName: null,
+      eventDate: '2026-10-20T00:00:00.000Z',
+      eventTimeStart: '1970-01-01T11:30:00.000Z',
+      specialNotes: null,
+      contactNumber: '9876543210',
+      packageType: PackageType.FIXED_PACKAGE,
+      packageName: 'Lunch',
+      packageVersionNo: 1,
+      guestCount: 10,
+      basePerPlatePrice: '139.90',
+      totalCustomizationCharges: '0.00',
+      finalPerPlatePrice: '139.90',
+      totalAmount: '1499.00',
+      distanceKm: '5.00',
+      deliveryFee: '100.00',
+      deliveryServiceType: 'STANDARD',
+      helperCount: 0,
+      cutleryIncludedCount: 10,
+      cutleryExtraCount: 0,
+      cutleryUnitPrice: '5.00',
+      cutleryTotal: '0.00',
+      selectedItems: [],
+    },
+  ],
+};
+
+test('payment snapshot preserves fixed-package menu before any order exists', async () => {
+  const cart = {
+    id: 'cart-1',
+    userId: 'user-1',
+    status: 'ACTIVE',
+    packageVersionId: 'version-1',
+    packageVersion: {
+      versionNo: 1,
+      package: { type: PackageType.FIXED_PACKAGE },
+    },
+    addressId: 'address-1',
+    regionId: 'region-1',
+    eventName: null,
+    eventDate: new Date('2026-10-20T00:00:00.000Z'),
+    eventTimeStart: new Date('1970-01-01T11:30:00.000Z'),
+    guestCount: 10,
+    deliveryServiceType: 'STANDARD',
+    helperCount: 0,
+    cutleryExtraCount: 0,
+    contactNumber: '9876543210',
+    specialNotes: null,
+    items: [],
+  };
+  const prisma = {
+    cart: { findMany: async () => [cart] },
+    packageMenuItem: {
+      findMany: async () => [
+        {
+          categoryId: 'category-1',
+          menuItemId: 'menu-1',
+          category: { name: 'Mains' },
+          menuItem: {
+            name: 'Paneer curry',
+            isVeg: true,
+            generalPrice: new Prisma.Decimal('99.00'),
+          },
+        },
+      ],
+    },
+  };
+  const carts = new CartService(
+    prisma as never,
+    {} as never,
+    {} as never,
+    {} as never,
+  );
+  carts.quoteAll = async () =>
+    ({
+      valid: true,
+      carts: [
+        {
+          cartId: cart.id,
+          quote: {
+            region: { id: 'region-1' },
+            packageName: 'Lunch',
+            packageType: PackageType.FIXED_PACKAGE,
+            guestCount: 10,
+            basePerPlatePrice: '139.90',
+            totalCustomizationCharges: '0.00',
+            finalPerPlatePrice: '139.90',
+            subtotalAmount: '1399.00',
+            deliveryFee: '100.00',
+            distanceKm: '5.00',
+            deliveryServiceType: 'STANDARD',
+            helperCount: 0,
+            cutleryIncludedCount: 10,
+            cutleryExtraCount: 0,
+            cutleryUnitPrice: '5.00',
+            cutleryTotal: '0.00',
+            items: [],
+          },
+        },
+      ],
+    }) as never;
+
+  const prepared = await carts.preparePayment('user-1');
+  assert.equal(prepared.totalAmount, '1499.00');
+  assert.equal(prepared.carts[0].selectedItems[0].menuItemName, 'Paneer curry');
+  assert.equal(prepared.carts[0].selectedItems[0].role, 'INCLUDED');
+});
+
+test('cart payment attempts keep carts active and create orders only after verification', async () => {
+  let attempt: Record<string, unknown> | undefined;
+  let attempts = 0;
+  const createdOrders: Array<Record<string, unknown>> = [];
+  const prisma = {
+    platformSetting: { findUnique: async () => null },
+    checkoutAttempt: {
+      findMany: async () => [],
+      findUnique: async () => attempt,
+    },
+    $transaction: async (callback: (tx: object) => Promise<unknown>) =>
+      callback({
+        cart: {
+          updateMany: async ({
+            data,
+          }: {
+            data: { paymentTryCount: { increment: number } };
+          }) => {
+            attempts += data.paymentTryCount.increment;
+            return { count: 1 };
+          },
+          findUnique: async () => null,
+        },
+        checkoutAttempt: {
+          create: async ({ data }: { data: Record<string, unknown> }) => {
+            attempt = {
+              ...data,
+              amount: new Prisma.Decimal(data.amount as string),
+              status: CheckoutAttemptStatus.PENDING,
+            };
+          },
+          findUniqueOrThrow: async () => attempt,
+          updateMany: async () => ({ count: 1 }),
+          update: async ({ data }: { data: Record<string, unknown> }) => {
+            attempt = { ...attempt, ...data };
+          },
+        },
+        order: {
+          count: async () => 0,
+          create: async ({ data }: { data: Record<string, unknown> }) => {
+            createdOrders.push(data);
+            return { id: 'confirmed-order-1' };
+          },
+        },
+        $queryRaw: async () => [],
+      }),
+  };
+  const payments = new PaymentsService(
+    prisma as never,
+    { get: () => undefined } as never,
+    { generateOrderDocuments: async () => undefined } as never,
+    undefined,
+    { preparePayment: async () => snapshot } as never,
+  );
+
+  const gateway = await payments.createCartGatewayOrder('user-1');
+  assert.equal(gateway.localMode, true);
+  assert.equal(attempts, 1);
+  assert.equal(createdOrders.length, 0);
+
+  const verified = await payments.verify('user-1', {
+    razorpayOrderId: gateway.id,
+    razorpayPaymentId: 'local-payment-1',
+    razorpaySignature: 'local_success',
+  });
+  assert.equal(verified.success, true);
+  assert.equal(verified.orderId, 'confirmed-order-1');
+  assert.equal(createdOrders.length, 1);
+  assert.equal(createdOrders[0].orderStatus, OrderStatus.CONFIRMED);
+  assert.equal(createdOrders[0].paymentStatus, PaymentStatus.PAID);
+  assert.equal(attempt?.status, CheckoutAttemptStatus.PAID);
+
+  const repeated = await payments.verify('user-1', {
+    razorpayOrderId: gateway.id,
+    razorpayPaymentId: 'local-payment-1',
+    razorpaySignature: 'local_success',
+  });
+  assert.equal(repeated.orderId, 'confirmed-order-1');
+  assert.equal(createdOrders.length, 1);
+});
+
+test('failed gateway callbacks update the attempt without creating an order', async () => {
+  let state = CheckoutAttemptStatus.PENDING;
+  let orderWrites = 0;
+  const payments = new PaymentsService(
+    {
+      checkoutAttempt: {
+        findUnique: async () => ({ id: 'attempt-1' }),
+        updateMany: async ({
+          data,
+        }: {
+          data: { status: CheckoutAttemptStatus };
+        }) => {
+          state = data.status;
+        },
+      },
+      order: {
+        create: async () => {
+          orderWrites += 1;
+        },
+      },
+    } as never,
+    { get: () => undefined } as never,
+    {} as never,
+  );
+  const internal = payments as unknown as {
+    processWebhook(event: string, payload: object): Promise<void>;
+  };
+  await internal.processWebhook('payment.failed', {
+    payload: {
+      payment: {
+        entity: {
+          id: 'failed-payment-1',
+          order_id: 'gateway-order-1',
+          amount: 149900,
+          status: 'failed',
+        },
+      },
+    },
+  });
+  assert.equal(state, CheckoutAttemptStatus.FAILED);
+  assert.equal(orderWrites, 0);
+});

@@ -118,10 +118,11 @@ model User {
   updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at")
   deletedAt    DateTime? @map("deleted_at")
 
-  addresses UserAddress[]
-  carts     Cart[]
-  orders    Order[]
-  documents OrderDocument[]
+  addresses        UserAddress[]
+  carts            Cart[]
+  orders           Order[]
+  checkoutAttempts CheckoutAttempt[]
+  documents        OrderDocument[]
 
   @@index([mobileNumber])
   @@index([isActive])
@@ -142,6 +143,7 @@ model UserAddress {
   latitude     Decimal?    @db.Decimal(10, 8)
   longitude    Decimal?    @db.Decimal(11, 8)
   isDefault    Boolean     @default(false) @map("is_default")
+  deletedAt    DateTime?   @map("deleted_at")
   createdAt    DateTime    @default(now()) @map("created_at")
   updatedAt    DateTime    @default(now()) @updatedAt @map("updated_at")
 
@@ -151,6 +153,7 @@ model UserAddress {
 
   @@index([userId])
   @@index([userId, isDefault])
+  @@index([deletedAt])
   @@map("user_addresses")
 }
 
@@ -352,6 +355,7 @@ model Cart {
   status               CartStatus          @default(ACTIVE)
   expiresAt            DateTime?           @map("expires_at")
   lastQuotedAt         DateTime?           @map("last_quoted_at")
+  paymentTryCount      Int                 @default(0) @map("payment_try_count")
   createdAt            DateTime            @default(now()) @map("created_at")
   updatedAt            DateTime            @default(now()) @updatedAt @map("updated_at")
 
@@ -404,6 +408,7 @@ model Order {
   orderNumber     String  @unique @map("order_number") @db.VarChar(20)
   userId          String  @map("user_id")
   cartId          String? @unique @map("cart_id")
+  sourceCartId    String? @unique @map("source_cart_id")
   checkoutBatchId String? @map("checkout_batch_id") @db.Uuid
   regionId        String? @map("region_id")
   addressId       String  @map("address_id")
@@ -531,6 +536,35 @@ model Payment {
   @@index([razorpayOrderId])
   @@index([razorpayPaymentId])
   @@map("payments")
+}
+
+enum CheckoutAttemptStatus {
+  PENDING
+  FAILED
+  PROCESSING
+  PAID
+  NEEDS_REVIEW
+}
+
+model CheckoutAttempt {
+  id                String                @id @default(uuid())
+  userId            String                @map("user_id")
+  razorpayOrderId   String                @unique @map("razorpay_order_id") @db.VarChar(100)
+  amount            Decimal               @db.Decimal(10, 2)
+  currency          String                @db.VarChar(3)
+  status            CheckoutAttemptStatus @default(PENDING)
+  snapshot          Json
+  razorpayPaymentId String?               @map("razorpay_payment_id") @db.VarChar(100)
+  orderIds          Json?                 @map("order_ids")
+  failureReason     String?               @map("failure_reason") @db.VarChar(500)
+  createdAt         DateTime              @default(now()) @map("created_at")
+  updatedAt         DateTime              @default(now()) @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@map("checkout_attempts")
 }
 
 model Refund {
