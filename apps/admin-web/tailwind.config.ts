@@ -45,7 +45,7 @@ const config: Config = {
           'system-ui',
           'sans-serif',
         ],
-        serif: ['var(--font-heading)', 'Georgia', 'serif'],
+        serif: ['var(--font-heading)', 'serif'],
       },
       boxShadow: {
         card: '0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06)',

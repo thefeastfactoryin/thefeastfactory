@@ -131,11 +131,13 @@ function ThemedDatePicker({
   min,
   onChange,
   compact = false,
+  invalid = false,
 }: {
   value: string;
   min: string;
   onChange: (value: string) => void;
   compact?: boolean;
+  invalid?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const initialDate = parseDateValue(value || min) ?? new Date();
@@ -167,6 +169,8 @@ function ThemedDatePicker({
       <button
         type="button"
         aria-label="Choose delivery date"
+        aria-invalid={invalid || undefined}
+        aria-describedby={invalid ? 'cart-delivery-date-error' : undefined}
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
@@ -175,6 +179,7 @@ function ThemedDatePicker({
             ? 'flex min-h-10 w-full min-w-0 items-center gap-1.5 rounded-md border border-input bg-white/90 px-2 py-1 text-left text-xs outline-none transition hover:border-primary/40 focus-visible:ring-2 focus-visible:ring-primary/30'
             : 'flex min-h-12 w-full items-center gap-3 rounded-xl border border-input bg-white/95 px-3 py-2 text-left text-sm outline-none transition hover:border-primary/40 focus-visible:ring-2 focus-visible:ring-primary/30',
           open && 'border-primary/50 ring-2 ring-primary/15',
+          invalid && 'border-red-500 bg-red-50/70 ring-2 ring-red-200 shadow-[0_0_0_3px_rgba(239,68,68,0.08)]',
         )}
       >
         <span
@@ -292,12 +297,14 @@ function ThemedTimePicker({
   slots,
   isSlotAvailable,
   compact = false,
+  invalid = false,
 }: {
   value: string;
   onChange: (value: string) => void;
   slots: DeliveryTimeSlot[];
   isSlotAvailable: (slot: DeliveryTimeSlot) => boolean;
   compact?: boolean;
+  invalid?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -325,6 +332,8 @@ function ThemedTimePicker({
       <button
         type="button"
         aria-label="Choose delivery time"
+        aria-invalid={invalid || undefined}
+        aria-describedby={invalid ? 'cart-delivery-time-error' : undefined}
         aria-haspopup="listbox"
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
@@ -333,6 +342,7 @@ function ThemedTimePicker({
             ? 'flex min-h-10 w-full min-w-0 items-center gap-1.5 rounded-md border border-input bg-white/90 px-2 py-1 text-left text-xs outline-none transition hover:border-primary/40 focus-visible:ring-2 focus-visible:ring-primary/30'
             : 'flex min-h-12 w-full items-center gap-3 rounded-xl border border-input bg-white/95 px-3 py-2 text-left text-sm outline-none transition hover:border-primary/40 focus-visible:ring-2 focus-visible:ring-primary/30',
           open && 'border-primary/50 ring-2 ring-primary/15',
+          invalid && 'border-red-500 bg-red-50/70 ring-2 ring-red-200 shadow-[0_0_0_3px_rgba(239,68,68,0.08)]',
         )}
       >
         <span
@@ -438,6 +448,7 @@ export function SelectionContextPanel({
   onAddAddress,
   onVenueStatusChange,
   onCheckoutStateChange,
+  checkoutFieldError,
   onMissingCart,
 }: {
   cartId: string;
@@ -452,6 +463,10 @@ export function SelectionContextPanel({
   onAddAddress?: () => void;
   onVenueStatusChange?: (status: VenueServiceability) => void;
   onCheckoutStateChange?: (state: CheckoutFieldState) => void;
+  checkoutFieldError?: {
+    field: 'address' | 'date' | 'time';
+    message: string;
+  };
   onMissingCart?: () => void;
 }) {
   const sidebar = variant === 'sidebar';
@@ -481,6 +496,12 @@ export function SelectionContextPanel({
   const [expanded, setExpanded] = useState(!sidebar);
   const [addressesExpanded, setAddressesExpanded] = useState(false);
   const [checkoutEditing, setCheckoutEditing] = useState(true);
+
+  useEffect(() => {
+    if (!checkoutCompact || checkoutFieldError?.field !== 'address') return;
+    setCheckoutEditing(true);
+    setAddressesExpanded(true);
+  }, [checkoutCompact, checkoutFieldError?.field]);
   const [venueStatus, setVenueStatus] =
     useState<VenueServiceability>('checking');
   const [guestInput, setGuestInput] = useState(String(guestCount));
@@ -906,18 +927,28 @@ export function SelectionContextPanel({
         >
           <Field
             label="Delivery date"
-            className={checkoutCompact ? '[&>span]:sr-only' : undefined}
+            className={checkoutCompact ? '[&>span:first-child]:sr-only' : undefined}
           >
             <ThemedDatePicker
               min={firstEventDate}
               value={eventDate}
               onChange={setEventDate}
               compact={checkoutCompact}
+              invalid={checkoutCompact && checkoutFieldError?.field === 'date'}
             />
+            {checkoutCompact && checkoutFieldError?.field === 'date' && (
+              <span
+                id="cart-delivery-date-error"
+                role="alert"
+                className="mt-1.5 block text-xs font-semibold leading-4 text-red-700"
+              >
+                {checkoutFieldError.message}
+              </span>
+            )}
           </Field>
           <Field
             label="Delivery time"
-            className={checkoutCompact ? '[&>span]:sr-only' : undefined}
+            className={checkoutCompact ? '[&>span:first-child]:sr-only' : undefined}
           >
             <ThemedTimePicker
               value={eventTimeStart}
@@ -925,7 +956,17 @@ export function SelectionContextPanel({
               slots={deliveryTimeSlots}
               isSlotAvailable={isTimeAvailable}
               compact={checkoutCompact}
+              invalid={checkoutCompact && checkoutFieldError?.field === 'time'}
             />
+            {checkoutCompact && checkoutFieldError?.field === 'time' && (
+              <span
+                id="cart-delivery-time-error"
+                role="alert"
+                className="mt-1.5 block text-xs font-semibold leading-4 text-red-700"
+              >
+                {checkoutFieldError.message}
+              </span>
+            )}
           </Field>
           {checkoutCompact && !eventTimeStart && earliestSuggestion && (
             <p className="col-span-full -mt-1 text-xs leading-5 text-muted-foreground">
@@ -1122,7 +1163,13 @@ export function SelectionContextPanel({
 
       {checkoutCompact && (
         <>
-          <div className="mt-4 rounded-xl border border-border/60 bg-ivory/60 p-3 sm:p-4">
+          <div
+            className={cn(
+              'mt-4 rounded-xl border border-border/60 bg-ivory/60 p-3 transition-[border-color,box-shadow,background-color] sm:p-4',
+              checkoutFieldError?.field === 'address' &&
+                'border-red-500 bg-red-50/70 ring-2 ring-red-200 shadow-[0_0_0_3px_rgba(239,68,68,0.08)]',
+            )}
+          >
             <div className="flex min-w-0 items-center gap-3">
               <MapPin
                 className="h-4 w-4 shrink-0 text-primary"
@@ -1165,6 +1212,12 @@ export function SelectionContextPanel({
               <button
                 type="button"
                 aria-expanded={checkoutEditing || addressesExpanded}
+                aria-invalid={checkoutFieldError?.field === 'address' || undefined}
+                aria-describedby={
+                  checkoutFieldError?.field === 'address'
+                    ? 'cart-delivery-address-error'
+                    : undefined
+                }
                 onClick={() => {
                   if (checkoutDetailsComplete && checkoutEditing) {
                     setCheckoutEditing(false);
@@ -1185,6 +1238,15 @@ export function SelectionContextPanel({
                       : 'Choose address'}
               </button>
             </div>
+            {checkoutFieldError?.field === 'address' && (
+              <p
+                id="cart-delivery-address-error"
+                role="alert"
+                className="mt-2 text-xs font-semibold leading-5 text-red-700"
+              >
+                {checkoutFieldError.message}
+              </p>
+            )}
             {!selectedVenue && (
               <button
                 type="button"

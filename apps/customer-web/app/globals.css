@@ -52,9 +52,7 @@ body {
 
 .numeric-text,
 .numeric-text input {
-  font-family:
-    var(--font-sans), Inter, Arial, Helvetica, ui-sans-serif, system-ui,
-    sans-serif;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   font-feature-settings:
     'tnum' 1,
     'lnum' 1;
@@ -63,9 +61,7 @@ body {
 }
 
 .money-text {
-  font-family:
-    var(--font-sans), Inter, Arial, Helvetica, ui-sans-serif, system-ui,
-    sans-serif;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   font-feature-settings:
     'tnum' 1,
     'lnum' 1;

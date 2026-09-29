@@ -410,7 +410,7 @@ export function KgOrderBuilder() {
         </div>
       </section>
       <section className="border-b border-border bg-background px-4 pb-3 pt-2 sm:hidden">
-        <h1 className="font-sans text-[22px] font-semibold leading-[1.12] tracking-[-0.015em] text-charcoal">
+        <h1 className="font-serif text-[22px] font-semibold leading-[1.12] tracking-[-0.015em] text-charcoal">
           Order by KG
         </h1>
         <p className="mt-0.5 max-w-2xl text-[13px] leading-5 text-muted-foreground">

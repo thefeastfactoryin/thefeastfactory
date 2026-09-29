@@ -595,7 +595,13 @@ export default function AdminPackages() {
         (selectedPackage?.type === 'MEAL_BOX' ||
           selectedPackage?.type === 'FIXED_PACKAGE') &&
         (swappableEdits[item.id] ?? originalSwappable);
-      if (nextRole !== originalRole || nextSwappable !== originalSwappable) {
+      const categoryChanged =
+        configured !== undefined && configured.categoryId !== item.categoryId;
+      if (
+        nextRole !== originalRole ||
+        nextSwappable !== originalSwappable ||
+        categoryChanged
+      ) {
         composition += 1;
       }
     }

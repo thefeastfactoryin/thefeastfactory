@@ -12,7 +12,7 @@ const theme = createTheme({
     divider: '#e5ded4',
   },
   typography: {
-    fontFamily: 'var(--font-sans), Inter, ui-sans-serif, system-ui, sans-serif',
+    fontFamily: 'var(--font-sans), ui-sans-serif, system-ui, sans-serif',
   },
   shape: { borderRadius: 12 },
   components: {

@@ -809,7 +809,7 @@ function BuildPackageContent() {
     <section className="overflow-hidden border-b border-border/30 bg-white px-3 py-2 sm:border sm:px-4 sm:py-3">
       <div>
         {/* <p className="eyebrow text-primary">Build your menu</p> */}
-        <h1 className="font-sans text-[22px] font-semibold leading-[1.12] tracking-[-0.015em] text-charcoal sm:text-[30px]">
+        <h1 className="font-serif text-[22px] font-semibold leading-[1.12] tracking-[-0.015em] text-charcoal sm:text-[30px]">
           Build Your Own Package
         </h1>
         <p className="mt-0.5 max-w-2xl text-[13px] leading-5 text-muted-foreground">

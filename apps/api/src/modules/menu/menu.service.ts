@@ -227,28 +227,46 @@ export class MenuService {
       await this.assertCategory(dto.categoryId);
     }
 
-    const item = await this.prisma.menuItem.update({
-      where: { id },
-      data: {
-        ...(dto.categoryId !== undefined ? { categoryId: dto.categoryId } : {}),
-        ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
-        ...(dto.description !== undefined
-          ? { description: dto.description?.trim() }
-          : {}),
-        ...(dto.boxPrice !== undefined
-          ? { boxPrice: new Prisma.Decimal(dto.boxPrice) }
-          : {}),
-        ...(dto.generalPrice !== undefined
-          ? { generalPrice: new Prisma.Decimal(dto.generalPrice) }
-          : {}),
-        ...(dto.pricePerKg !== undefined
-          ? { pricePerKg: dto.pricePerKg === null ? null : new Prisma.Decimal(dto.pricePerKg) }
-          : {}),
-        ...(dto.isVeg !== undefined ? { isVeg: dto.isVeg } : {}),
-        ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
-        ...(dto.imageUrl !== undefined ? { imageUrl: dto.imageUrl } : {}),
-      },
-      include: { category: true },
+    const item = await this.prisma.$transaction(async (transaction) => {
+      const updatedItem = await transaction.menuItem.update({
+        where: { id },
+        data: {
+          ...(dto.categoryId !== undefined
+            ? { categoryId: dto.categoryId }
+            : {}),
+          ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
+          ...(dto.description !== undefined
+            ? { description: dto.description?.trim() }
+            : {}),
+          ...(dto.boxPrice !== undefined
+            ? { boxPrice: new Prisma.Decimal(dto.boxPrice) }
+            : {}),
+          ...(dto.generalPrice !== undefined
+            ? { generalPrice: new Prisma.Decimal(dto.generalPrice) }
+            : {}),
+          ...(dto.pricePerKg !== undefined
+            ? {
+                pricePerKg:
+                  dto.pricePerKg === null
+                    ? null
+                    : new Prisma.Decimal(dto.pricePerKg),
+              }
+            : {}),
+          ...(dto.isVeg !== undefined ? { isVeg: dto.isVeg } : {}),
+          ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
+          ...(dto.imageUrl !== undefined ? { imageUrl: dto.imageUrl } : {}),
+        },
+        include: { category: true },
+      });
+
+      if (dto.categoryId !== undefined) {
+        await transaction.packageMenuItem.updateMany({
+          where: { menuItemId: id },
+          data: { categoryId: dto.categoryId },
+        });
+      }
+
+      return updatedItem;
     });
     return this.serializeItem(item);
   }

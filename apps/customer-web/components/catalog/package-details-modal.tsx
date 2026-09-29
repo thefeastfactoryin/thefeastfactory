@@ -131,7 +131,7 @@ export function PackageDetailsModal({
             <div className="absolute inset-x-0 bottom-0 p-4 text-white sm:p-7">
               <h2
                 id="package-details-title"
-                className="font-sans text-2xl font-semibold leading-tight sm:text-4xl"
+                className="font-serif text-2xl font-semibold leading-tight sm:text-4xl"
               >
                 {pkg.name}
               </h2>

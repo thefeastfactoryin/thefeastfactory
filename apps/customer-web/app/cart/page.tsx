@@ -116,6 +116,21 @@ type CheckoutValidationIssue =
   | 'payment'
   | 'details';
 
+function deliveryFieldForIssue(
+  issue?: CheckoutValidationIssue,
+): 'address' | 'date' | 'time' | undefined {
+  if (
+    issue === 'address' ||
+    issue === 'coordinates' ||
+    issue === 'outside' ||
+    issue === 'closed' ||
+    issue === 'availability'
+  )
+    return 'address';
+  if (issue === 'date' || issue === 'time') return issue;
+  return undefined;
+}
+
 const checkoutIssueTitles: Record<CheckoutValidationIssue, string> = {
   address: 'Delivery address required',
   coordinates: 'Map location required',
@@ -388,6 +403,7 @@ export default function CartPage() {
     useState<CartAddressForm>(emptyCartAddressForm);
   const [addressSaving, setAddressSaving] = useState(false);
   const [addressError, setAddressError] = useState('');
+  const inlineDeliveryField = deliveryFieldForIssue(validationIssue);
 
   useEffect(() => {
     if (!validationIssue) return;
@@ -438,6 +454,8 @@ export default function CartPage() {
     setAddressForm({
       ...emptyCartAddressForm,
       ...deliveryLocation?.address,
+      addressLine2: deliveryLocation?.address?.addressLine2 ?? '',
+      landmark: deliveryLocation?.address?.landmark ?? '',
       latitude: deliveryLocation?.latitude ?? '',
       longitude: deliveryLocation?.longitude ?? '',
     });
@@ -1152,13 +1170,6 @@ export default function CartPage() {
     return {
       cart: packageCart,
       groups,
-      previewImages: (
-        packageConfiguration?.categoryRules.flatMap((rule) =>
-          rule.items.map((item) => item.imageUrl),
-        ) ?? []
-      )
-        .filter((imageUrl): imageUrl is string => Boolean(imageUrl))
-        .slice(0, 3),
       itemCount: groups.reduce((count, group) => count + group.rows.length, 0),
       guestCount:
         packageQuote?.guestCount ??
@@ -1449,7 +1460,7 @@ export default function CartPage() {
   if (!session) {
     return (
       <div className="page-shell">
-        <h1 className="mb-3 font-sans text-lg font-semibold leading-6 text-foreground sm:text-2xl">
+        <h1 className="mb-3 font-serif text-lg font-semibold leading-6 text-foreground sm:text-2xl">
           Checkout
         </h1>
         <AuthRequiredPanel
@@ -1536,7 +1547,9 @@ export default function CartPage() {
             </div>
           </div>
         </header>
-        {error && !(pendingOrder && validationIssue === 'payment') && (
+        {error &&
+          !(!pendingOrder && inlineDeliveryField) &&
+          !(pendingOrder && validationIssue === 'payment') && (
           <section
             role="alert"
             aria-live="assertive"
@@ -1581,7 +1594,7 @@ export default function CartPage() {
         {!pendingOrder && (
           <section className="mb-5 overflow-hidden rounded-2xl border border-border/70 bg-white shadow-[0_16px_44px_-34px_rgba(75,12,23,.7)] sm:mb-7 sm:rounded-3xl">
             <div className="flex items-center justify-between gap-3 border-b border-border/60 bg-gradient-to-r from-primary/[0.055] to-accent/[0.08] px-4 py-3.5 sm:px-6 sm:py-4">
-              <h2 className="flex items-center gap-2 font-serif text-lg font-semibold leading-6 text-foreground sm:text-xl">
+              <h2 className="flex items-center gap-2 font-sans text-lg font-semibold leading-6 text-foreground sm:text-xl">
                 <Package className="h-4 w-4 text-primary" aria-hidden="true" />
                 Your order{' '}
                 <span className="text-muted-foreground">
@@ -1597,13 +1610,7 @@ export default function CartPage() {
             </div>
             <div className="divide-y divide-border/60 px-3 sm:px-6">
               {orderSummaries.map(
-                ({
-                  cart: packageCart,
-                  previewImages,
-                  itemCount,
-                  guestCount,
-                  weightKg,
-                }) => {
+                ({ cart: packageCart, itemCount, guestCount, weightKg }) => {
                   const packageQuote = multiCartQuote?.carts.find(
                     (entry) => entry.cartId === packageCart.id,
                   )?.quote;
@@ -1626,10 +1633,10 @@ export default function CartPage() {
                     >
                       <div className="grid min-w-0 grid-cols-[72px_minmax(0,1fr)] gap-3 sm:grid-cols-[92px_minmax(0,1fr)] sm:gap-4">
                         <div className="relative h-[72px] overflow-hidden rounded-xl bg-muted shadow-inner sm:h-[92px] sm:rounded-2xl">
-                          {previewImages[0] ? (
+                          {packageCart.package.imageUrl ? (
                             <DataImage
-                              src={previewImages[0]}
-                              alt={`${packageCart.package.name} menu`}
+                              src={packageCart.package.imageUrl}
+                              alt={packageCart.package.name}
                               className="h-full w-full object-cover"
                             />
                           ) : (
@@ -1787,7 +1794,7 @@ export default function CartPage() {
                 <AlertCircle className="h-5 w-5" aria-hidden="true" />
               </span>
               <div className="min-w-0 flex-1">
-                <h2 className="font-serif text-lg font-bold text-amber-950">
+                <h2 className="font-sans text-lg font-bold text-amber-950">
                   Payment not completed
                 </h2>
                 <p className="mt-1 text-sm leading-5 text-amber-900/80">
@@ -1842,6 +1849,11 @@ export default function CartPage() {
                   onAddAddress={openAddressDialog}
                   onVenueStatusChange={setVenueStatus}
                   onCheckoutStateChange={setCheckoutFields}
+                  checkoutFieldError={
+                    error && inlineDeliveryField
+                      ? { field: inlineDeliveryField, message: error }
+                      : undefined
+                  }
                   onMissingCart={() =>
                     recoverMissingCart(new Error('Active cart not found'))
                   }
@@ -1852,102 +1864,78 @@ export default function CartPage() {
             {!pendingOrder && (
               <section
                 id="checkout-contact"
-                className="rounded-2xl border border-border/70 bg-white p-4 shadow-[0_16px_42px_-34px_rgba(75,12,23,.65)] sm:rounded-3xl sm:p-6"
+                className="rounded-xl border border-border/70 bg-white px-3 py-3 sm:px-4"
               >
-                <div className="flex items-center justify-between gap-4">
-                  <div className="min-w-0">
-                    <h2 className="flex items-center gap-2 font-serif text-lg font-semibold leading-5 text-foreground">
-                      <UserRound
-                        className="h-4 w-4 text-primary"
-                        aria-hidden="true"
-                      />
-                      Contact and kitchen note
-                    </h2>
-                  </div>
-                  <button
-                    type="button"
-                    disabled={savingContact}
-                    onClick={() =>
-                      editingContact
-                        ? void saveContactNumber()
-                        : setEditingContact(true)
-                    }
-                    className="inline-flex min-h-8 shrink-0 items-center px-1 text-xs font-medium text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60"
-                  >
-                    {savingContact
-                      ? 'Saving…'
-                      : editingContact
-                        ? 'Save'
-                        : 'Edit'}
-                  </button>
-                </div>
-                {!editingContact && (
-                  <p className="mt-0.5 text-sm text-muted-foreground">
-                    {contactNumber
-                      ? `+91 ${contactNumber}`
-                      : 'Add a contact number'}
-                  </p>
-                )}
-                {editingContact && (
-                  <div className="mt-2 flex min-h-12 max-w-sm items-center overflow-hidden rounded-lg border border-input bg-white focus-within:ring-2 focus-within:ring-primary/30">
-                    <label
-                      htmlFor="cart-contact-number"
-                      className="border-r px-3 text-sm font-semibold text-muted-foreground"
-                    >
-                      +91
-                    </label>
-                    <Input
-                      id="cart-contact-number"
-                      aria-label="Contact number"
-                      type="tel"
-                      inputMode="numeric"
-                      autoComplete="tel"
-                      autoFocus
-                      value={contactNumber}
-                      onChange={(event) => {
-                        setContactNumber(
-                          event.target.value.replace(/\D/g, '').slice(0, 10),
-                        );
-                        setError('');
-                      }}
-                      maxLength={10}
-                      placeholder="9876543210"
-                      required
-                      className="min-h-11 rounded-none border-0 focus-visible:ring-0"
-                    />
-                  </div>
-                )}
-                <div className="mt-4 border-t border-border/60 pt-4">
-                  {specialNotes && !notesExpanded ? (
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="min-w-0">
-                        <p className="text-xs font-semibold text-foreground">
-                          Kitchen note
-                        </p>
-                        <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
-                          “{specialNotes}”
-                        </p>
-                      </div>
+                <h2 className="sr-only">Contact and kitchen note</h2>
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs">
+                  <UserRound className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+                  <span className="font-medium text-muted-foreground">Mobile</span>
+                  {!editingContact ? (
+                    <>
+                      <span className="font-semibold text-foreground">
+                        {contactNumber ? `+91 ${contactNumber}` : 'Not added'}
+                      </span>
                       <button
                         type="button"
-                        onClick={() => setNotesExpanded(true)}
-                        className="min-h-8 shrink-0 px-1 text-xs font-medium text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                        onClick={() => setEditingContact(true)}
+                        className="min-h-7 px-1 font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                       >
                         Edit
                       </button>
+                    </>
+                  ) : (
+                    <div className="flex min-w-0 items-center gap-2">
+                      <div className="flex h-9 min-w-0 items-center overflow-hidden rounded-md border border-input bg-white focus-within:ring-2 focus-within:ring-primary/30">
+                        <label
+                          htmlFor="cart-contact-number"
+                          className="border-r px-2 font-semibold text-muted-foreground"
+                        >
+                          +91
+                        </label>
+                        <Input
+                          id="cart-contact-number"
+                          aria-label="Contact number"
+                          type="tel"
+                          inputMode="numeric"
+                          autoComplete="tel"
+                          autoFocus
+                          value={contactNumber}
+                          onChange={(event) => {
+                            setContactNumber(
+                              event.target.value.replace(/\D/g, '').slice(0, 10),
+                            );
+                            setError('');
+                          }}
+                          maxLength={10}
+                          placeholder="9876543210"
+                          required
+                          className="h-9 min-h-9 w-32 rounded-none border-0 text-xs focus-visible:ring-0"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        disabled={savingContact}
+                        onClick={() => void saveContactNumber()}
+                        className="min-h-8 shrink-0 px-1 font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60"
+                      >
+                        {savingContact ? 'Saving…' : 'Save'}
+                      </button>
                     </div>
-                  ) : notesExpanded ? (
+                  )}
+                </div>
+                <div className="mt-2 border-t border-border/60 pt-2">
+                  {notesExpanded ? (
                     <div>
                       <label
                         htmlFor="special-kitchen-request"
-                        className="flex items-center justify-between gap-4 text-sm font-semibold"
+                        className="flex items-center justify-between gap-4 text-xs font-semibold"
                       >
                         <span className="flex items-center gap-2">
                           <MessageSquareText
-                            className="h-4 w-4 text-primary"
+                            className="h-3.5 w-3.5 text-primary"
                             aria-hidden="true"
                           />
-                          Special request for the kitchen
+                          Kitchen note
                         </span>
                         <span className="text-xs font-normal text-muted-foreground">
                           {specialNotes.length}/1000
@@ -1962,25 +1950,32 @@ export default function CartPage() {
                         placeholder="e.g. Keep the food mildly spiced and pack chutney separately."
                         maxLength={1000}
                         rows={3}
-                        className="mt-1.5 w-full max-w-2xl resize-y rounded-md border border-border bg-background p-2.5 text-sm leading-6 outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15"
+                        className="mt-1.5 w-full max-w-2xl resize-y rounded-md border border-border bg-background p-2 text-xs leading-5 outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15"
                       />
                       <button
                         type="button"
                         onClick={() => setNotesExpanded(false)}
-                        className="min-h-8 text-sm font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                        className="min-h-8 text-xs font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                       >
                         Done
                       </button>
                     </div>
                   ) : (
-                    <button
-                      type="button"
-                      onClick={() => setNotesExpanded(true)}
-                      className="inline-flex min-h-8 items-center gap-2 text-sm font-medium text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-                    >
-                      <Plus className="h-4 w-4" aria-hidden="true" />
-                      Add a note for the kitchen
-                    </button>
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <button
+                        type="button"
+                        onClick={() => setNotesExpanded(true)}
+                        className="inline-flex min-h-7 shrink-0 items-center gap-1.5 text-xs font-medium text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                      >
+                        <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                        {specialNotes ? 'Edit kitchen note' : 'Add kitchen note'}
+                      </button>
+                      {specialNotes && (
+                        <p className="min-w-0 truncate text-xs text-muted-foreground">
+                          “{specialNotes}”
+                        </p>
+                      )}
+                    </div>
                   )}
                 </div>
               </section>
@@ -2510,7 +2505,7 @@ function CutleryOptions({
   const total = Number(quote?.cutleryTotal ?? 0);
 
   return (
-    <section className="mt-5 rounded-xl border border-border/70 bg-white p-4">
+    <section className="mt-4 rounded-xl border border-border/70 bg-white p-3 sm:mt-5 sm:p-4">
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-1.5">
           <Utensils
@@ -2519,77 +2514,93 @@ function CutleryOptions({
           />
           <h3 className="text-sm font-semibold text-foreground">Cutlery</h3>
         </div>
-        <span className="shrink-0 text-xs font-medium text-muted-foreground">
+        <span className="shrink-0 rounded-full bg-primary/[0.08] px-2 py-0.5 text-[11px] font-semibold text-primary sm:py-1 sm:text-xs">
           {includedCount} included
         </span>
       </div>
-      <p className="mt-1 text-xs leading-5 text-muted-foreground">
-        Plate + Spoon · Extra {formatCurrency(unitPrice).replace(/\.00$/, '')}
-        /set
-      </p>
-      <div className="mt-4 flex items-center justify-between gap-2 border-t border-border/60 pt-3">
-        <span className="text-xs font-medium text-muted-foreground">
-          Extra sets
-        </span>
-        <div className="flex min-w-0 items-center gap-2">
-          <div className="inline-flex h-9 items-center overflow-hidden rounded-md border border-border bg-background">
-            <button
-              type="button"
-              disabled={disabled || extraCount <= 0}
-              onClick={() => onChange(extraCount - 1)}
-              className="grid h-9 w-9 place-items-center text-foreground/75 transition hover:bg-primary/[0.06] hover:text-primary disabled:text-muted-foreground/35"
-              aria-label="Decrease extra cutlery sets"
-            >
-              <Minus className="h-3.5 w-3.5" />
-            </button>
-            <label htmlFor="extra-cutlery-count" className="sr-only">
-              Extra cutlery sets
-            </label>
-            <input
-              id="extra-cutlery-count"
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              disabled={disabled}
-              defaultValue={extraCount}
-              key={extraCount}
-              onFocus={(event) => event.currentTarget.select()}
-              onBlur={(event) => {
-                const next = Math.max(
-                  0,
-                  Math.min(10000, Math.round(Number(event.target.value) || 0)),
-                );
-                event.currentTarget.value = String(next);
-                if (next !== extraCount) onChange(next);
-              }}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') event.currentTarget.blur();
-              }}
-              onChange={(event) => {
-                event.currentTarget.value = event.currentTarget.value
-                  .replace(/\D/g, '')
-                  .slice(0, 5);
-              }}
-              className="money-text h-9 w-9 border-x border-border bg-transparent text-center text-sm font-semibold text-foreground outline-none focus:bg-primary/[0.03] disabled:opacity-60"
-              aria-describedby="additional-cutlery-help"
-            />
-            <button
-              type="button"
-              disabled={disabled}
-              onClick={() => onChange(extraCount + 1)}
-              className="grid h-9 w-9 place-items-center text-foreground/75 transition hover:bg-primary/[0.06] hover:text-primary disabled:opacity-50"
-              aria-label="Increase extra cutlery sets"
-            >
-              <Plus className="h-3.5 w-3.5" />
-            </button>
-          </div>
-          <span
-            id="additional-cutlery-help"
-            className="money-text min-w-8 text-right text-xs font-semibold text-foreground"
+      <div className="mt-2 flex items-center justify-between gap-1.5">
+        <p className="min-w-0 truncate whitespace-nowrap text-[11px] leading-4 text-muted-foreground sm:text-xs sm:leading-5">
+          Plate + Spoon · Extra {formatCurrency(unitPrice).replace(/\.00$/, '')}
+          /set
+        </p>
+        {extraCount <= 0 ? (
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => onChange(1)}
+            className="inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-md border border-border bg-background px-2 text-[11px] font-semibold text-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 sm:h-8 sm:px-2.5 sm:text-xs"
           >
-            {formatCurrency(total).replace(/\.00$/, '')}
-          </span>
-        </div>
+            <Plus className="h-2.5 w-2.5 sm:h-3 sm:w-3" aria-hidden="true" />
+            Add extra
+          </button>
+        ) : (
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+            <div className="inline-flex h-7 shrink-0 items-center overflow-hidden rounded-md border border-border bg-background sm:h-8">
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() => onChange(extraCount - 1)}
+                className="grid h-7 w-7 place-items-center text-foreground/75 transition hover:bg-muted hover:text-foreground disabled:opacity-50 sm:h-8 sm:w-8"
+                aria-label={
+                  extraCount === 1
+                    ? 'Remove extra cutlery sets'
+                    : 'Decrease extra cutlery sets'
+                }
+              >
+                <Minus className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+              </button>
+              <label htmlFor="extra-cutlery-count" className="sr-only">
+                Extra cutlery sets
+              </label>
+              <input
+                id="extra-cutlery-count"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                disabled={disabled}
+                defaultValue={extraCount}
+                key={extraCount}
+                onFocus={(event) => event.currentTarget.select()}
+                onBlur={(event) => {
+                  const next = Math.max(
+                    0,
+                    Math.min(
+                      10000,
+                      Math.round(Number(event.target.value) || 0),
+                    ),
+                  );
+                  event.currentTarget.value = String(next);
+                  if (next !== extraCount) onChange(next);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') event.currentTarget.blur();
+                }}
+                onChange={(event) => {
+                  event.currentTarget.value = event.currentTarget.value
+                    .replace(/\D/g, '')
+                    .slice(0, 5);
+                }}
+                className="money-text h-7 w-7 border-x border-border bg-transparent text-center text-xs font-semibold text-foreground outline-none focus:bg-muted disabled:opacity-60 sm:h-8 sm:w-8 sm:text-sm"
+                aria-describedby="additional-cutlery-help"
+              />
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() => onChange(extraCount + 1)}
+                className="grid h-7 w-7 place-items-center text-foreground/75 transition hover:bg-muted hover:text-foreground disabled:opacity-50 sm:h-8 sm:w-8"
+                aria-label="Increase extra cutlery sets"
+              >
+                <Plus className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+              </button>
+            </div>
+            <span
+              id="additional-cutlery-help"
+              className="money-text min-w-7 text-right text-[11px] font-semibold text-foreground sm:min-w-8 sm:text-xs"
+            >
+              {formatCurrency(total).replace(/\.00$/, '')}
+            </span>
+          </div>
+        )}
       </div>
     </section>
   );

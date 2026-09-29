@@ -70,6 +70,8 @@ export default function AddressesPage() {
       setForm((current) => ({
         ...current,
         ...deliveryLocation.address,
+        addressLine2: deliveryLocation.address?.addressLine2 ?? '',
+        landmark: deliveryLocation.address?.landmark ?? '',
         latitude: deliveryLocation.latitude,
         longitude: deliveryLocation.longitude,
       }));
@@ -235,7 +237,7 @@ export default function AddressesPage() {
   return (
     <main className="page-shell pb-28 pt-4 sm:pb-12 sm:pt-6 lg:pb-12 lg:pt-8">
       <div className="max-w-3xl">
-        <h1 className="font-sans text-lg font-semibold leading-6 tracking-normal sm:text-2xl">
+        <h1 className="font-serif text-lg font-semibold leading-6 tracking-normal sm:text-2xl">
           {activeTab === 'map' ? 'Add address' : 'Addresses'}
         </h1>
       </div>

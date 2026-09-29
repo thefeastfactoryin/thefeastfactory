@@ -301,6 +301,7 @@ export type CartSummary = {
   package: {
     id: string;
     name: string;
+    imageUrl?: string | null;
     type: PackageType;
     versionNo: number;
     basePricePerPlate: string;

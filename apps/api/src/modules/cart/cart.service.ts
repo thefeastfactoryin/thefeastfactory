@@ -861,6 +861,7 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
         ? {
             id: cart.packageVersion.package.id,
             name: cart.packageVersion.package.name,
+            imageUrl: cart.packageVersion.package.imageUrl,
             type: cart.packageVersion.package.type,
             versionNo: cart.packageVersion.versionNo,
             basePricePerPlate:

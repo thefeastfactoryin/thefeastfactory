@@ -152,7 +152,8 @@ textarea {
     left: 0;
     width: 72mm;
     color: #000;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+    font-variant-numeric: tabular-nums;
     font-size: 11px;
     line-height: 1.35;
   }
