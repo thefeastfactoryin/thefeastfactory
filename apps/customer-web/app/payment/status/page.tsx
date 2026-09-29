@@ -63,8 +63,8 @@ export default function PaymentStatusPage() {
     };
   }, [session, orderId, router]);
   const paid = order?.paymentStatus === 'PAID';
-  const failed = order?.paymentStatus === 'FAILED' || Boolean(loadError);
-  const Icon = paid ? CheckCircle : failed ? XCircle : Clock3;
+  const checkFailed = Boolean(loadError);
+  const Icon = paid ? CheckCircle : checkFailed ? XCircle : Clock3;
   if (!session)
     return (
       <AuthRequiredPanel
@@ -88,13 +88,13 @@ export default function PaymentStatusPage() {
   return (
     <main className="mx-auto flex max-w-xl flex-col items-center px-5 py-20 text-center">
       <Icon
-        className={`h-12 w-12 ${paid ? 'text-primary' : failed ? 'text-red-600' : 'text-amber-600'}`}
+        className={`h-12 w-12 ${paid ? 'text-primary' : checkFailed ? 'text-red-600' : 'text-amber-600'}`}
       />
       <h1 className="mt-5 text-3xl font-semibold">
         {paid
           ? 'Payment confirmed'
-          : failed
-            ? 'Payment failed'
+          : checkFailed
+            ? 'Could not check payment'
             : confirmationDelayed
               ? 'Confirmation is taking longer'
               : 'Confirming payment'}
@@ -102,10 +102,10 @@ export default function PaymentStatusPage() {
       <p className="mt-2 text-muted-foreground">
         {paid
           ? 'Your order is confirmed.'
-          : failed
-            ? loadError || 'Your order is saved and payment can be retried.'
+          : checkFailed
+            ? loadError
             : confirmationDelayed
-              ? 'Your order is safe. You can retry the same payment or check the order again shortly.'
+              ? 'Your order is safe. Check its status again shortly.'
               : 'We are waiting for secure confirmation from Razorpay. This can take a few moments.'}
       </p>
       <div className="mt-8 flex gap-3">
@@ -114,9 +114,9 @@ export default function PaymentStatusPage() {
             <Link href={`/orders/${orderId}`}>View order</Link>
           </Button>
         )}
-        {(failed || confirmationDelayed) && (
+        {checkFailed && (
           <Button asChild variant="outline">
-            <Link href="/cart">Retry payment</Link>
+            <Link href="/cart">Back to cart</Link>
           </Button>
         )}
       </div>

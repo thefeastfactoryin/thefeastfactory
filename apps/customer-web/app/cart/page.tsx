@@ -1498,6 +1498,16 @@ export default function CartPage() {
   const mobileTotal = pendingOrder
     ? (pendingBatch?.totalAmount ?? pendingOrder.totalAmount)
     : multiCartQuote?.totalAmount;
+  const paymentError =
+    validationIssue === 'payment' && error && !paying ? error : '';
+  const startRetryPayment = () => {
+    setValidationIssue(undefined);
+    setError('');
+  };
+  const reportRetryFailure = (message: string) => {
+    setValidationIssue('payment');
+    setError(message);
+  };
 
   return (
     <main
@@ -1548,8 +1558,9 @@ export default function CartPage() {
           </div>
         </header>
         {error &&
-          !(!pendingOrder && inlineDeliveryField) &&
-          !(pendingOrder && validationIssue === 'payment') && (
+          !paying &&
+          validationIssue !== 'payment' &&
+          !(!pendingOrder && inlineDeliveryField) && (
           <section
             role="alert"
             aria-live="assertive"
@@ -1591,8 +1602,7 @@ export default function CartPage() {
             </button>
           </section>
         )}
-        {!pendingOrder && (
-          <section className="mb-5 overflow-hidden rounded-2xl border border-border/70 bg-white shadow-[0_16px_44px_-34px_rgba(75,12,23,.7)] sm:mb-7 sm:rounded-3xl">
+        <section className="mb-5 overflow-hidden rounded-2xl border border-border/70 bg-white shadow-[0_16px_44px_-34px_rgba(75,12,23,.7)] sm:mb-7 sm:rounded-3xl">
             <div className="flex items-center justify-between gap-3 border-b border-border/60 bg-gradient-to-r from-primary/[0.055] to-accent/[0.08] px-4 py-3.5 sm:px-6 sm:py-4">
               <h2 className="flex items-center gap-2 font-sans text-lg font-semibold leading-6 text-foreground sm:text-xl">
                 <Package className="h-4 w-4 text-primary" aria-hidden="true" />
@@ -1601,12 +1611,14 @@ export default function CartPage() {
                   ({activeCarts.length})
                 </span>
               </h2>
-              <Link
-                href="/packages"
-                className="hidden text-xs font-bold text-primary hover:underline sm:inline"
-              >
-                + Add package
-              </Link>
+              {!pendingOrder && (
+                <Link
+                  href="/packages"
+                  className="hidden text-xs font-bold text-primary hover:underline sm:inline"
+                >
+                  + Add package
+                </Link>
+              )}
             </div>
             <div className="divide-y divide-border/60 px-3 sm:px-6">
               {orderSummaries.map(
@@ -1671,6 +1683,7 @@ export default function CartPage() {
                               ? `${weightKg} kg · ${menuSummary}`
                               : `${guestCount} ${packageCart.package.type === 'MEAL_BOX' ? 'boxes' : 'guests'} · ${menuSummary}`}
                           </p>
+                          {!pendingOrder && (
                           <div className="mt-1.5 flex min-h-8 flex-wrap items-center gap-x-3 gap-y-1 sm:gap-x-5">
                             <Link
                               href={menuHref}
@@ -1705,9 +1718,10 @@ export default function CartPage() {
                               <Trash2 className="h-4 w-4" aria-hidden="true" />
                             </button>
                           </div>
+                          )}
                         </div>
                       </div>
-                      {editingQuantityCartId === packageCart.id &&
+                      {!pendingOrder && editingQuantityCartId === packageCart.id &&
                         packageCart.package.type !== 'ORDER_BY_KG' && (
                           <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-3">
                             <span className="text-sm font-medium text-muted-foreground">
@@ -1778,44 +1792,16 @@ export default function CartPage() {
                 },
               )}
             </div>
-            <Link
-              href="/packages"
-              className="inline-flex min-h-12 items-center px-4 text-sm font-bold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:hidden"
-            >
-              <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
-              Add another package
-            </Link>
-          </section>
-        )}
-        {pendingOrder && (
-          <section className="mb-5 overflow-hidden rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 shadow-[0_16px_40px_-32px_rgba(146,64,14,.65)] sm:rounded-3xl">
-            <div className="flex items-start gap-3 p-4 sm:items-center sm:p-5">
-              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-amber-100 text-amber-700 ring-1 ring-inset ring-amber-200">
-                <AlertCircle className="h-5 w-5" aria-hidden="true" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <h2 className="font-sans text-lg font-bold text-amber-950">
-                  Payment not completed
-                </h2>
-                <p className="mt-1 text-sm leading-5 text-amber-900/80">
-                  {validationIssue === 'payment' && error
-                    ? error
-                    : 'Your order is safely reserved. Retry payment without creating another order.'}
-                </p>
-              </div>
-              <div className="hidden shrink-0 items-center gap-2 lg:flex">
-                <Button asChild variant="outline">
-                  <Link href={`/orders/${pendingOrder.id}`}>View order</Link>
-                </Button>
-                <RetryPaymentButton
-                  order={pendingOrder}
-                  orderIds={pendingBatch?.orderIds}
-                />
-              </div>
-            </div>
-          </section>
-        )}
-
+            {!pendingOrder && (
+              <Link
+                href="/packages"
+                className="inline-flex min-h-12 items-center px-4 text-sm font-bold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:hidden"
+              >
+                <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
+                Add another package
+              </Link>
+            )}
+        </section>
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1.55fr)_minmax(340px,0.9fr)] lg:items-start lg:gap-8">
           <div className="min-w-0 space-y-5">
             {pendingOrder ? (
@@ -1989,7 +1975,7 @@ export default function CartPage() {
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <h2 className="font-sans text-base font-semibold leading-5 text-foreground">
-                      {pendingOrder ? 'Payment pending' : 'Price breakdown'}
+                      Price breakdown
                     </h2>
                   </div>
                 </div>
@@ -2003,11 +1989,21 @@ export default function CartPage() {
                         )}
                       </strong>
                     </div>
-                    <Button asChild variant="outline" className="mt-3 w-full">
-                      <Link href={`/orders/${pendingOrder.id}`}>
-                        View saved order
-                      </Link>
-                    </Button>
+                    <div className="hidden lg:block">
+                      <RetryPaymentButton
+                        order={pendingOrder}
+                        orderIds={pendingBatch?.orderIds}
+                        label={paymentError ? 'Retry payment' : 'Pay securely'}
+                        className="mt-5 h-12 w-full"
+                        onStart={startRetryPayment}
+                        onFailure={reportRetryFailure}
+                      />
+                      {paymentError && (
+                        <p role="alert" className="mt-2 text-sm text-red-700">
+                          {paymentError}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 ) : (
                   <div>
@@ -2029,8 +2025,13 @@ export default function CartPage() {
                         onClick={requestPayment}
                         disabled={quoteLoading || paying}
                       >
-                        {paying ? 'Opening payment…' : 'Continue'}
+                        {paying ? 'Opening payment…' : 'Pay securely'}
                       </Button>
+                      {paymentError && (
+                        <p role="alert" className="mt-2 text-sm text-red-700">
+                          {paymentError}
+                        </p>
+                      )}
                       <p className="mt-1.5 flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
                         <LockKeyhole
                           className="h-3.5 w-3.5 shrink-0"
@@ -2324,7 +2325,7 @@ export default function CartPage() {
       </div>
 
       {!keyboardOpen && (
-        <MobileOrderBar checkout label="Checkout total and continue">
+        <MobileOrderBar checkout label="Checkout total and pay securely">
           <div className="mobile-order-bar-row">
             <div className="mobile-order-bar-summary">
               <span className="mobile-order-bar-label">Payable total</span>
@@ -2341,6 +2342,9 @@ export default function CartPage() {
                 order={pendingOrder}
                 orderIds={pendingBatch?.orderIds}
                 className="mobile-order-bar-action"
+                label={paymentError ? 'Retry payment' : 'Pay securely'}
+                onStart={startRetryPayment}
+                onFailure={reportRetryFailure}
               />
             ) : (
               <Button
@@ -2348,10 +2352,15 @@ export default function CartPage() {
                 onClick={requestPayment}
                 disabled={quoteLoading || paying}
               >
-                {paying ? 'Opening…' : 'Continue'}
+                {paying ? 'Opening…' : 'Pay securely'}
               </Button>
             )}
           </div>
+          {paymentError && (
+            <p role="alert" className="mx-auto mt-1.5 max-w-2xl px-1 text-xs leading-4 text-red-700">
+              {paymentError}
+            </p>
+          )}
         </MobileOrderBar>
       )}
     </main>

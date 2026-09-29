@@ -12,17 +12,22 @@ export function RetryPaymentButton({
   order,
   orderIds,
   className,
+  label = 'Retry payment',
+  onStart,
+  onFailure,
 }: {
   order: OrderSummary;
   orderIds?: string[];
   className?: string;
+  label?: string;
+  onStart?: () => void;
+  onFailure?: (message: string) => void;
 }) {
   const session = useSessionStore((s) => s.session);
   const [busy, setBusy] = useState(false);
-  const returnToCart = (result: 'failed' | 'cancelled') => {
-    window.location.assign(
-      `/cart?payment=${result}&orderId=${encodeURIComponent(order.id)}`,
-    );
+  const reportFailure = (message: string) => {
+    setBusy(false);
+    onFailure?.(message);
   };
   async function verify(
     gateway: GatewayOrder,
@@ -48,6 +53,7 @@ export function RetryPaymentButton({
   async function retry() {
     if (!session) return;
     setBusy(true);
+    onStart?.();
     try {
       const batchIds = [...new Set(orderIds ?? [order.id])];
       const gateway =
@@ -87,7 +93,7 @@ export function RetryPaymentButton({
         modal: {
           confirm_close: true,
           ondismiss: () => {
-            returnToCart('cancelled');
+            reportFailure('Payment window closed. You can retry safely.');
           },
         },
         handler: async (response: Record<string, string>) => {
@@ -99,17 +105,24 @@ export function RetryPaymentButton({
             );
           } catch (reason) {
             console.error('[RetryPayment] Verification failed', reason);
-            returnToCart('failed');
+            reportFailure('Payment could not be confirmed. Please retry or check your order.');
           }
         },
       });
-      checkout.on('payment.failed', () => {
-        returnToCart('failed');
+      checkout.on('payment.failed', (response) => {
+        reportFailure(
+          response?.error?.description ||
+            'Payment failed. You can retry without creating another order.',
+        );
       });
       checkout.open();
     } catch (reason) {
       console.error('[RetryPayment] Could not open payment', reason);
-      returnToCart('failed');
+      reportFailure(
+        reason instanceof Error
+          ? reason.message
+          : 'Could not open payment. Please try again.',
+      );
     }
   }
   return (
@@ -119,7 +132,7 @@ export function RetryPaymentButton({
         strategy="afterInteractive"
       />
       <Button onClick={retry} disabled={busy} className={cn(className)}>
-        {busy ? 'Opening payment…' : 'Retry payment'}
+        {busy ? 'Opening payment…' : label}
       </Button>
     </>
   );

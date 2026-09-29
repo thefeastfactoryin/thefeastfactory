@@ -21,11 +21,13 @@ import {
   Minus,
   Plus,
   Users,
+  X,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { ReactNode, RefObject } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { apiRequest } from '../lib/api';
 import { isClearedCartError } from '../lib/cart-state';
 import { cn } from '../lib/utils';
@@ -37,6 +39,206 @@ import { Field } from './ui/form';
 import { usePublicSettings } from './public-settings-provider';
 
 type DeliveryTimeSlot = { value: string; label: string };
+
+function addressIcon(address: UserAddress) {
+  if (address.addressType === 'HOME') return Home;
+  if (address.addressType === 'OFFICE') return Building2;
+  if (address.addressType === 'EVENT_VENUE') return MapPinned;
+  return MapPin;
+}
+
+function AddressChooser({
+  open,
+  addresses,
+  selectedAddressId,
+  onClose,
+  onSelect,
+  onAddAddress,
+}: {
+  open: boolean;
+  addresses: UserAddress[];
+  selectedAddressId: string;
+  onClose: () => void;
+  onSelect: (addressId: string) => void;
+  onAddAddress?: () => void;
+}) {
+  const dialogRef = useRef<HTMLElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  useEffect(() => {
+    if (!open) return;
+    const returnFocus =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const focusTimer = window.setTimeout(
+      () => closeButtonRef.current?.focus(),
+      0,
+    );
+    const handleDialogKeys = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const focusable = Array.from(
+        dialogRef.current?.querySelectorAll<HTMLElement>(
+          'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
+        ) ?? [],
+      );
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', handleDialogKeys);
+    return () => {
+      window.clearTimeout(focusTimer);
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', handleDialogKeys);
+      returnFocus?.focus();
+    };
+  }, [open]);
+
+  if (!open || typeof document === 'undefined') return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[110] flex items-end bg-slate-950/55 backdrop-blur-[2px] sm:items-center sm:justify-center sm:p-4">
+      <button
+        type="button"
+        className="absolute inset-0"
+        aria-label="Close saved addresses"
+        onClick={onClose}
+      />
+      <section
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="saved-addresses-title"
+        className="relative flex max-h-[min(78dvh,680px)] w-full flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:max-w-lg sm:rounded-2xl"
+      >
+        <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-border sm:hidden" />
+        <header className="flex shrink-0 items-center justify-between gap-4 border-b border-border/70 px-4 py-3 sm:px-5 sm:py-4">
+          <div>
+            <h2
+              id="saved-addresses-title"
+              className="font-sans text-lg font-semibold text-foreground"
+            >
+              Choose delivery address
+            </h2>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Select where you want this order delivered.
+            </p>
+          </div>
+          <button
+            ref={closeButtonRef}
+            type="button"
+            onClick={onClose}
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-border text-muted-foreground transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+            aria-label="Close address chooser"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </header>
+
+        <div
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-4"
+          role="radiogroup"
+          aria-label="Saved delivery addresses"
+        >
+          <div className="grid gap-2">
+            {addresses.map((address) => {
+              const Icon = addressIcon(address);
+              const selected = address.id === selectedAddressId;
+              return (
+                <button
+                  key={address.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  onClick={() => onSelect(address.id)}
+                  className={cn(
+                    'flex min-h-20 w-full items-start gap-3 rounded-xl border border-border/70 bg-white p-3 text-left transition hover:border-primary/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30',
+                    selected &&
+                      'border-primary/50 bg-primary/[0.045] ring-1 ring-primary/10',
+                  )}
+                >
+                  <span
+                    className={cn(
+                      'mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground',
+                      selected && 'bg-primary text-white',
+                    )}
+                  >
+                    <Icon className="h-4 w-4" aria-hidden="true" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex min-w-0 items-center gap-2">
+                      <strong className="truncate text-sm font-semibold text-foreground">
+                        {address.label ||
+                          address.addressType.toLowerCase().replace('_', ' ')}
+                      </strong>
+                      {address.isDefault && (
+                        <span className="shrink-0 rounded-full bg-secondary/15 px-2 py-0.5 text-[10px] font-bold text-secondary-foreground">
+                          Default
+                        </span>
+                      )}
+                    </span>
+                    <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+                      {[address.addressLine1, address.addressLine2]
+                        .filter(Boolean)
+                        .join(', ')}
+                      <br />
+                      {[address.city, address.state, address.pincode]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </span>
+                  </span>
+                  <span
+                    className={cn(
+                      'mt-1 grid h-5 w-5 shrink-0 place-items-center rounded-full border border-border bg-white',
+                      selected && 'border-primary bg-primary text-white',
+                    )}
+                    aria-hidden="true"
+                  >
+                    {selected && <Check className="h-3 w-3" />}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <footer className="shrink-0 border-t border-border/70 bg-white p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] sm:p-4">
+          <button
+            type="button"
+            onClick={() => {
+              onClose();
+              onAddAddress?.();
+            }}
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-primary/25 bg-primary/[0.045] px-4 text-sm font-semibold text-primary transition hover:bg-primary/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            Add a new address
+          </button>
+        </footer>
+      </section>
+    </div>,
+    document.body,
+  );
+}
 
 export type VenueServiceability =
   | 'checking'
@@ -179,7 +381,8 @@ function ThemedDatePicker({
             ? 'flex min-h-10 w-full min-w-0 items-center gap-1.5 rounded-md border border-input bg-white/90 px-2 py-1 text-left text-xs outline-none transition hover:border-primary/40 focus-visible:ring-2 focus-visible:ring-primary/30'
             : 'flex min-h-12 w-full items-center gap-3 rounded-xl border border-input bg-white/95 px-3 py-2 text-left text-sm outline-none transition hover:border-primary/40 focus-visible:ring-2 focus-visible:ring-primary/30',
           open && 'border-primary/50 ring-2 ring-primary/15',
-          invalid && 'border-red-500 bg-red-50/70 ring-2 ring-red-200 shadow-[0_0_0_3px_rgba(239,68,68,0.08)]',
+          invalid &&
+            'border-red-500 bg-red-50/70 ring-2 ring-red-200 shadow-[0_0_0_3px_rgba(239,68,68,0.08)]',
         )}
       >
         <span
@@ -342,7 +545,8 @@ function ThemedTimePicker({
             ? 'flex min-h-10 w-full min-w-0 items-center gap-1.5 rounded-md border border-input bg-white/90 px-2 py-1 text-left text-xs outline-none transition hover:border-primary/40 focus-visible:ring-2 focus-visible:ring-primary/30'
             : 'flex min-h-12 w-full items-center gap-3 rounded-xl border border-input bg-white/95 px-3 py-2 text-left text-sm outline-none transition hover:border-primary/40 focus-visible:ring-2 focus-visible:ring-primary/30',
           open && 'border-primary/50 ring-2 ring-primary/15',
-          invalid && 'border-red-500 bg-red-50/70 ring-2 ring-red-200 shadow-[0_0_0_3px_rgba(239,68,68,0.08)]',
+          invalid &&
+            'border-red-500 bg-red-50/70 ring-2 ring-red-200 shadow-[0_0_0_3px_rgba(239,68,68,0.08)]',
         )}
       >
         <span
@@ -876,12 +1080,6 @@ export function SelectionContextPanel({
     assignedRegion?.kitchenAddress ??
     'The preparation kitchen address will appear after the venue is saved.';
   const guestLabel = pkg?.packageType === 'MEAL_BOX' ? 'Boxes' : 'Guests';
-  const addressIcon = (address: UserAddress) => {
-    if (address.addressType === 'HOME') return Home;
-    if (address.addressType === 'OFFICE') return Building2;
-    if (address.addressType === 'EVENT_VENUE') return MapPinned;
-    return MapPin;
-  };
   const earliestSuggestion = (() => {
     const leadHours = publicSettings?.minBookingLeadHours ?? 48;
     const earliestInstant = Date.now() + leadHours * 60 * 60 * 1000;
@@ -927,7 +1125,9 @@ export function SelectionContextPanel({
         >
           <Field
             label="Delivery date"
-            className={checkoutCompact ? '[&>span:first-child]:sr-only' : undefined}
+            className={
+              checkoutCompact ? '[&>span:first-child]:sr-only' : undefined
+            }
           >
             <ThemedDatePicker
               min={firstEventDate}
@@ -948,7 +1148,9 @@ export function SelectionContextPanel({
           </Field>
           <Field
             label="Delivery time"
-            className={checkoutCompact ? '[&>span:first-child]:sr-only' : undefined}
+            className={
+              checkoutCompact ? '[&>span:first-child]:sr-only' : undefined
+            }
           >
             <ThemedTimePicker
               value={eventTimeStart}
@@ -1211,31 +1413,23 @@ export function SelectionContextPanel({
               </div>
               <button
                 type="button"
-                aria-expanded={checkoutEditing || addressesExpanded}
-                aria-invalid={checkoutFieldError?.field === 'address' || undefined}
+                aria-expanded={addressesExpanded}
+                aria-haspopup="dialog"
+                aria-invalid={
+                  checkoutFieldError?.field === 'address' || undefined
+                }
                 aria-describedby={
                   checkoutFieldError?.field === 'address'
                     ? 'cart-delivery-address-error'
                     : undefined
                 }
                 onClick={() => {
-                  if (checkoutDetailsComplete && checkoutEditing) {
-                    setCheckoutEditing(false);
-                    setAddressesExpanded(false);
-                  } else {
-                    setCheckoutEditing(true);
-                    setAddressesExpanded((value) => !value);
-                  }
+                  if (addresses.length > 0) setAddressesExpanded(true);
+                  else onAddAddress?.();
                 }}
                 className="inline-flex min-h-10 shrink-0 items-center px-1 text-sm font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
               >
-                {checkoutEditing && checkoutDetailsComplete
-                  ? 'Done'
-                  : addressesExpanded
-                    ? 'Done'
-                    : selectedVenue
-                      ? 'Change'
-                      : 'Choose address'}
+                {selectedVenue ? 'Change' : 'Choose address'}
               </button>
             </div>
             {checkoutFieldError?.field === 'address' && (
@@ -1247,7 +1441,7 @@ export function SelectionContextPanel({
                 {checkoutFieldError.message}
               </p>
             )}
-            {!selectedVenue && (
+            {!selectedVenue && addresses.length === 0 && (
               <button
                 type="button"
                 onClick={onAddAddress}
@@ -1256,55 +1450,20 @@ export function SelectionContextPanel({
                 Add complete address
               </button>
             )}
-            {addressesExpanded && addresses.length > 0 && (
-              <div
-                className="mt-2 grid gap-1"
-                role="radiogroup"
-                aria-label="Choose delivery address"
-              >
-                {addresses.map((address) => {
-                  const selected = address.id === addressId;
-                  return (
-                    <button
-                      key={address.id}
-                      type="button"
-                      role="radio"
-                      aria-checked={selected}
-                      onClick={() => {
-                        setVenueStatus('checking');
-                        onVenueStatusChange?.('checking');
-                        setAddressId(address.id);
-                        setAddressesExpanded(false);
-                      }}
-                      className={cn(
-                        'flex min-h-10 items-center justify-between gap-3 border-t border-border/50 py-1.5 text-left text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary',
-                        selected && 'text-primary',
-                      )}
-                    >
-                      <span className="min-w-0">
-                        <strong className="block truncate">
-                          {address.label || address.addressLine1}
-                        </strong>
-                        <span className="block truncate text-xs text-muted-foreground">
-                          {[address.addressLine1, address.city, address.pincode]
-                            .filter(Boolean)
-                            .join(', ')}
-                        </span>
-                      </span>
-                      {selected && <Check className="h-4 w-4 shrink-0" />}
-                    </button>
-                  );
-                })}
-                <button
-                  type="button"
-                  onClick={onAddAddress}
-                  className="inline-flex min-h-8 items-center border-t border-border/50 pt-1.5 text-sm font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-                >
-                  Add another address
-                </button>
-              </div>
-            )}
           </div>
+          <AddressChooser
+            open={addressesExpanded && addresses.length > 0}
+            addresses={addresses}
+            selectedAddressId={addressId}
+            onClose={() => setAddressesExpanded(false)}
+            onSelect={(nextAddressId) => {
+              setVenueStatus('checking');
+              onVenueStatusChange?.('checking');
+              setAddressId(nextAddressId);
+              setAddressesExpanded(false);
+            }}
+            onAddAddress={onAddAddress}
+          />
           {deliveryService}
           {showCheckoutStatus && (
             <p className="mt-2 text-xs text-muted-foreground" role="status">

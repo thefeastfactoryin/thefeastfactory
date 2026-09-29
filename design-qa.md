@@ -27,3 +27,51 @@ No P0, P1 or P2 visual defects remain. The new page fits the existing product ra
 - Temporary browser-test catalog and cart rows were removed after QA.
 
 final result: passed
+
+---
+
+# Checkout address chooser — Design QA
+
+- Source visual truth: `/var/folders/wl/lwjjyh6n1szd4mshv7057nm00000gn/T/codex-clipboard-65826796-feba-4c3d-93b0-2967d81c3495.png`
+- Implementation: `apps/customer-web/components/selection-context-panel.tsx` (`AddressChooser` and compact checkout address row)
+- Implementation screenshot evidence: Codex in-app browser tab 6, captured in this task in mobile-open and desktop-open states. The browser surface does not expose a filesystem path for its captures.
+- Source pixels: 740 × 1600. Source represents an approximately 370 × 800 CSS-pixel mobile checkout at 2× density.
+- Implementation viewports: 390 × 844 CSS pixels (mobile) and 1280 × 800 CSS pixels (desktop), device scale factor managed by the in-app browser.
+- State: selected address collapsed; chooser open; alternate address selected and chooser closed.
+
+## Full-view comparison evidence
+
+The original checkout displayed every saved address inline below the selected address, pushing delivery options down the page. The implementation keeps only the selected address in checkout and moves alternatives into a bottom sheet on mobile. At the desktop breakpoint, the same chooser becomes a centered dialog. Both states were rendered and visually inspected in the in-app browser.
+
+## Focused region comparison evidence
+
+The address region was checked at mobile size for header hierarchy, selected radio state, address wrapping, the fixed add-address action, safe-area padding, and backdrop treatment. The desktop dialog was separately checked for width, centering, density, and list readability. No additional crop was needed because the complete chooser was readable in both captures.
+
+## Required fidelity surfaces
+
+- Fonts and typography: Existing product font tokens and weights are preserved. Address titles, metadata, helper copy, and actions retain a clear hierarchy without clipping.
+- Spacing and layout rhythm: Mobile uses a bottom-aligned sheet with internal scrolling and a fixed footer. Desktop uses a compact centered dialog. Address rows remain comfortably tappable and do not overflow at 390px.
+- Colors and visual tokens: Existing primary, foreground, muted, border, ivory, and secondary tokens are used. Selection is shown with border, fill, icon, and radio state rather than color alone.
+- Image and icon quality: Existing Lucide address-type, check, close, and add icons are used consistently with the product. No new raster assets were required.
+- Copy and content: “Change,” “Choose delivery address,” and “Add a new address” replace the ambiguous “Done” state. Address lines include locality, state, and pincode for repeated labels.
+
+## Interaction and accessibility checks
+
+- “Change” opens the chooser.
+- Selecting another radio option closes the chooser immediately.
+- Escape and backdrop close are implemented.
+- Body scrolling is locked while the chooser is open.
+- Dialog, radiogroup, radio state, labels, and minimum touch sizes are present.
+- Browser console errors checked: none.
+
+## Findings
+
+No actionable P0, P1, or P2 issues remain.
+
+P3: the local Next.js development badge can overlap the sheet footer in development mode only; it is not present in production builds.
+
+## Comparison history
+
+Initial comparison passed. No P0/P1/P2 visual fixes were required after the rendered mobile and desktop review.
+
+final result: passed
