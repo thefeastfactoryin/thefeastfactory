@@ -1,6 +1,11 @@
 'use client';
 
-import type { LocationResolution, UserAddress } from '@aranyam/shared-types';
+import type {
+  AddressType,
+  LocationResolution,
+  UserAddress,
+} from '@aranyam/shared-types';
+import { createAddressSchema } from '@aranyam/validation';
 import {
   AlertCircle,
   Check,
@@ -26,6 +31,10 @@ import {
   reverseGeocodeLocation,
   type MapAddress,
 } from './address-map-picker';
+import {
+  AddressDetailsFields,
+  type AddressDetailsValue,
+} from './address-details-fields';
 
 const DELIVERY_LEAD_TIME_HOURS = 24;
 const SAVED_ADDRESS_MATCH_KM = 0.5;
@@ -34,6 +43,11 @@ type LocationNotice = {
   title: string;
   detail: string;
   serviceable: boolean;
+};
+
+type CandidateAddress = AddressDetailsValue & {
+  latitude: string;
+  longitude: string;
 };
 
 function formatDeliveryEstimate(date: Date) {
@@ -92,8 +106,7 @@ function nearestSavedAddress(
       ),
     }))
     .filter((entry) => entry.distanceKm <= SAVED_ADDRESS_MATCH_KM)
-    .sort((first, second) => first.distanceKm - second.distanceKm)[0]
-    ?.address;
+    .sort((first, second) => first.distanceKm - second.distanceKm)[0]?.address;
 }
 
 export function DeliveryLocationSelector({
@@ -116,11 +129,17 @@ export function DeliveryLocationSelector({
   const [addresses, setAddresses] = useState<UserAddress[]>([]);
   const [addressesLoaded, setAddressesLoaded] = useState(false);
   const [candidateLoading, setCandidateLoading] = useState(false);
+  const [candidateSaving, setCandidateSaving] = useState(false);
+  const [candidateAddress, setCandidateAddress] =
+    useState<CandidateAddress>();
+  const [candidateResolution, setCandidateResolution] =
+    useState<LocationResolution>();
   const [notice, setNotice] = useState<LocationNotice>();
   const [deliveryEstimate, setDeliveryEstimate] = useState('');
   const addressBookRevision = useAddressBookStore((state) => state.revision);
   const initialHomeLocated = useRef(false);
   const selectionRequestId = useRef(0);
+  const candidateFormRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     if (!active) return;
@@ -138,12 +157,7 @@ export function DeliveryLocationSelector({
   }, [notice]);
 
   useEffect(() => {
-    if (
-      !active ||
-      pathname !== '/' ||
-      location ||
-      initialHomeLocated.current
-    )
+    if (!active || pathname !== '/' || location || initialHomeLocated.current)
       return;
     initialHomeLocated.current = true;
     if (!navigator.geolocation) {
@@ -175,31 +189,33 @@ export function DeliveryLocationSelector({
               useDeliveryLocationStore.getState().location
             )
               return;
-            setLocation(nearbyAddress
-              ? locationFromSavedAddress(nearbyAddress, resolution)
-              : {
-              latitude,
-              longitude,
-              accuracyMeters: coords.accuracy,
-              label:
-                address?.addressLine2 ||
-                address?.addressLine1 ||
-                address?.city ||
-                resolution.region?.name ||
-                'Current location',
-              source: 'browser',
-              address: address
-                ? {
-                    addressLine1: address.addressLine1,
-                    addressLine2: address.addressLine2,
-                    city: address.city,
-                    state: address.state,
-                    pincode: address.pincode,
-                    landmark: address.landmark,
-                  }
-                : undefined,
-              resolution,
-            });
+            setLocation(
+              nearbyAddress
+                ? locationFromSavedAddress(nearbyAddress, resolution)
+                : {
+                    latitude,
+                    longitude,
+                    accuracyMeters: coords.accuracy,
+                    label:
+                      address?.addressLine2 ||
+                      address?.addressLine1 ||
+                      address?.city ||
+                      resolution.region?.name ||
+                      'Current location',
+                    source: 'browser',
+                    address: address
+                      ? {
+                          addressLine1: address.addressLine1,
+                          addressLine2: address.addressLine2,
+                          city: address.city,
+                          state: address.state,
+                          pincode: address.pincode,
+                          landmark: address.landmark,
+                        }
+                      : undefined,
+                    resolution,
+                  },
+            );
           })
           .catch((reason) => {
             if (
@@ -315,16 +331,15 @@ export function DeliveryLocationSelector({
   function closeSelector() {
     selectionRequestId.current += 1;
     setCandidateLoading(false);
+    setCandidateSaving(false);
+    setCandidateAddress(undefined);
+    setCandidateResolution(undefined);
     setOpen(false);
   }
 
   async function inspectCandidate(address: MapAddress) {
     const requestId = ++selectionRequestId.current;
-    if (!address.addressLine1.trim()) {
-      setCandidateLoading(false);
-      setError('Google Maps could not find an address for this pin. Choose a nearby point.');
-      return;
-    }
+    setStatus('resolving');
     setCandidateLoading(true);
     try {
       const nearby = await findNearbySavedAddress(
@@ -337,38 +352,37 @@ export function DeliveryLocationSelector({
         nearby?.longitude ?? address.longitude,
       );
       if (requestId !== selectionRequestId.current) return;
-      setLocation(
-        nearby
-          ? locationFromSavedAddress(nearby, resolution)
-          : {
-              latitude: address.latitude,
-              longitude: address.longitude,
-              label:
-                address.addressLine2 ||
-                address.addressLine1 ||
-                address.city ||
-                resolution.region?.name ||
-                'Selected location',
-              source: 'manual',
-              address: {
-                addressLine1: address.addressLine1,
-                addressLine2: address.addressLine2,
-                city: address.city,
-                state: address.state,
-                pincode: address.pincode,
-                landmark: address.landmark,
-              },
-              resolution,
-            },
-      );
-      setNotice({
-        title: nearby
-          ? 'Nearby saved address selected'
-          : 'Delivery location updated',
-        detail: `${nearby?.label || formatCandidateAddress(address) || 'Selected map point'} · ${resolution.serviceable ? 'Delivery available' : 'Delivery unavailable here'}`,
-        serviceable: resolution.serviceable,
+      if (nearby) {
+        setLocation(locationFromSavedAddress(nearby, resolution));
+        setNotice({
+          title: 'Nearby saved address selected',
+          detail: `${nearby.label || nearby.addressLine1} · ${resolution.serviceable ? 'Delivery available' : 'Delivery unavailable here'}`,
+          serviceable: resolution.serviceable,
+        });
+        closeSelector();
+        return;
+      }
+
+      setCandidateAddress({
+        addressType: 'EVENT_VENUE' as AddressType,
+        label: 'Event venue',
+        addressLine1: address.addressLine1,
+        addressLine2: address.addressLine2,
+        city: address.city,
+        state: address.state,
+        pincode: address.pincode,
+        landmark: address.landmark,
+        latitude: address.latitude,
+        longitude: address.longitude,
       });
-      closeSelector();
+      setCandidateResolution(resolution);
+      setStatus('ready');
+      window.requestAnimationFrame(() =>
+        candidateFormRef.current?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start',
+        }),
+      );
     } catch (reason) {
       if (requestId !== selectionRequestId.current) return;
       setError((reason as Error).message);
@@ -376,6 +390,75 @@ export function DeliveryLocationSelector({
       if (requestId === selectionRequestId.current) {
         setCandidateLoading(false);
       }
+    }
+  }
+
+  async function saveCandidateAddress(event: React.FormEvent) {
+    event.preventDefault();
+    if (!candidateAddress || candidateSaving) return;
+    const result = createAddressSchema.safeParse({
+      ...candidateAddress,
+      label: candidateAddress.label.trim() || undefined,
+      addressLine2: candidateAddress.addressLine2.trim() || undefined,
+      landmark: candidateAddress.landmark.trim() || undefined,
+      isDefault: false,
+    });
+    if (!result.success) {
+      setError(
+        result.error.issues[0]?.message ?? 'Please complete the address.',
+      );
+      return;
+    }
+
+    setCandidateSaving(true);
+    try {
+      const resolution =
+        candidateResolution ??
+        (await resolve(candidateAddress.latitude, candidateAddress.longitude));
+      if (session) {
+        const created = await apiRequest<UserAddress>(
+          '/me/addresses',
+          { method: 'POST', body: JSON.stringify(result.data) },
+          session.accessToken,
+        );
+        setAddresses((current) => [...current, created]);
+        markAddressesChanged();
+        setLocation(locationFromSavedAddress(created, resolution));
+        setNotice({
+          title: 'Delivery address saved',
+          detail: `${created.label || created.addressLine1} · ${resolution.serviceable ? 'Delivery available' : 'Delivery unavailable here'}`,
+          serviceable: resolution.serviceable,
+        });
+      } else {
+        setLocation({
+          latitude: candidateAddress.latitude,
+          longitude: candidateAddress.longitude,
+          label:
+            candidateAddress.label ||
+            candidateAddress.addressLine2 ||
+            candidateAddress.addressLine1,
+          source: 'manual',
+          address: {
+            addressLine1: candidateAddress.addressLine1,
+            addressLine2: candidateAddress.addressLine2 || undefined,
+            city: candidateAddress.city,
+            state: candidateAddress.state,
+            pincode: candidateAddress.pincode,
+            landmark: candidateAddress.landmark || undefined,
+          },
+          resolution,
+        });
+        setNotice({
+          title: 'Delivery address ready',
+          detail: `${formatCandidateAddress(candidateAddress)} · ${resolution.serviceable ? 'Delivery available' : 'Delivery unavailable here'}`,
+          serviceable: resolution.serviceable,
+        });
+      }
+      closeSelector();
+    } catch (reason) {
+      setError((reason as Error).message);
+    } finally {
+      setCandidateSaving(false);
     }
   }
 
@@ -419,7 +502,10 @@ export function DeliveryLocationSelector({
             {notice.serviceable ? (
               <Check className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
             ) : (
-              <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+              <AlertCircle
+                className="mt-0.5 h-5 w-5 shrink-0"
+                aria-hidden="true"
+              />
             )}
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold">{notice.title}</p>
@@ -675,8 +761,14 @@ export function DeliveryLocationSelector({
 
                 <div className="mt-5">
                   {candidateLoading && (
-                    <p role="status" className="mb-3 flex items-center gap-2 rounded-xl border border-primary/15 bg-primary/[0.04] px-3 py-2.5 text-sm font-medium text-primary">
-                      <LoaderCircle className="h-4 w-4 shrink-0 animate-spin" aria-hidden="true" />
+                    <p
+                      role="status"
+                      className="mb-3 flex items-center gap-2 rounded-xl border border-primary/15 bg-primary/[0.04] px-3 py-2.5 text-sm font-medium text-primary"
+                    >
+                      <LoaderCircle
+                        className="h-4 w-4 shrink-0 animate-spin"
+                        aria-hidden="true"
+                      />
                       Checking your location and saved addresses…
                     </p>
                   )}
@@ -684,6 +776,49 @@ export function DeliveryLocationSelector({
                     onAddress={(address) => void inspectCandidate(address)}
                     inlineMobileSearch
                   />
+                  {candidateAddress && (
+                    <form
+                      ref={candidateFormRef}
+                      onSubmit={saveCandidateAddress}
+                      className="mt-4 scroll-mt-4 rounded-2xl border border-border bg-white p-4 shadow-sm sm:p-5"
+                    >
+                      <div className="mb-4">
+                        <h3 className="text-base font-semibold text-foreground">
+                          Complete delivery address
+                        </h3>
+                        <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                          Add the house, building, or venue details so checkout
+                          can use this address directly.
+                        </p>
+                      </div>
+                      <AddressDetailsFields
+                        value={candidateAddress}
+                        onChange={(value) => {
+                          setCandidateAddress((current) =>
+                            current
+                              ? {
+                                  ...value,
+                                  latitude: current.latitude,
+                                  longitude: current.longitude,
+                                }
+                              : current,
+                          );
+                          setStatus('ready');
+                        }}
+                      />
+                      <button
+                        type="submit"
+                        disabled={candidateSaving}
+                        className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-primary px-4 text-sm font-semibold text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {candidateSaving
+                          ? 'Saving address…'
+                          : session
+                            ? 'Save and use address'
+                            : 'Use this address'}
+                      </button>
+                    </form>
+                  )}
                 </div>
               </div>
             </section>

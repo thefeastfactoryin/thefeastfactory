@@ -41,13 +41,13 @@ import {
   AddressMapPicker,
   type MapAddress,
 } from '../../components/address-map-picker';
+import { AddressDetailsFields } from '../../components/address-details-fields';
 import { SelectionContextPanel } from '../../components/selection-context-panel';
 import type {
   CheckoutFieldState,
   VenueServiceability,
 } from '../../components/selection-context-panel';
 import { Button } from '../../components/ui/button';
-import { Field, Select } from '../../components/ui/form';
 import { Input } from '../../components/ui/input';
 import { AuthRequiredPanel, StatePanel } from '../../components/ui/state-panel';
 import { apiRequest } from '../../lib/api';
@@ -404,6 +404,26 @@ export default function CartPage() {
   const [addressError, setAddressError] = useState('');
   const inlineDeliveryField = deliveryFieldForIssue(validationIssue);
 
+  const clearCartViewState = useCallback(() => {
+    reset();
+    setActiveCarts([]);
+    setCart(undefined);
+    setConfig(undefined);
+    setConfigByCartId({});
+    setQuote(undefined);
+    setMultiCartQuote(undefined);
+    setPendingOrder(undefined);
+    setPendingBatch(undefined);
+    setSpecialNotes('');
+    setNotesExpanded(false);
+    setEditingQuantityCartId('');
+    setClearCartOpen(false);
+    setValidationIssue(undefined);
+    setPaymentNotice('');
+    setPaymentNeedsReview(false);
+    setPaying(false);
+  }, [reset]);
+
   useEffect(() => {
     if (!validationIssue) return;
     const resolved =
@@ -583,21 +603,23 @@ export default function CartPage() {
     }
   }
 
-  const recoverMissingCart = useCallback((reason: unknown) => {
-    if (!isClearedCartError(reason)) return false;
-    if (missingCartRecoveryAttempts.current >= 2) {
-      setError('Your cart changed. Refresh this page to continue.');
+  const recoverMissingCart = useCallback(
+    (reason: unknown) => {
+      if (!isClearedCartError(reason)) return false;
+      if (missingCartRecoveryAttempts.current >= 2) {
+        setError('Your cart changed. Refresh this page to continue.');
+        return true;
+      }
+      missingCartRecoveryAttempts.current += 1;
+      recoveringCart.current = true;
+      clearCartViewState();
+      setError('');
+      setLoading(true);
+      setCartReloadKey((current) => current + 1);
       return true;
-    }
-    missingCartRecoveryAttempts.current += 1;
-    recoveringCart.current = true;
-    setError('');
-    setLoading(true);
-    setQuote(undefined);
-    setMultiCartQuote(undefined);
-    setCartReloadKey((current) => current + 1);
-    return true;
-  }, []);
+    },
+    [clearCartViewState],
+  );
 
   useEffect(
     () =>
@@ -662,13 +684,12 @@ export default function CartPage() {
           (value?.pendingOrderId ? value : undefined);
         if (!currentCart) {
           missingCartRecoveryAttempts.current = 0;
-          reset();
-          setCart(undefined);
-          setQuote(undefined);
-          setMultiCartQuote(undefined);
+          clearCartViewState();
           return;
         }
         setCart(currentCart);
+        setPendingOrder(undefined);
+        setPendingBatch(undefined);
         setSpecialNotes(currentCart.specialNotes ?? '');
         setContactNumber(
           currentCart.contactNumber || session!.user.mobileNumber,
@@ -739,7 +760,14 @@ export default function CartPage() {
     return () => {
       active = false;
     };
-  }, [session, hydrate, loadQuote, reset, recoverMissingCart, cartReloadKey]);
+  }, [
+    session,
+    hydrate,
+    loadQuote,
+    recoverMissingCart,
+    clearCartViewState,
+    cartReloadKey,
+  ]);
 
   const onEventSaved = useCallback(
     (updated: CartSummary) => {
@@ -978,11 +1006,7 @@ export default function CartPage() {
       setMultiCartQuote((current) => withoutCartQuote(current, cartId));
       window.dispatchEvent(new Event('cart-updated'));
       if (!remaining.length) {
-        reset();
-        setCart(undefined);
-        setConfig(undefined);
-        setQuote(undefined);
-        setMultiCartQuote(undefined);
+        clearCartViewState();
         notifyCartCleared();
         return;
       }
@@ -1017,14 +1041,8 @@ export default function CartPage() {
     setError('');
     try {
       await apiRequest('/cart', { method: 'DELETE' }, session.accessToken);
-      reset();
-      setActiveCarts([]);
+      clearCartViewState();
       publishCheckoutCartCount(0);
-      setCart(undefined);
-      setConfig(undefined);
-      setQuote(undefined);
-      setMultiCartQuote(undefined);
-      setClearCartOpen(false);
       notifyCartCleared();
       window.dispatchEvent(new Event('cart-updated'));
     } catch (reason) {
@@ -1466,7 +1484,7 @@ export default function CartPage() {
       </main>
     );
   }
-  if (!cart) {
+  if (!cart || (activeCarts.length === 0 && !pendingOrder)) {
     return (
       <main className="page-shell">
         <StatePanel
@@ -1540,24 +1558,24 @@ export default function CartPage() {
         </div>
       )}
 
-      <section className="relative isolate hidden overflow-hidden border-b bg-hero-end text-white sm:block">
+      <section className="relative isolate overflow-hidden border-b bg-hero-end text-white">
         <img
           src="/packages-hero-plated.png"
           alt="A curated catering spread ready for checkout"
           className="absolute inset-0 -z-20 h-full w-full object-cover object-center"
         />
         <div className="absolute inset-0 -z-10 bg-[linear-gradient(90deg,hsl(var(--hero-end)/0.99)_0%,hsl(var(--hero-start)/0.94)_40%,hsl(var(--hero-start)/0.32)_72%,rgba(0,0,0,0.08)_100%)]" />
-        <div className="container-pad flex min-h-[238px] items-center py-5 sm:min-h-[300px] sm:py-7 lg:min-h-[330px] lg:px-16 lg:py-9">
+        <div className="container-pad flex min-h-[138px] items-center py-4 sm:min-h-[300px] sm:py-7 lg:min-h-[330px] lg:px-16 lg:py-9">
           <div className="max-w-[620px]">
             <p className="eyebrow">Almost there</p>
-            <h1 className="mt-2 font-serif text-[34px] font-bold leading-[1.12] tracking-[-0.015em] text-white sm:text-[44px] lg:text-[50px]">
+            <h1 className="mt-1.5 font-serif text-[28px] font-bold leading-[1.12] tracking-[-0.015em] text-white sm:mt-2 sm:text-[44px] lg:text-[50px]">
               Review and <span className="text-accent">checkout</span>
             </h1>
-            <p className="mt-3 max-w-[520px] text-base font-semibold leading-6 text-white/85 sm:text-lg">
+            <p className="mt-2 max-w-[520px] text-sm font-semibold leading-5 text-white/85 sm:mt-3 sm:text-lg sm:leading-6">
               Confirm your menu, delivery details, and final total before secure
               payment.
             </p>
-            <div className="mt-5 grid max-w-[600px] grid-cols-4 gap-2">
+            <div className="mt-5 hidden max-w-[600px] grid-cols-4 gap-2 sm:grid">
               {[
                 { Icon: ShoppingBag, label: 'Menu reviewed' },
                 { Icon: Truck, label: 'Delivery details' },
@@ -2153,12 +2171,14 @@ export default function CartPage() {
                   }
                   inlineMobileSearch
                 />
-                {addressForm.latitude && addressForm.longitude && (
-                  <p className="mt-3 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs font-semibold text-emerald-800">
-                    <Check className="h-4 w-4 shrink-0" aria-hidden="true" />
-                    Location pinned. Review the complete address below.
-                  </p>
-                )}
+                {addressForm.latitude &&
+                  addressForm.longitude &&
+                  addressForm.addressLine1.trim() && (
+                    <p className="mt-3 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs font-semibold text-emerald-800">
+                      <Check className="h-4 w-4 shrink-0" aria-hidden="true" />
+                      Location pinned. Review the complete address below.
+                    </p>
+                  )}
               </div>
 
               <div className="mt-5 flex items-center gap-3">
@@ -2169,130 +2189,17 @@ export default function CartPage() {
                 <span className="h-px flex-1 bg-border" />
               </div>
 
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <Field label="Address type">
-                  <Select
-                    value={addressForm.addressType}
-                    onChange={(event) => {
-                      const addressType = event.target.value as AddressType;
-                      setAddressForm((current) => ({
-                        ...current,
-                        addressType,
-                        label:
-                          addressType === 'OTHER'
-                            ? ''
-                            : current.label ||
-                              (addressType === 'OFFICE'
-                                ? 'Office'
-                                : addressType === 'EVENT_VENUE'
-                                  ? 'Event venue'
-                                  : 'Home'),
-                      }));
-                    }}
-                  >
-                    <option value="HOME">Home</option>
-                    <option value="OFFICE">Work</option>
-                    <option value="EVENT_VENUE">Event venue</option>
-                    <option value="OTHER">Other</option>
-                  </Select>
-                </Field>
-                <Field label="Address label" optional>
-                  <Input
-                    value={addressForm.label}
-                    maxLength={50}
-                    placeholder="e.g. Home or event venue"
-                    onChange={(event) =>
-                      setAddressForm((current) => ({
-                        ...current,
-                        label: event.target.value,
-                      }))
-                    }
-                  />
-                </Field>
-                <Field
-                  label="House, building or street"
-                  className="sm:col-span-2"
-                >
-                  <Input
-                    value={addressForm.addressLine1}
-                    maxLength={255}
-                    required
-                    onChange={(event) =>
-                      setAddressForm((current) => ({
-                        ...current,
-                        addressLine1: event.target.value,
-                      }))
-                    }
-                  />
-                </Field>
-                <Field label="Area / locality" optional>
-                  <Input
-                    value={addressForm.addressLine2}
-                    maxLength={255}
-                    onChange={(event) =>
-                      setAddressForm((current) => ({
-                        ...current,
-                        addressLine2: event.target.value,
-                      }))
-                    }
-                  />
-                </Field>
-                <Field label="Landmark" optional>
-                  <Input
-                    value={addressForm.landmark}
-                    maxLength={255}
-                    placeholder="Nearby landmark"
-                    onChange={(event) =>
-                      setAddressForm((current) => ({
-                        ...current,
-                        landmark: event.target.value,
-                      }))
-                    }
-                  />
-                </Field>
-                <Field label="City">
-                  <Input
-                    value={addressForm.city}
-                    maxLength={100}
-                    required
-                    onChange={(event) =>
-                      setAddressForm((current) => ({
-                        ...current,
-                        city: event.target.value,
-                      }))
-                    }
-                  />
-                </Field>
-                <Field label="State">
-                  <Input
-                    value={addressForm.state}
-                    maxLength={100}
-                    required
-                    onChange={(event) =>
-                      setAddressForm((current) => ({
-                        ...current,
-                        state: event.target.value,
-                      }))
-                    }
-                  />
-                </Field>
-                <Field label="Pincode" className="sm:col-span-2">
-                  <Input
-                    value={addressForm.pincode}
-                    inputMode="numeric"
-                    pattern="[0-9]{6}"
-                    minLength={6}
-                    maxLength={6}
-                    required
-                    onChange={(event) =>
-                      setAddressForm((current) => ({
-                        ...current,
-                        pincode: event.target.value.replace(/\D/g, ''),
-                      }))
-                    }
-                  />
-                </Field>
-              </div>
+              <AddressDetailsFields
+                className="mt-4"
+                value={addressForm}
+                onChange={(value) =>
+                  setAddressForm((current) => ({
+                    ...value,
+                    latitude: current.latitude,
+                    longitude: current.longitude,
+                  }))
+                }
+              />
               <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                 <Button
                   type="button"
@@ -2656,10 +2563,7 @@ function CutleryOptions({
                 <Plus className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
               </button>
             </div>
-            <span
-              id="additional-cutlery-help"
-              className="sr-only"
-            >
+            <span id="additional-cutlery-help" className="sr-only">
               {extraCount} extra cutlery sets at {formatCurrency(unitPrice)} per
               set. Total {formatCurrency(total)}.
             </span>

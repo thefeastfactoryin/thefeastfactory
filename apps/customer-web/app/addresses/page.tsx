@@ -310,7 +310,7 @@ export default function AddressesPage() {
                     setMapSelectionMessage(
                       address.addressLine1
                         ? 'The address field is filled from the selected map pin. Review the details before saving.'
-                        : 'Google Maps could not find an address for this pin. Enter the address details manually or choose a nearby point.',
+                        : '',
                     );
                     if (window.matchMedia('(max-width: 1023px)').matches) {
                       window.requestAnimationFrame(() =>

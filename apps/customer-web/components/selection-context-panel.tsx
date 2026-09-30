@@ -6,6 +6,7 @@ import type {
   OperatingRegion,
   UserAddress,
 } from '@aranyam/shared-types';
+import { createAddressSchema } from '@aranyam/validation';
 import {
   Building2,
   CalendarClock,
@@ -31,7 +32,10 @@ import { createPortal } from 'react-dom';
 import { apiRequest } from '../lib/api';
 import { isClearedCartError } from '../lib/cart-state';
 import { cn } from '../lib/utils';
-import { useDeliveryLocationStore } from '../store/delivery-location.store';
+import {
+  useDeliveryLocationStore,
+  type DeliveryLocation,
+} from '../store/delivery-location.store';
 import { useAddressBookStore } from '../store/address-book.store';
 import { useOrderBuilderStore } from '../store/order-builder.store';
 import { useSessionStore } from '../store/session.store';
@@ -45,6 +49,25 @@ function addressIcon(address: UserAddress) {
   if (address.addressType === 'OFFICE') return Building2;
   if (address.addressType === 'EVENT_VENUE') return MapPinned;
   return MapPin;
+}
+
+function matchingSavedAddress(
+  addresses: UserAddress[],
+  location: DeliveryLocation,
+) {
+  const latitude = Number(location.latitude);
+  const longitude = Number(location.longitude);
+  const addressLine1 = location.address?.addressLine1.trim().toLowerCase();
+  const pincode = location.address?.pincode.trim();
+  return addresses.find((address) => {
+    if (!address.latitude || !address.longitude) return false;
+    return (
+      Math.abs(Number(address.latitude) - latitude) < 0.00001 &&
+      Math.abs(Number(address.longitude) - longitude) < 0.00001 &&
+      address.addressLine1.trim().toLowerCase() === addressLine1 &&
+      address.pincode.trim() === pincode
+    );
+  });
 }
 
 function AddressChooser({
@@ -334,12 +357,14 @@ function ThemedDatePicker({
   onChange,
   compact = false,
   invalid = false,
+  popoverDirection = 'down',
 }: {
   value: string;
   min: string;
   onChange: (value: string) => void;
   compact?: boolean;
   invalid?: boolean;
+  popoverDirection?: 'up' | 'down';
 }) {
   const [open, setOpen] = useState(false);
   const initialDate = parseDateValue(value || min) ?? new Date();
@@ -420,7 +445,10 @@ function ThemedDatePicker({
         <div
           role="dialog"
           aria-label="Choose delivery date"
-          className="absolute left-0 z-40 mt-2 w-80 max-w-[calc(100vw-64px)] rounded-2xl border bg-white p-4 shadow-[0_20px_55px_-24px_rgba(75,12,23,.45)]"
+          className={cn(
+            'absolute left-0 z-40 w-80 max-w-[calc(100vw-64px)] rounded-2xl border bg-white p-4 shadow-[0_20px_55px_-24px_rgba(75,12,23,.45)]',
+            popoverDirection === 'up' ? 'bottom-full mb-2' : 'mt-2',
+          )}
         >
           <div className="flex items-center justify-between gap-3">
             <button
@@ -501,6 +529,7 @@ function ThemedTimePicker({
   isSlotAvailable,
   compact = false,
   invalid = false,
+  popoverDirection = 'down',
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -508,6 +537,7 @@ function ThemedTimePicker({
   isSlotAvailable: (slot: DeliveryTimeSlot) => boolean;
   compact?: boolean;
   invalid?: boolean;
+  popoverDirection?: 'up' | 'down';
 }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -581,8 +611,9 @@ function ThemedTimePicker({
           role="listbox"
           aria-label="Choose delivery time"
           className={cn(
-            'absolute z-40 mt-2 max-h-[min(28rem,calc(100dvh-12rem))] w-80 max-w-[calc(100vw-24px)] overflow-y-auto rounded-2xl border bg-white p-3 shadow-[0_20px_55px_-24px_rgba(75,12,23,.45)]',
+            'absolute z-40 max-h-[min(28rem,calc(100dvh-12rem))] w-80 max-w-[calc(100vw-24px)] overflow-y-auto rounded-2xl border bg-white p-3 shadow-[0_20px_55px_-24px_rgba(75,12,23,.45)]',
             compact ? 'right-0' : 'left-0',
+            popoverDirection === 'up' ? 'bottom-full mb-2' : 'mt-2',
           )}
         >
           {value && !selectedSlot && (
@@ -639,6 +670,157 @@ function ThemedTimePicker({
   );
 }
 
+function ScheduleChooser({
+  open,
+  date,
+  time,
+  minDate,
+  slots,
+  isSlotAvailable,
+  saving,
+  onDateChange,
+  onTimeChange,
+  onClose,
+}: {
+  open: boolean;
+  date: string;
+  time: string;
+  minDate: string;
+  slots: DeliveryTimeSlot[];
+  isSlotAvailable: (slot: DeliveryTimeSlot) => boolean;
+  saving: boolean;
+  onDateChange: (value: string) => void;
+  onTimeChange: (value: string) => void;
+  onClose: () => void;
+}) {
+  const dialogRef = useRef<HTMLElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  useEffect(() => {
+    if (!open) return;
+    const returnFocus =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const focusTimer = window.setTimeout(
+      () => closeButtonRef.current?.focus(),
+      0,
+    );
+    const handleDialogKeys = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const focusable = Array.from(
+        dialogRef.current?.querySelectorAll<HTMLElement>(
+          'button:not(:disabled), input:not(:disabled), [tabindex]:not([tabindex="-1"])',
+        ) ?? [],
+      );
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', handleDialogKeys);
+    return () => {
+      window.clearTimeout(focusTimer);
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', handleDialogKeys);
+      returnFocus?.focus();
+    };
+  }, [open]);
+
+  if (!open || typeof document === 'undefined') return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[110] flex items-end bg-slate-950/55 backdrop-blur-[2px] sm:items-center sm:justify-center sm:p-4">
+      <button
+        type="button"
+        className="absolute inset-0"
+        aria-label="Close delivery schedule"
+        onClick={onClose}
+      />
+      <section
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="delivery-schedule-title"
+        className="relative w-full rounded-t-3xl bg-white shadow-2xl sm:max-w-lg sm:rounded-2xl"
+      >
+        <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-border sm:hidden" />
+        <header className="flex items-center justify-between gap-4 border-b border-border/70 px-4 py-3 sm:px-5 sm:py-4">
+          <div>
+            <h2
+              id="delivery-schedule-title"
+              className="font-sans text-lg font-semibold text-foreground"
+            >
+              Change delivery date &amp; time
+            </h2>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Choose when your order should arrive.
+            </p>
+          </div>
+          <button
+            ref={closeButtonRef}
+            type="button"
+            onClick={onClose}
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-border text-muted-foreground transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+            aria-label="Close schedule chooser"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </header>
+
+        <div className="grid grid-cols-2 gap-3 px-4 py-5 max-[340px]:grid-cols-1 sm:px-5">
+          <Field label="Delivery date">
+            <ThemedDatePicker
+              min={minDate}
+              value={date}
+              onChange={onDateChange}
+              popoverDirection="up"
+            />
+          </Field>
+          <Field label="Delivery time">
+            <ThemedTimePicker
+              value={time}
+              onChange={onTimeChange}
+              slots={slots}
+              isSlotAvailable={isSlotAvailable}
+              popoverDirection="up"
+            />
+          </Field>
+        </div>
+
+        <footer className="border-t border-border/70 bg-white p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] sm:rounded-b-2xl sm:p-4">
+          <button
+            type="button"
+            disabled={!date || !time}
+            onClick={onClose}
+            className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-primary px-4 text-sm font-semibold text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+          >
+            {saving ? 'Saving…' : 'Done'}
+          </button>
+        </footer>
+      </section>
+    </div>,
+    document.body,
+  );
+}
+
 export function SelectionContextPanel({
   cartId,
   packageVersionId,
@@ -677,7 +859,13 @@ export function SelectionContextPanel({
   const publicSettings = usePublicSettings();
   const session = useSessionStore((state) => state.session);
   const deliveryLocation = useDeliveryLocationStore((state) => state.location);
+  const setDeliveryLocation = useDeliveryLocationStore(
+    (state) => state.setLocation,
+  );
   const addressBookRevision = useAddressBookStore((state) => state.revision);
+  const markAddressesChanged = useAddressBookStore(
+    (state) => state.markChanged,
+  );
   const pkg = useOrderBuilderStore((state) => state.package);
   const isKg = pkg?.packageType === 'ORDER_BY_KG';
   const setEvent = useOrderBuilderStore((state) => state.setEvent);
@@ -700,11 +888,12 @@ export function SelectionContextPanel({
   const [expanded, setExpanded] = useState(!sidebar);
   const [addressesExpanded, setAddressesExpanded] = useState(false);
   const [checkoutEditing, setCheckoutEditing] = useState(true);
+  const [scheduleChooserOpen, setScheduleChooserOpen] = useState(false);
 
   useEffect(() => {
-    if (!checkoutCompact || checkoutFieldError?.field !== 'address') return;
+    if (!checkoutCompact || !checkoutFieldError) return;
     setCheckoutEditing(true);
-    setAddressesExpanded(true);
+    if (checkoutFieldError.field === 'address') setAddressesExpanded(true);
   }, [checkoutCompact, checkoutFieldError?.field]);
   const [venueStatus, setVenueStatus] =
     useState<VenueServiceability>('checking');
@@ -754,17 +943,76 @@ export function SelectionContextPanel({
         session.accessToken,
       ),
     ])
-      .then(([rows, cart]) => {
+      .then(async ([rows, cart]) => {
         if (!current) return;
-        setAddresses(rows);
+        let availableAddresses = rows;
+        let forwardedAddressId = deliveryLocation?.savedAddressId ?? '';
+        if (
+          !forwardedAddressId &&
+          deliveryLocation?.source === 'manual' &&
+          deliveryLocation.address
+        ) {
+          const parsedAddress = createAddressSchema.safeParse({
+            addressType: 'EVENT_VENUE',
+            label: deliveryLocation.label || 'Event venue',
+            addressLine1: deliveryLocation.address.addressLine1,
+            addressLine2: deliveryLocation.address.addressLine2,
+            city: deliveryLocation.address.city,
+            state: deliveryLocation.address.state,
+            pincode: deliveryLocation.address.pincode,
+            landmark: deliveryLocation.address.landmark,
+            latitude: deliveryLocation.latitude,
+            longitude: deliveryLocation.longitude,
+            isDefault: false,
+          });
+          if (parsedAddress.success) {
+            let forwardedAddress = matchingSavedAddress(rows, deliveryLocation);
+            if (!forwardedAddress) {
+              forwardedAddress = await apiRequest<UserAddress>(
+                '/me/addresses',
+                {
+                  method: 'POST',
+                  body: JSON.stringify(parsedAddress.data),
+                },
+                session.accessToken,
+              );
+              availableAddresses = [...rows, forwardedAddress];
+              markAddressesChanged();
+            }
+            forwardedAddressId = forwardedAddress.id;
+            setDeliveryLocation({
+              latitude: forwardedAddress.latitude ?? deliveryLocation.latitude,
+              longitude:
+                forwardedAddress.longitude ?? deliveryLocation.longitude,
+              label:
+                forwardedAddress.label ||
+                forwardedAddress.addressLine2 ||
+                forwardedAddress.addressLine1,
+              source: 'saved',
+              savedAddressId: forwardedAddress.id,
+              address: {
+                addressLine1: forwardedAddress.addressLine1,
+                addressLine2: forwardedAddress.addressLine2 ?? undefined,
+                city: forwardedAddress.city,
+                state: forwardedAddress.state,
+                pincode: forwardedAddress.pincode,
+                landmark: forwardedAddress.landmark ?? undefined,
+              },
+              resolution: deliveryLocation.resolution,
+            });
+          }
+        }
+        if (!current) return;
+        setAddresses(availableAddresses);
         const savedAddressId =
           cart?.event?.address?.id ?? cart?.address?.id ?? '';
         const nextAddressId =
           selectedAddress ||
+          forwardedAddressId ||
           savedAddressId ||
-          deliveryLocation?.savedAddressId ||
           (!deliveryLocation
-            ? rows.find((row) => row.isDefault)?.id || rows[0]?.id
+            ? availableAddresses.find((row) => row.isDefault)?.id ||
+              availableAddresses[0]?.id
             : '') ||
           '';
         setAddressId(nextAddressId);
@@ -781,10 +1029,12 @@ export function SelectionContextPanel({
               (cart.event.region ?? cart.region)
             ),
           );
+          setScheduleChooserOpen(false);
         } else {
           setEventDate('');
           setEventTimeStart('');
           setCheckoutEditing(true);
+          setScheduleChooserOpen(false);
           setAssignedRegion(
             cart?.region ?? deliveryLocation?.resolution.region ?? null,
           );
@@ -1365,9 +1615,47 @@ export function SelectionContextPanel({
 
       {checkoutCompact && (
         <>
+          {!checkoutEditing && eventDate && eventTimeStart && (
+            <div className="mt-4 flex min-w-0 items-center gap-3 rounded-xl border border-border/60 bg-ivory/60 p-3 sm:p-4">
+              <CalendarClock
+                className="h-4 w-4 shrink-0 text-primary"
+                aria-hidden="true"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium leading-4 text-muted-foreground">
+                  Delivery date &amp; time
+                </p>
+                <p className="truncate text-sm font-semibold leading-5 text-foreground">
+                  {formattedEventSlot(eventDate, eventTimeStart)}
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-haspopup="dialog"
+                aria-expanded={scheduleChooserOpen}
+                onClick={() => setScheduleChooserOpen(true)}
+                className="inline-flex min-h-10 shrink-0 items-center px-1 text-sm font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              >
+                Change
+              </button>
+            </div>
+          )}
+          <ScheduleChooser
+            open={scheduleChooserOpen}
+            date={eventDate}
+            time={eventTimeStart}
+            minDate={firstEventDate}
+            slots={deliveryTimeSlots}
+            isSlotAvailable={isTimeAvailable}
+            saving={saving}
+            onDateChange={setEventDate}
+            onTimeChange={setEventTimeStart}
+            onClose={() => setScheduleChooserOpen(false)}
+          />
           <div
             className={cn(
-              'mt-4 rounded-xl border border-border/60 bg-ivory/60 p-3 transition-[border-color,box-shadow,background-color] sm:p-4',
+              'rounded-xl border border-border/60 bg-ivory/60 p-3 transition-[border-color,box-shadow,background-color] sm:p-4',
+              !checkoutEditing && eventDate && eventTimeStart ? 'mt-3' : 'mt-4',
               checkoutFieldError?.field === 'address' &&
                 'border-red-500 bg-red-50/70 ring-2 ring-red-200 shadow-[0_0_0_3px_rgba(239,68,68,0.08)]',
             )}
@@ -1382,9 +1670,6 @@ export function SelectionContextPanel({
                   <>
                     <p className="truncate text-sm font-semibold leading-5 text-foreground">
                       {selectedVenue.label || selectedVenue.addressLine1}
-                      {!checkoutEditing && eventDate && eventTimeStart && (
-                        <> · {formattedEventSlot(eventDate, eventTimeStart)}</>
-                      )}
                     </p>
                     <p className="truncate text-xs leading-4 text-muted-foreground">
                       {[

@@ -26,10 +26,12 @@ type PickerStatus =
   | 'locating'
   | 'geocoding'
   | 'ready'
+  | 'needs-address'
   | 'error';
 
 const INDIA_CENTER = { lat: 22.9734, lng: 78.6569 };
 const MOBILE_MAP_QUERY = '(max-width: 767px), (pointer: coarse)';
+const NEARBY_GEOCODE_OFFSET = 0.00045;
 
 const MAP_STYLES: google.maps.MapTypeStyle[] = [
   { elementType: 'geometry', stylers: [{ color: '#f5f0e8' }] },
@@ -137,6 +139,46 @@ function parseAddress(
   };
 }
 
+function isNoGeocodeResult(reason: unknown) {
+  const value =
+    typeof reason === 'string'
+      ? reason
+      : reason instanceof Error
+        ? reason.message
+        : String(reason);
+  return value.toUpperCase().includes('ZERO_RESULTS');
+}
+
+async function geocodeWithNearbyFallback(
+  geocoder: google.maps.Geocoder,
+  position: google.maps.LatLngLiteral,
+  useFullAddress = false,
+) {
+  const candidates = [
+    position,
+    { lat: position.lat + NEARBY_GEOCODE_OFFSET, lng: position.lng },
+    { lat: position.lat, lng: position.lng + NEARBY_GEOCODE_OFFSET },
+    { lat: position.lat - NEARBY_GEOCODE_OFFSET, lng: position.lng },
+    { lat: position.lat, lng: position.lng - NEARBY_GEOCODE_OFFSET },
+  ];
+
+  for (let index = 0; index < candidates.length; index += 1) {
+    try {
+      const response = await geocoder.geocode({ location: candidates[index] });
+      if (response.results[0]) {
+        return {
+          address: parseAddress(response.results[0], position, useFullAddress),
+          usedNearbyAddress: index > 0,
+        };
+      }
+    } catch (reason) {
+      if (!isNoGeocodeResult(reason)) throw reason;
+    }
+  }
+
+  return undefined;
+}
+
 export async function reverseGeocodeLocation(
   latitude: string,
   longitude: string,
@@ -148,12 +190,11 @@ export async function reverseGeocodeLocation(
     return undefined;
   configureGoogleMaps(apiKey);
   await importLibrary('geocoding');
-  const response = await new google.maps.Geocoder().geocode({
-    location: position,
-  });
-  return response.results[0]
-    ? parseAddress(response.results[0], position)
-    : undefined;
+  const result = await geocodeWithNearbyFallback(
+    new google.maps.Geocoder(),
+    position,
+  );
+  return result?.address;
 }
 
 function placeComponentValue(
@@ -235,7 +276,8 @@ export function AddressMapPicker({
   const map = useRef<google.maps.Map | null>(null);
   const marker = useRef<google.maps.Marker | null>(null);
   const geocoder = useRef<google.maps.Geocoder | null>(null);
-  const searchToken = useRef<google.maps.places.AutocompleteSessionToken | null>(null);
+  const searchToken =
+    useRef<google.maps.places.AutocompleteSessionToken | null>(null);
   const selectionVersion = useRef(0);
   const initialPositionRef = useRef(initialPosition);
   const [status, setStatus] = useState<PickerStatus>('idle');
@@ -243,7 +285,9 @@ export function AddressMapPicker({
   const [searchFocused, setSearchFocused] = useState(false);
   const [searchReady, setSearchReady] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [suggestions, setSuggestions] = useState<google.maps.places.AutocompleteSuggestion[]>([]);
+  const [suggestions, setSuggestions] = useState<
+    google.maps.places.AutocompleteSuggestion[]
+  >([]);
   const apiKey = publicEnv.googleMapsApiKey;
 
   async function selectPosition(
@@ -259,32 +303,59 @@ export function AddressMapPicker({
     setStatus('geocoding');
     setMessage('Finding the postal address…');
     try {
-      const response = await geocoder.current.geocode({ location: position });
+      const result = await geocodeWithNearbyFallback(
+        geocoder.current,
+        position,
+        true,
+      );
       if (version !== selectionVersion.current) return;
-      if (!response.results[0])
-        throw new Error('No address was found for this point.');
-      const address = parseAddress(response.results[0], position, true);
+      if (!result) {
+        onAddress(
+          {
+            addressLine1: '',
+            addressLine2: '',
+            city: '',
+            state: '',
+            pincode: '',
+            landmark: '',
+            latitude: position.lat.toFixed(8),
+            longitude: position.lng.toFixed(8),
+          },
+          source,
+        );
+        setStatus('needs-address');
+        setMessage('Address not found. Search above or move the pin slightly.');
+        return;
+      }
+      const { address, usedNearbyAddress } = result;
       onAddress(address, source);
       setStatus('ready');
       setMessage(
-        address.pincode
-          ? 'Location selected. Review the address below.'
-          : 'Location selected, but the pincode needs to be entered manually.',
+        usedNearbyAddress
+          ? 'Nearby address selected. Please review it before continuing.'
+          : address.pincode
+            ? 'Location selected. Review the address below.'
+            : 'Location selected, but the pincode needs to be entered manually.',
       );
     } catch {
       if (version !== selectionVersion.current) return;
-      onAddress({
-        addressLine1: '',
-        addressLine2: '',
-        city: '',
-        state: '',
-        pincode: '',
-        landmark: '',
-        latitude: position.lat.toFixed(8),
-        longitude: position.lng.toFixed(8),
-      }, source);
-      setStatus('error');
-      setMessage('Google Maps could not find an address for this pin. Try a nearby point or enter the address manually.');
+      onAddress(
+        {
+          addressLine1: '',
+          addressLine2: '',
+          city: '',
+          state: '',
+          pincode: '',
+          landmark: '',
+          latitude: position.lat.toFixed(8),
+          longitude: position.lng.toFixed(8),
+        },
+        source,
+      );
+      setStatus('needs-address');
+      setMessage(
+        'Address lookup is unavailable. Search above or enter the address manually.',
+      );
     }
   }
 
@@ -320,9 +391,12 @@ export function AddressMapPicker({
       let address = parsePlaceAddress(place, position);
       if (!address.pincode && geocoder.current) {
         try {
-          const response = await geocoder.current.geocode({ location: position });
+          const response = await geocoder.current.geocode({
+            location: position,
+          });
           if (version !== selectionVersion.current) return;
-          if (response.results[0]) address = parseAddress(response.results[0], position);
+          if (response.results[0])
+            address = parseAddress(response.results[0], position);
         } catch {
           // Keep the selected place details if reverse geocoding is unavailable.
         }
@@ -338,7 +412,9 @@ export function AddressMapPicker({
       if (version !== selectionVersion.current) return;
       console.error('[AddressMapPicker] Place selection failed', reason);
       setStatus('error');
-      setMessage('We could not load that place. Try another result or choose a point on the map.');
+      setMessage(
+        'We could not load that place. Try another result or choose a point on the map.',
+      );
       onSearchError?.();
     } finally {
       searchToken.current = null;
@@ -346,26 +422,36 @@ export function AddressMapPicker({
   }
 
   useEffect(() => {
-    if (!inlineMobileSearch || !searchReady || !searchFocused || searchQuery.trim().length < 2) {
+    if (
+      !inlineMobileSearch ||
+      !searchReady ||
+      !searchFocused ||
+      searchQuery.trim().length < 2
+    ) {
       return;
     }
     let active = true;
     const timer = window.setTimeout(() => {
       searchToken.current ??= new google.maps.places.AutocompleteSessionToken();
-      void google.maps.places.AutocompleteSuggestion.fetchAutocompleteSuggestions({
-        input: searchQuery.trim(),
-        includedRegionCodes: ['in'],
-        language: 'en',
-        region: 'in',
-        sessionToken: searchToken.current,
-      })
+      void google.maps.places.AutocompleteSuggestion.fetchAutocompleteSuggestions(
+        {
+          input: searchQuery.trim(),
+          includedRegionCodes: ['in'],
+          language: 'en',
+          region: 'in',
+          sessionToken: searchToken.current,
+        },
+      )
         .then(({ suggestions: results }) => {
-          if (active) setSuggestions(results.filter((result) => result.placePrediction));
+          if (active)
+            setSuggestions(results.filter((result) => result.placePrediction));
         })
         .catch(() => {
           if (active) {
             setSuggestions([]);
-            setMessage('Place search is temporarily unavailable. Choose a point on the map.');
+            setMessage(
+              'Place search is temporarily unavailable. Choose a point on the map.',
+            );
           }
         });
     }, 250);
@@ -493,7 +579,11 @@ export function AddressMapPicker({
           const latitude = Number(initial.latitude);
           const longitude = Number(initial.longitude);
           if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
-            void selectPosition({ lat: latitude, lng: longitude }, 17, 'initial');
+            void selectPosition(
+              { lat: latitude, lng: longitude },
+              17,
+              'initial',
+            );
           }
         }
         window.addEventListener('resize', resizeMap);
@@ -536,7 +626,11 @@ export function AddressMapPicker({
     const requestVersion = ++selectionVersion.current;
     const selectCurrentPosition: PositionCallback = ({ coords }) => {
       if (requestVersion !== selectionVersion.current) return;
-      void selectPosition({ lat: coords.latitude, lng: coords.longitude }, 18, 'current');
+      void selectPosition(
+        { lat: coords.latitude, lng: coords.longitude },
+        18,
+        'current',
+      );
     };
     const showLocationError = (error: GeolocationPositionError) => {
       if (requestVersion !== selectionVersion.current) return;
@@ -590,9 +684,11 @@ export function AddressMapPicker({
   const statusStyle =
     status === 'error'
       ? 'border-red-200 bg-red-50 text-red-800'
-      : status === 'ready'
-        ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-        : 'border-border bg-white text-muted-foreground';
+      : status === 'needs-address'
+        ? 'border-amber-200 bg-amber-50 text-amber-900'
+        : status === 'ready'
+          ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+          : 'border-border bg-white text-muted-foreground';
 
   return (
     <div className="address-map-picker min-w-0 rounded-2xl border border-border bg-[hsl(var(--ivory))] p-2.5 shadow-sm sm:p-4">
@@ -611,7 +707,11 @@ export function AddressMapPicker({
               type="search"
               value={searchQuery}
               disabled={!searchReady}
-              placeholder={searchReady ? 'Search for an address or venue' : 'Loading search…'}
+              placeholder={
+                searchReady
+                  ? 'Search for an address or venue'
+                  : 'Loading search…'
+              }
               aria-label="Search Google Maps"
               aria-controls="mobile-place-suggestions"
               aria-expanded={suggestions.length > 0}
@@ -647,8 +747,14 @@ export function AddressMapPicker({
         </Button>
       </div>
       {(status === 'locating' || status === 'geocoding') && (
-        <p role="status" className="mt-3 flex items-center gap-2 rounded-xl border border-primary/15 bg-white px-3 py-2.5 text-sm font-medium text-primary">
-          <LoaderCircle className="h-4 w-4 shrink-0 animate-spin" aria-hidden="true" />
+        <p
+          role="status"
+          className="mt-3 flex items-center gap-2 rounded-xl border border-primary/15 bg-white px-3 py-2.5 text-sm font-medium text-primary"
+        >
+          <LoaderCircle
+            className="h-4 w-4 shrink-0 animate-spin"
+            aria-hidden="true"
+          />
           {message}
         </p>
       )}
@@ -671,7 +777,10 @@ export function AddressMapPicker({
                 onClick={() => void selectPlace(prediction)}
                 className="flex min-h-12 w-full items-start gap-2 border-b border-border/60 px-3 py-2 text-left text-sm last:border-b-0 hover:bg-primary/[0.05]"
               >
-                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                <MapPin
+                  className="mt-0.5 h-4 w-4 shrink-0 text-primary"
+                  aria-hidden="true"
+                />
                 <span className="min-w-0">
                   <strong className="block font-semibold text-foreground">
                     {prediction.mainText?.text ?? prediction.text.text}
