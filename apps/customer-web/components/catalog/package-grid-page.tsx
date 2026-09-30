@@ -22,6 +22,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiRequest } from '../../lib/api';
 import { notifyCartCleared, subscribeToCartCleared } from '../../lib/cart-state';
 import { formatCategoryLabel } from '../../lib/format';
+import { customerPackageName } from '../../lib/catalog-display';
 import { sortMenuCategories } from '../../lib/menu-category-order';
 import { useDeliveryLocationStore } from '../../store/delivery-location.store';
 import { useOrderBuilderStore } from '../../store/order-builder.store';
@@ -472,9 +473,10 @@ export function PackageGridPage({
                 }),
                 (category) => category.categoryName,
               );
+              const isCustomPackage = pkg.type === 'CUSTOM_PACKAGE';
               const mealBoxDisplayName = isMealBox
                 ? formatMealBoxDisplayName(pkg.name)
-                : pkg.name;
+                : customerPackageName(pkg);
               const mobileIncludedSummary = categoryHighlights.length
                 ? `${categoryHighlights
                     .slice(0, 3)
@@ -513,7 +515,7 @@ export function PackageGridPage({
                     type="button"
                     onClick={() => updateDetails(pkg.id)}
                     className={`w-full text-left ${isMealBox ? 'flex items-stretch sm:block' : 'block'}`}
-                    aria-label={`View details for ${pkg.name}`}
+                    aria-label={`View details for ${customerPackageName(pkg)}`}
                   >
                     <div
                       className={`relative shrink-0 overflow-hidden bg-muted/50 ${
@@ -524,7 +526,7 @@ export function PackageGridPage({
                     >
                       <DataImage
                         src={pkg.imageUrl}
-                        alt={`${pkg.name} presentation`}
+                        alt={`${customerPackageName(pkg)} presentation`}
                         className="h-full w-full object-cover transition-transform duration-500 [transition-timing-function:cubic-bezier(.22,.61,.36,1)] group-hover:scale-[1.045]"
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent opacity-80" />
@@ -550,7 +552,7 @@ export function PackageGridPage({
                               </span>
                               {isMealBox && (
                                 <span className="hidden sm:inline">
-                                  {pkg.name}
+                                  {customerPackageName(pkg)}
                                 </span>
                               )}
                             </h2>
@@ -570,13 +572,19 @@ export function PackageGridPage({
                       </div>
                       {isOccasionPackages ? (
                         <div className="mt-1.5 flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 text-[12px] leading-5 sm:hidden">
-                          <p className="flex min-w-0 items-baseline gap-x-1 whitespace-nowrap text-muted-foreground">
-                            <span>From</span>
-                            <strong className="money-text text-[15px] font-extrabold text-primary">
-                              &#8377;{formatCatalogPrice(version.basePricePerPlate)}
-                            </strong>
-                            <span>per guest</span>
-                          </p>
+                          {isCustomPackage ? (
+                            <p className="font-semibold text-primary">
+                              Price calculated as you build
+                            </p>
+                          ) : (
+                            <p className="flex min-w-0 items-baseline gap-x-1 whitespace-nowrap text-muted-foreground">
+                              <span>From</span>
+                              <strong className="money-text text-[15px] font-extrabold text-primary">
+                                &#8377;{formatCatalogPrice(version.basePricePerPlate)}
+                              </strong>
+                              <span>per guest</span>
+                            </p>
+                          )}
                           <p className="ml-auto whitespace-nowrap font-semibold text-foreground/85">
                             {version.minGuestCount}
                             {version.maxGuestCount
@@ -618,15 +626,23 @@ export function PackageGridPage({
                       )}
                       <div className="mt-3 hidden grid-cols-2 overflow-hidden rounded-[14px] border border-border bg-ivory sm:grid">
                         <div className="border-r border-border px-3 py-2">
-                          <p className="hidden text-[10.5px] font-extrabold text-muted-foreground sm:block">
-                            From
-                          </p>
-                          <strong className="money-text mt-0.5 hidden text-[18px] font-extrabold leading-none text-primary sm:block">
-                            &#8377;{formatCatalogPrice(version.basePricePerPlate)}
-                          </strong>
-                          <p className="mt-0.5 hidden text-[10.5px] font-semibold text-muted-foreground sm:block">
-                            per guest
-                          </p>
+                          {isCustomPackage ? (
+                            <p className="text-xs font-semibold leading-5 text-primary">
+                              Price calculated as you build
+                            </p>
+                          ) : (
+                            <>
+                              <p className="hidden text-[10.5px] font-extrabold text-muted-foreground sm:block">
+                                From
+                              </p>
+                              <strong className="money-text mt-0.5 hidden text-[18px] font-extrabold leading-none text-primary sm:block">
+                                &#8377;{formatCatalogPrice(version.basePricePerPlate)}
+                              </strong>
+                              <p className="mt-0.5 hidden text-[10.5px] font-semibold text-muted-foreground sm:block">
+                                per guest
+                              </p>
+                            </>
+                          )}
                         </div>
                         <div className="px-3 py-2">
                           <p className="hidden text-[10.5px] font-extrabold text-muted-foreground sm:block">
@@ -644,22 +660,6 @@ export function PackageGridPage({
                       <span className="mt-2 hidden w-fit rounded-full bg-emerald-50 px-2.5 py-1 text-[10.5px] font-extrabold text-emerald-800 ring-1 ring-inset ring-emerald-200 sm:inline-flex">
                         Includes packaging
                       </span>
-                      <div className="hidden">
-                        <strong className="money-text text-xl font-extrabold text-primary">
-                          ₹{version.basePricePerPlate}
-                          <span className="text-xs font-normal text-muted-foreground">
-                            {' '}
-                            / person
-                          </span>
-                        </strong>
-                        <span className="text-xs font-semibold text-muted-foreground">
-                          {version.minGuestCount}
-                          {version.maxGuestCount
-                            ? `–${version.maxGuestCount}`
-                            : '+'}{' '}
-                          guests
-                        </span>
-                      </div>
                       <span className="hidden">
                         View package details <ArrowRight className="h-4 w-4" />
                       </span>
@@ -842,8 +842,12 @@ export function PackageGridPage({
       )}
       {pendingPackage && (
         <PackageChangeDialog
-          currentName={currentPackage?.packageName ?? 'your current package'}
-          nextName={pendingPackage.name}
+          currentName={
+            currentPackage?.packageType === 'CUSTOM_PACKAGE'
+              ? 'Build Your Own Menu'
+              : currentPackage?.packageName ?? 'your current package'
+          }
+          nextName={customerPackageName(pendingPackage)}
           selecting={selecting === pendingPackage.id}
           onCancel={() => setPendingPackage(null)}
           onClear={() => void clearCartAndChoose(pendingPackage, pendingIntent)}

@@ -692,6 +692,7 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
         contactNumber: cart.contactNumber,
         packageType: cart.packageVersion.package.type,
         packageName: quote.packageName,
+        packageImageUrl: cart.packageVersion.package.imageUrl ?? null,
         packageVersionNo: cart.packageVersion.versionNo,
         guestCount: quote.guestCount,
         basePerPlatePrice: quote.basePerPlatePrice,

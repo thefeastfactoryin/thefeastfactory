@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  formatTimeOfDay,
   OperatingRegion,
   OrderSummary,
   PaginatedResponse,
@@ -262,9 +263,9 @@ export default function AdminOrders() {
                   {order.event?.eventName || order.packageName}
                   <span className="block text-xs text-muted-foreground">
                     {order.event?.eventDate
-                      ? new Date(order.event.eventDate).toLocaleDateString(
+                      ? `${new Date(order.event.eventDate).toLocaleDateString(
                           'en-IN',
-                        )
+                        )} · ${formatTimeOfDay(order.event.eventTimeStart, 'Time not set')}`
                       : ''}
                   </span>
                   {order.specialNotes && (
@@ -322,9 +323,9 @@ export default function AdminOrders() {
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {order.event?.eventDate
-                    ? new Date(order.event.eventDate).toLocaleDateString(
+                    ? `${new Date(order.event.eventDate).toLocaleDateString(
                         'en-IN',
-                      )
+                      )} · ${formatTimeOfDay(order.event.eventTimeStart, 'Time not set')}`
                     : 'Event date not set'}
                 </p>
               </div>

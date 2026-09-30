@@ -1379,6 +1379,7 @@ export interface components {
             readonly isVeg: boolean;
             /** @example Paneer Tikka */
             readonly name: string;
+            readonly orderByKgDetails?: string | null;
             /** @example 400.00 */
             readonly pricePerKg?: string | null;
         };
@@ -1439,6 +1440,7 @@ export interface components {
             readonly isActive: boolean;
             /** @example Paneer Tikka */
             readonly name: string;
+            readonly orderByKgDetails?: string | null;
         };
         readonly ImportMenuItemsDto: {
             /** @default false */
@@ -1585,6 +1587,7 @@ export interface components {
             readonly isVeg: boolean;
             /** @example Paneer Tikka */
             readonly name?: string;
+            readonly orderByKgDetails?: string | null;
             /** @example 400.00 */
             readonly pricePerKg?: string | null;
         };

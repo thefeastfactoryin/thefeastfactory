@@ -13,6 +13,7 @@ type ImportRow = {
   category: string;
   name: string;
   description?: string;
+  orderByKgDetails?: string | null;
   boxPrice: string;
   generalPrice: string;
   foodType: 'VEG' | 'NON_VEG';
@@ -24,7 +25,7 @@ type PreviewRow = ImportRow & { rowNumber: number; errors: string[] };
 type ImportSummary = { total: number; created: number; updated: number; skipped: number };
 
 const requiredHeaders = ['category', 'name', 'boxPrice', 'generalPrice', 'foodType'];
-const template = `category,name,description,boxPrice,generalPrice,foodType,isActive,imageUrl\nStarters,Paneer Tikka,Chargrilled cottage cheese,120.00,150.00,VEG,true,https://example.com/paneer.jpg\n`;
+const template = `category,name,description,orderByKgDetails,boxPrice,generalPrice,foodType,isActive,imageUrl\nStarters,Paneer Tikka,Chargrilled cottage cheese,,120.00,150.00,VEG,true,https://example.com/paneer.jpg\n`;
 
 function parseCsv(text: string) {
   const rows: string[][] = [];
@@ -136,6 +137,7 @@ export default function MenuImport() {
       if (!record.name) errors.push('Name is required');
       if (!isMoney(record.boxPrice)) errors.push('Invalid meal-box price');
       if (!isMoney(record.generalPrice)) errors.push('Invalid package price');
+      if ((record.orderByKgDetails ?? '').length > 300) errors.push('Order by KG details must be 300 characters or less');
       if (!['VEG', 'NON_VEG'].includes(foodType)) errors.push('Food type must be VEG or NON_VEG');
       if (record.imageUrl) {
         try { new URL(record.imageUrl); } catch { errors.push('Image URL is invalid'); }
@@ -145,6 +147,7 @@ export default function MenuImport() {
         category: record.category,
         name: record.name,
         description: record.description || undefined,
+        orderByKgDetails: record.orderByKgDetails === undefined ? undefined : record.orderByKgDetails || null,
         boxPrice: record.boxPrice,
         generalPrice: record.generalPrice,
         foodType: (foodType === 'NON_VEG' ? 'NON_VEG' : 'VEG') as ImportRow['foodType'],
@@ -182,6 +185,7 @@ export default function MenuImport() {
               category: row.category,
               name: row.name,
               description: row.description,
+              orderByKgDetails: row.orderByKgDetails,
               boxPrice: row.boxPrice,
               generalPrice: row.generalPrice,
               foodType: row.foodType,

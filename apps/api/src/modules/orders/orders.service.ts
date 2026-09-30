@@ -23,7 +23,7 @@ import type {
   UserAddress,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { storedEventInstant } from '../../common/event-time';
+import { storedEventInstant, storedEventTime } from '../../common/event-time';
 import { OperatingRegionsService } from '../operating-regions/operating-regions.service';
 import { PricingService } from '../pricing/pricing.service';
 import { CancelOrderDto } from './dto/cancel-order.dto';
@@ -146,6 +146,7 @@ export class OrdersService {
             cutleryUnitPrice,
             cutleryTotal,
             packageName: menuQuote.packageName,
+            packageImageUrl: cart.packageVersion.package.imageUrl ?? null,
             packageVersionNo: menuQuote.packageVersionNo,
             orderStatus: OrderStatus.PENDING_PAYMENT,
             bookingLeadHours: leadHours,
@@ -367,7 +368,9 @@ export class OrdersService {
       event: {
         eventName: order.eventName,
         eventDate: order.eventDate,
-        eventTimeStart: order.eventTimeStart,
+        eventTimeStart: order.eventTimeStart
+          ? storedEventTime(order.eventTimeStart)
+          : null,
         address: order.address,
         region,
         distanceKm,

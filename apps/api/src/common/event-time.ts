@@ -11,6 +11,10 @@ export function eventLocalInstant(date: string, time: string) {
 
 export function storedEventInstant(eventDate: Date, eventTime: Date) {
   const date = eventDate.toISOString().slice(0, 10);
-  const time = eventTime.toISOString().slice(11, 16);
+  const time = storedEventTime(eventTime);
   return eventLocalInstant(date, time);
+}
+
+export function storedEventTime(eventTime: Date) {
+  return eventTime.toISOString().slice(11, 16);
 }

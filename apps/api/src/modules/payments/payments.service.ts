@@ -646,6 +646,7 @@ export class PaymentsService {
               cutleryUnitPrice: cart.cutleryUnitPrice,
               cutleryTotal: cart.cutleryTotal,
               packageName: cart.packageName,
+              packageImageUrl: cart.packageImageUrl ?? null,
               packageVersionNo: cart.packageVersionNo,
               orderStatus: OrderStatus.CONFIRMED,
               paymentStatus: PaymentStatus.PAID,

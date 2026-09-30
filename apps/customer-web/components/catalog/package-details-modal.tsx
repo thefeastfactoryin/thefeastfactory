@@ -16,6 +16,7 @@ import {
   X,
 } from 'lucide-react';
 import { useEffect, useMemo } from 'react';
+import { customerPackageName } from '../../lib/catalog-display';
 import { formatCategoryLabel, formatCurrency } from '../../lib/format';
 import { sortMenuCategories } from '../../lib/menu-category-order';
 import { cn } from '../../lib/utils';
@@ -93,6 +94,7 @@ export function PackageDetailsModal({
   const isVegetarianPackage =
     includedItems.length > 0 && includedItems.every((item) => item.isVeg);
   const isMealBox = pkg.type === 'MEAL_BOX';
+  const isCustomPackage = pkg.type === 'CUSTOM_PACKAGE';
   const version = pkg.activeVersion;
 
   return (
@@ -123,7 +125,7 @@ export function PackageDetailsModal({
           <div className="relative aspect-[2.6/1] min-h-[8rem] overflow-hidden bg-muted sm:aspect-auto sm:h-72 lg:h-[360px]">
             <DataImage
               src={pkg.imageUrl}
-              alt={`${pkg.name} presentation`}
+              alt={`${customerPackageName(pkg)} presentation`}
               className="h-full w-full object-cover"
               style={{ objectPosition: getPackageHeroImagePosition(pkg.imageUrl) }}
             />
@@ -133,7 +135,7 @@ export function PackageDetailsModal({
                 id="package-details-title"
                 className="font-serif text-2xl font-semibold leading-tight sm:text-4xl"
               >
-                {pkg.name}
+                {customerPackageName(pkg)}
               </h2>
             </div>
           </div>
@@ -148,11 +150,19 @@ export function PackageDetailsModal({
 
               <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground lg:hidden">
                 <span>
-                  {!isMealBox && 'From '}
-                  <strong className="money-text text-base font-extrabold text-primary">
-                    {formatPackagePrice(version?.basePricePerPlate)}
-                  </strong>{' '}
-                  / guest
+                  {isCustomPackage ? (
+                    <strong className="font-semibold text-primary">
+                      Price calculated as you build
+                    </strong>
+                  ) : (
+                    <>
+                      {!isMealBox && 'From '}
+                      <strong className="money-text text-base font-extrabold text-primary">
+                        {formatPackagePrice(version?.basePricePerPlate)}
+                      </strong>{' '}
+                      / guest
+                    </>
+                  )}
                 </span>
                 <span aria-hidden="true">·</span>
                 <span>
@@ -280,10 +290,18 @@ export function PackageDetailsModal({
               <p className="text-xs font-bold text-muted-foreground">
                 Package essentials
               </p>
-              <p className="money-text mt-3 text-3xl font-extrabold text-primary">
-                {formatPackagePrice(version?.basePricePerPlate)}
-              </p>
-              <p className="text-xs text-muted-foreground">per person</p>
+              {isCustomPackage ? (
+                <p className="mt-3 text-sm font-semibold text-primary">
+                  Price calculated as you build
+                </p>
+              ) : (
+                <>
+                  <p className="money-text mt-3 text-3xl font-extrabold text-primary">
+                    {formatPackagePrice(version?.basePricePerPlate)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">per person</p>
+                </>
+              )}
               <div className="my-4 h-px bg-border" />
               <div className="flex items-center gap-2 text-sm">
                 <Users className="h-4 w-4 text-primary" />
@@ -328,7 +346,7 @@ export function PackageDetailsModal({
         <footer className="shrink-0 border-t bg-white px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] shadow-[0_-8px_24px_rgba(45,31,20,0.08)] sm:px-7 sm:py-4">
           <div className="mx-auto flex max-w-5xl items-center justify-between gap-4">
             <div className="hidden sm:block">
-              <p className="font-bold">{pkg.name}</p>
+              <p className="font-bold">{customerPackageName(pkg)}</p>
               <p className="text-xs text-muted-foreground">
                 Review and customize before payment.
               </p>

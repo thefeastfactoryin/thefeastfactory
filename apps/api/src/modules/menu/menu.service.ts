@@ -128,6 +128,7 @@ export class MenuService {
         categoryId: dto.categoryId,
         name: dto.name.trim(),
         description: dto.description?.trim(),
+        orderByKgDetails: dto.orderByKgDetails?.trim() || null,
         boxPrice: new Prisma.Decimal(dto.boxPrice),
         generalPrice: new Prisma.Decimal(dto.generalPrice),
         pricePerKg: dto.pricePerKg ? new Prisma.Decimal(dto.pricePerKg) : null,
@@ -192,6 +193,9 @@ export class MenuService {
           categoryId: category.id,
           name,
           description: row.description?.trim() || null,
+          ...(row.orderByKgDetails !== undefined
+            ? { orderByKgDetails: row.orderByKgDetails?.trim() || null }
+            : {}),
           boxPrice: new Prisma.Decimal(row.boxPrice),
           generalPrice: new Prisma.Decimal(row.generalPrice),
           isVeg: row.foodType === 'VEG',
@@ -237,6 +241,9 @@ export class MenuService {
           ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
           ...(dto.description !== undefined
             ? { description: dto.description?.trim() }
+            : {}),
+          ...(dto.orderByKgDetails !== undefined
+            ? { orderByKgDetails: dto.orderByKgDetails?.trim() || null }
             : {}),
           ...(dto.boxPrice !== undefined
             ? { boxPrice: new Prisma.Decimal(dto.boxPrice) }

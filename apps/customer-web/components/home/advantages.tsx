@@ -1,6 +1,6 @@
 import {
+  BadgeCheck,
   Clock3,
-  HeartPulse,
   Leaf,
   ShieldCheck,
   type LucideIcon,
@@ -22,9 +22,9 @@ const advantages: Array<{
     icon: ShieldCheck,
   },
   {
-    title: 'Balanced nutrition',
-    description: 'Curated for a wholesome meal',
-    icon: HeartPulse,
+    title: 'Licensed Kitchen',
+    description: 'Prepared in a licensed kitchen',
+    icon: BadgeCheck,
   },
   {
     title: 'Timely delivery',

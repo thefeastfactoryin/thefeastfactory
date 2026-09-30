@@ -180,19 +180,20 @@ model MenuCategory {
 }
 
 model MenuItem {
-  id           String    @id @default(uuid())
-  categoryId   String    @map("category_id")
-  name         String    @db.VarChar(150)
-  description  String?   @db.VarChar(1000)
-  boxPrice     Decimal   @map("box_price") @db.Decimal(10, 2)
-  generalPrice Decimal   @map("general_price") @db.Decimal(10, 2)
-  pricePerKg   Decimal?  @map("price_per_kg") @db.Decimal(10, 2)
-  isVeg        Boolean   @default(true) @map("is_veg")
-  isActive     Boolean   @default(true) @map("is_active")
-  imageUrl     String?   @map("image_url") @db.VarChar(500)
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at")
-  deletedAt    DateTime? @map("deleted_at")
+  id               String    @id @default(uuid())
+  categoryId       String    @map("category_id")
+  name             String    @db.VarChar(150)
+  description      String?   @db.VarChar(1000)
+  orderByKgDetails String?   @map("order_by_kg_details") @db.VarChar(300)
+  boxPrice         Decimal   @map("box_price") @db.Decimal(10, 2)
+  generalPrice     Decimal   @map("general_price") @db.Decimal(10, 2)
+  pricePerKg       Decimal?  @map("price_per_kg") @db.Decimal(10, 2)
+  isVeg            Boolean   @default(true) @map("is_veg")
+  isActive         Boolean   @default(true) @map("is_active")
+  imageUrl         String?   @map("image_url") @db.VarChar(500)
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at")
+  deletedAt        DateTime? @map("deleted_at")
 
   category                  MenuCategory        @relation(fields: [categoryId], references: [id])
   packageMenuItems          PackageMenuItem[]
@@ -434,8 +435,9 @@ model Order {
   cutleryTotal              Decimal             @default(0) @map("cutlery_total") @db.Decimal(10, 2)
   contactNumber             String              @map("contact_number") @db.VarChar(10)
 
-  packageName      String @map("package_name") @db.VarChar(100)
-  packageVersionNo Int    @map("package_version_no")
+  packageName      String  @map("package_name") @db.VarChar(100)
+  packageImageUrl  String? @map("package_image_url") @db.VarChar(500)
+  packageVersionNo Int     @map("package_version_no")
 
   orderStatus   OrderStatus   @default(DRAFT) @map("order_status")
   paymentStatus PaymentStatus @default(PENDING) @map("payment_status")

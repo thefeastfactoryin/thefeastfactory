@@ -68,20 +68,28 @@ export const useOrderBuilderStore = create<OrderBuilderState>()(
       setGuestCount: (guestCount) => set({ guestCount }),
       toggleItem: (item, maxSelections) => {
         const state = get();
+        const sameSelection = (selected: SelectedItem) =>
+          selected.menuItemId === item.menuItemId &&
+          selected.role === item.role &&
+          (selected.replacedMenuItemId ?? null) ===
+            (item.replacedMenuItemId ?? null);
         const exists = state.selectedItems.some(
-          (selected) => selected.menuItemId === item.menuItemId,
+          (selected) => sameSelection(selected),
         );
         if (exists) {
           set({
             selectedItems: state.selectedItems.filter(
-              (selected) => selected.menuItemId !== item.menuItemId,
+              (selected) => !sameSelection(selected),
             ),
           });
           return true;
         }
 
         const categoryCount = state.selectedItems.filter(
-          (selected) => selected.categoryId === item.categoryId,
+          (selected) =>
+            selected.categoryId === item.categoryId &&
+            selected.role === item.role &&
+            (selected.replacedMenuItemId ?? null) === null,
         ).length;
         if (!state.package?.isCustom && categoryCount >= maxSelections)
           return false;
@@ -104,7 +112,9 @@ export const useOrderBuilderStore = create<OrderBuilderState>()(
       updateItemQuantity: (menuItemId, quantity) =>
         set((state) => ({
           selectedItems: state.selectedItems.map((selected) =>
-            selected.menuItemId === menuItemId
+            selected.menuItemId === menuItemId &&
+            selected.role === 'EXTRA' &&
+            !selected.replacedMenuItemId
               ? { ...selected, quantity }
               : selected,
           ),
@@ -112,7 +122,12 @@ export const useOrderBuilderStore = create<OrderBuilderState>()(
       removeItem: (menuItemId) =>
         set((state) => ({
           selectedItems: state.selectedItems.filter(
-            (selected) => selected.menuItemId !== menuItemId,
+            (selected) =>
+              !(
+                selected.menuItemId === menuItemId &&
+                selected.role === 'EXTRA' &&
+                !selected.replacedMenuItemId
+              ),
           ),
         })),
       removeSwap: (replacedMenuItemId) =>

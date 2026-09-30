@@ -26,6 +26,7 @@ const snapshot: CheckoutSnapshot = {
       contactNumber: '9876543210',
       packageType: PackageType.FIXED_PACKAGE,
       packageName: 'Lunch',
+      packageImageUrl: '/pkg-lunch.png',
       packageVersionNo: 1,
       guestCount: 10,
       basePerPlatePrice: '139.90',
@@ -53,7 +54,10 @@ test('payment snapshot preserves fixed-package menu before any order exists', as
     packageVersionId: 'version-1',
     packageVersion: {
       versionNo: 1,
-      package: { type: PackageType.FIXED_PACKAGE },
+      package: {
+        type: PackageType.FIXED_PACKAGE,
+        imageUrl: '/pkg-lunch.png',
+      },
     },
     addressId: 'address-1',
     regionId: 'region-1',
@@ -122,6 +126,7 @@ test('payment snapshot preserves fixed-package menu before any order exists', as
 
   const prepared = await carts.preparePayment('user-1');
   assert.equal(prepared.totalAmount, '1499.00');
+  assert.equal(prepared.carts[0].packageImageUrl, '/pkg-lunch.png');
   assert.equal(prepared.carts[0].selectedItems[0].menuItemName, 'Paneer curry');
   assert.equal(prepared.carts[0].selectedItems[0].role, 'INCLUDED');
 });
@@ -196,6 +201,7 @@ test('cart payment attempts keep carts active and create orders only after verif
   assert.equal(createdOrders.length, 1);
   assert.equal(createdOrders[0].orderStatus, OrderStatus.CONFIRMED);
   assert.equal(createdOrders[0].paymentStatus, PaymentStatus.PAID);
+  assert.equal(createdOrders[0].packageImageUrl, '/pkg-lunch.png');
   assert.equal(attempt?.status, CheckoutAttemptStatus.PAID);
 
   const repeated = await payments.verify('user-1', {

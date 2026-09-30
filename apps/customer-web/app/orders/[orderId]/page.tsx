@@ -1,9 +1,10 @@
 'use client';
 
-import type {
-  OrderDetails,
-  OrderDocument,
-  OrderSelectedItem,
+import {
+  formatTimeOfDay,
+  type OrderDetails,
+  type OrderDocument,
+  type OrderSelectedItem,
 } from '@aranyam/shared-types';
 import {
   ArrowLeft,
@@ -112,6 +113,7 @@ export default function OrderPage() {
         year: 'numeric',
       })
     : 'Date unavailable';
+  const deliveryTime = formatTimeOfDay(order.event?.eventTimeStart);
 
   return (
     <main className="min-h-screen bg-background pb-24">
@@ -166,11 +168,7 @@ export default function OrderPage() {
             }
           />
           <Fact icon={CalendarDays} label="Event date" value={eventDate} />
-          <Fact
-            icon={Clock3}
-            label="Delivery time"
-            value={order.event?.eventTimeStart || 'Time unavailable'}
-          />
+          <Fact icon={Clock3} label="Delivery time" value={deliveryTime} />
         </section>
 
         <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
@@ -269,8 +267,7 @@ export default function OrderPage() {
                   {order.event.eventName || order.packageName}
                 </p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {eventDate} ·{' '}
-                  {order.event.eventTimeStart || 'Time unavailable'}
+                  {eventDate} · {deliveryTime}
                 </p>
                 {order.event.address && (
                   <p className="mt-3 text-sm leading-6 text-muted-foreground">
@@ -365,9 +362,7 @@ function Fact({
         <Icon className="h-4 w-4" />
       </span>
       <div className="min-w-0">
-        <p className="text-[10px] font-bold text-muted-foreground">
-          {label}
-        </p>
+        <p className="text-[10px] font-bold text-muted-foreground">{label}</p>
         <p className="mt-1 truncate text-sm font-bold">{value}</p>
       </div>
     </div>

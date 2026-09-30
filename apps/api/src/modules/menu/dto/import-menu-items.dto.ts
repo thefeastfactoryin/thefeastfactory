@@ -30,6 +30,12 @@ export class ImportMenuItemRowDto {
   @MaxLength(1000)
   description?: string;
 
+  @ApiPropertyOptional({ type: String, nullable: true, maxLength: 300 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  orderByKgDetails?: string | null;
+
   @ApiProperty({ example: '120.00' })
   @Matches(/^\d+(\.\d{1,2})?$/)
   boxPrice!: string;

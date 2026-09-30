@@ -49,6 +49,57 @@ function formatWeightKg(grams: number) {
   return Number((grams / 1000).toFixed(1));
 }
 
+function KgItemDetails({
+  name,
+  details,
+}: {
+  name: string;
+  details?: string | null;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [overflows, setOverflows] = useState(false);
+  const textRef = useRef<HTMLParagraphElement>(null);
+
+  useEffect(() => {
+    if (!details || expanded || !textRef.current) return;
+    const text = textRef.current;
+    const measure = () => setOverflows(text.scrollWidth > text.clientWidth + 1);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(text);
+    return () => observer.disconnect();
+  }, [details, expanded]);
+
+  if (!details) return null;
+
+  return (
+    <div className="mt-1.5 min-w-0 rounded-lg border border-primary/10 bg-primary/[0.035] px-2 py-1.5">
+      <div className="flex items-start gap-1.5">
+        <p
+          ref={textRef}
+          className={cn(
+            'min-w-0 flex-1 text-[11px] leading-4 text-muted-foreground sm:text-xs',
+            !expanded && 'truncate',
+          )}
+        >
+          {details}
+        </p>
+        {(overflows || expanded) && (
+          <button
+            type="button"
+            aria-expanded={expanded}
+            aria-label={`${expanded ? 'Show less' : 'Show more'} about ${name}`}
+            onClick={() => setExpanded((value) => !value)}
+            className="shrink-0 text-[11px] font-semibold leading-4 text-primary underline-offset-2 hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary sm:text-xs"
+          >
+            {expanded ? 'less' : '…more'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function KgOrderBuilder() {
   const router = useRouter();
   const params = useSearchParams();
@@ -355,7 +406,7 @@ export function KgOrderBuilder() {
         ...rule,
         items: rule.items.filter(
           (item) =>
-            `${item.name} ${rule.category.name}`
+            `${item.name} ${item.orderByKgDetails ?? ''} ${rule.category.name}`
               .toLowerCase()
               .includes(search.toLowerCase()) &&
             (diet === 'ALL' || (diet === 'VEG' ? item.isVeg : !item.isVeg)),
@@ -606,6 +657,10 @@ export function KgOrderBuilder() {
                           <h3 className="line-clamp-2 text-sm font-semibold leading-5 text-foreground sm:text-base">
                             {item.name}
                           </h3>
+                          <KgItemDetails
+                            name={item.name}
+                            details={item.orderByKgDetails}
+                          />
                           <div className="mt-1 flex items-center justify-between gap-2">
                             <p className="money-text whitespace-nowrap text-sm font-bold leading-none text-primary sm:text-base">
                               {formatCurrency(item.pricePerKg).replace(/\.00$/, '')}{' '}

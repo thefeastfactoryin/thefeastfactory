@@ -22,7 +22,11 @@ import {
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { catalogCopy, offeringDisplay } from '../lib/catalog-display';
+import {
+  catalogCopy,
+  customerPackageName,
+  offeringDisplay,
+} from '../lib/catalog-display';
 import { apiRequest } from '../lib/api';
 import { notifyCartCleared, subscribeToCartCleared } from '../lib/cart-state';
 import { DataImage } from '../components/data-image';
@@ -76,12 +80,12 @@ const orderOptionCopy = {
     alt: 'Bulk dishes prepared for ordering by weight',
   },
   CUSTOM_MENU: {
-    label: 'Custom menu',
-    title: 'Build Your Own',
+    label: 'Choose your dishes',
+    title: 'Build Your Own Menu',
     description: 'Pick your dishes. Make it yours.',
     image: '/order-build.png',
     imagePosition: 'center 50%',
-    alt: 'A varied spread of dishes for a custom menu',
+    alt: 'A varied spread of dishes for building your own menu',
   },
 } as const;
 const heroImages = [
@@ -471,12 +475,12 @@ export default function HomePage() {
                     type="button"
                     onClick={() => setDetailsPackage(pkg)}
                     className="relative grid min-h-[116px] w-full grid-cols-[96px_minmax(0,1fr)] text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
-                    aria-label={`View details for ${pkg.name}`}
+                    aria-label={`View details for ${customerPackageName(pkg)}`}
                   >
                     <div className="h-full min-h-[116px] overflow-hidden">
                       <DataImage
                         src={pkg.imageUrl}
-                        alt={`${pkg.name} presentation`}
+                        alt={`${customerPackageName(pkg)} presentation`}
                         className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
                       />
                     </div>
@@ -487,18 +491,24 @@ export default function HomePage() {
                         </p>
                       )}
                       <h3 className="mt-0.5 font-sans text-[18px] font-semibold leading-[1.1] text-foreground">
-                        {pkg.name}
+                        {customerPackageName(pkg)}
                       </h3>
-                      <p className="money-text mt-1.5 text-sm font-bold leading-none text-primary">
-                        <span className="text-[10px] font-medium text-muted-foreground">
-                          From{' '}
-                        </span>
-                        ₹{formatDiscoveryPrice(version.basePricePerPlate)}
-                        <span className="text-[10px] font-medium text-muted-foreground">
-                          {' '}
-                          / person
-                        </span>
-                      </p>
+                      {pkg.type === 'CUSTOM_PACKAGE' ? (
+                        <p className="mt-1.5 text-xs font-semibold text-primary">
+                          Price calculated as you build
+                        </p>
+                      ) : (
+                        <p className="money-text mt-1.5 text-sm font-bold leading-none text-primary">
+                          <span className="text-[10px] font-medium text-muted-foreground">
+                            From{' '}
+                          </span>
+                          ₹{formatDiscoveryPrice(version.basePricePerPlate)}
+                          <span className="text-[10px] font-medium text-muted-foreground">
+                            {' '}
+                            / person
+                          </span>
+                        </p>
+                      )}
                       <p className="mt-1 line-clamp-2 text-[10.5px] font-normal leading-[1.25] text-muted-foreground/85">
                         {pkg.description}
                       </p>
@@ -529,12 +539,12 @@ export default function HomePage() {
                     type="button"
                     onClick={() => setDetailsPackage(pkg)}
                     className="block w-full text-left"
-                    aria-label={`View details for ${pkg.name}`}
+                    aria-label={`View details for ${customerPackageName(pkg)}`}
                   >
                     <div className="relative h-52 overflow-hidden lg:h-64">
                       <DataImage
                         src={pkg.imageUrl}
-                        alt={`${pkg.name} presentation`}
+                        alt={`${customerPackageName(pkg)} presentation`}
                         className="h-full w-full object-cover transition duration-500 ease-premium group-hover:scale-105"
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent" />
@@ -546,7 +556,7 @@ export default function HomePage() {
                     </div>
                     <div className="p-5 pb-2">
                       <h3 className="font-sans text-xl font-semibold leading-[1.12] tracking-[-0.015em]">
-                        {pkg.name}
+                        {customerPackageName(pkg)}
                       </h3>
                       <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
                         {pkg.description}
@@ -562,13 +572,19 @@ export default function HomePage() {
                           </p>
                         ))}
                       </div>
-                      <p className="money-text mt-4 text-lg font-extrabold tracking-tight text-primary">
-                        From ₹{formatDiscoveryPrice(version.basePricePerPlate)}
-                        <span className="text-xs font-normal text-muted-foreground">
-                          {' '}
-                          / person
-                        </span>
-                      </p>
+                      {pkg.type === 'CUSTOM_PACKAGE' ? (
+                        <p className="mt-4 text-sm font-semibold text-primary">
+                          Price calculated as you build
+                        </p>
+                      ) : (
+                        <p className="money-text mt-4 text-lg font-extrabold tracking-tight text-primary">
+                          From ₹{formatDiscoveryPrice(version.basePricePerPlate)}
+                          <span className="text-xs font-normal text-muted-foreground">
+                            {' '}
+                            / person
+                          </span>
+                        </p>
+                      )}
                       <span className="mt-2 inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-[10.5px] font-extrabold text-emerald-800 ring-1 ring-inset ring-emerald-200">
                         Includes packaging
                       </span>
@@ -711,8 +727,12 @@ export default function HomePage() {
       )}
       {pendingPackage && (
         <PackageChangeDialog
-          currentName={currentPackage?.packageName ?? 'your current package'}
-          nextName={pendingPackage.name}
+          currentName={
+            currentPackage?.packageType === 'CUSTOM_PACKAGE'
+              ? 'Build Your Own Menu'
+              : currentPackage?.packageName ?? 'your current package'
+          }
+          nextName={customerPackageName(pendingPackage)}
           selecting={selecting === pendingPackage.id}
           onCancel={() => setPendingPackage(undefined)}
           onClear={() => void clearCartAndSelect(pendingPackage)}

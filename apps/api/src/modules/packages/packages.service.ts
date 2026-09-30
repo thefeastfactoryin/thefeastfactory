@@ -883,6 +883,7 @@ export class PackagesService {
       categoryId: string;
       name: string;
       description: string | null;
+      orderByKgDetails?: string | null;
       boxPrice: Prisma.Decimal;
       generalPrice: Prisma.Decimal;
       pricePerKg?: Prisma.Decimal | null;
@@ -911,6 +912,7 @@ export class PackagesService {
       (isBox ? new Prisma.Decimal(0) : item.generalPrice);
     return {
       ...item,
+      orderByKgDetails: item.orderByKgDetails ?? null,
       role,
       isSwappable,
       swapForMenuItemId: overrides?.swapForMenuItemId ?? null,

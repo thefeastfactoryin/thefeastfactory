@@ -25,6 +25,7 @@ type MenuForm = {
   categoryId: string;
   name: string;
   description: string;
+  orderByKgDetails: string;
   boxPrice: string;
   generalPrice: string;
   pricePerKg: string;
@@ -37,6 +38,7 @@ const emptyForm: MenuForm = {
   categoryId: '',
   name: '',
   description: '',
+  orderByKgDetails: '',
   boxPrice: '',
   generalPrice: '',
   pricePerKg: '',
@@ -95,7 +97,7 @@ export default function MenuItems() {
     return rows.filter((row) => {
       const matchesSearch =
         !needle ||
-        `${row.name} ${row.description ?? ''} ${row.category.name}`
+        `${row.name} ${row.description ?? ''} ${row.orderByKgDetails ?? ''} ${row.category.name}`
           .toLowerCase()
           .includes(needle);
       const matchesCategory =
@@ -109,6 +111,7 @@ export default function MenuItems() {
       'category',
       'name',
       'description',
+      'orderByKgDetails',
       'boxPrice',
       'generalPrice',
       'foodType',
@@ -122,6 +125,7 @@ export default function MenuItems() {
           item.category.name,
           item.name,
           item.description ?? '',
+          item.orderByKgDetails ?? '',
           item.boxPrice,
           item.generalPrice,
           item.isVeg ? 'VEG' : 'NON_VEG',
@@ -159,6 +163,7 @@ export default function MenuItems() {
       categoryId: item.categoryId,
       name: item.name,
       description: item.description ?? '',
+      orderByKgDetails: item.orderByKgDetails ?? '',
       boxPrice: item.boxPrice,
       generalPrice: item.generalPrice,
       pricePerKg: item.pricePerKg ?? '',
@@ -181,6 +186,7 @@ export default function MenuItems() {
         categoryId: form.categoryId,
         name: form.name.trim(),
         description: form.description.trim() || undefined,
+        orderByKgDetails: form.orderByKgDetails.trim() || null,
         boxPrice: formatMoney(form.boxPrice),
         generalPrice: formatMoney(form.generalPrice),
         pricePerKg: form.pricePerKg.trim()
@@ -342,6 +348,11 @@ export default function MenuItems() {
                       {item.description && (
                         <p className="line-clamp-1 text-xs text-muted-foreground">
                           {item.description}
+                        </p>
+                      )}
+                      {item.orderByKgDetails && (
+                        <p className="line-clamp-1 text-xs text-primary/80">
+                          KG: {item.orderByKgDetails}
                         </p>
                       )}
                     </div>
@@ -623,6 +634,21 @@ export default function MenuItems() {
                   }
                   maxLength={1000}
                 />
+              </Field>
+              <Field label="Order by KG details" optional>
+                <Textarea
+                  rows={2}
+                  value={form.orderByKgDetails}
+                  onChange={(event) =>
+                    setForm({ ...form, orderByKgDetails: event.target.value })
+                  }
+                  maxLength={300}
+                  placeholder="Per 1 kg cooked: approximately 300 g chicken and 700 g rice"
+                />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Shown only on Order by KG dish cards. Describe the approximate
+                  contents per 1 kg; leave blank to hide it.
+                </p>
               </Field>
               <label className="flex items-center justify-between rounded-xl border px-3 py-2">
                 <span className="font-medium">

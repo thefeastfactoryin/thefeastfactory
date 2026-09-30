@@ -4,8 +4,10 @@ import { ArrowRight, ClipboardList } from 'lucide-react';
 import type { OrderSummary } from '@aranyam/shared-types';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { DataImage } from '../../components/data-image';
 import { AuthRequiredPanel, StatePanel } from '../../components/ui/state-panel';
 import { apiRequest } from '../../lib/api';
+import { orderByKgImage } from '../../lib/catalog-display';
 import { useSessionStore } from '../../store/session.store';
 import { formatCurrency, formatStatus } from '../../lib/format';
 
@@ -81,9 +83,17 @@ export default function OrdersPage() {
                   className="group block p-4 transition hover:bg-ivory/70 sm:p-5 md:grid md:grid-cols-[1.15fr_1.35fr_.85fr_.55fr_.85fr_.8fr_.75fr_24px] md:items-center md:gap-4"
                 >
                   <div className="flex min-w-0 items-center gap-3">
-                    <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-primary text-white">
-                      <ClipboardList className="h-5 w-5" />
-                    </span>
+                    <DataImage
+                      src={
+                        order.packageImageUrl ||
+                        (order.packageType === 'ORDER_BY_KG'
+                          ? orderByKgImage
+                          : null)
+                      }
+                      alt={`${order.packageName} thumbnail`}
+                      className="h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-border object-cover shadow-sm"
+                      loading="lazy"
+                    />
                     <div className="min-w-0">
                       <strong className="numeric-text block truncate text-base">
                         {order.orderNumber}

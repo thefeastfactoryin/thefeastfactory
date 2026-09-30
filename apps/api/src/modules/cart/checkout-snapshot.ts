@@ -37,6 +37,7 @@ export type CheckoutCartSnapshot = {
   contactNumber: string;
   packageType: PackageType;
   packageName: string;
+  packageImageUrl: string | null;
   packageVersionNo: number;
   guestCount: number | null;
   basePerPlatePrice: string | null;

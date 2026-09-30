@@ -6,6 +6,7 @@ export type ApiHealth = {
 
 export * from './options';
 export * from './constants';
+export * from './time';
 
 export type Money = {
   amount: string;
@@ -80,6 +81,7 @@ export type MenuItem = {
   categoryId: string;
   name: string;
   description?: string | null;
+  orderByKgDetails?: string | null;
   boxPrice: string;
   generalPrice: string;
   pricePerKg?: string | null;
@@ -382,6 +384,7 @@ export type OrderSummary = {
   orderStatus: OrderStatus;
   paymentStatus: PaymentStatus;
   packageName: string;
+  packageImageUrl?: string | null;
   packageType?: PackageType | null;
   guestCount: number | null;
   contactNumber: string;

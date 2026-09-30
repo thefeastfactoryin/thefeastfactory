@@ -233,8 +233,8 @@ export function Footer() {
 
         {/* Divider + copyright */}
         <div className="mt-6 flex flex-col items-center justify-between gap-3 border-t border-white/10 pt-5 text-center sm:flex-row sm:text-left md:mt-12 md:gap-4 md:pt-8">
-          <p className="text-xs text-white/40">
-            © {new Date().getFullYear()} The Feast Factory. All rights reserved.
+          <p className="text-xs leading-5 text-white/60">
+            © {new Date().getFullYear()} The Feast Factory. A brand of Amogham Foods. All rights reserved.
           </p>
           <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 text-xs text-white/40 sm:justify-end md:gap-5">
             <Link href="/privacy" className="hover:text-white/70">Privacy Policy</Link>

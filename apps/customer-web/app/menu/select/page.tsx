@@ -251,13 +251,20 @@ function MenuSelectContent() {
       ) ?? [];
     return new Map(entries);
   }, [config]);
-  const selectedIds = useMemo(
-    () => new Set(selectedItems.map((item) => item.menuItemId)),
+  const selectedExtraItems = useMemo(
+    () =>
+      selectedItems.filter(
+        (item) => item.role === 'EXTRA' && !item.replacedMenuItemId,
+      ),
     [selectedItems],
   );
+  const selectedIds = useMemo(
+    () => new Set(selectedExtraItems.map((item) => item.menuItemId)),
+    [selectedExtraItems],
+  );
   const selectedItemById = useMemo(
-    () => new Map(selectedItems.map((item) => [item.menuItemId, item])),
-    [selectedItems],
+    () => new Map(selectedExtraItems.map((item) => [item.menuItemId, item])),
+    [selectedExtraItems],
   );
   const selectedExtras = useMemo(
     () => extraRows.filter(({ item }) => selectedIds.has(item.id)),
@@ -359,16 +366,45 @@ function MenuSelectContent() {
     guestCount,
     selectedItems,
   });
+  const configuredSelectionPrice = useCallback(
+    (selection: SelectedItem) => {
+      const candidates =
+        config?.categoryRules.flatMap((rule) => rule.items) ?? [];
+      return candidates.find((item) => {
+        if (item.id !== selection.menuItemId) return false;
+        if (selection.replacedMenuItemId) {
+          return item.swapForMenuItemId === selection.replacedMenuItemId;
+        }
+        return item.role === 'EXTRA' && !item.swapForMenuItemId;
+      });
+    },
+    [config],
+  );
   const localPerPerson =
     Number(cartPackage?.basePricePerPlate ?? 0) +
     selectedItems.reduce(
-      (total, item) =>
-        total +
-        (item.role === 'EXTRA'
-          ? (Number(item.itemPrice || item.adjustmentAmount || 0) *
-              (item.quantity ?? guestCount)) /
-            Math.max(guestCount, 1)
-          : Number(item.adjustmentAmount || 0)),
+      (total, item) => {
+        const configuredItem = configuredSelectionPrice(item);
+        if (item.role === 'EXTRA' && !item.replacedMenuItemId) {
+          const unitPrice = Number(
+            configuredItem?.itemPrice ??
+              item.itemPrice ??
+              item.adjustmentAmount ??
+              0,
+          );
+          return (
+            total +
+            (unitPrice * (item.quantity ?? guestCount)) /
+              Math.max(guestCount, 1)
+          );
+        }
+        return (
+          total +
+          Number(
+            configuredItem?.adjustmentAmount ?? item.adjustmentAmount ?? 0,
+          )
+        );
+      },
       0,
     );
   const basePerPerson = Number(
@@ -376,6 +412,11 @@ function MenuSelectContent() {
   );
   const menuSubtotal = Number(
     preview.quote?.totalAmount ?? localPerPerson * guestCount,
+  );
+  const basePackageTotal = basePerPerson * guestCount;
+  const additionalItemsTotal = Math.max(
+    menuSubtotal - basePackageTotal,
+    0,
   );
 
   function alternativesFor(rule: CategoryRule, included: MenuSelectionItem) {
@@ -921,6 +962,8 @@ function MenuSelectContent() {
             swaps={currentSwaps.size}
             guestCount={guestCount}
             basePerPerson={basePerPerson}
+            basePackageTotal={basePackageTotal}
+            additionalItemsTotal={additionalItemsTotal}
             menuSubtotal={menuSubtotal}
             saving={saving}
             ctaLabel={
@@ -1005,6 +1048,8 @@ function MenuSelectContent() {
             swaps={currentSwaps.size}
             guestCount={guestCount}
             basePerPerson={basePerPerson}
+            basePackageTotal={basePackageTotal}
+            additionalItemsTotal={additionalItemsTotal}
             menuSubtotal={menuSubtotal}
             saving={saving}
             ctaLabel="Continue to event & payment"
@@ -1793,6 +1838,8 @@ function MenuSummary({
   swaps,
   guestCount,
   basePerPerson,
+  basePackageTotal,
+  additionalItemsTotal,
   menuSubtotal,
   saving,
   ctaLabel,
@@ -1811,19 +1858,14 @@ function MenuSummary({
   swaps: number;
   guestCount: number;
   basePerPerson: number;
+  basePackageTotal: number;
+  additionalItemsTotal: number;
   menuSubtotal: number;
   saving: boolean;
   ctaLabel: string;
   onContinue: () => void;
   inline?: boolean;
 }) {
-  const extrasTotal = extras.reduce((total, row) => {
-    const quantity = selectedItemById.get(row.item.id)?.quantity ?? 1;
-    return (
-      total +
-      Number(row.item.itemPrice || row.item.adjustmentAmount || 0) * quantity
-    );
-  }, 0);
   return (
     <section
       className={cn(
@@ -1900,16 +1942,29 @@ function MenuSummary({
       <div className="border-t border-border/80 bg-[#fffdf8] p-5">
         <div className="space-y-2 text-sm">
           <div className="flex items-center justify-between gap-4">
-            <span className="text-muted-foreground">Base package</span>
-            <span className="money-text text-right font-semibold text-charcoal">
-              {formatCurrency(basePerPerson)} per {isMealBox ? 'box' : 'guest'}
+            <span className="min-w-0 text-muted-foreground">
+              Base package
+              <span className="numeric-text ml-1 whitespace-nowrap text-xs">
+                ({formatCurrency(basePerPerson)} × {guestCount}{' '}
+                {isMealBox
+                  ? guestCount === 1
+                    ? 'box'
+                    : 'boxes'
+                  : guestCount === 1
+                    ? 'guest'
+                    : 'guests'}
+                )
+              </span>
+            </span>
+            <span className="money-text shrink-0 text-right font-semibold text-charcoal">
+              {formatCurrency(basePackageTotal)}
             </span>
           </div>
-          {extrasTotal > 0 && (
+          {additionalItemsTotal > 0 && (
             <div className="flex items-center justify-between gap-4">
               <span className="text-muted-foreground">Additional items</span>
-              <span className="money-text font-semibold text-charcoal">
-                {formatCurrency(extrasTotal)}
+              <span className="money-text shrink-0 font-semibold text-charcoal">
+                +{formatCurrency(additionalItemsTotal)}
               </span>
             </div>
           )}
@@ -1919,16 +1974,6 @@ function MenuSummary({
               <span className="numeric-text">{swaps}</span>
             </div>
           )}
-          <p className="numeric-text pt-1 text-xs text-muted-foreground">
-            For {guestCount}{' '}
-            {isMealBox
-              ? guestCount === 1
-                ? 'box'
-                : 'boxes'
-              : guestCount === 1
-                ? 'guest'
-                : 'guests'}
-          </p>
         </div>
         <div className="mt-3 flex items-end justify-between gap-3 border-t pt-3">
           <span className="text-xs text-muted-foreground">

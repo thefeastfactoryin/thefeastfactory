@@ -1,8 +1,13 @@
 import type {
   OrderingOfferingCode,
+  PackageSummary,
 } from '@aranyam/shared-types';
 
 export const orderByKgImage = '/order-by-kg-bulk.png';
+
+export function customerPackageName(pkg: Pick<PackageSummary, 'name' | 'type'>) {
+  return pkg.type === 'CUSTOM_PACKAGE' ? 'Build Your Own Menu' : pkg.name;
+}
 
 export const offeringDisplay: Record<
   OrderingOfferingCode,

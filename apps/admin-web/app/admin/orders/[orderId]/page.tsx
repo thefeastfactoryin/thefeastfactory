@@ -1,11 +1,18 @@
 'use client';
 import {
+  formatTimeOfDay,
   type OrderDocument,
   type OrderDetails,
   type OrderNote,
   type OrderStatus,
 } from '@aranyam/shared-types';
-import { MapPin, MessageSquareText, Printer } from 'lucide-react';
+import {
+  CalendarDays,
+  Clock3,
+  MapPin,
+  MessageSquareText,
+  Printer,
+} from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { StatusBadge } from '../../../../components/status-badge';
@@ -100,7 +107,10 @@ export default function AdminOrderDetail() {
   const eventDate = order.event?.eventDate
     ? new Date(order.event.eventDate).toLocaleDateString('en-IN')
     : 'Not scheduled';
-  const eventTime = order.event?.eventTimeStart || 'Not scheduled';
+  const eventTime = formatTimeOfDay(
+    order.event?.eventTimeStart,
+    'Not scheduled',
+  );
   const venue = [
     address?.addressLine1,
     address?.city,
@@ -201,6 +211,30 @@ export default function AdminOrderDetail() {
           {message}
         </p>
       )}
+      <section
+        className="admin-card mt-5 border-primary/20 bg-primary/[0.04]"
+        aria-label="Delivery schedule"
+      >
+        <p className="text-sm font-semibold uppercase tracking-[0.14em] text-primary">
+          Delivery schedule
+        </p>
+        <div className="mt-3 flex flex-wrap gap-x-8 gap-y-3">
+          <div className="flex items-center gap-3">
+            <CalendarDays className="h-5 w-5 text-primary" aria-hidden="true" />
+            <div>
+              <p className="text-xs text-muted-foreground">Delivery date</p>
+              <p className="font-semibold">{eventDate}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <Clock3 className="h-5 w-5 text-primary" aria-hidden="true" />
+            <div>
+              <p className="text-xs text-muted-foreground">Delivery time</p>
+              <p className="font-semibold">{eventTime}</p>
+            </div>
+          </div>
+        </div>
+      </section>
       <div className="mt-7 grid gap-6 xl:grid-cols-[1.25fr_.75fr]">
         <div className="space-y-6">
           <section className="admin-card">

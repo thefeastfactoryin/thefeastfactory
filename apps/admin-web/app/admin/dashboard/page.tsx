@@ -1,6 +1,6 @@
 'use client';
 
-import type { OperatingRegion } from '@aranyam/shared-types';
+import { formatTimeOfDay, type OperatingRegion } from '@aranyam/shared-types';
 import {
   AlertTriangle,
   CalendarDays,
@@ -567,12 +567,5 @@ function dateKey(date: Date) {
 }
 
 function timeLabel(value?: string | null) {
-  if (!value) return 'Time TBC';
-  const [hours, minutes] = value.split(':').map(Number);
-  const date = new Date();
-  date.setHours(hours, minutes, 0, 0);
-  return date.toLocaleTimeString('en-IN', {
-    hour: 'numeric',
-    minute: '2-digit',
-  });
+  return formatTimeOfDay(value, 'Time TBC');
 }
