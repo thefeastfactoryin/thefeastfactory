@@ -166,35 +166,6 @@ body {
     background-image: url('/about-gathering.png');
   }
 
-  .about-kitchen-address {
-    @apply mt-3 min-h-[66px] text-[11px] leading-5 text-muted-foreground;
-  }
-
-  .about-kitchen-license {
-    @apply mt-2 flex min-h-[52px] items-center justify-center gap-3 text-left;
-  }
-
-  .about-fssai-mark {
-    @apply font-serif text-2xl italic text-blue-900;
-  }
-
-  .about-kitchen-license small,
-  .about-kitchen-license strong {
-    @apply block text-[10px] leading-4;
-  }
-
-  .about-kitchen-license strong {
-    @apply numeric-text text-foreground;
-  }
-
-  .about-license-pending {
-    @apply flex items-center justify-center gap-2 rounded-md border border-primary/30 px-3 py-2 text-[10px] font-bold leading-4 text-primary;
-  }
-
-  .about-kitchen-map {
-    @apply mt-3 inline-flex min-h-9 items-center gap-1 rounded-md bg-primary px-4 text-[10px] font-bold text-white transition-colors hover:bg-primary/90;
-  }
-
   .about-team-photo {
     @apply mx-auto aspect-[4/5] w-full max-w-[150px] rounded-xl bg-cover bg-center shadow-sm sm:max-w-[176px] lg:max-w-[200px];
   }
@@ -261,79 +232,17 @@ body {
   .category-label {
     @apply font-sans text-[13px] font-medium leading-4 tracking-normal text-muted-foreground;
   }
-  .display-heading {
-    @apply font-serif font-medium;
-    letter-spacing: -0.015em;
-    line-height: 1.06;
-}
-  .divider-accent {
-    @apply h-px w-12 shrink-0 rounded-full bg-accent/40;
-  }
-
   /* ─── Surfaces ─── */
   .surface-card {
     @apply rounded-2xl border border-border bg-card shadow-sm;
-  }
-  .surface-inset {
-    @apply rounded-xl border border-border bg-muted/60;
-  }
-  .surface-ivory {
-    @apply rounded-2xl border border-border;
-    background: hsl(var(--ivory));
   }
 
   /* ─── Layout ─── */
   .page-shell {
     @apply mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-10 lg:px-8 lg:py-14;
   }
-  .section-gap {
-    @apply py-16 sm:py-20 lg:py-24;
-  }
   .container-pad {
     @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8;
-  }
-
-  /* ─── Cards ─── */
-  .journey-card {
-    @apply flex flex-col overflow-hidden rounded-[20px] border-2 border-border bg-card shadow-sm
-           transition-all duration-300 hover:-translate-y-1 hover:shadow-xl;
-  }
-  .pkg-card {
-    @apply flex flex-col overflow-hidden rounded-[20px] border border-border bg-card
-           shadow-[0_2px_16px_rgba(0,0,0,0.05)] transition-all duration-300
-           hover:-translate-y-1 hover:shadow-[0_20px_48px_rgba(0,0,0,0.10)];
-  }
-  .food-card {
-    @apply overflow-hidden rounded-xl border border-border bg-card shadow-sm
-           transition-all duration-200 hover:border-primary/20 hover:shadow-sm;
-  }
-
-  /* ─── Badges / chips ─── */
-  .tag-chip {
-    @apply inline-flex items-center rounded-full bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground;
-  }
-  .veg-badge {
-    @apply inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700;
-  }
-  .nonveg-badge {
-    @apply inline-flex items-center gap-1 rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-bold text-orange-700;
-  }
-
-  /* ─── Quantity stepper ─── */
-  .qty-row {
-    @apply flex items-center overflow-hidden rounded-full border border-border bg-card;
-  }
-  .qty-btn {
-    @apply flex h-11 w-11 shrink-0 items-center justify-center text-muted-foreground
-           transition-colors hover:bg-muted hover:text-foreground;
-  }
-  .qty-val {
-    @apply w-10 text-center text-sm font-extrabold tabular-nums;
-  }
-
-  /* ─── Status badges ─── */
-  .status-badge {
-    @apply rounded-full px-3 py-1 text-xs font-bold;
   }
 }
 

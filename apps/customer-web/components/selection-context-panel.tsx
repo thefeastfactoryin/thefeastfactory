@@ -868,7 +868,6 @@ export function SelectionContextPanel({
   );
   const pkg = useOrderBuilderStore((state) => state.package);
   const isKg = pkg?.packageType === 'ORDER_BY_KG';
-  const setEvent = useOrderBuilderStore((state) => state.setEvent);
   const setDbCartId = useOrderBuilderStore((state) => state.setDbCartId);
   const setGuestCount = useOrderBuilderStore((state) => state.setGuestCount);
   const guestCount = useOrderBuilderStore((state) => state.guestCount);
@@ -1075,24 +1074,6 @@ export function SelectionContextPanel({
   ]);
 
   useEffect(() => {
-    const address = addresses.find((row) => row.id === addressId);
-    setEvent({
-      addressId: addressId || undefined,
-      eventName: pkg?.packageName,
-      eventDate: eventDate || undefined,
-      eventTimeStart: eventTimeStart || undefined,
-      addressLabel: address ? address.label || address.addressLine1 : undefined,
-    });
-  }, [
-    addressId,
-    addresses,
-    eventDate,
-    eventTimeStart,
-    pkg?.packageName,
-    setEvent,
-  ]);
-
-  useEffect(() => {
     if (!checkoutCompact || !session) return;
     if (!addressId) {
       setVenueStatus('missing');
@@ -1184,13 +1165,6 @@ export function SelectionContextPanel({
         );
         const address = addresses.find((row) => row.id === addressId)!;
         setDbCartId(cart.id);
-        setEvent({
-          addressId,
-          eventName: pkg?.packageName,
-          eventDate,
-          eventTimeStart,
-          addressLabel: address.label || address.addressLine1,
-        });
         setAssignedRegion(cart.event?.region ?? cart.region ?? null);
         lastSavedKey.current = saveKey;
         if (completeEvent && address) setCheckoutEditing(false);
@@ -1227,7 +1201,6 @@ export function SelectionContextPanel({
     addresses,
     pkg?.packageName,
     setDbCartId,
-    setEvent,
   ]);
 
   if (!session) {

@@ -72,59 +72,6 @@ export const statusLabels = {
   },
 } as const;
 
-export const customerCopy = {
-  common: {
-    loadingOrder: 'Loading order...',
-    documentUnavailable:
-      'Documents become available after payment confirmation.',
-    retryPayment:
-      'Payment failed. You can retry without creating another order.',
-    paymentWindowLoading:
-      'Secure payment window is still loading. Please try again.',
-    paymentWindowClosed:
-      'Payment window closed. Your order is still saved and you can retry safely.',
-  },
-  checkout: {
-    brandDescriptionFallback: 'Catering',
-    secureCheckout: 'Secure checkout',
-    reviewTitle: 'One final review.',
-    customQuote:
-      'Your quote is calculated from selected item prices and saved as an order snapshot.',
-    packageQuote:
-      'Your quote is calculated from the live package rules and saved as an order snapshot.',
-    paySecurely: 'Pay securely',
-    openingPayment: 'Opening payment...',
-    paymentHandled: 'Payment details are handled securely by Razorpay.',
-    orderConfirmed: 'Your order is confirmed only after payment verification.',
-  },
-  booking: {
-    leadTimeHint: (hours: number) =>
-      `Bookings need at least ${hours} hours of lead time.`,
-    leadTimeShort: (hours: number) => `At least ${hours} hours advance booking`,
-  },
-  order: {
-    trackingEyebrow: 'Order tracking',
-    selectedMenu: 'Selected menu',
-    progress: 'Progress',
-    receipts: 'Receipts and invoices',
-    refundStatus: 'Refund status',
-    eventTiming: 'Event timing',
-    cancelOrder: 'Cancel order',
-    cancellationReason: 'Reason for cancellation',
-    cancellationPlaceholder:
-      'Tell us why you need to cancel this catering order',
-    cancellationSubmit: 'Confirm cancellation',
-    cancellationSubmitting: 'Cancelling...',
-    cancellationUnavailable:
-      'This order can no longer be cancelled from your account.',
-    cancellationPolicyLink: 'Review cancellation policy',
-    reorder: 'Re-order',
-    reorderUnavailable:
-      'This package or menu may have changed. Please choose a fresh package.',
-    noRefunds: 'No refunds have been initiated for this order.',
-  },
-} as const;
-
 export const adminCopy = {
   navigation: {
     dashboard: 'Dashboard',

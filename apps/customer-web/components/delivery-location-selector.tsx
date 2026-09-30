@@ -137,6 +137,7 @@ export function DeliveryLocationSelector({
   const [notice, setNotice] = useState<LocationNotice>();
   const [deliveryEstimate, setDeliveryEstimate] = useState('');
   const addressBookRevision = useAddressBookStore((state) => state.revision);
+  const markAddressesChanged = useAddressBookStore((state) => state.markChanged);
   const initialHomeLocated = useRef(false);
   const selectionRequestId = useRef(0);
   const candidateFormRef = useRef<HTMLFormElement>(null);

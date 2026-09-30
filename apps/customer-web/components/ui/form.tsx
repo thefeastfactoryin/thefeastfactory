@@ -54,19 +54,6 @@ export const Select = React.forwardRef<
 ));
 Select.displayName = 'Select';
 
-export const Textarea = React.forwardRef<
-  HTMLTextAreaElement,
-  React.TextareaHTMLAttributes<HTMLTextAreaElement>
->(({ className, rows = 4, ...props }, ref) => (
-  <textarea
-    ref={ref}
-    rows={rows}
-    className={cn(controlClass, 'resize-y', className)}
-    {...props}
-  />
-));
-Textarea.displayName = 'Textarea';
-
 export function Checkbox({
   label,
   description,

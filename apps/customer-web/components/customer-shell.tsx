@@ -176,7 +176,7 @@ export function CustomerShell({
     : 0;
   const cartActive = mounted && (cartCount > 0 || pathname === '/cart');
   const desktopLinks = navLinks;
-  const isCheckoutRoute = pathname === '/cart' || pathname.startsWith('/checkout');
+  const isCheckoutRoute = pathname === '/cart';
   const isFocusedFlow = [
     '/packages/build',
     '/menu/select',
