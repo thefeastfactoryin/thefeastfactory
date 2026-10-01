@@ -19,12 +19,10 @@ import { CreateOrderNoteDto } from './dto/create-order-note.dto';
 import { UpdateSettingsDto } from './dto/update-settings.dto';
 import {
   clockMinutes,
-  nonNegativeIntegerSetting,
   positiveIntegerSetting,
 } from '../../common/setting-values';
 
 const editableSettings = new Set([
-  'min_booking_lead_hours',
   'otp_expiry_seconds',
   'otp_max_attempts',
   'razorpay_currency',
@@ -80,9 +78,26 @@ type PdfSnapshot = {
       state: string;
       pincode: string;
     };
-    customer: { name?: string | null; mobileNumber: string; email?: string | null };
-    payment?: { reference?: string | null; method?: string | null; paidAt?: string | Date | null } | null;
-    items: Array<{ weightGrams?: number | null; pricePerKg?: string | null; lineTotal?: string | null; name: string; category: string; role: string; itemPrice: string; adjustmentAmount: string }>;
+    customer: {
+      name?: string | null;
+      mobileNumber: string;
+      email?: string | null;
+    };
+    payment?: {
+      reference?: string | null;
+      method?: string | null;
+      paidAt?: string | Date | null;
+    } | null;
+    items: Array<{
+      weightGrams?: number | null;
+      pricePerKg?: string | null;
+      lineTotal?: string | null;
+      name: string;
+      category: string;
+      role: string;
+      itemPrice: string;
+      adjustmentAmount: string;
+    }>;
   };
   tax: { cgstRate: string; sgstRate: string; igstRate: string };
   refund?: { amount: string; reason?: string | null };
@@ -149,12 +164,14 @@ export class OperationsService {
     });
     return orders.map((order) => ({
       ...order,
-      orders: [{
-        id: order.id,
-        orderNumber: order.orderNumber,
-        orderStatus: order.orderStatus,
-        paymentStatus: order.paymentStatus,
-      }],
+      orders: [
+        {
+          id: order.id,
+          orderNumber: order.orderNumber,
+          orderStatus: order.orderStatus,
+          paymentStatus: order.paymentStatus,
+        },
+      ],
     }));
   }
 
@@ -204,12 +221,14 @@ export class OperationsService {
     return {
       upcomingEvents: events.map((order) => ({
         ...order,
-        orders: [{
-          id: order.id,
-          orderNumber: order.orderNumber,
-          orderStatus: order.orderStatus,
-          paymentStatus: order.paymentStatus,
-        }],
+        orders: [
+          {
+            id: order.id,
+            orderNumber: order.orderNumber,
+            orderStatus: order.orderStatus,
+            paymentStatus: order.paymentStatus,
+          },
+        ],
       })),
       failedPayments,
       pendingRefunds,
@@ -282,19 +301,11 @@ export class OperationsService {
         throw new BadRequestException(`${key} must be a positive integer`);
       }
     }
-    if (
-      settings.min_booking_lead_hours !== undefined &&
-      nonNegativeIntegerSetting(settings.min_booking_lead_hours, -1) === -1
-    ) {
-      throw new BadRequestException(
-        'min_booking_lead_hours must be a non-negative integer',
-      );
-    }
-    for (const key of [
-      'event_service_start_time',
-      'event_service_end_time',
-    ]) {
-      if (settings[key] !== undefined && clockMinutes(settings[key]) === undefined) {
+    for (const key of ['event_service_start_time', 'event_service_end_time']) {
+      if (
+        settings[key] !== undefined &&
+        clockMinutes(settings[key]) === undefined
+      ) {
         throw new BadRequestException(`${key} must use HH:mm format`);
       }
     }
@@ -516,7 +527,8 @@ export class OperationsService {
         guestCount: order.guestCount,
         finalPerPlatePrice: order.finalPerPlatePrice?.toFixed(2) ?? null,
         basePerPlatePrice: order.basePerPlatePrice?.toFixed(2) ?? null,
-        customizationCharges: order.totalCustomizationCharges?.toFixed(2) ?? null,
+        customizationCharges:
+          order.totalCustomizationCharges?.toFixed(2) ?? null,
         deliveryFee: order.deliveryFee.toFixed(2),
         totalAmount: order.totalAmount.toFixed(2),
         createdAt: order.createdAt,
@@ -527,11 +539,13 @@ export class OperationsService {
           mobileNumber: order.contactNumber,
           email: order.user.email,
         },
-        payment: order.payments[0] ? {
-          reference: order.payments[0].razorpayPaymentId,
-          method: order.payments[0].paymentMethod,
-          paidAt: order.payments[0].paidAt,
-        } : null,
+        payment: order.payments[0]
+          ? {
+              reference: order.payments[0].razorpayPaymentId,
+              method: order.payments[0].paymentMethod,
+              paidAt: order.payments[0].paidAt,
+            }
+          : null,
         items: order.selectedItems.map((item) => ({
           name: item.menuItemName,
           weightGrams: item.weightGrams,
@@ -574,36 +588,59 @@ export class OperationsService {
         .moveDown()
         .fillColor('#111')
         .fontSize(16)
-        .text(type === DocumentType.PAYMENT_RECEIPT ? 'INVOICE / PAYMENT RECEIPT' : type.replaceAll('_', ' '));
+        .text(
+          type === DocumentType.PAYMENT_RECEIPT
+            ? 'INVOICE / PAYMENT RECEIPT'
+            : type.replaceAll('_', ' '),
+        );
       document.fontSize(10).text(`Document: ${number}`);
       document.text(`Order: ${data.order.orderNumber}`);
       document.text(
         `Customer: ${data.order.customer.name || data.order.customer.mobileNumber}`,
       );
       document.text(`Mobile: ${data.order.customer.mobileNumber}`);
-      if (data.order.customer.email) document.text(`Email: ${data.order.customer.email}`);
+      if (data.order.customer.email)
+        document.text(`Email: ${data.order.customer.email}`);
       document.text(
         `Event date: ${new Date(data.order.eventDate).toLocaleDateString('en-IN')}`,
       );
       document
         .moveDown()
         .fontSize(12)
-        .text(data.order.guestCount == null ? `${data.order.packageName} — Order by KG` : `${data.order.packageName} for ${data.order.guestCount} guests`);
-      document.fontSize(10).text(`Venue: ${data.order.address.addressLine1}, ${data.order.address.city}, ${data.order.address.state} ${data.order.address.pincode}`);
+        .text(
+          data.order.guestCount == null
+            ? `${data.order.packageName} — Order by KG`
+            : `${data.order.packageName} for ${data.order.guestCount} guests`,
+        );
+      document
+        .fontSize(10)
+        .text(
+          `Venue: ${data.order.address.addressLine1}, ${data.order.address.city}, ${data.order.address.state} ${data.order.address.pincode}`,
+        );
       document.moveDown().fontSize(11).text('Selected items');
       for (const item of data.order.items) {
-        document.fontSize(9).text(item.weightGrams
-          ? `${item.name} — ${item.weightGrams / 1000} kg x INR ${item.pricePerKg}/kg — INR ${item.lineTotal}`
-          : `${item.name} — ${item.category} (${item.role}) — INR ${item.itemPrice}`);
+        document
+          .fontSize(9)
+          .text(
+            item.weightGrams
+              ? `${item.name} — ${item.weightGrams / 1000} kg x INR ${item.pricePerKg}/kg — INR ${item.lineTotal}`
+              : `${item.name} — ${item.category} (${item.role}) — INR ${item.itemPrice}`,
+          );
       }
       if (data.order.guestCount != null) {
-      document.moveDown().fontSize(10).text(`Base per pax: INR ${data.order.basePerPlatePrice}`);
-      document.text(`Customization per pax: INR ${data.order.customizationCharges}`);
-      document.text(`Final per pax: INR ${data.order.finalPerPlatePrice}`);
+        document
+          .moveDown()
+          .fontSize(10)
+          .text(`Base per pax: INR ${data.order.basePerPlatePrice}`);
+        document.text(
+          `Customization per pax: INR ${data.order.customizationCharges}`,
+        );
+        document.text(`Final per pax: INR ${data.order.finalPerPlatePrice}`);
       }
       document.text(`Delivery fee: INR ${data.order.deliveryFee}`);
       document.text(`Total paid: INR ${data.order.totalAmount}`);
-      if (data.order.payment?.reference) document.text(`Payment reference: ${data.order.payment.reference}`);
+      if (data.order.payment?.reference)
+        document.text(`Payment reference: ${data.order.payment.reference}`);
       if (data.refund) document.text(`Refund: INR ${data.refund.amount}`);
       if (type === DocumentType.GST_INVOICE) {
         document.moveDown().fontSize(10).text(`GSTIN: ${data.business.gstin}`);
@@ -628,5 +665,4 @@ export class OperationsService {
     });
     if (!order) throw new NotFoundException('Order not found');
   }
-
 }

@@ -59,28 +59,15 @@ test('duplicate setting keys are rejected before the transaction', async () => {
   );
 });
 
-test('public settings safely fall back when legacy numeric values are malformed', async () => {
+test('public settings safely fall back when numeric values are malformed', async () => {
   const catalog = new CatalogService({
     platformSetting: {
       findMany: async () => [
-        { key: 'min_booking_lead_hours', value: 'not-a-number' },
         { key: 'event_time_interval_minutes', value: '0' },
       ],
     },
   } as never);
 
   const settings = await catalog.publicSettings();
-  assert.equal(settings.minBookingLeadHours, 48);
   assert.equal(settings.eventTimeIntervalMinutes, 30);
-});
-
-test('zero-hour lead time remains a valid explicit setting', async () => {
-  const catalog = new CatalogService({
-    platformSetting: {
-      findMany: async () => [
-        { key: 'min_booking_lead_hours', value: '0' },
-      ],
-    },
-  } as never);
-  assert.equal((await catalog.publicSettings()).minBookingLeadHours, 0);
 });

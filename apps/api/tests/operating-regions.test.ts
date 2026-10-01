@@ -29,6 +29,7 @@ function region(
     centerLongitude: new Prisma.Decimal(longitude),
     serviceRadiusKm: new Prisma.Decimal('50'),
     deliveryFeePerKm: new Prisma.Decimal('10'),
+    minBookingLeadHours: 48,
     isActive: true,
     isAcceptingOrders,
     createdAt: new Date(),
@@ -59,6 +60,7 @@ test('location resolution uses an available overlapping kitchen', async () => {
   assert.equal(result.serviceable, true);
   assert.equal(result.reason, null);
   assert.equal(result.region?.id, 'nearby-open');
+  assert.equal(result.region?.minBookingLeadHours, 48);
 });
 
 test('delivery service pricing adds doorstep and assisted charges', async () => {
@@ -149,4 +151,30 @@ test('kitchen operators can only change availability for their assigned kitchen'
     }),
     ForbiddenException,
   );
+});
+
+test('admin updates a kitchen-specific booking lead time', async () => {
+  const assigned = region('region-1', '17.3850', '78.4867', true);
+  const prisma = {
+    operatingRegion: {
+      findUnique: async () => assigned,
+      update: async ({ data }: { data: { minBookingLeadHours?: number } }) => ({
+        ...assigned,
+        ...data,
+      }),
+    },
+  };
+  const service = new OperatingRegionsService(prisma as never);
+
+  const updated = await service.updateForAdmin(
+    {
+      sub: 'admin-1',
+      type: 'admin',
+      role: AdminRole.ADMIN,
+    },
+    assigned.id,
+    { minBookingLeadHours: 72 },
+  );
+
+  assert.equal(updated.minBookingLeadHours, 72);
 });

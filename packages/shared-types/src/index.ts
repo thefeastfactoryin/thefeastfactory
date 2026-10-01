@@ -128,6 +128,7 @@ export type OperatingRegion = {
   centerLongitude: string;
   serviceRadiusKm: string;
   deliveryFeePerKm: string;
+  minBookingLeadHours: number;
   isActive: boolean;
   isAcceptingOrders: boolean;
 };
@@ -163,7 +164,6 @@ export type PackageSummary = {
 };
 
 export type PublicCatalogSettings = {
-  minBookingLeadHours: number;
   eventServiceStartTime: string;
   eventServiceEndTime: string;
   eventTimeIntervalMinutes: number;

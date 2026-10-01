@@ -2,10 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { OrderingOfferingCode } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UpdateOrderingOfferingDto } from './dto/update-ordering-offering.dto';
-import {
-  nonNegativeIntegerSetting,
-  positiveIntegerSetting,
-} from '../../common/setting-values';
+import { positiveIntegerSetting } from '../../common/setting-values';
 
 @Injectable()
 export class CatalogService {
@@ -20,7 +17,6 @@ export class CatalogService {
 
   async publicSettings() {
     const keys = [
-      'min_booking_lead_hours',
       'event_service_start_time',
       'event_service_end_time',
       'event_time_interval_minutes',
@@ -34,12 +30,10 @@ export class CatalogService {
     const rows = await this.prisma.platformSetting.findMany({
       where: { key: { in: keys } },
     });
-    const settings = Object.fromEntries(rows.map((row) => [row.key, row.value]));
+    const settings = Object.fromEntries(
+      rows.map((row) => [row.key, row.value]),
+    );
     return {
-      minBookingLeadHours: nonNegativeIntegerSetting(
-        settings.min_booking_lead_hours,
-        48,
-      ),
       eventServiceStartTime: settings.event_service_start_time ?? '06:00',
       eventServiceEndTime: settings.event_service_end_time ?? '23:30',
       eventTimeIntervalMinutes: positiveIntegerSetting(
@@ -57,17 +51,30 @@ export class CatalogService {
     };
   }
 
-  async updateOffering(code: OrderingOfferingCode, dto: UpdateOrderingOfferingDto) {
-    const current = await this.prisma.orderingOffering.findUnique({ where: { code } });
+  async updateOffering(
+    code: OrderingOfferingCode,
+    dto: UpdateOrderingOfferingDto,
+  ) {
+    const current = await this.prisma.orderingOffering.findUnique({
+      where: { code },
+    });
     if (!current) throw new NotFoundException('Ordering offering not found');
     return this.prisma.orderingOffering.update({
       where: { code },
       data: {
         ...(dto.title !== undefined ? { title: dto.title.trim() } : {}),
-        ...(dto.description !== undefined ? { description: dto.description.trim() } : {}),
-        ...(dto.imageUrl !== undefined ? { imageUrl: dto.imageUrl.trim() || null } : {}),
-        ...(dto.ctaLabel !== undefined ? { ctaLabel: dto.ctaLabel.trim() || null } : {}),
-        ...(dto.displayOrder !== undefined ? { displayOrder: dto.displayOrder } : {}),
+        ...(dto.description !== undefined
+          ? { description: dto.description.trim() }
+          : {}),
+        ...(dto.imageUrl !== undefined
+          ? { imageUrl: dto.imageUrl.trim() || null }
+          : {}),
+        ...(dto.ctaLabel !== undefined
+          ? { ctaLabel: dto.ctaLabel.trim() || null }
+          : {}),
+        ...(dto.displayOrder !== undefined
+          ? { displayOrder: dto.displayOrder }
+          : {}),
         ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
       },
     });

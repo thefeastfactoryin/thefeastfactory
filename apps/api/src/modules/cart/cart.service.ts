@@ -20,7 +20,6 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { eventLocalInstant } from '../../common/event-time';
 import {
   clockMinutes,
-  nonNegativeIntegerSetting,
   positiveIntegerSetting,
 } from '../../common/setting-values';
 import { OrdersService } from '../orders/orders.service';
@@ -1183,7 +1182,6 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
         where: {
           key: {
             in: [
-              'min_booking_lead_hours',
               'event_service_start_time',
               'event_service_end_time',
               'event_time_interval_minutes',
@@ -1208,10 +1206,21 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
     const settings = Object.fromEntries(
       settingRows.map((setting) => [setting.key, setting.value]),
     );
-    const leadHours = nonNegativeIntegerSetting(
-      settings.min_booking_lead_hours,
-      48,
-    );
+    const assignment = dto.regionId
+      ? await this.regions.assignToRegion(
+          dto.regionId,
+          address.latitude,
+          address.longitude,
+          deliveryServiceType,
+          helperCount,
+        )
+      : await this.regions.assign(
+          address.latitude,
+          address.longitude,
+          deliveryServiceType,
+          helperCount,
+        );
+    const leadHours = assignment.region.minBookingLeadHours;
     if (eventInstant.getTime() - Date.now() < leadHours * 3_600_000) {
       throw new BadRequestException(
         `Event requires at least ${leadHours} hours advance booking`,
@@ -1240,20 +1249,6 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
       );
     }
     const eventTime = new Date(`1970-01-01T${dto.eventTimeStart}:00.000Z`);
-    const assignment = dto.regionId
-      ? await this.regions.assignToRegion(
-          dto.regionId,
-          address.latitude,
-          address.longitude,
-          deliveryServiceType,
-          helperCount,
-        )
-      : await this.regions.assign(
-          address.latitude,
-          address.longitude,
-          deliveryServiceType,
-          helperCount,
-        );
     return { eventDate, eventTime, ...assignment };
   }
 

@@ -354,6 +354,31 @@ export default function AdminHomepage() {
                         }}
                       />
                     </Field>
+                    <Field label="Minimum booking lead time">
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          min={0}
+                          step={1}
+                          defaultValue={region.minBookingLeadHours}
+                          onBlur={(event) => {
+                            const value = Number(event.target.value);
+                            if (
+                              Number.isInteger(value) &&
+                              value >= 0 &&
+                              value !== region.minBookingLeadHours
+                            ) {
+                              updateRegion(region, {
+                                minBookingLeadHours: value,
+                              });
+                            }
+                          }}
+                        />
+                        <span className="shrink-0 text-sm text-muted-foreground">
+                          hours
+                        </span>
+                      </div>
+                    </Field>
                     <Field label="Kitchen address">
                       <Textarea
                         rows={4}

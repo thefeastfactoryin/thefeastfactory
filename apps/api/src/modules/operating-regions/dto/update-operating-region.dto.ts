@@ -68,6 +68,12 @@ export class UpdateOperatingRegionDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @IsInt()
+  @Min(0)
+  minBookingLeadHours?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsBoolean()
   isActive?: boolean;
 

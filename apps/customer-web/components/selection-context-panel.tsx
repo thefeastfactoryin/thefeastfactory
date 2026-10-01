@@ -1092,6 +1092,7 @@ export function SelectionContextPanel({
       return;
     }
     let current = true;
+    setAssignedRegion(null);
     setVenueStatus('checking');
     onVenueStatusChange?.('checking');
     void apiRequest<LocationResolution>('/operating-regions/resolve', {
@@ -1108,6 +1109,7 @@ export function SelectionContextPanel({
           : resolution.reason === 'KITCHEN_CLOSED'
             ? 'closed'
             : 'outside';
+        setAssignedRegion(resolution.serviceable ? resolution.region : null);
         setVenueStatus(next);
         onVenueStatusChange?.(next);
       })
@@ -1230,9 +1232,8 @@ export function SelectionContextPanel({
       !message.startsWith('Address saved. Add the delivery date') &&
       !message.startsWith('Changes pending'),
     );
-  const earliestDate = new Date(
-    Date.now() + (publicSettings?.minBookingLeadHours ?? 48) * 60 * 60 * 1000,
-  );
+  const leadHours = assignedRegion?.minBookingLeadHours ?? 48;
+  const earliestDate = new Date(Date.now() + leadHours * 60 * 60 * 1000);
   const firstEventDate = localDateValue(earliestDate);
   const deliveryTimeSlots = useMemo(
     () =>
@@ -1243,8 +1244,7 @@ export function SelectionContextPanel({
       ),
     [publicSettings],
   );
-  const minimumDeliveryInstant =
-    Date.now() + (publicSettings?.minBookingLeadHours ?? 48) * 60 * 60 * 1000;
+  const minimumDeliveryInstant = Date.now() + leadHours * 60 * 60 * 1000;
   const isTimeAvailable = (slot: DeliveryTimeSlot) =>
     !eventDate ||
     new Date(`${eventDate}T${slot.value}:00.000+05:30`).getTime() >=
@@ -1304,7 +1304,6 @@ export function SelectionContextPanel({
     'The preparation kitchen address will appear after the venue is saved.';
   const guestLabel = pkg?.packageType === 'MEAL_BOX' ? 'Boxes' : 'Guests';
   const earliestSuggestion = (() => {
-    const leadHours = publicSettings?.minBookingLeadHours ?? 48;
     const earliestInstant = Date.now() + leadHours * 60 * 60 * 1000;
     const firstDate = localDateValue(new Date(earliestInstant));
     for (let dayOffset = 0; dayOffset < 31; dayOffset += 1) {

@@ -10,13 +10,12 @@ export default function FaqPage() {
       page={{
         title: 'Help & FAQ',
         eyebrow: 'Support',
-        summary: 'Answers to common questions about booking, payment, delivery, changes, and support.',
+        summary:
+          'Answers to common questions about booking, payment, delivery, changes, and support.',
         sections: [
           {
             title: 'How early should I book?',
-            body: settings
-              ? `Please book at least ${settings.minBookingLeadHours} hours before your event unless the selected package shows a different rule.`
-              : 'Loading the current booking policy…',
+            body: 'Booking lead time depends on the kitchen serving your delivery location. Choose your location to see the earliest available delivery time.',
           },
           {
             title: 'Can I change my menu after booking?',

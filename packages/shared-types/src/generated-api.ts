@@ -1687,6 +1687,7 @@ export interface components {
             readonly kitchenAddress?: string;
             readonly kitchenImageUrl?: string;
             readonly mapUrl?: string;
+            readonly minBookingLeadHours?: number;
             readonly name?: string;
             readonly publicDisplayOrder?: number;
             readonly serviceRadiusKm?: string;

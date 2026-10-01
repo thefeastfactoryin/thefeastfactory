@@ -29,13 +29,6 @@ const businessKeys = [
 
 const operationalSettings = [
   {
-    key: 'min_booking_lead_hours',
-    label: 'Minimum booking lead time',
-    suffix: 'hours',
-    type: 'number',
-    min: 0,
-  },
-  {
     key: 'event_service_start_time',
     label: 'Earliest event time',
     type: 'time',

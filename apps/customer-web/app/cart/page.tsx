@@ -2576,14 +2576,28 @@ function CutleryOptions({
     [cart.cutleryItems, quote?.cutleryItems],
   );
   const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const quantitiesRef = useRef<Record<string, number>>({});
+  const pendingQuantitiesRef = useRef<Record<string, number> | null>(null);
+  const persistTimerRef = useRef<number | null>(null);
+  const persistInFlightRef = useRef(false);
 
   useEffect(() => {
-    setQuantities(
-      Object.fromEntries(
-        sourceItems.map((item) => [item.id, item.quantity ?? 0]),
-      ),
+    if (pendingQuantitiesRef.current || persistInFlightRef.current) return;
+    const next = Object.fromEntries(
+      sourceItems.map((item) => [item.id, item.quantity ?? 0]),
     );
+    quantitiesRef.current = next;
+    setQuantities(next);
   }, [sourceItems]);
+
+  useEffect(
+    () => () => {
+      if (persistTimerRef.current !== null) {
+        window.clearTimeout(persistTimerRef.current);
+      }
+    },
+    [],
+  );
 
   const includedItems = sourceItems.filter((item) => item.includedQuantity > 0);
   const total = sourceItems.reduce(
@@ -2600,10 +2614,10 @@ function CutleryOptions({
 
   function changedQuantities(itemId: string, delta: number) {
     return {
-      ...quantities,
+      ...quantitiesRef.current,
       [itemId]: Math.max(
         0,
-        Math.min(10000, (quantities[itemId] ?? 0) + delta),
+        Math.min(10000, (quantitiesRef.current[itemId] ?? 0) + delta),
       ),
     };
   }
@@ -2615,21 +2629,41 @@ function CutleryOptions({
     }));
   }
 
-  async function persist(next: Record<string, number>) {
-    if (saving) return;
+  async function persistPending() {
+    if (persistInFlightRef.current) return;
+    const next = pendingQuantitiesRef.current;
+    if (!next) return;
+    pendingQuantitiesRef.current = null;
+    persistInFlightRef.current = true;
     setSaving(true);
     try {
       await onChange(payload(next));
     } finally {
-      setSaving(false);
+      persistInFlightRef.current = false;
+      if (pendingQuantitiesRef.current) {
+        persistTimerRef.current = window.setTimeout(
+          () => void persistPending(),
+          300,
+        );
+      } else {
+        setSaving(false);
+      }
     }
   }
 
-  async function changeQuantity(itemId: string, delta: number) {
-    if (disabled || saving) return;
+  function changeQuantity(itemId: string, delta: number) {
+    if (disabled) return;
     const next = changedQuantities(itemId, delta);
+    quantitiesRef.current = next;
     setQuantities(next);
-    await persist(next);
+    pendingQuantitiesRef.current = next;
+    if (persistTimerRef.current !== null) {
+      window.clearTimeout(persistTimerRef.current);
+    }
+    persistTimerRef.current = window.setTimeout(
+      () => void persistPending(),
+      600,
+    );
   }
 
   function QuantityControl({ item }: { item: CutleryItem }) {
@@ -2638,8 +2672,8 @@ function CutleryOptions({
       <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
         <button
           type="button"
-          disabled={disabled || saving || quantity === 0}
-          onClick={() => void changeQuantity(item.id, -1)}
+          disabled={disabled || quantity === 0}
+          onClick={() => changeQuantity(item.id, -1)}
           className="grid h-8 w-8 place-items-center rounded-lg border border-[#dcccb7] text-primary transition hover:bg-[#faf5ed] disabled:text-stone-300"
           aria-label={`Decrease ${item.extraLabel || item.name}`}
         >
@@ -2650,8 +2684,8 @@ function CutleryOptions({
         </span>
         <button
           type="button"
-          disabled={disabled || saving}
-          onClick={() => void changeQuantity(item.id, 1)}
+          disabled={disabled}
+          onClick={() => changeQuantity(item.id, 1)}
           className="grid h-8 w-8 place-items-center rounded-lg bg-primary text-white shadow-sm transition hover:bg-primary/90 disabled:opacity-50"
           aria-label={`Increase ${item.extraLabel || item.name}`}
         >
@@ -2686,13 +2720,13 @@ function CutleryOptions({
   }
 
   return (
-    <section className="mt-4 overflow-hidden rounded-2xl border border-border/70 bg-white shadow-sm sm:mt-5">
+    <section
+      aria-busy={saving}
+      className="mt-4 overflow-hidden rounded-2xl border border-border/70 bg-white shadow-sm sm:mt-5"
+    >
       <div className="flex items-center gap-2.5 border-b border-border/60 px-3 py-3 sm:px-4">
         <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary/[0.08]">
-          <Utensils
-            className="h-4 w-4 text-primary"
-            aria-hidden="true"
-          />
+          <Utensils className="h-4 w-4 text-primary" aria-hidden="true" />
         </span>
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
           <h3 className="text-sm font-semibold text-foreground">Cutlery</h3>

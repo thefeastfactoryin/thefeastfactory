@@ -112,6 +112,9 @@ export class OperatingRegionsService {
         ...(dto.deliveryFeePerKm !== undefined
           ? { deliveryFeePerKm: new Prisma.Decimal(dto.deliveryFeePerKm) }
           : {}),
+        ...(dto.minBookingLeadHours !== undefined
+          ? { minBookingLeadHours: dto.minBookingLeadHours }
+          : {}),
         ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
         ...(dto.isAcceptingOrders !== undefined
           ? { isAcceptingOrders: dto.isAcceptingOrders }

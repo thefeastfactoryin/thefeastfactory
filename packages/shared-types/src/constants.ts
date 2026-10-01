@@ -9,7 +9,6 @@ export const appBrand = {
   defaultGuestRangeLabel: '10 to 500+',
   defaultMinGuestCount: 10,
   defaultMaxGuestCountLabel: '500+',
-  defaultBookingLeadHours: 48,
 } as const;
 
 export const businessInfo = {
@@ -136,7 +135,7 @@ export const legalPages = {
     sections: [
       {
         title: 'How early should I book?',
-        body: `Please book at least ${appBrand.defaultBookingLeadHours} hours before your event unless the platform shows a different lead time.`,
+        body: 'Booking lead time depends on the kitchen serving your delivery location. Choose your location to see the earliest available delivery time.',
       },
       {
         title: 'Can I change my menu after booking?',

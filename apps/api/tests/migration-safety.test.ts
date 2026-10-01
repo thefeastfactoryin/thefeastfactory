@@ -7,6 +7,11 @@ const migrationPath = new URL(
   import.meta.url,
 );
 
+const kitchenLeadTimeMigrationPath = new URL(
+  '../prisma/migrations/20261001220000_kitchen_booking_lead_time/migration.sql',
+  import.meta.url,
+);
+
 test('event collapse copies cart/order data and guards required fields before dropping source data', async () => {
   const sql = await readFile(migrationPath, 'utf8');
   const cartCopy = sql.indexOf('UPDATE "carts"');
@@ -19,4 +24,16 @@ test('event collapse copies cart/order data and guards required fields before dr
   assert.ok(drop > guard);
   assert.match(sql, /ALTER COLUMN "address_id" SET NOT NULL/);
   assert.match(sql, /ALTER COLUMN "event_date" SET NOT NULL/);
+});
+
+test('kitchen lead-time migration backfills regions before removing the global setting', async () => {
+  const sql = await readFile(kitchenLeadTimeMigrationPath, 'utf8');
+  const addColumn = sql.indexOf('ADD COLUMN "min_booking_lead_hours"');
+  const backfill = sql.indexOf('UPDATE "operating_regions"');
+  const removeGlobal = sql.indexOf('DELETE FROM "platform_settings"');
+
+  assert.ok(addColumn >= 0);
+  assert.ok(backfill > addColumn);
+  assert.ok(removeGlobal > backfill);
+  assert.match(sql, /CHECK \("min_booking_lead_hours" >= 0\)/);
 });

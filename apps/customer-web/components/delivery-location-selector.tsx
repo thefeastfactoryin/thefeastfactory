@@ -36,7 +36,6 @@ import {
   type AddressDetailsValue,
 } from './address-details-fields';
 
-const DELIVERY_LEAD_TIME_HOURS = 24;
 const SAVED_ADDRESS_MATCH_KM = 0.5;
 
 type LocationNotice = {
@@ -130,26 +129,31 @@ export function DeliveryLocationSelector({
   const [addressesLoaded, setAddressesLoaded] = useState(false);
   const [candidateLoading, setCandidateLoading] = useState(false);
   const [candidateSaving, setCandidateSaving] = useState(false);
-  const [candidateAddress, setCandidateAddress] =
-    useState<CandidateAddress>();
+  const [candidateAddress, setCandidateAddress] = useState<CandidateAddress>();
   const [candidateResolution, setCandidateResolution] =
     useState<LocationResolution>();
   const [notice, setNotice] = useState<LocationNotice>();
   const [deliveryEstimate, setDeliveryEstimate] = useState('');
   const addressBookRevision = useAddressBookStore((state) => state.revision);
-  const markAddressesChanged = useAddressBookStore((state) => state.markChanged);
+  const markAddressesChanged = useAddressBookStore(
+    (state) => state.markChanged,
+  );
   const initialHomeLocated = useRef(false);
   const selectionRequestId = useRef(0);
   const candidateFormRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
-    if (!active) return;
+    const region = location?.resolution.region;
+    if (!active || !location?.resolution.serviceable || !region) {
+      setDeliveryEstimate('');
+      return;
+    }
     setDeliveryEstimate(
       formatDeliveryEstimate(
-        new Date(Date.now() + DELIVERY_LEAD_TIME_HOURS * 60 * 60 * 1000),
+        new Date(Date.now() + region.minBookingLeadHours * 60 * 60 * 1000),
       ),
     );
-  }, [active]);
+  }, [active, location]);
 
   useEffect(() => {
     if (!notice) return;

@@ -191,11 +191,6 @@ async function seedOrderingOfferings() {
 
 async function seedSettings() {
   const settings = [
-    [
-      'min_booking_lead_hours',
-      '48',
-      'Minimum hours required between booking and event time.',
-    ],
     ['otp_expiry_seconds', '300', 'Customer OTP expiry duration.'],
     ['otp_max_attempts', '5', 'Maximum OTP verification attempts.'],
     ['razorpay_currency', 'INR', 'Default Razorpay currency.'],
