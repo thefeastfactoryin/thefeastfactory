@@ -11,6 +11,7 @@ import {
   Package,
   Settings,
   Utensils,
+  ListPlus,
   X,
 } from 'lucide-react';
 import Image from 'next/image';
@@ -35,6 +36,7 @@ const navigationGroups = [
     links: [
       [adminCopy.navigation.menu, '/admin/menu/items', Utensils],
       [adminCopy.navigation.packages, '/admin/packages', Package],
+      ['Cutlery', '/admin/cutlery', ListPlus],
       [adminCopy.navigation.homePage, '/admin/homepage', Home],
     ],
   },

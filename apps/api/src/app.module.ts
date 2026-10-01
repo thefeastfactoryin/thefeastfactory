@@ -17,6 +17,7 @@ import { OperatingRegionsModule } from './modules/operating-regions/operating-re
 import { CartModule } from './modules/cart/cart.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { CutleryModule } from './modules/cutlery/cutlery.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     CartModule,
     CatalogModule,
     NotificationsModule,
+    CutleryModule,
   ],
 })
 export class AppModule {}

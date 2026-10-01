@@ -652,6 +652,18 @@ export class PaymentsService {
               paymentStatus: PaymentStatus.PAID,
               bookingLeadHours: leadHours,
               selectedItems: { create: cart.selectedItems },
+              cutleryItems: {
+                create: (cart.cutleryItems ?? []).map((item) => ({
+                  cutleryItemId: item.itemId,
+                  itemName: item.itemName,
+                  unitLabel: item.unitLabel,
+                  includedQuantity: item.includedQuantity,
+                  extraQuantity: item.extraQuantity,
+                  unitPrice: item.unitPrice,
+                  lineTotal: item.lineTotal,
+                  imageUrl: item.imageUrl,
+                })),
+              },
               statusHistory: {
                 create: {
                   toStatus: OrderStatus.CONFIRMED,
@@ -680,7 +692,7 @@ export class PaymentsService {
           await tx.$queryRaw`SELECT id FROM "carts" WHERE id = ${paidCart.cartId} FOR UPDATE`;
           const current = await tx.cart.findUnique({
             where: { id: paidCart.cartId },
-            include: { items: true },
+            include: { items: true, cutleryItems: true },
           });
           if (current?.status !== CartStatus.ACTIVE) continue;
           if (cartFingerprint(current) !== paidCart.cartFingerprint) {
@@ -716,6 +728,12 @@ export class PaymentsService {
                     role: item.role,
                     quantity: item.quantity,
                     weightGrams: item.weightGrams,
+                  })),
+                },
+                cutleryItems: {
+                  create: current.cutleryItems.map((item) => ({
+                    cutleryItemId: item.cutleryItemId,
+                    quantity: item.quantity,
                   })),
                 },
               },

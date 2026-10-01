@@ -196,50 +196,25 @@ export function CustomerShell({
         !isCheckoutRoute && 'pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0',
       )}
     >
-      {/* ─── Desktop header ─── */}
+      {/* ─── Shared responsive header ─── */}
       <header className="sticky top-0 z-40 border-b border-border bg-white/95 backdrop-blur-xl">
-        {isCheckoutRoute ? (
-          <div className="mx-auto flex h-14 max-w-[1536px] items-center gap-2 px-3 sm:px-6 lg:px-10">
-            <Link
-              href="/packages"
-              aria-label="Back to packages"
-              className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-primary hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-primary/30"
-            >
-              <ArrowLeft className="h-5 w-5" aria-hidden="true" />
-            </Link>
-            <Link
-              href="/"
-              aria-label="The Feast Factory home"
-              className="flex min-w-0 shrink items-center gap-2"
-            >
-              <img
-                src="/logo.png"
-                alt=""
-                aria-hidden="true"
-                className="h-8 w-8 shrink-0 rounded-md object-cover"
-              />
-              <span className="block truncate whitespace-nowrap font-serif text-[15px] font-semibold leading-[1.12] text-primary sm:text-[18px]">
-                The Feast Factory
-              </span>
-            </Link>
-            <div className="ml-auto flex items-center gap-1">
-              <Link
-                href={session ? '/profile' : '/login'}
-                aria-label={session ? 'Profile' : 'Sign in'}
-                className="grid h-10 w-10 place-items-center rounded-full text-primary focus-visible:ring-2 focus-visible:ring-primary/30"
-              >
-                {session ? (
-                  <User className="h-5 w-5" aria-hidden="true" />
-                ) : (
-                  <LogIn className="h-5 w-5" aria-hidden="true" />
-                )}
-              </Link>
-            </div>
-          </div>
-        ) : (
-          <>
         <div className="mx-auto flex min-h-14 max-w-[1536px] flex-wrap items-center justify-between gap-1.5 px-3 py-1.5 sm:h-[78px] sm:flex-nowrap sm:gap-3 sm:px-6 sm:py-0 lg:px-10">
-          <div className="contents min-w-0 flex-1 items-center gap-1.5 sm:flex sm:gap-2 md:flex-none">
+          <div
+            className={cn(
+              'contents min-w-0 flex-1 items-center gap-1.5 sm:flex sm:gap-2 md:flex-none',
+              isCheckoutRoute && 'flex',
+            )}
+          >
+            {isCheckoutRoute && (
+              <Link
+                href="/packages"
+                aria-label="Back to packages"
+                className="grid h-11 w-9 shrink-0 place-items-center rounded-full text-primary transition-colors hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-primary/30 md:hidden"
+              >
+                <ArrowLeft className="h-5 w-5" aria-hidden="true" />
+              </Link>
+            )}
+
             {/* Logo */}
             <Link
               href="/"
@@ -257,7 +232,12 @@ export function CustomerShell({
               </span>
             </Link>
 
-            <div className="contents w-full min-w-0 flex-1 [&>button]:max-w-full sm:block md:flex-none">
+            <div
+              className={cn(
+                'contents w-full min-w-0 flex-1 [&>button]:max-w-full sm:block md:flex-none',
+                isCheckoutRoute && 'max-md:hidden',
+              )}
+            >
               <DeliveryLocationSelector active variant="header" />
             </div>
           </div>
@@ -380,7 +360,10 @@ export function CustomerShell({
             <Link
               href="/cart"
               aria-label={`Cart — ${cartCount} packages`}
-              className="relative grid h-11 w-11 place-items-center rounded-full text-primary focus-visible:ring-2 focus-visible:ring-primary/30"
+              className={cn(
+                'relative grid h-11 w-11 place-items-center rounded-full text-primary focus-visible:ring-2 focus-visible:ring-primary/30',
+                isCheckoutRoute && 'hidden',
+              )}
               onClick={() => {
                 setAccountOpen(false);
                 setMobileMenuOpen(false);
@@ -475,8 +458,6 @@ export function CustomerShell({
               {session ? 'Profile' : 'Login'}
             </Link>
           </nav>
-        )}
-          </>
         )}
       </header>
 

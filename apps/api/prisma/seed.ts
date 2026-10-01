@@ -30,6 +30,7 @@ async function main() {
   await seedRegions();
   await seedAdmin();
   await seedOrderingOfferings();
+  await seedCutlery();
 
   const menuRows = readMenuRows();
   const categoryByName = await seedCategories(menuRows);
@@ -39,6 +40,95 @@ async function main() {
   await seedMealBoxes(menuItems);
   await seedCustomPackage(menuItems);
   await seedOrderByKg(menuItems);
+}
+
+async function seedCutlery() {
+  const items = [
+    [
+      'cutlery-plates',
+      'Plates',
+      'Extra Plates',
+      'piece',
+      '10.00',
+      10,
+      '/cutlery/plates.png',
+      20,
+    ],
+    [
+      'cutlery-spoons-forks',
+      'Spoons & Forks',
+      'Extra Spoons & Forks',
+      'set',
+      '5.00',
+      10,
+      '/cutlery/spoons-forks.png',
+      40,
+    ],
+    [
+      'cutlery-tissues',
+      'Tissues',
+      'Extra Tissues',
+      'pack',
+      '5.00',
+      10,
+      '/cutlery/tissues.png',
+      50,
+    ],
+    [
+      'cutlery-serving-spoons',
+      'Serving Spoons',
+      'Serving Spoons',
+      'piece',
+      '20.00',
+      0,
+      '/cutlery/serving-spoons.png',
+      10,
+    ],
+    [
+      'cutlery-water-bottles',
+      'Water Bottles',
+      'Water Bottles',
+      'piece',
+      '10.00',
+      0,
+      '/cutlery/water-bottles.png',
+      30,
+    ],
+  ] as const;
+  for (const [
+    id,
+    name,
+    extraLabel,
+    unitLabel,
+    unitPrice,
+    includedQuantity,
+    imageUrl,
+    displayOrder,
+  ] of items) {
+    await prisma.cutleryItem.upsert({
+      where: { id },
+      update: {
+        name,
+        extraLabel,
+        unitLabel,
+        unitPrice: new Prisma.Decimal(unitPrice),
+        includedQuantity,
+        imageUrl,
+        displayOrder,
+        isActive: true,
+      },
+      create: {
+        id,
+        name,
+        extraLabel,
+        unitLabel,
+        unitPrice: new Prisma.Decimal(unitPrice),
+        includedQuantity,
+        imageUrl,
+        displayOrder,
+      },
+    });
+  }
 }
 
 async function seedOrderingOfferings() {

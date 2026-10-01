@@ -3,6 +3,7 @@ import { MobileOrderBar } from '../../components/mobile-order-bar';
 
 import type {
   CartSummary,
+  CutleryItem,
   DeliveryServiceType,
   GatewayOrder,
   LocationResolution,
@@ -17,6 +18,8 @@ import {
   AlertCircle,
   CalendarDays,
   Check,
+  ChevronDown,
+  ChevronUp,
   LockKeyhole,
   MapPin,
   MessageSquareText,
@@ -335,8 +338,77 @@ function fixedPackageMenuRows(
   return [...included, ...extras];
 }
 
+const CUTLERY_PREVIEW_ITEMS: CutleryItem[] = [
+  {
+    id: 'cutlery-plates',
+    name: 'Plates',
+    extraLabel: 'Extra Plates',
+    unitLabel: 'piece',
+    unitPrice: '10.00',
+    includedQuantity: 10,
+    imageUrl: '/cutlery/plates.png',
+    displayOrder: 20,
+    isActive: true,
+    quantity: 0,
+    lineTotal: '0.00',
+  },
+  {
+    id: 'cutlery-spoons-forks',
+    name: 'Spoons & Forks',
+    extraLabel: 'Extra Spoons & Forks',
+    unitLabel: 'set',
+    unitPrice: '5.00',
+    includedQuantity: 10,
+    imageUrl: '/cutlery/spoons-forks.png',
+    displayOrder: 40,
+    isActive: true,
+    quantity: 0,
+    lineTotal: '0.00',
+  },
+  {
+    id: 'cutlery-tissues',
+    name: 'Tissues',
+    extraLabel: 'Extra Tissues',
+    unitLabel: 'pack',
+    unitPrice: '5.00',
+    includedQuantity: 10,
+    imageUrl: '/cutlery/tissues.png',
+    displayOrder: 50,
+    isActive: true,
+    quantity: 0,
+    lineTotal: '0.00',
+  },
+  {
+    id: 'cutlery-serving-spoons',
+    name: 'Serving Spoons',
+    extraLabel: 'Serving Spoons',
+    unitLabel: 'piece',
+    unitPrice: '20.00',
+    includedQuantity: 0,
+    imageUrl: '/cutlery/serving-spoons.png',
+    displayOrder: 10,
+    isActive: true,
+    quantity: 0,
+    lineTotal: '0.00',
+  },
+  {
+    id: 'cutlery-water-bottles',
+    name: 'Water Bottles',
+    extraLabel: 'Water Bottles',
+    unitLabel: 'piece',
+    unitPrice: '10.00',
+    includedQuantity: 0,
+    imageUrl: '/cutlery/water-bottles.png',
+    displayOrder: 30,
+    isActive: true,
+    quantity: 0,
+    lineTotal: '0.00',
+  },
+];
+
 export default function CartPage() {
   const router = useRouter();
+  const [previewCutlery, setPreviewCutlery] = useState(false);
   const session = useSessionStore((state) => state.session);
   const deliveryLocation = useDeliveryLocationStore((state) => state.location);
   const setDeliveryLocation = useDeliveryLocationStore(
@@ -403,6 +475,15 @@ export default function CartPage() {
   const [addressSaving, setAddressSaving] = useState(false);
   const [addressError, setAddressError] = useState('');
   const inlineDeliveryField = deliveryFieldForIssue(validationIssue);
+
+  useEffect(() => {
+    if (process.env.NODE_ENV !== 'production') {
+      setPreviewCutlery(
+        new URLSearchParams(window.location.search).get('preview') ===
+          'cutlery',
+      );
+    }
+  }, []);
 
   const clearCartViewState = useCallback(() => {
     reset();
@@ -910,26 +991,29 @@ export default function CartPage() {
     }
   }
 
-  async function updateCutleryExtraCount(nextCount: number) {
+  async function updateCutleryItems(
+    items: Array<{ itemId: string; quantity: number }>,
+  ) {
     if (!session || !cart || updatingDelivery || pendingOrder) return;
-    const cutleryExtraCount = Math.max(0, Math.round(nextCount));
     setUpdatingDelivery(true);
     setError('');
     try {
-      const updatedCarts = await Promise.all(
+      await Promise.all(
         activeCarts.map((packageCart) =>
-          apiRequest<CartSummary>(
-            `/cart/${packageCart.id}`,
+          apiRequest<CutleryItem[]>(
+            `/cart/${packageCart.id}/cutlery`,
             {
               method: 'PUT',
-              body: JSON.stringify({
-                packageVersionId: packageCart.packageVersionId,
-                cutleryExtraCount,
-              }),
+              body: JSON.stringify({ items }),
             },
             session.accessToken,
           ),
         ),
+      );
+      const updatedCarts = await apiRequest<CartSummary[]>(
+        '/cart/all',
+        {},
+        session.accessToken,
       );
       setActiveCarts(updatedCarts);
       const updated = updatedCarts.find((entry) => entry.id === cart.id);
@@ -1462,6 +1546,27 @@ export default function CartPage() {
     void pay();
   }
 
+  if (previewCutlery) {
+    return (
+      <main className="min-h-screen bg-[#f5f1ea] p-4 sm:p-10">
+        <div className="mx-auto max-w-3xl">
+          <CutleryOptions
+            cart={{ cutleryItems: CUTLERY_PREVIEW_ITEMS } as CartSummary}
+            quote={
+              {
+                cutleryItems: CUTLERY_PREVIEW_ITEMS,
+                cutleryTotal: '0.00',
+              } as PackageSelectionPrice
+            }
+            disabled={false}
+            onChange={async () => undefined}
+            defaultOpen
+          />
+        </div>
+      </main>
+    );
+  }
+
   if (!session) {
     return (
       <div className="page-shell">
@@ -1869,7 +1974,7 @@ export default function CartPage() {
                         cart={cart}
                         quote={quote}
                         disabled={updatingDelivery}
-                        onChange={updateCutleryExtraCount}
+                        onChange={updateCutleryItems}
                       />
                     </>
                   }
@@ -2451,122 +2556,217 @@ function CutleryOptions({
   quote,
   disabled,
   onChange,
+  defaultOpen = false,
 }: {
   cart: CartSummary;
   quote?: PackageSelectionPrice;
   disabled: boolean;
-  onChange: (count: number) => void;
+  onChange: (
+    items: Array<{ itemId: string; quantity: number }>,
+  ) => Promise<void>;
+  defaultOpen?: boolean;
 }) {
-  const includedCount =
-    quote?.cutleryIncludedCount ?? cart.cutleryIncludedCount ?? 0;
-  const extraCount = quote?.cutleryExtraCount ?? cart.cutleryExtraCount ?? 0;
-  const unitPrice = quote?.cutleryUnitPrice ?? cart.cutleryUnitPrice ?? '5.00';
-  const total = Number(quote?.cutleryTotal ?? 0);
+  const [expanded, setExpanded] = useState(defaultOpen);
+  const [saving, setSaving] = useState(false);
+  const sourceItems = useMemo(
+    () =>
+      [...(quote?.cutleryItems ?? cart.cutleryItems ?? [])].sort(
+        (a, b) => a.displayOrder - b.displayOrder,
+      ),
+    [cart.cutleryItems, quote?.cutleryItems],
+  );
+  const [quantities, setQuantities] = useState<Record<string, number>>({});
 
-  return (
-    <section className="mt-4 rounded-xl border border-border/70 bg-white p-3 sm:mt-5 sm:p-4">
-      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 sm:gap-3">
-        <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary/[0.08] sm:h-9 sm:w-9">
-          <Utensils
-            className="h-4 w-4 text-primary sm:h-[18px] sm:w-[18px]"
-            aria-hidden="true"
-          />
-        </div>
+  useEffect(() => {
+    setQuantities(
+      Object.fromEntries(
+        sourceItems.map((item) => [item.id, item.quantity ?? 0]),
+      ),
+    );
+  }, [sourceItems]);
+
+  const includedItems = sourceItems.filter((item) => item.includedQuantity > 0);
+  const total = sourceItems.reduce(
+    (sum, item) => sum + Number(item.unitPrice) * (quantities[item.id] ?? 0),
+    0,
+  );
+  const selectedCount = Object.values(quantities).reduce(
+    (sum, value) => sum + value,
+    0,
+  );
+  const selectedItems = sourceItems.filter(
+    (item) => (quantities[item.id] ?? 0) > 0,
+  );
+
+  function changedQuantities(itemId: string, delta: number) {
+    return {
+      ...quantities,
+      [itemId]: Math.max(
+        0,
+        Math.min(10000, (quantities[itemId] ?? 0) + delta),
+      ),
+    };
+  }
+
+  function payload(next: Record<string, number>) {
+    return sourceItems.map((item) => ({
+      itemId: item.id,
+      quantity: next[item.id] ?? 0,
+    }));
+  }
+
+  async function persist(next: Record<string, number>) {
+    if (saving) return;
+    setSaving(true);
+    try {
+      await onChange(payload(next));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function changeQuantity(itemId: string, delta: number) {
+    if (disabled || saving) return;
+    const next = changedQuantities(itemId, delta);
+    setQuantities(next);
+    await persist(next);
+  }
+
+  function QuantityControl({ item }: { item: CutleryItem }) {
+    const quantity = quantities[item.id] ?? 0;
+    return (
+      <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+        <button
+          type="button"
+          disabled={disabled || saving || quantity === 0}
+          onClick={() => void changeQuantity(item.id, -1)}
+          className="grid h-8 w-8 place-items-center rounded-lg border border-[#dcccb7] text-primary transition hover:bg-[#faf5ed] disabled:text-stone-300"
+          aria-label={`Decrease ${item.extraLabel || item.name}`}
+        >
+          <Minus className="h-3.5 w-3.5" />
+        </button>
+        <span className="money-text w-5 text-center text-sm font-semibold">
+          {quantity}
+        </span>
+        <button
+          type="button"
+          disabled={disabled || saving}
+          onClick={() => void changeQuantity(item.id, 1)}
+          className="grid h-8 w-8 place-items-center rounded-lg bg-primary text-white shadow-sm transition hover:bg-primary/90 disabled:opacity-50"
+          aria-label={`Increase ${item.extraLabel || item.name}`}
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    );
+  }
+
+  function ExtraRow({ item }: { item: CutleryItem }) {
+    return (
+      <article className="grid grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-xl border border-[#e7e0d4] bg-white p-1.5 sm:grid-cols-[48px_minmax(0,1fr)_auto] sm:p-2">
+        <DataImage
+          src={item.imageUrl}
+          alt={item.name}
+          className="h-11 w-11 rounded-lg object-cover sm:h-12 sm:w-12"
+        />
         <div className="min-w-0">
-          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-            <h3 className="text-[15px] font-semibold leading-5 text-foreground sm:text-base">
-              Cutlery
-            </h3>
-            <span className="rounded-full bg-primary/[0.08] px-2 py-0.5 text-[11px] font-semibold leading-4 text-primary sm:text-xs">
-              {includedCount} included
-            </span>
-          </div>
-          <p className="mt-0.5 truncate text-[11px] leading-4 text-muted-foreground sm:text-xs">
-            Plate + Spoon
+          <h4 className="truncate text-xs font-semibold text-foreground sm:text-sm">
+            {item.extraLabel || item.name}
+          </h4>
+          <p className="mt-0.5 text-[10px] text-muted-foreground sm:text-xs">
+            <strong className="money-text text-primary">
+              {formatCurrency(item.unitPrice).replace(/\.00$/, '')}
+            </strong>{' '}
+            / {item.unitLabel}
           </p>
         </div>
-        {extraCount <= 0 ? (
-          <div className="flex shrink-0 items-center gap-2">
-            <span className="money-text hidden text-[11px] font-semibold text-muted-foreground min-[360px]:inline sm:text-xs">
-              {formatCurrency(unitPrice).replace(/\.00$/, '')}/set
+        <QuantityControl item={item} />
+      </article>
+    );
+  }
+
+  return (
+    <section className="mt-4 overflow-hidden rounded-2xl border border-border/70 bg-white shadow-sm sm:mt-5">
+      <div className="flex items-center gap-2.5 border-b border-border/60 px-3 py-3 sm:px-4">
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary/[0.08]">
+          <Utensils
+            className="h-4 w-4 text-primary"
+            aria-hidden="true"
+          />
+        </span>
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+          <h3 className="text-sm font-semibold text-foreground">Cutlery</h3>
+          <span className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-100 px-2 py-1 text-[9px] font-extrabold uppercase tracking-wide text-emerald-800 sm:text-[10px]">
+            <Check className="h-3 w-3" /> 10 sets included
+          </span>
+          {selectedCount > 0 && (
+            <span className="money-text text-[10px] font-semibold text-primary sm:text-xs">
+              Extras {formatCurrency(total).replace(/\.00$/, '')}
             </span>
-            <button
-              type="button"
-              disabled={disabled}
-              onClick={() => onChange(1)}
-              className="inline-flex h-8 shrink-0 items-center justify-center gap-1 rounded-lg border border-primary/25 bg-primary/[0.04] px-2.5 text-[11px] font-semibold text-primary transition hover:border-primary/40 hover:bg-primary/[0.08] disabled:cursor-not-allowed disabled:opacity-50 sm:h-9 sm:px-3 sm:text-xs"
+          )}
+        </div>
+        <button
+          type="button"
+          disabled={sourceItems.length === 0}
+          aria-expanded={expanded}
+          onClick={() => setExpanded((current) => !current)}
+          className="inline-flex min-h-8 shrink-0 items-center gap-1 rounded-full bg-primary/[0.07] px-2.5 text-[11px] font-bold text-primary transition hover:bg-primary/[0.12] disabled:opacity-50"
+        >
+          {expanded ? 'Hide' : 'Add more'}
+          {expanded ? (
+            <ChevronUp className="h-3.5 w-3.5" />
+          ) : (
+            <ChevronDown className="h-3.5 w-3.5" />
+          )}
+        </button>
+      </div>
+
+      <div className="px-3 py-3 sm:px-4">
+        <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+          {includedItems.map((item) => (
+            <article
+              key={item.id}
+              className="flex min-w-0 items-center gap-1.5 rounded-lg border border-emerald-100 bg-emerald-50/40 p-1.5"
             >
-              <Plus className="h-3 w-3" aria-hidden="true" />
-              Add extra
-            </button>
-          </div>
-        ) : (
-          <div className="flex shrink-0 items-center gap-2">
-            <span className="money-text hidden text-[11px] font-semibold text-muted-foreground min-[360px]:inline sm:text-xs">
-              {formatCurrency(unitPrice).replace(/\.00$/, '')}/set
-            </span>
-            <div className="inline-flex h-8 shrink-0 items-center overflow-hidden rounded-lg border border-primary/25 bg-background sm:h-9">
-              <button
-                type="button"
-                disabled={disabled}
-                onClick={() => onChange(extraCount - 1)}
-                className="grid h-8 w-8 place-items-center text-primary transition hover:bg-primary/[0.08] disabled:opacity-50 sm:h-9 sm:w-9"
-                aria-label={
-                  extraCount === 1
-                    ? 'Remove extra cutlery sets'
-                    : 'Decrease extra cutlery sets'
-                }
-              >
-                <Minus className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-              </button>
-              <label htmlFor="extra-cutlery-count" className="sr-only">
-                Extra cutlery sets
-              </label>
-              <input
-                id="extra-cutlery-count"
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                disabled={disabled}
-                defaultValue={extraCount}
-                key={extraCount}
-                onFocus={(event) => event.currentTarget.select()}
-                onBlur={(event) => {
-                  const next = Math.max(
-                    0,
-                    Math.min(
-                      10000,
-                      Math.round(Number(event.target.value) || 0),
-                    ),
-                  );
-                  event.currentTarget.value = String(next);
-                  if (next !== extraCount) onChange(next);
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') event.currentTarget.blur();
-                }}
-                onChange={(event) => {
-                  event.currentTarget.value = event.currentTarget.value
-                    .replace(/\D/g, '')
-                    .slice(0, 5);
-                }}
-                className="money-text h-8 w-8 border-x border-primary/20 bg-transparent text-center text-xs font-semibold text-foreground outline-none focus:bg-primary/[0.05] disabled:opacity-60 sm:h-9 sm:w-9 sm:text-sm"
-                aria-describedby="additional-cutlery-help"
-              />
-              <button
-                type="button"
-                disabled={disabled}
-                onClick={() => onChange(extraCount + 1)}
-                className="grid h-8 w-8 place-items-center text-primary transition hover:bg-primary/[0.08] disabled:opacity-50 sm:h-9 sm:w-9"
-                aria-label="Increase extra cutlery sets"
-              >
-                <Plus className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-              </button>
+              <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-[#fbfaf7] sm:h-12 sm:w-12">
+                <DataImage
+                  src={item.imageUrl}
+                  alt={item.name}
+                  className="h-full w-full object-cover"
+                />
+                <span className="absolute bottom-0.5 right-0.5 grid h-3.5 w-3.5 place-items-center rounded-full bg-emerald-600 text-white shadow-sm">
+                  <Check className="h-2.5 w-2.5" />
+                </span>
+              </div>
+              <div className="min-w-0">
+                <h4 className="truncate text-[9px] font-bold text-foreground sm:text-xs">
+                  {item.name}
+                </h4>
+                <p className="truncate text-[8px] text-emerald-700 sm:text-[10px]">
+                  {item.includedQuantity} included
+                </p>
+              </div>
+            </article>
+          ))}
+        </div>
+
+        {!expanded && selectedItems.length > 0 && (
+          <div className="mt-3 border-t border-border/60 pt-3">
+            <div className="space-y-1.5">
+              {selectedItems.map((item) => (
+                <ExtraRow key={item.id} item={item} />
+              ))}
             </div>
-            <span id="additional-cutlery-help" className="sr-only">
-              {extraCount} extra cutlery sets at {formatCurrency(unitPrice)} per
-              set. Total {formatCurrency(total)}.
-            </span>
+          </div>
+        )}
+
+        {expanded && (
+          <div className="mt-3 border-t border-border/60 pt-3">
+            <div className="space-y-1.5">
+              {sourceItems.map((item) => (
+                <ExtraRow key={item.id} item={item} />
+              ))}
+            </div>
           </div>
         )}
       </div>

@@ -238,6 +238,21 @@ export type PackageSelection = {
   }>;
 };
 
+export type CutleryItem = {
+  id: string;
+  name: string;
+  extraLabel?: string | null;
+  description?: string | null;
+  unitLabel: string;
+  unitPrice: string;
+  includedQuantity: number;
+  imageUrl?: string | null;
+  displayOrder: number;
+  isActive: boolean;
+  quantity?: number;
+  lineTotal?: string;
+};
+
 export type PackageSelectionPrice = {
   valid: boolean;
   errors: string[];
@@ -261,6 +276,7 @@ export type PackageSelectionPrice = {
   cutleryExtraCount?: number;
   cutleryUnitPrice?: string;
   cutleryTotal?: string;
+  cutleryItems?: CutleryItem[];
   totalAmount: string;
   items: Array<{
     categoryId: string;
@@ -300,6 +316,7 @@ export type CartSummary = {
   cutleryIncludedCount: number;
   cutleryExtraCount: number;
   cutleryUnitPrice: string;
+  cutleryItems?: CutleryItem[];
   address?: UserAddress | null;
   package: {
     id: string;
@@ -398,6 +415,16 @@ export type OrderSummary = {
   cutleryExtraCount?: number;
   cutleryUnitPrice?: string;
   cutleryTotal?: string;
+  cutleryItems?: Array<{
+    id: string;
+    itemName: string;
+    unitLabel: string;
+    includedQuantity: number;
+    extraQuantity: number;
+    unitPrice: string;
+    lineTotal: string;
+    imageUrl?: string | null;
+  }>;
   totalAmount: string;
   createdAt: string;
   specialNotes?: string | null;

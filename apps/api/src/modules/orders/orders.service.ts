@@ -16,6 +16,7 @@ import type {
   OperatingRegion,
   Order,
   OrderSelectedItem,
+  OrderCutleryItem,
   OrderStatusHistory,
   Payment,
   Refund,
@@ -33,6 +34,7 @@ type SerializableOrder = Order & {
   address?: UserAddress | null;
   region?: OperatingRegion | null;
   selectedItems?: OrderSelectedItem[];
+  cutleryItems?: OrderCutleryItem[];
   payments?: Array<Payment & { refunds?: Refund[] }>;
   statusHistory?: OrderStatusHistory[];
   user?: User;
@@ -61,6 +63,7 @@ export class OrdersService {
         region: true,
         order: true,
         packageVersion: { include: { package: true } },
+        cutleryItems: true,
       },
     });
     if (
@@ -95,15 +98,44 @@ export class OrdersService {
       assignment.region.id,
     );
     const deliveryFee = deliveryFeeOverride ?? assignment.deliveryFee;
-    const cutleryExtraCount = Math.max(
-      0,
-      cutleryExtraCountOverride ?? cart.cutleryExtraCount ?? 0,
+    const cutleryCatalog = this.prisma.cutleryItem?.findMany
+      ? await this.prisma.cutleryItem.findMany({
+          where: { isActive: true },
+          orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
+        })
+      : [];
+    const selectedCutlery = new Map(
+      (cart.cutleryItems ?? []).map((item) => [
+        item.cutleryItemId,
+        item.quantity,
+      ]),
     );
+    const cutleryRows = cutleryCatalog.map((item) => {
+      const extraQuantity = Math.max(0, selectedCutlery.get(item.id) ?? 0);
+      return {
+        item,
+        extraQuantity,
+        lineTotal: item.unitPrice.mul(extraQuantity),
+      };
+    });
     const cutleryUnitPrice =
       cart.cutleryUnitPrice ?? new Prisma.Decimal('5.00');
-    const cutleryTotal = cutleryUnitPrice.mul(cutleryExtraCount);
-    const cutleryIncludedCount =
-      cart.packageVersion?.package?.type === PackageType.ORDER_BY_KG
+    const cutleryExtraCount = cutleryRows.length
+      ? cutleryExtraCountOverride === 0
+        ? 0
+        : cutleryRows.reduce((sum, row) => sum + row.extraQuantity, 0)
+      : Math.max(0, cutleryExtraCountOverride ?? cart.cutleryExtraCount ?? 0);
+    const cutleryTotal = cutleryRows.length
+      ? cutleryExtraCountOverride === 0
+        ? new Prisma.Decimal(0)
+        : cutleryRows.reduce(
+            (sum, row) => sum.plus(row.lineTotal),
+            new Prisma.Decimal(0),
+          )
+      : cutleryUnitPrice.mul(cutleryExtraCount);
+    const cutleryIncludedCount = cutleryRows.length
+      ? Math.max(0, ...cutleryRows.map((row) => row.item.includedQuantity))
+      : cart.packageVersion?.package?.type === PackageType.ORDER_BY_KG
         ? 0
         : Math.max(0, cart.guestCount ?? 0);
     const totalAmount = menuQuote.totalAmount
@@ -169,6 +201,28 @@ export class OrdersService {
                 adjustmentAmount: item.adjustmentAmount,
               })),
             },
+            ...(cutleryRows.length
+              ? {
+                  cutleryItems: {
+                    create: cutleryRows.map(
+                      ({ item, extraQuantity, lineTotal }) => ({
+                        cutleryItemId: item.id,
+                        itemName: item.name,
+                        unitLabel: item.unitLabel,
+                        includedQuantity: item.includedQuantity,
+                        extraQuantity:
+                          cutleryExtraCountOverride === 0 ? 0 : extraQuantity,
+                        unitPrice: item.unitPrice,
+                        lineTotal:
+                          cutleryExtraCountOverride === 0
+                            ? new Prisma.Decimal(0)
+                            : lineTotal,
+                        imageUrl: item.imageUrl,
+                      }),
+                    ),
+                  },
+                }
+              : {}),
             statusHistory: {
               create: {
                 toStatus: OrderStatus.PENDING_PAYMENT,
@@ -178,6 +232,7 @@ export class OrdersService {
           },
           include: {
             selectedItems: true,
+            cutleryItems: true,
             statusHistory: true,
             region: true,
             address: true,
@@ -209,6 +264,7 @@ export class OrdersService {
         address: true,
         region: true,
         selectedItems: true,
+        cutleryItems: true,
         payments: true,
       },
       orderBy: { createdAt: 'desc' },
@@ -223,6 +279,7 @@ export class OrdersService {
         address: true,
         region: true,
         selectedItems: true,
+        cutleryItems: true,
         payments: { include: { refunds: true } },
         statusHistory: { orderBy: { changedAt: 'asc' } },
       },
@@ -346,6 +403,11 @@ export class OrdersService {
         amount: refund.amount.toFixed(2),
       })),
     }));
+    const cutleryItems = order.cutleryItems?.map((item) => ({
+      ...item,
+      unitPrice: item.unitPrice.toFixed(2),
+      lineTotal: item.lineTotal.toFixed(2),
+    }));
     const distanceKm = order.distanceKm?.toFixed(2) ?? null;
     const deliveryFee = order.deliveryFee.toFixed(2);
     return {
@@ -363,6 +425,7 @@ export class OrdersService {
       cutleryTotal: order.cutleryTotal.toFixed(2),
       totalAmount: order.totalAmount.toFixed(2),
       selectedItems,
+      cutleryItems,
       payments,
       region,
       event: {

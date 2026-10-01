@@ -33,6 +33,38 @@ export interface paths {
         readonly patch: operations["CatalogController_update"];
         readonly trace?: never;
     };
+    readonly "/admin/cutlery": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get: operations["CutleryController_adminCatalog"];
+        readonly put?: never;
+        readonly post: operations["CutleryController_create"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/admin/cutlery/{id}": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch: operations["CutleryController_update"];
+        readonly trace?: never;
+    };
     readonly "/admin/integrations/readiness": {
         readonly parameters: {
             readonly query?: never;
@@ -737,6 +769,22 @@ export interface paths {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/cart/{id}/cutlery": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put: operations["CutleryController_updateCart"];
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/cart/{id}/items": {
         readonly parameters: {
             readonly query?: never;
@@ -857,6 +905,22 @@ export interface paths {
             readonly cookie?: never;
         };
         readonly get: operations["CatalogController_publicSettings"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/cutlery": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get: operations["CutleryController_catalog"];
         readonly put?: never;
         readonly post?: never;
         readonly delete?: never;
@@ -1300,6 +1364,10 @@ export interface components {
         readonly CancelOrderDto: {
             readonly reason: string;
         };
+        readonly CartCutlerySelectionDto: {
+            readonly itemId: string;
+            readonly quantity: number;
+        };
         readonly CartSelectionItemDto: {
             /** Format: uuid */
             readonly categoryId: string;
@@ -1497,6 +1565,21 @@ export interface components {
             /** @example 78.39080340 */
             readonly longitude: string;
         };
+        readonly SaveCutleryItemDto: {
+            readonly description?: string;
+            /** @default 0 */
+            readonly displayOrder: number;
+            readonly extraLabel?: string;
+            readonly imageUrl?: string;
+            /** @default 0 */
+            readonly includedQuantity: number;
+            /** @default true */
+            readonly isActive: boolean;
+            readonly name: string;
+            readonly unitLabel: string;
+            /** @example 10.00 */
+            readonly unitPrice: string;
+        };
         readonly SelectedPackageItemDto: {
             /** Format: uuid */
             readonly categoryId: string;
@@ -1540,6 +1623,9 @@ export interface components {
             readonly pincode?: string;
             /** @example Telangana */
             readonly state?: string;
+        };
+        readonly UpdateCartCutleryDto: {
+            readonly items: readonly components["schemas"]["CartCutlerySelectionDto"][];
         };
         readonly UpdateCartDto: {
             /** Format: uuid */
@@ -1748,6 +1834,73 @@ export interface operations {
                     readonly [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    readonly CutleryController_adminCatalog: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": readonly Record<string, never>[];
+                };
+            };
+        };
+    };
+    readonly CutleryController_create: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["SaveCutleryItemDto"];
+            };
+        };
+        readonly responses: {
+            readonly 201: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    readonly CutleryController_update: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly id: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["SaveCutleryItemDto"];
+            };
+        };
+        readonly responses: {
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": Record<string, never>;
+                };
             };
         };
     };
@@ -2897,6 +3050,29 @@ export interface operations {
             };
         };
     };
+    readonly CutleryController_updateCart: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly id: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["UpdateCartCutleryDto"];
+            };
+        };
+        readonly responses: {
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     readonly CartController_replaceItems: {
         readonly parameters: {
             readonly query?: never;
@@ -3050,6 +3226,25 @@ export interface operations {
                     readonly [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    readonly CutleryController_catalog: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            readonly 200: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": readonly Record<string, never>[];
+                };
             };
         };
     };

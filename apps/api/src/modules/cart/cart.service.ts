@@ -3,6 +3,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
@@ -26,6 +27,7 @@ import { OrdersService } from '../orders/orders.service';
 import { cartFingerprint, type CheckoutSnapshot } from './checkout-snapshot';
 import { PricingService } from '../pricing/pricing.service';
 import { OperatingRegionsService } from '../operating-regions/operating-regions.service';
+import { CutleryService } from '../cutlery/cutlery.service';
 import { CreateCartDto } from './dto/create-cart.dto';
 import { UpdateCartDto } from './dto/update-cart.dto';
 import {
@@ -46,6 +48,10 @@ const cartInclude = Prisma.validator<Prisma.CartInclude>()({
     orderBy: { createdAt: 'asc' },
   },
   order: { select: { id: true, orderStatus: true, paymentStatus: true } },
+  cutleryItems: {
+    include: { cutleryItem: true },
+    orderBy: { createdAt: 'asc' },
+  },
 });
 type CartWithDetails = Prisma.CartGetPayload<{ include: typeof cartInclude }>;
 const CUTLERY_UNIT_PRICE = new Prisma.Decimal('5.00');
@@ -63,6 +69,7 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
     private readonly pricing: PricingService,
     private readonly orders: OrdersService,
     private readonly regions: OperatingRegionsService,
+    @Optional() private readonly cutlery?: CutleryService,
   ) {}
 
   onModuleInit() {
@@ -710,6 +717,28 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
         cutleryExtraCount: index === 0 ? sharedExtraCount : 0,
         cutleryUnitPrice: quote.cutleryUnitPrice,
         cutleryTotal: cutleryTotal.toFixed(2),
+        cutleryItems:
+          index === 0
+            ? (quote.cutleryItems ?? []).map((item) => ({
+                itemId: item.id,
+                itemName: item.name,
+                unitLabel: item.unitLabel,
+                includedQuantity: item.includedQuantity,
+                extraQuantity: item.quantity,
+                unitPrice: item.unitPrice,
+                lineTotal: item.lineTotal,
+                imageUrl: item.imageUrl,
+              }))
+            : (quote.cutleryItems ?? []).map((item) => ({
+                itemId: item.id,
+                itemName: item.name,
+                unitLabel: item.unitLabel,
+                includedQuantity: item.includedQuantity,
+                extraQuantity: 0,
+                unitPrice: item.unitPrice,
+                lineTotal: '0.00',
+                imageUrl: item.imageUrl,
+              })),
         selectedItems,
       });
     }
@@ -841,7 +870,17 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
         )
       : null;
     const guestCount = cart.guestCount ?? cart.packageVersion.minGuestCount;
-    const cutlery = this.cutleryForCart(cart, guestCount);
+    const legacyCutlery = this.cutleryForCart(cart, guestCount);
+    const cutleryQuote = this.cutlery
+      ? await this.cutlery.quote(cart.id)
+      : { items: [], total: legacyCutlery.total };
+    const cutleryIncludedCount = Math.max(
+      legacyCutlery.includedCount,
+      ...cutleryQuote.items.map((item) => item.includedQuantity),
+    );
+    const cutleryExtraCount = cutleryQuote.items.length
+      ? cutleryQuote.items.reduce((sum, item) => sum + item.quantity, 0)
+      : legacyCutlery.extraCount;
     const quote = await this.pricing.quote(
       cart.packageVersionId,
       guestCount,
@@ -868,7 +907,7 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
               deliveryFee: assignment.deliveryFee,
             }
           : {}),
-        cutleryIncludedCount: cutlery.includedCount,
+        cutleryIncludedCount,
       },
     });
     const serialized = this.pricing.serialize(quote);
@@ -894,12 +933,13 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
       baseDeliveryFee: baseDeliveryFee.toFixed(2),
       serviceAddon: serviceAddon.toFixed(2),
       subtotalAmount: serialized.totalAmount,
-      cutleryIncludedCount: cutlery.includedCount,
-      cutleryExtraCount: cutlery.extraCount,
-      cutleryUnitPrice: cutlery.unitPrice.toFixed(2),
-      cutleryTotal: cutlery.total.toFixed(2),
+      cutleryIncludedCount,
+      cutleryExtraCount,
+      cutleryUnitPrice: CUTLERY_UNIT_PRICE.toFixed(2),
+      cutleryItems: cutleryQuote.items,
+      cutleryTotal: cutleryQuote.total.toFixed(2),
       totalAmount: quote.totalAmount
-        .plus(cutlery.total)
+        .plus(cutleryQuote.total)
         .plus(deliveryFeeValue)
         .toFixed(2),
     };
@@ -1038,6 +1078,20 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
       cutleryUnitPrice: (cart.cutleryUnitPrice ?? CUTLERY_UNIT_PRICE).toFixed(
         2,
       ),
+      cutleryItems: (cart.cutleryItems ?? []).map((row) => ({
+        id: row.cutleryItem.id,
+        name: row.cutleryItem.name,
+        extraLabel: row.cutleryItem.extraLabel,
+        description: row.cutleryItem.description,
+        unitLabel: row.cutleryItem.unitLabel,
+        unitPrice: row.cutleryItem.unitPrice.toFixed(2),
+        includedQuantity: row.cutleryItem.includedQuantity,
+        imageUrl: row.cutleryItem.imageUrl,
+        displayOrder: row.cutleryItem.displayOrder,
+        isActive: row.cutleryItem.isActive,
+        quantity: row.quantity,
+        lineTotal: row.cutleryItem.unitPrice.mul(row.quantity).toFixed(2),
+      })),
       address: cart.address,
       package: cart.packageVersion
         ? {

@@ -52,6 +52,16 @@ export type CheckoutCartSnapshot = {
   cutleryExtraCount: number;
   cutleryUnitPrice: string;
   cutleryTotal: string;
+  cutleryItems: Array<{
+    itemId: string;
+    itemName: string;
+    unitLabel: string;
+    includedQuantity: number;
+    extraQuantity: number;
+    unitPrice: string;
+    lineTotal: string;
+    imageUrl: string | null;
+  }>;
   selectedItems: CheckoutItemSnapshot[];
 };
 
@@ -60,7 +70,12 @@ export type CheckoutSnapshot = {
   totalAmount: string;
 };
 
-export function cartFingerprint(cart: Cart & { items: CartItem[] }) {
+export function cartFingerprint(
+  cart: Cart & {
+    items: CartItem[];
+    cutleryItems?: Array<{ cutleryItemId: string; quantity: number }>;
+  },
+) {
   const value = {
     packageVersionId: cart.packageVersionId,
     addressId: cart.addressId,
@@ -71,6 +86,9 @@ export function cartFingerprint(cart: Cart & { items: CartItem[] }) {
     deliveryServiceType: cart.deliveryServiceType,
     helperCount: cart.helperCount,
     cutleryExtraCount: cart.cutleryExtraCount,
+    cutleryItems: (cart.cutleryItems ?? [])
+      .map((item) => ({ itemId: item.cutleryItemId, quantity: item.quantity }))
+      .sort((a, b) => a.itemId.localeCompare(b.itemId)),
     contactNumber: cart.contactNumber,
     specialNotes: cart.specialNotes,
     items: cart.items
