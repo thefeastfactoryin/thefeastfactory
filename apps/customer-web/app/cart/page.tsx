@@ -468,6 +468,8 @@ export default function CartPage() {
   const [editingContact, setEditingContact] = useState(false);
   const [savingContact, setSavingContact] = useState(false);
   const [updatingDelivery, setUpdatingDelivery] = useState(false);
+  const [updatingCutlery, setUpdatingCutlery] = useState(false);
+  const [cutleryPending, setCutleryPending] = useState(false);
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   const [addressDialogOpen, setAddressDialogOpen] = useState(false);
   const [addressForm, setAddressForm] =
@@ -957,7 +959,15 @@ export default function CartPage() {
     deliveryServiceType: DeliveryServiceType,
     helperCount: number,
   ) {
-    if (!session || !cart || updatingDelivery || pendingOrder) return;
+    if (
+      !session ||
+      !cart ||
+      updatingDelivery ||
+      updatingCutlery ||
+      cutleryPending ||
+      pendingOrder
+    )
+      return;
     setUpdatingDelivery(true);
     setError('');
     try {
@@ -994,8 +1004,15 @@ export default function CartPage() {
   async function updateCutleryItems(
     items: Array<{ itemId: string; quantity: number }>,
   ) {
-    if (!session || !cart || updatingDelivery || pendingOrder) return;
-    setUpdatingDelivery(true);
+    if (
+      !session ||
+      !cart ||
+      updatingDelivery ||
+      updatingCutlery ||
+      pendingOrder
+    )
+      return;
+    setUpdatingCutlery(true);
     setError('');
     try {
       await Promise.all(
@@ -1025,7 +1042,7 @@ export default function CartPage() {
     } catch (reason) {
       if (!recoverMissingCart(reason)) setError(friendlyCheckoutError(reason));
     } finally {
-      setUpdatingDelivery(false);
+      setUpdatingCutlery(false);
     }
   }
 
@@ -1514,7 +1531,7 @@ export default function CartPage() {
       return;
     }
 
-    if (quoteLoading) {
+    if (quoteLoading || updatingCutlery || cutleryPending) {
       showDeliveryIssue(
         'checking',
         'Your latest delivery total is still updating. Please wait a moment.',
@@ -1967,7 +1984,9 @@ export default function CartPage() {
                       <DeliveryServiceOptions
                         cart={cart}
                         quote={quote}
-                        disabled={updatingDelivery}
+                        disabled={
+                          updatingDelivery || updatingCutlery || cutleryPending
+                        }
                         onChange={updateDeliveryService}
                       />
                       <CutleryOptions
@@ -1975,6 +1994,7 @@ export default function CartPage() {
                         quote={quote}
                         disabled={updatingDelivery}
                         onChange={updateCutleryItems}
+                        onSyncingChange={setCutleryPending}
                       />
                     </>
                   }
@@ -2181,7 +2201,13 @@ export default function CartPage() {
                       <Button
                         className="mt-5 h-12 w-full"
                         onClick={requestPayment}
-                        disabled={quoteLoading || paying || paymentNeedsReview}
+                        disabled={
+                          quoteLoading ||
+                          updatingCutlery ||
+                          cutleryPending ||
+                          paying ||
+                          paymentNeedsReview
+                        }
                       >
                         {!paying && (
                           <LockKeyhole
@@ -2399,7 +2425,13 @@ export default function CartPage() {
               <Button
                 className="mobile-order-bar-action"
                 onClick={requestPayment}
-                disabled={quoteLoading || paying || paymentNeedsReview}
+                disabled={
+                  quoteLoading ||
+                  updatingCutlery ||
+                  cutleryPending ||
+                  paying ||
+                  paymentNeedsReview
+                }
               >
                 {!paying && (
                   <LockKeyhole className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -2556,6 +2588,7 @@ function CutleryOptions({
   quote,
   disabled,
   onChange,
+  onSyncingChange,
   defaultOpen = false,
 }: {
   cart: CartSummary;
@@ -2564,6 +2597,7 @@ function CutleryOptions({
   onChange: (
     items: Array<{ itemId: string; quantity: number }>,
   ) => Promise<void>;
+  onSyncingChange?: (syncing: boolean) => void;
   defaultOpen?: boolean;
 }) {
   const [expanded, setExpanded] = useState(defaultOpen);
@@ -2595,8 +2629,9 @@ function CutleryOptions({
       if (persistTimerRef.current !== null) {
         window.clearTimeout(persistTimerRef.current);
       }
+      onSyncingChange?.(false);
     },
-    [],
+    [onSyncingChange],
   );
 
   const includedItems = sourceItems.filter((item) => item.includedQuantity > 0);
@@ -2629,6 +2664,20 @@ function CutleryOptions({
     }));
   }
 
+  function queueQuantityChange(next: Record<string, number>) {
+    quantitiesRef.current = next;
+    setQuantities(next);
+    pendingQuantitiesRef.current = next;
+    onSyncingChange?.(true);
+    if (persistTimerRef.current !== null) {
+      window.clearTimeout(persistTimerRef.current);
+    }
+    persistTimerRef.current = window.setTimeout(
+      () => void persistPending(),
+      600,
+    );
+  }
+
   async function persistPending() {
     if (persistInFlightRef.current) return;
     const next = pendingQuantitiesRef.current;
@@ -2647,46 +2696,58 @@ function CutleryOptions({
         );
       } else {
         setSaving(false);
+        onSyncingChange?.(false);
       }
     }
   }
 
   function changeQuantity(itemId: string, delta: number) {
     if (disabled) return;
-    const next = changedQuantities(itemId, delta);
-    quantitiesRef.current = next;
-    setQuantities(next);
-    pendingQuantitiesRef.current = next;
-    if (persistTimerRef.current !== null) {
-      window.clearTimeout(persistTimerRef.current);
-    }
-    persistTimerRef.current = window.setTimeout(
-      () => void persistPending(),
-      600,
-    );
+    queueQuantityChange(changedQuantities(itemId, delta));
   }
 
-  function QuantityControl({ item }: { item: CutleryItem }) {
+  function clearQuantity(itemId: string) {
+    if (disabled || (quantitiesRef.current[itemId] ?? 0) === 0) return;
+    queueQuantityChange({
+      ...quantitiesRef.current,
+      [itemId]: 0,
+    });
+  }
+
+  function renderQuantityControl(item: CutleryItem) {
     const quantity = quantities[item.id] ?? 0;
     return (
       <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
         <button
           type="button"
           disabled={disabled || quantity === 0}
+          onClick={() => clearQuantity(item.id)}
+          className={cn(
+            'grid h-8 w-8 place-items-center rounded-lg text-red-600 transition duration-150 hover:bg-red-50 active:scale-95 disabled:pointer-events-none',
+            quantity === 0 ? 'opacity-0' : 'opacity-100',
+          )}
+          aria-label={`Clear ${item.extraLabel || item.name}`}
+          title="Clear quantity"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+        <button
+          type="button"
+          disabled={disabled || quantity === 0}
           onClick={() => changeQuantity(item.id, -1)}
-          className="grid h-8 w-8 place-items-center rounded-lg border border-[#dcccb7] text-primary transition hover:bg-[#faf5ed] disabled:text-stone-300"
+          className="grid h-8 w-8 place-items-center rounded-lg border border-[#dcccb7] text-primary transition duration-150 hover:bg-[#faf5ed] active:scale-95 disabled:text-stone-300"
           aria-label={`Decrease ${item.extraLabel || item.name}`}
         >
           <Minus className="h-3.5 w-3.5" />
         </button>
-        <span className="money-text w-5 text-center text-sm font-semibold">
+        <span className="money-text w-5 text-center text-sm font-semibold tabular-nums">
           {quantity}
         </span>
         <button
           type="button"
           disabled={disabled}
           onClick={() => changeQuantity(item.id, 1)}
-          className="grid h-8 w-8 place-items-center rounded-lg bg-primary text-white shadow-sm transition hover:bg-primary/90 disabled:opacity-50"
+          className="grid h-8 w-8 place-items-center rounded-lg bg-primary text-white shadow-sm transition duration-150 hover:bg-primary/90 active:scale-95 disabled:opacity-50"
           aria-label={`Increase ${item.extraLabel || item.name}`}
         >
           <Plus className="h-3.5 w-3.5" />
@@ -2695,9 +2756,12 @@ function CutleryOptions({
     );
   }
 
-  function ExtraRow({ item }: { item: CutleryItem }) {
+  function renderExtraRow(item: CutleryItem) {
     return (
-      <article className="grid grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-xl border border-[#e7e0d4] bg-white p-1.5 sm:grid-cols-[48px_minmax(0,1fr)_auto] sm:p-2">
+      <article
+        key={item.id}
+        className="grid grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-xl border border-[#e7e0d4] bg-white p-1.5 sm:grid-cols-[48px_minmax(0,1fr)_auto] sm:p-2"
+      >
         <DataImage
           src={item.imageUrl}
           alt={item.name}
@@ -2714,7 +2778,7 @@ function CutleryOptions({
             / {item.unitLabel}
           </p>
         </div>
-        <QuantityControl item={item} />
+        {renderQuantityControl(item)}
       </article>
     );
   }
@@ -2787,20 +2851,14 @@ function CutleryOptions({
         {!expanded && selectedItems.length > 0 && (
           <div className="mt-3 border-t border-border/60 pt-3">
             <div className="space-y-1.5">
-              {selectedItems.map((item) => (
-                <ExtraRow key={item.id} item={item} />
-              ))}
+              {selectedItems.map(renderExtraRow)}
             </div>
           </div>
         )}
 
         {expanded && (
           <div className="mt-3 border-t border-border/60 pt-3">
-            <div className="space-y-1.5">
-              {sourceItems.map((item) => (
-                <ExtraRow key={item.id} item={item} />
-              ))}
-            </div>
+            <div className="space-y-1.5">{sourceItems.map(renderExtraRow)}</div>
           </div>
         )}
       </div>
