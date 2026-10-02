@@ -2,9 +2,13 @@ import { cn } from '../lib/utils';
 
 export function StatusBadge({ value }: { value: string }) {
   const tone =
-    value.includes('FAILED') || value === 'CANCELLED'
+    value.includes('FAILED') || value === 'CANCELLED' || value === 'DECLINED'
       ? 'bg-red-50 text-red-700'
-      : value.includes('PENDING') || value.includes('PROCESSING')
+      : value.includes('PENDING') ||
+          value.includes('PROCESSING') ||
+          value === 'AWAITING_APPROVAL' ||
+          value === 'UNPAID' ||
+          value === 'PARTIALLY_PAID'
         ? 'bg-amber-50 text-amber-700'
         : value === 'PAID' ||
             value === 'DELIVERED' ||

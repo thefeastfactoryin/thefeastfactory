@@ -217,6 +217,46 @@ export default function OrderPage() {
           </section>
 
           <aside className="space-y-5 lg:sticky lg:top-20">
+            {order.orderStatus === 'AWAITING_APPROVAL' && (
+              <section className="rounded-2xl border border-amber-300 bg-amber-50 p-5">
+                <h2 className="font-sans text-xl font-semibold text-amber-950">
+                  Awaiting kitchen approval
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-amber-900/80">
+                  Your booking request and any payment received are recorded.
+                  The kitchen will review availability and update this order.
+                </p>
+              </section>
+            )}
+
+            {order.orderStatus === 'DECLINED' && (
+              <section className="rounded-2xl border border-red-200 bg-red-50 p-5">
+                <h2 className="font-sans text-xl font-semibold text-red-900">
+                  Booking declined
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-red-800">
+                  {order.declineReason ||
+                    'The kitchen could not accept this booking.'}
+                </p>
+                {Number(order.refundedAmount) > 0 && (
+                  <p className="mt-3 text-sm font-semibold text-red-900">
+                    Refunded: {formatCurrency(order.refundedAmount)}
+                  </p>
+                )}
+                {order.paymentStatus === 'REFUND_PENDING' && (
+                  <p className="mt-3 text-sm font-semibold text-amber-800">
+                    Your refund is being processed.
+                  </p>
+                )}
+                {order.paymentStatus === 'REFUND_FAILED' && (
+                  <p className="mt-3 text-sm font-semibold text-red-800">
+                    The refund needs staff assistance. Our team will contact
+                    you.
+                  </p>
+                )}
+              </section>
+            )}
+
             {order.paymentStatus === 'PENDING' && (
               <section className="rounded-2xl border border-accent/35 bg-accent/[0.08] p-5">
                 <div className="flex items-center gap-3">
@@ -245,6 +285,14 @@ export default function OrderPage() {
                 <PriceLine
                   label="Delivery"
                   value={formatCurrency(order.deliveryFee)}
+                />
+                <PriceLine
+                  label="Amount received"
+                  value={formatCurrency(order.amountPaid)}
+                />
+                <PriceLine
+                  label="Balance"
+                  value={formatCurrency(order.balanceDue)}
                 />
                 <div className="flex items-end justify-between gap-4 border-t pt-4">
                   <span className="font-bold">Order total</span>

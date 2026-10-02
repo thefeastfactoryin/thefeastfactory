@@ -8,6 +8,7 @@ import type {
   GatewayOrder,
   LocationResolution,
   OrderSummary,
+  PaymentPlan,
   PackageConfiguration,
   PackageSelectionPrice,
   AddressType,
@@ -440,6 +441,7 @@ export default function CartPage() {
   const missingCartRecoveryAttempts = useRef(0);
   const recoveringCart = useRef(false);
   const [paying, setPaying] = useState(false);
+  const [paymentPlan, setPaymentPlan] = useState<PaymentPlan>('FULL');
   const paymentWindowHandled = useRef(false);
   const [paymentNotice, setPaymentNotice] = useState('');
   const [paymentNeedsReview, setPaymentNeedsReview] = useState(false);
@@ -1363,14 +1365,30 @@ export default function CartPage() {
       const selectedQuote =
         multiCartQuote.carts.find((entry) => entry.cartId === cart.id)?.quote ??
         quote;
-      const gateway = await apiRequest<GatewayOrder>(
+      const checkoutResult = await apiRequest<
+        | GatewayOrder
+        | {
+            success: true;
+            orderId: string;
+            orderIds: string[];
+            paymentPlan: 'PAY_LATER';
+          }
+      >(
         '/payments/razorpay/cart-order',
         {
           method: 'POST',
-          body: JSON.stringify({ specialNotes }),
+          body: JSON.stringify({ specialNotes, paymentPlan }),
         },
         session.accessToken,
       );
+
+      if ('success' in checkoutResult) {
+        reset();
+        notifyCartCleared();
+        router.push(`/orders/${checkoutResult.orderId}?booking=requested`);
+        return;
+      }
+      const gateway = checkoutResult;
 
       if (gateway.localMode) {
         await verifyPayment({
@@ -1625,6 +1643,13 @@ export default function CartPage() {
   const mobileTotal = pendingOrder
     ? (pendingBatch?.totalAmount ?? pendingOrder.totalAmount)
     : multiCartQuote?.totalAmount;
+  const payableNow = paymentPlanAmount(mobileTotal, paymentPlan);
+  const checkoutActionLabel =
+    paymentPlan === 'PAY_LATER'
+      ? 'Request booking'
+      : paymentPlan === 'HALF'
+        ? `Pay ${formatCheckoutCurrency(payableNow)} deposit`
+        : `Pay ${formatCheckoutCurrency(payableNow)} securely`;
   const paymentError =
     validationIssue === 'payment' && error && !paying ? error : '';
   const startRetryPayment = () => {
@@ -2186,10 +2211,18 @@ export default function CartPage() {
                 ) : (
                   <div>
                     {multiCartQuote ? (
-                      <MultiCartPriceSummary
-                        carts={activeCarts}
-                        aggregate={multiCartQuote}
-                      />
+                      <>
+                        <MultiCartPriceSummary
+                          carts={activeCarts}
+                          aggregate={multiCartQuote}
+                        />
+                        <PaymentPlanSelector
+                          aggregate={multiCartQuote}
+                          value={paymentPlan}
+                          onChange={setPaymentPlan}
+                          disabled={paying}
+                        />
+                      </>
                     ) : (
                       <p className="text-sm leading-5 text-muted-foreground">
                         {quoteLoading
@@ -2209,13 +2242,17 @@ export default function CartPage() {
                           paymentNeedsReview
                         }
                       >
-                        {!paying && (
+                        {!paying && paymentPlan !== 'PAY_LATER' && (
                           <LockKeyhole
                             className="mr-2 h-4 w-4"
                             aria-hidden="true"
                           />
                         )}
-                        {paying ? 'Opening payment…' : 'Secure payment'}
+                        {paying
+                          ? paymentPlan === 'PAY_LATER'
+                            ? 'Submitting booking…'
+                            : 'Opening payment…'
+                          : checkoutActionLabel}
                       </Button>
                       {paymentError && (
                         <p role="alert" className="mt-2 text-sm text-red-700">
@@ -2223,7 +2260,9 @@ export default function CartPage() {
                         </p>
                       )}
                       <p className="mt-1.5 text-center text-xs text-muted-foreground">
-                        Redirects to our payment partner.
+                        {paymentPlan === 'PAY_LATER'
+                          ? 'The kitchen will review and approve your booking.'
+                          : 'Payment is received first; kitchen approval follows.'}
                       </p>
                     </div>
                   </div>
@@ -2403,10 +2442,18 @@ export default function CartPage() {
         <MobileOrderBar checkout label="Checkout total and pay securely">
           <div className="mobile-order-bar-row">
             <div className="mobile-order-bar-summary">
-              <span className="mobile-order-bar-label">Payable total</span>
+              <span className="mobile-order-bar-label">
+                {paymentPlan === 'PAY_LATER'
+                  ? 'Booking total'
+                  : paymentPlan === 'HALF'
+                    ? 'Pay deposit now'
+                    : 'Pay now'}
+              </span>
               <strong className="mobile-order-bar-total">
                 {mobileTotal != null
-                  ? formatCheckoutCurrency(mobileTotal)
+                  ? formatCheckoutCurrency(
+                      paymentPlan === 'PAY_LATER' ? mobileTotal : payableNow,
+                    )
                   : quoteLoading
                     ? 'Updating…'
                     : 'Add event details'}
@@ -2433,10 +2480,18 @@ export default function CartPage() {
                   paymentNeedsReview
                 }
               >
-                {!paying && (
+                {!paying && paymentPlan !== 'PAY_LATER' && (
                   <LockKeyhole className="mr-2 h-4 w-4" aria-hidden="true" />
                 )}
-                {paying ? 'Opening…' : 'Secure payment'}
+                {paying
+                  ? paymentPlan === 'PAY_LATER'
+                    ? 'Submitting…'
+                    : 'Opening…'
+                  : paymentPlan === 'PAY_LATER'
+                    ? 'Request booking'
+                    : paymentPlan === 'HALF'
+                      ? 'Pay deposit'
+                      : 'Pay securely'}
               </Button>
             )}
           </div>
@@ -2514,6 +2569,89 @@ function EventSummary({ cart }: { cart: CartSummary }) {
   );
 }
 
+function PaymentPlanSelector({
+  aggregate,
+  value,
+  onChange,
+  disabled,
+}: {
+  aggregate: MultiCartQuote;
+  value: PaymentPlan;
+  onChange: (value: PaymentPlan) => void;
+  disabled?: boolean;
+}) {
+  const totalAmount = Number(aggregate.totalAmount);
+  const half = paymentPlanAmount(aggregate.totalAmount, 'HALF');
+  const options: Array<{
+    value: PaymentPlan;
+    title: string;
+    description: string;
+    amount: string;
+  }> = [
+    {
+      value: 'FULL',
+      title: 'Pay in full',
+      description: 'Pay online now; kitchen approval follows',
+      amount: formatCheckoutCurrency(totalAmount),
+    },
+    {
+      value: 'HALF',
+      title: 'Pay 50% now',
+      description: `Pay ${formatCheckoutCurrency(totalAmount - half)} later`,
+      amount: formatCheckoutCurrency(half),
+    },
+    {
+      value: 'PAY_LATER',
+      title: 'Pay later',
+      description: 'Request the booking; our team will call you',
+      amount: '₹0 now',
+    },
+  ];
+  return (
+    <fieldset className="mt-5 border-t border-border/70 pt-5">
+      <legend className="font-sans text-base font-semibold">
+        Choose payment option
+      </legend>
+      <div className="mt-3 space-y-2">
+        {options.map((option) => {
+          const selected = value === option.value;
+          return (
+            <label
+              key={option.value}
+              className={cn(
+                'flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-3 transition',
+                selected
+                  ? 'border-primary bg-primary/[0.045] shadow-sm'
+                  : 'border-border bg-white hover:border-primary/35',
+                disabled && 'pointer-events-none opacity-60',
+              )}
+            >
+              <input
+                type="radio"
+                name="payment-plan"
+                value={option.value}
+                checked={selected}
+                disabled={disabled}
+                onChange={() => onChange(option.value)}
+                className="h-4 w-4 accent-primary"
+              />
+              <span className="min-w-0 flex-1">
+                <strong className="block text-sm">{option.title}</strong>
+                <span className="block text-xs leading-5 text-muted-foreground">
+                  {option.description}
+                </span>
+              </span>
+              <strong className="money-text shrink-0 text-sm text-primary">
+                {option.amount}
+              </strong>
+            </label>
+          );
+        })}
+      </div>
+    </fieldset>
+  );
+}
+
 function MultiCartPriceSummary({
   carts,
   aggregate,
@@ -2581,6 +2719,16 @@ function MultiCartPriceSummary({
 
 function formatCheckoutCurrency(value: string | number | null | undefined) {
   return formatCurrency(value).replace(/\.00$/, '');
+}
+
+function paymentPlanAmount(
+  total: string | number | null | undefined,
+  plan: PaymentPlan,
+) {
+  const amount = Math.max(0, Number(total ?? 0));
+  if (plan === 'PAY_LATER') return 0;
+  if (plan === 'HALF') return Math.ceil(amount * 100 * 0.5) / 100;
+  return amount;
 }
 
 function CutleryOptions({
@@ -2721,19 +2869,6 @@ function CutleryOptions({
         <button
           type="button"
           disabled={disabled || quantity === 0}
-          onClick={() => clearQuantity(item.id)}
-          className={cn(
-            'grid h-8 w-8 place-items-center rounded-lg text-red-600 transition duration-150 hover:bg-red-50 active:scale-95 disabled:pointer-events-none',
-            quantity === 0 ? 'opacity-0' : 'opacity-100',
-          )}
-          aria-label={`Clear ${item.extraLabel || item.name}`}
-          title="Clear quantity"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </button>
-        <button
-          type="button"
-          disabled={disabled || quantity === 0}
           onClick={() => changeQuantity(item.id, -1)}
           className="grid h-8 w-8 place-items-center rounded-lg border border-[#dcccb7] text-primary transition duration-150 hover:bg-[#faf5ed] active:scale-95 disabled:text-stone-300"
           aria-label={`Decrease ${item.extraLabel || item.name}`}
@@ -2777,6 +2912,18 @@ function CutleryOptions({
             </strong>{' '}
             / {item.unitLabel}
           </p>
+          {(quantities[item.id] ?? 0) > 0 && (
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => clearQuantity(item.id)}
+              className="mt-1 inline-flex items-center gap-0.5 text-[10px] font-semibold text-red-600 transition hover:text-red-700 active:scale-95 disabled:opacity-50"
+              aria-label={`Clear ${item.extraLabel || item.name}`}
+            >
+              <Trash2 className="h-3 w-3" aria-hidden="true" />
+              Clear
+            </button>
+          )}
         </div>
         {renderQuantityControl(item)}
       </article>

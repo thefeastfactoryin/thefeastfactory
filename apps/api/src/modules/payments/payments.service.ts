@@ -12,6 +12,8 @@ import {
   CartStatus,
   CheckoutAttemptStatus,
   OrderStatus,
+  PaymentPlan,
+  PaymentSource,
   PaymentStatus,
   Prisma,
   RefundStatus,
@@ -45,6 +47,11 @@ type GatewayOrderDetails = {
   currency: string;
   status: string;
 };
+type LedgerPayment = {
+  amount: Prisma.Decimal;
+  paymentStatus: PaymentStatus;
+  refunds?: Array<{ amount: Prisma.Decimal; refundStatus: RefundStatus }>;
+};
 export type RazorpayWebhookPayload = {
   event?: string;
   payload?: {
@@ -65,15 +72,23 @@ export class PaymentsService {
     @Optional() private readonly carts?: CartService,
   ) {}
 
-  async createCartGatewayOrder(userId: string, specialNotes?: string) {
+  async createCartGatewayOrder(
+    userId: string,
+    specialNotes?: string,
+    paymentPlan: PaymentPlan = PaymentPlan.FULL,
+  ) {
+    if (paymentPlan === PaymentPlan.PAY_LATER) {
+      throw new BadRequestException(
+        'Pay-later bookings do not require a payment order',
+      );
+    }
     this.assertPaymentModeAvailable();
     if (!this.carts)
       throw new ServiceUnavailableException('Cart checkout is unavailable');
     const snapshot = await this.carts.preparePayment(userId, specialNotes);
     await this.assertNoUnconfirmedCapture(userId, snapshot);
-    const amount = this.paymentAmountInSubunits(
-      new Prisma.Decimal(snapshot.totalAmount),
-    );
+    const chargeAmount = this.checkoutCharge(snapshot, paymentPlan);
+    const amount = this.paymentAmountInSubunits(chargeAmount);
     const currency = await this.currency();
     const attemptId = crypto.randomUUID();
     const gatewayOrder = this.isConfigured()
@@ -98,7 +113,8 @@ export class PaymentsService {
           id: attemptId,
           userId,
           razorpayOrderId: gatewayOrder.id,
-          amount: snapshot.totalAmount,
+          amount: chargeAmount,
+          paymentPlan,
           currency,
           snapshot: snapshot as unknown as Prisma.InputJsonValue,
         },
@@ -109,6 +125,45 @@ export class PaymentsService {
       ...gatewayOrder,
       localMode: !this.isConfigured(),
       attemptId,
+      paymentPlan,
+    };
+  }
+
+  async createPayLaterBooking(userId: string, specialNotes?: string) {
+    if (!this.carts)
+      throw new ServiceUnavailableException('Cart checkout is unavailable');
+    const orders = await this.carts.checkoutAll(userId, specialNotes);
+    const orderIds = orders.map((order) => order.id);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.order.updateMany({
+        where: {
+          id: { in: orderIds },
+          userId,
+          orderStatus: OrderStatus.PENDING_PAYMENT,
+        },
+        data: {
+          orderStatus: OrderStatus.AWAITING_APPROVAL,
+          paymentStatus: PaymentStatus.UNPAID,
+          paymentPlan: PaymentPlan.PAY_LATER,
+        },
+      });
+      await tx.orderStatusHistory.createMany({
+        data: orderIds.map((orderId) => ({
+          orderId,
+          fromStatus: OrderStatus.PENDING_PAYMENT,
+          toStatus: OrderStatus.AWAITING_APPROVAL,
+          notes: 'Pay-later booking submitted for kitchen approval',
+        })),
+      });
+    });
+    for (const orderId of orderIds) {
+      void this.notifications?.notifyBookingRequest(orderId);
+    }
+    return {
+      success: true,
+      orderId: orderIds[0],
+      orderIds,
+      paymentPlan: PaymentPlan.PAY_LATER,
     };
   }
 
@@ -193,12 +248,26 @@ export class PaymentsService {
     this.assertPaymentModeAvailable();
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, userId },
-      include: { payments: { orderBy: { createdAt: 'desc' } } },
+      include: {
+        payments: {
+          include: { refunds: true },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
     });
     if (!order) throw new NotFoundException('Order not found');
-    if (order.orderStatus !== OrderStatus.PENDING_PAYMENT) {
-      throw new BadRequestException('Order is not awaiting payment');
+    if (
+      order.orderStatus === OrderStatus.DECLINED ||
+      order.orderStatus === OrderStatus.CANCELLED
+    ) {
+      throw new BadRequestException('This order cannot accept payments');
     }
+    const ledgerSummary = this.paymentLedgerSummary(
+      order.totalAmount,
+      order.payments,
+    );
+    if (!ledgerSummary.balanceDue.greaterThan(0))
+      throw new BadRequestException('This order is already fully paid');
     const currency = await this.currency();
 
     const existing = order.payments.find(
@@ -240,7 +309,7 @@ export class PaymentsService {
       await this.retireGatewayOrder(existing.razorpayOrderId!);
     }
 
-    const amount = this.paymentAmountInSubunits(order.totalAmount);
+    const amount = this.paymentAmountInSubunits(ledgerSummary.balanceDue);
     const gatewayOrder = this.isConfigured()
       ? await this.createRazorpayOrder(
           existing
@@ -258,7 +327,7 @@ export class PaymentsService {
     const payment = await this.prisma.payment.create({
       data: {
         orderId,
-        amount: order.totalAmount,
+        amount: ledgerSummary.balanceDue,
         razorpayOrderId: gatewayOrder.id,
         gatewayResponse: {
           orderCreated: true,
@@ -553,10 +622,12 @@ export class PaymentsService {
           return { success: false, needsReview: true, created: false };
         }
         const snapshot = attempt.snapshot as unknown as CheckoutSnapshot;
+        const expectedCharge = snapshot?.carts?.length
+          ? this.checkoutCharge(snapshot, attempt.paymentPlan)
+          : new Prisma.Decimal(0);
         if (
           !snapshot?.carts?.length ||
-          new Prisma.Decimal(snapshot.totalAmount).toFixed(2) !==
-            attempt.amount.toFixed(2) ||
+          expectedCharge.toFixed(2) !== attempt.amount.toFixed(2) ||
           Number(gatewayPayment.amount) !==
             this.paymentAmountInSubunits(attempt.amount) ||
           gatewayPayment.order_id !== attempt.razorpayOrderId ||
@@ -610,7 +681,15 @@ export class PaymentsService {
         const checkoutBatchId =
           snapshot.carts.length > 1 ? crypto.randomUUID() : null;
         const orderIds: string[] = [];
-        for (const cart of snapshot.carts) {
+        const paidAmounts = this.allocateCheckoutPayment(
+          snapshot,
+          attempt.paymentPlan,
+        );
+        for (const [cartIndex, cart] of snapshot.carts.entries()) {
+          const paidAmount = paidAmounts[cartIndex];
+          const orderPaymentStatus = paidAmount.gte(cart.totalAmount)
+            ? PaymentStatus.PAID
+            : PaymentStatus.PARTIALLY_PAID;
           const eventDate = new Date(cart.eventDate);
           const eventTimeStart = new Date(cart.eventTimeStart);
           const leadHours = Math.floor(
@@ -648,8 +727,9 @@ export class PaymentsService {
               packageName: cart.packageName,
               packageImageUrl: cart.packageImageUrl ?? null,
               packageVersionNo: cart.packageVersionNo,
-              orderStatus: OrderStatus.CONFIRMED,
-              paymentStatus: PaymentStatus.PAID,
+              orderStatus: OrderStatus.AWAITING_APPROVAL,
+              paymentStatus: orderPaymentStatus,
+              paymentPlan: attempt.paymentPlan,
               bookingLeadHours: leadHours,
               selectedItems: { create: cart.selectedItems },
               cutleryItems: {
@@ -666,14 +746,18 @@ export class PaymentsService {
               },
               statusHistory: {
                 create: {
-                  toStatus: OrderStatus.CONFIRMED,
-                  notes: 'Payment verified',
+                  toStatus: OrderStatus.AWAITING_APPROVAL,
+                  notes:
+                    attempt.paymentPlan === PaymentPlan.HALF
+                      ? '50% deposit received; awaiting kitchen approval'
+                      : 'Full payment received; awaiting kitchen approval',
                 },
               },
               payments: {
                 create: {
-                  amount: cart.totalAmount,
+                  amount: paidAmount,
                   paymentStatus: PaymentStatus.PAID,
+                  source: PaymentSource.RAZORPAY,
                   razorpayOrderId: attempt.razorpayOrderId,
                   razorpayPaymentId: gatewayPayment.id,
                   razorpaySignature: signature,
@@ -761,7 +845,7 @@ export class PaymentsService {
         } catch (error) {
           console.error('[Payments] Order document generation failed', error);
         }
-        void this.notifications?.notifyConfirmedOrder(orderId);
+        void this.notifications?.notifyBookingRequest(orderId);
       }
     }
     return result;
@@ -835,6 +919,75 @@ export class PaymentsService {
       });
       throw error;
     }
+  }
+
+  async recordManualPayment(
+    adminId: string,
+    orderId: string,
+    input: {
+      amount: number;
+      method: string;
+      receivedAt?: string;
+      reference?: string;
+      note?: string;
+    },
+  ) {
+    const requestedAmount = new Prisma.Decimal(input.amount);
+    const result = await this.prisma.$transaction(
+      async (tx) => {
+        await tx.$queryRaw`SELECT id FROM "orders" WHERE id = ${orderId} FOR UPDATE`;
+        const order = await tx.order.findUnique({
+          where: { id: orderId },
+          include: { payments: { include: { refunds: true } } },
+        });
+        if (!order) throw new NotFoundException('Order not found');
+        if (
+          order.orderStatus === OrderStatus.AWAITING_APPROVAL ||
+          order.orderStatus === OrderStatus.PENDING_PAYMENT ||
+          order.orderStatus === OrderStatus.DECLINED ||
+          order.orderStatus === OrderStatus.CANCELLED
+        ) {
+          throw new BadRequestException(
+            'Approve the booking before recording an offline payment',
+          );
+        }
+        const before = this.paymentLedgerSummary(
+          order.totalAmount,
+          order.payments,
+        );
+        if (requestedAmount.greaterThan(before.balanceDue)) {
+          throw new BadRequestException(
+            `Payment exceeds the remaining balance of ₹${before.balanceDue.toFixed(2)}`,
+          );
+        }
+        const payment = await tx.payment.create({
+          data: {
+            orderId,
+            amount: requestedAmount,
+            paymentStatus: PaymentStatus.PAID,
+            source: PaymentSource.MANUAL,
+            paymentMethod: input.method,
+            externalReference: input.reference?.trim() || null,
+            notes: input.note?.trim() || null,
+            recordedByAdminId: adminId,
+            paidAt: input.receivedAt ? new Date(input.receivedAt) : new Date(),
+            gatewayResponse: { recordedInAdminPortal: true },
+          },
+        });
+        const nextPaid = before.amountPaid.plus(requestedAmount);
+        const paymentStatus = nextPaid.gte(order.totalAmount)
+          ? PaymentStatus.PAID
+          : PaymentStatus.PARTIALLY_PAID;
+        await tx.order.update({
+          where: { id: orderId },
+          data: { paymentStatus },
+        });
+        return payment;
+      },
+      { timeout: 15_000 },
+    );
+    await this.operations.generateOrderDocuments(orderId);
+    return { ...result, amount: result.amount.toFixed(2) };
   }
 
   async createRefund(adminId: string, paymentId: string, reason?: string) {
@@ -1000,20 +1153,17 @@ export class PaymentsService {
             },
           });
           if (failed.count === 0) continue;
-          const otherPaidPayments = await tx.payment.count({
-            where: {
-              orderId: payment.orderId,
-              id: { not: payment.id },
-              paymentStatus: PaymentStatus.PAID,
-            },
+          const ledger = await tx.payment.findMany({
+            where: { orderId: payment.orderId },
+            include: { refunds: true },
           });
-          if (otherPaidPayments > 0) continue;
-          await tx.order.updateMany({
-            where: {
-              id: payment.orderId,
-              paymentStatus: { not: PaymentStatus.PAID },
-            },
-            data: { paymentStatus: PaymentStatus.FAILED },
+          const summary = this.paymentLedgerSummary(
+            payment.order.totalAmount,
+            ledger,
+          );
+          await tx.order.update({
+            where: { id: payment.orderId },
+            data: { paymentStatus: summary.paymentStatus },
           });
         }
       });
@@ -1077,34 +1227,22 @@ export class PaymentsService {
         },
       });
       if (claimed.count === 0) return false;
-      const confirmOrder =
-        payment.order.orderStatus === OrderStatus.PENDING_PAYMENT;
+      const ledger = await tx.payment.findMany({
+        where: { orderId: payment.orderId },
+        include: { refunds: true },
+      });
+      const summary = this.paymentLedgerSummary(
+        payment.order.totalAmount,
+        ledger,
+      );
       await tx.order.update({
         where: { id: payment.orderId },
-        data: confirmOrder
-          ? {
-              paymentStatus: PaymentStatus.PAID,
-              orderStatus: OrderStatus.CONFIRMED,
-              statusHistory: {
-                create: {
-                  fromStatus: payment.order.orderStatus,
-                  toStatus: OrderStatus.CONFIRMED,
-                  notes: 'Payment verified',
-                },
-              },
-            }
-          : {
-              // A late gateway callback must never resurrect a cancelled or
-              // otherwise progressed order. Record the funds for reconciliation
-              // while preserving the operational order state.
-              paymentStatus: PaymentStatus.PAID,
-            },
+        data: { paymentStatus: summary.paymentStatus },
       });
       return true;
     });
     if (marked) {
       await this.operations.generateOrderDocuments(payment.orderId);
-      void this.notifications?.notifyConfirmedOrder(payment.orderId);
     }
   }
 
@@ -1114,10 +1252,10 @@ export class PaymentsService {
       include: { refunds: true, order: true },
     });
     if (!payment) return;
-    const total = payment.refunds
+    const paymentRefunded = payment.refunds
       .filter((refund) => refund.refundStatus === RefundStatus.SUCCESS)
       .reduce((sum, refund) => sum.plus(refund.amount), new Prisma.Decimal(0));
-    const paymentStatus = total.gte(payment.amount)
+    const paymentStatus = paymentRefunded.gte(payment.amount)
       ? PaymentStatus.REFUNDED
       : PaymentStatus.PAID;
     await this.prisma.$transaction(async (tx) => {
@@ -1125,19 +1263,17 @@ export class PaymentsService {
         where: { id: paymentId },
         data: { paymentStatus },
       });
-      const otherPaidPayments = await tx.payment.count({
-        where: {
-          orderId: payment.orderId,
-          id: { not: paymentId },
-          paymentStatus: PaymentStatus.PAID,
-        },
+      const ledger = await tx.payment.findMany({
+        where: { orderId: payment.orderId },
+        include: { refunds: true },
       });
+      const summary = this.paymentLedgerSummary(
+        payment.order.totalAmount,
+        ledger,
+      );
       await tx.order.update({
         where: { id: payment.orderId },
-        data: {
-          paymentStatus:
-            otherPaidPayments > 0 ? PaymentStatus.PAID : paymentStatus,
-        },
+        data: { paymentStatus: summary.paymentStatus },
       });
     });
     await this.operations.generateOrderDocuments(payment.orderId);
@@ -1296,6 +1432,97 @@ export class PaymentsService {
       );
     }
     return subunits;
+  }
+
+  private planAmount(total: Prisma.Decimal | string, plan: PaymentPlan) {
+    const amount = new Prisma.Decimal(total);
+    if (plan === PaymentPlan.HALF) {
+      return amount.mul(100).div(2).ceil().div(100);
+    }
+    if (plan === PaymentPlan.PAY_LATER) return new Prisma.Decimal(0);
+    return amount;
+  }
+
+  private paymentLedgerSummary(
+    orderTotal: Prisma.Decimal,
+    payments: LedgerPayment[],
+  ) {
+    const grossPaid = payments
+      .filter(
+        (payment) =>
+          payment.paymentStatus === PaymentStatus.PAID ||
+          payment.paymentStatus === PaymentStatus.REFUNDED,
+      )
+      .reduce(
+        (sum, payment) => sum.plus(payment.amount),
+        new Prisma.Decimal(0),
+      );
+    const refunded = payments.reduce(
+      (sum, payment) =>
+        sum.plus(
+          (payment.refunds ?? [])
+            .filter((refund) => refund.refundStatus === RefundStatus.SUCCESS)
+            .reduce(
+              (refundSum, refund) => refundSum.plus(refund.amount),
+              new Prisma.Decimal(0),
+            ),
+        ),
+      new Prisma.Decimal(0),
+    );
+    const amountPaid = Prisma.Decimal.max(
+      grossPaid.minus(refunded),
+      new Prisma.Decimal(0),
+    );
+    const balanceDue = Prisma.Decimal.max(
+      orderTotal.minus(amountPaid),
+      new Prisma.Decimal(0),
+    );
+    const paymentStatus =
+      amountPaid.gte(orderTotal) && orderTotal.greaterThan(0)
+        ? PaymentStatus.PAID
+        : amountPaid.greaterThan(0)
+          ? PaymentStatus.PARTIALLY_PAID
+          : refunded.greaterThan(0)
+            ? PaymentStatus.REFUNDED
+            : PaymentStatus.UNPAID;
+    return { grossPaid, refunded, amountPaid, balanceDue, paymentStatus };
+  }
+
+  private checkoutCharge(snapshot: CheckoutSnapshot, plan: PaymentPlan) {
+    return this.planAmount(snapshot.totalAmount, plan);
+  }
+
+  private allocateCheckoutPayment(
+    snapshot: CheckoutSnapshot,
+    plan: PaymentPlan,
+  ) {
+    if (plan !== PaymentPlan.HALF) {
+      return snapshot.carts.map((cart) =>
+        this.planAmount(cart.totalAmount, plan),
+      );
+    }
+
+    const cartSubunits = snapshot.carts.map((cart) =>
+      new Prisma.Decimal(cart.totalAmount).mul(100).toNumber(),
+    );
+    const chargeSubunits = this.checkoutCharge(snapshot, plan)
+      .mul(100)
+      .toNumber();
+    const allocated = cartSubunits.map((amount) => Math.floor(amount / 2));
+    let remaining =
+      chargeSubunits - allocated.reduce((sum, value) => sum + value, 0);
+
+    for (
+      let index = 0;
+      index < cartSubunits.length && remaining > 0;
+      index += 1
+    ) {
+      if (cartSubunits[index] % 2 === 0) continue;
+      allocated[index] += 1;
+      remaining -= 1;
+    }
+
+    return allocated.map((amount) => new Prisma.Decimal(amount).div(100));
   }
 
   private serializeRefund<T extends { amount: Prisma.Decimal }>(refund: T) {

@@ -360,15 +360,28 @@ export type CartSummary = {
   }>;
 };
 
-export type PaymentStatus = 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED';
+export type PaymentStatus =
+  | 'UNPAID'
+  | 'PENDING'
+  | 'PARTIALLY_PAID'
+  | 'PAID'
+  | 'FAILED'
+  | 'REFUND_PENDING'
+  | 'REFUND_FAILED'
+  | 'REFUNDED'
+  | 'VOIDED';
+export type PaymentPlan = 'FULL' | 'HALF' | 'PAY_LATER';
+export type PaymentSource = 'RAZORPAY' | 'MANUAL';
 export type RefundStatus = 'INITIATED' | 'PROCESSING' | 'SUCCESS' | 'FAILED';
 export type OrderStatus =
   | 'DRAFT'
   | 'PENDING_PAYMENT'
+  | 'AWAITING_APPROVAL'
   | 'CONFIRMED'
   | 'IN_PROGRESS'
   | 'READY_FOR_DELIVERY'
   | 'DELIVERED'
+  | 'DECLINED'
   | 'CANCELLED';
 
 export type RefundSummary = {
@@ -386,9 +399,12 @@ export type PaymentSummary = {
   orderId: string;
   amount: string;
   paymentStatus: PaymentStatus;
+  source?: PaymentSource;
   razorpayOrderId?: string | null;
   razorpayPaymentId?: string | null;
   paymentMethod?: string | null;
+  externalReference?: string | null;
+  notes?: string | null;
   failureReason?: string | null;
   paidAt?: string | null;
   createdAt: string;
@@ -400,6 +416,11 @@ export type OrderSummary = {
   orderNumber: string;
   orderStatus: OrderStatus;
   paymentStatus: PaymentStatus;
+  paymentPlan: PaymentPlan;
+  amountPaid: string;
+  balanceDue: string;
+  refundedAmount: string;
+  declineReason?: string | null;
   packageName: string;
   packageImageUrl?: string | null;
   packageType?: PackageType | null;

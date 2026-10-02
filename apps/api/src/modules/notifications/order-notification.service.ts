@@ -21,7 +21,7 @@ export class OrderNotificationService {
     private readonly config: ConfigService,
   ) {}
 
-  async notifyConfirmedOrder(orderId: string): Promise<void> {
+  async notifyBookingRequest(orderId: string): Promise<void> {
     try {
       const order = await this.prisma.order.findUnique({
         where: { id: orderId },
@@ -60,7 +60,9 @@ export class OrderNotificationService {
         }
       }
     } catch (error) {
-      this.logger.error(`Order notification could not be prepared: ${String(error)}`);
+      this.logger.error(
+        `Order notification could not be prepared: ${String(error)}`,
+      );
     }
   }
 
@@ -81,7 +83,7 @@ export class OrderNotificationService {
       body: JSON.stringify({
         from,
         to: [to],
-        subject: `New confirmed order ${orderNumber}`,
+        subject: `Booking approval required ${orderNumber}`,
         text: message,
       }),
     });
@@ -143,10 +145,18 @@ export class OrderNotificationService {
       state: string;
       pincode: string;
     };
-    selectedItems: Array<{ menuItemName: string; quantity: number; weightGrams?: number | null }>;
+    selectedItems: Array<{
+      menuItemName: string;
+      quantity: number;
+      weightGrams?: number | null;
+    }>;
   }) {
     const items = order.selectedItems
-      .map((item) => item.weightGrams ? `${item.menuItemName} ${item.weightGrams / 1000} kg` : `${item.menuItemName} x${item.quantity}`)
+      .map((item) =>
+        item.weightGrams
+          ? `${item.menuItemName} ${item.weightGrams / 1000} kg`
+          : `${item.menuItemName} x${item.quantity}`,
+      )
       .join(', ');
     const address = [
       order.address.addressLine1,
@@ -158,7 +168,7 @@ export class OrderNotificationService {
       .filter(Boolean)
       .join(', ');
     return [
-      `New confirmed order: ${order.orderNumber}`,
+      `New booking request awaiting kitchen approval: ${order.orderNumber}`,
       `Customer: ${order.user.name || 'Guest'} (${order.contactNumber})`,
       `Email: ${order.user.email || 'Not provided'}`,
       `Event: ${order.eventName || 'Not provided'} on ${order.eventDate.toISOString().slice(0, 10)} at ${order.eventTimeStart ? order.eventTimeStart.toISOString().slice(11, 16) : 'Not provided'}`,

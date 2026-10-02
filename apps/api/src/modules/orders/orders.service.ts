@@ -9,7 +9,9 @@ import {
   OrderStatus,
   PackageMenuItemRole,
   PackageType,
+  PaymentStatus,
   Prisma,
+  RefundStatus,
   SelectedItemRole,
 } from '@prisma/client';
 import type {
@@ -265,7 +267,7 @@ export class OrdersService {
         region: true,
         selectedItems: true,
         cutleryItems: true,
-        payments: true,
+        payments: { include: { refunds: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -403,6 +405,36 @@ export class OrdersService {
         amount: refund.amount.toFixed(2),
       })),
     }));
+    const grossPaid = (order.payments ?? [])
+      .filter(
+        (payment) =>
+          payment.paymentStatus === PaymentStatus.PAID ||
+          payment.paymentStatus === PaymentStatus.REFUNDED,
+      )
+      .reduce(
+        (sum, payment) => sum.plus(payment.amount),
+        new Prisma.Decimal(0),
+      );
+    const refundedAmount = (order.payments ?? []).reduce(
+      (sum, payment) =>
+        sum.plus(
+          (payment.refunds ?? [])
+            .filter((refund) => refund.refundStatus === RefundStatus.SUCCESS)
+            .reduce(
+              (refundSum, refund) => refundSum.plus(refund.amount),
+              new Prisma.Decimal(0),
+            ),
+        ),
+      new Prisma.Decimal(0),
+    );
+    const amountPaid = Prisma.Decimal.max(
+      grossPaid.minus(refundedAmount),
+      new Prisma.Decimal(0),
+    );
+    const balanceDue = Prisma.Decimal.max(
+      order.totalAmount.minus(amountPaid),
+      new Prisma.Decimal(0),
+    );
     const cutleryItems = order.cutleryItems?.map((item) => ({
       ...item,
       unitPrice: item.unitPrice.toFixed(2),
@@ -424,6 +456,9 @@ export class OrdersService {
       cutleryUnitPrice: order.cutleryUnitPrice.toFixed(2),
       cutleryTotal: order.cutleryTotal.toFixed(2),
       totalAmount: order.totalAmount.toFixed(2),
+      amountPaid: amountPaid.toFixed(2),
+      balanceDue: balanceDue.toFixed(2),
+      refundedAmount: refundedAmount.toFixed(2),
       selectedItems,
       cutleryItems,
       payments,

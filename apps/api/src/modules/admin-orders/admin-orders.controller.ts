@@ -16,6 +16,8 @@ import { AdminAuthGuard } from '../../common/guards/admin-auth.guard';
 import { AdminCancelOrderDto } from './dto/admin-cancel-order.dto';
 import { AdminOrdersQueryDto } from './dto/admin-orders-query.dto';
 import { CreateRefundDto } from './dto/create-refund.dto';
+import { DeclineOrderDto } from './dto/decline-order.dto';
+import { RecordManualPaymentDto } from './dto/record-manual-payment.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { AdminOrdersService } from './admin-orders.service';
 
@@ -50,6 +52,26 @@ export class AdminOrdersController {
     @Body() dto: AdminCancelOrderDto,
   ) {
     return this.service.cancel(admin, id, dto);
+  }
+  @Post('orders/:id/approve') approve(
+    @CurrentAdmin() admin: JwtPayload,
+    @Param('id') id: string,
+  ) {
+    return this.service.approve(admin, id);
+  }
+  @Post('orders/:id/decline') decline(
+    @CurrentAdmin() admin: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: DeclineOrderDto,
+  ) {
+    return this.service.decline(admin, id, dto);
+  }
+  @Post('orders/:id/payments/manual') manualPayment(
+    @CurrentAdmin() admin: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: RecordManualPaymentDto,
+  ) {
+    return this.service.recordManualPayment(admin, id, dto);
   }
   @Get('payments') payments(
     @CurrentAdmin() admin: JwtPayload,

@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   CheckoutAttemptStatus,
   OrderStatus,
+  PaymentPlan,
   PaymentStatus,
   PackageType,
   Prisma,
@@ -131,7 +132,7 @@ test('payment snapshot preserves fixed-package menu before any order exists', as
   assert.equal(prepared.carts[0].selectedItems[0].role, 'INCLUDED');
 });
 
-test('cart payment attempts keep carts active and create orders only after verification', async () => {
+test('50% cart payment keeps carts active and creates a partially paid booking after verification', async () => {
   let attempt: Record<string, unknown> | undefined;
   let attempts = 0;
   const createdOrders: Array<Record<string, unknown>> = [];
@@ -186,8 +187,14 @@ test('cart payment attempts keep carts active and create orders only after verif
     { preparePayment: async () => snapshot } as never,
   );
 
-  const gateway = await payments.createCartGatewayOrder('user-1');
+  const gateway = await payments.createCartGatewayOrder(
+    'user-1',
+    undefined,
+    PaymentPlan.HALF,
+  );
   assert.equal(gateway.localMode, true);
+  assert.equal(gateway.amount, 74950);
+  assert.equal(attempt?.paymentPlan, PaymentPlan.HALF);
   assert.equal(attempts, 1);
   assert.equal(createdOrders.length, 0);
 
@@ -199,8 +206,17 @@ test('cart payment attempts keep carts active and create orders only after verif
   assert.equal(verified.success, true);
   assert.equal(verified.orderId, 'confirmed-order-1');
   assert.equal(createdOrders.length, 1);
-  assert.equal(createdOrders[0].orderStatus, OrderStatus.CONFIRMED);
-  assert.equal(createdOrders[0].paymentStatus, PaymentStatus.PAID);
+  assert.equal(createdOrders[0].orderStatus, OrderStatus.AWAITING_APPROVAL);
+  assert.equal(createdOrders[0].paymentStatus, PaymentStatus.PARTIALLY_PAID);
+  assert.equal(createdOrders[0].paymentPlan, PaymentPlan.HALF);
+  assert.equal(
+    (
+      createdOrders[0].payments as {
+        create: { amount: Prisma.Decimal };
+      }
+    ).create.amount.toFixed(2),
+    '749.50',
+  );
   assert.equal(createdOrders[0].packageImageUrl, '/pkg-lunch.png');
   assert.equal(attempt?.status, CheckoutAttemptStatus.PAID);
 
@@ -254,4 +270,89 @@ test('failed gateway callbacks update the attempt without creating an order', as
   });
   assert.equal(state, CheckoutAttemptStatus.FAILED);
   assert.equal(orderWrites, 0);
+});
+
+test('pay later creates an unpaid booking awaiting kitchen approval', async () => {
+  let orderUpdate: Record<string, unknown> | undefined;
+  let historyRows: Array<Record<string, unknown>> = [];
+  const notified: string[] = [];
+  const payments = new PaymentsService(
+    {
+      $transaction: async (callback: (tx: object) => Promise<void>) =>
+        callback({
+          order: {
+            updateMany: async ({ data }: { data: Record<string, unknown> }) => {
+              orderUpdate = data;
+              return { count: 1 };
+            },
+          },
+          orderStatusHistory: {
+            createMany: async ({
+              data,
+            }: {
+              data: Array<Record<string, unknown>>;
+            }) => {
+              historyRows = data;
+            },
+          },
+        }),
+    } as never,
+    { get: () => undefined } as never,
+    {} as never,
+    {
+      notifyBookingRequest: async (orderId: string) => {
+        notified.push(orderId);
+      },
+    } as never,
+    {
+      checkoutAll: async () => [{ id: 'order-pay-later' }],
+    } as never,
+  );
+
+  const result = await payments.createPayLaterBooking('user-1');
+  assert.equal(result.orderId, 'order-pay-later');
+  assert.equal(result.paymentPlan, PaymentPlan.PAY_LATER);
+  assert.deepEqual(orderUpdate, {
+    orderStatus: OrderStatus.AWAITING_APPROVAL,
+    paymentStatus: PaymentStatus.UNPAID,
+    paymentPlan: PaymentPlan.PAY_LATER,
+  });
+  assert.equal(historyRows[0].toStatus, OrderStatus.AWAITING_APPROVAL);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(notified, ['order-pay-later']);
+});
+
+test('50% checkout is calculated once from the final batch total', () => {
+  const payments = new PaymentsService(
+    {} as never,
+    { get: () => undefined } as never,
+    {} as never,
+  );
+  const multiCartSnapshot = {
+    totalAmount: '3.02',
+    carts: [
+      { ...snapshot.carts[0], cartId: 'cart-1', totalAmount: '1.01' },
+      { ...snapshot.carts[0], cartId: 'cart-2', totalAmount: '2.01' },
+    ],
+  } as CheckoutSnapshot;
+  const internal = payments as unknown as {
+    checkoutCharge(value: CheckoutSnapshot, plan: PaymentPlan): Prisma.Decimal;
+    allocateCheckoutPayment(
+      value: CheckoutSnapshot,
+      plan: PaymentPlan,
+    ): Prisma.Decimal[];
+  };
+
+  const charge = internal.checkoutCharge(multiCartSnapshot, PaymentPlan.HALF);
+  const allocations = internal.allocateCheckoutPayment(
+    multiCartSnapshot,
+    PaymentPlan.HALF,
+  );
+  assert.equal(charge.toFixed(2), '1.51');
+  assert.equal(
+    allocations
+      .reduce((sum, amount) => sum.plus(amount), new Prisma.Decimal(0))
+      .toFixed(2),
+    '1.51',
+  );
 });

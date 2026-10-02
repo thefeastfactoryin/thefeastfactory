@@ -20,18 +20,36 @@ datasource db {
 enum OrderStatus {
   DRAFT
   PENDING_PAYMENT
+  AWAITING_APPROVAL
   CONFIRMED
   IN_PROGRESS
   READY_FOR_DELIVERY
   DELIVERED
+  DECLINED
   CANCELLED
 }
 
 enum PaymentStatus {
+  UNPAID
   PENDING
+  PARTIALLY_PAID
   PAID
   FAILED
+  REFUND_PENDING
+  REFUND_FAILED
   REFUNDED
+  VOIDED
+}
+
+enum PaymentPlan {
+  FULL
+  HALF
+  PAY_LATER
+}
+
+enum PaymentSource {
+  RAZORPAY
+  MANUAL
 }
 
 enum RefundStatus {
@@ -479,7 +497,10 @@ model Order {
   packageVersionNo Int     @map("package_version_no")
 
   orderStatus   OrderStatus   @default(DRAFT) @map("order_status")
-  paymentStatus PaymentStatus @default(PENDING) @map("payment_status")
+  paymentStatus PaymentStatus @default(UNPAID) @map("payment_status")
+  paymentPlan   PaymentPlan   @default(FULL) @map("payment_plan")
+  declineReason String?       @map("decline_reason") @db.VarChar(500)
+  declinedAt    DateTime?     @map("declined_at")
 
   cancelledAt        DateTime?          @map("cancelled_at")
   cancelledBy        CancellationActor? @map("cancelled_by")
@@ -579,25 +600,35 @@ model Payment {
   orderId       String        @map("order_id")
   amount        Decimal       @db.Decimal(10, 2)
   paymentStatus PaymentStatus @default(PENDING) @map("payment_status")
+  source        PaymentSource @default(RAZORPAY)
 
   razorpayOrderId   String?   @map("razorpay_order_id") @db.VarChar(100)
   razorpayPaymentId String?   @map("razorpay_payment_id") @db.VarChar(100)
   razorpaySignature String?   @map("razorpay_signature") @db.VarChar(500)
   gatewayResponse   Json?     @map("gateway_response")
   paymentMethod     String?   @map("payment_method") @db.VarChar(50)
+  externalReference String?   @map("external_reference") @db.VarChar(150)
+  notes             String?   @db.VarChar(500)
+  recordedByAdminId String?   @map("recorded_by_admin_id")
+  voidedAt          DateTime? @map("voided_at")
+  voidedByAdminId   String?   @map("voided_by_admin_id")
+  voidReason        String?   @map("void_reason") @db.VarChar(500)
   paidAt            DateTime? @map("paid_at")
   failureReason     String?   @map("failure_reason") @db.VarChar(500)
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at")
 
-  order     Order           @relation(fields: [orderId], references: [id])
-  refunds   Refund[]
-  documents OrderDocument[]
+  order           Order           @relation(fields: [orderId], references: [id])
+  recordedByAdmin AdminUser?      @relation("PaymentRecordedByAdmin", fields: [recordedByAdminId], references: [id])
+  voidedByAdmin   AdminUser?      @relation("PaymentVoidedByAdmin", fields: [voidedByAdminId], references: [id])
+  refunds         Refund[]
+  documents       OrderDocument[]
 
   @@index([orderId])
   @@index([paymentStatus])
   @@index([razorpayOrderId])
   @@index([razorpayPaymentId])
+  @@index([recordedByAdminId])
   @@map("payments")
 }
 
@@ -614,6 +645,7 @@ model CheckoutAttempt {
   userId            String                @map("user_id")
   razorpayOrderId   String                @unique @map("razorpay_order_id") @db.VarChar(100)
   amount            Decimal               @db.Decimal(10, 2)
+  paymentPlan       PaymentPlan           @default(FULL) @map("payment_plan")
   currency          String                @db.VarChar(3)
   status            CheckoutAttemptStatus @default(PENDING)
   snapshot          Json
@@ -672,6 +704,8 @@ model AdminUser {
   orderStatusHistory OrderStatusHistory[]
   cancelledOrders    Order[]              @relation("OrderCancelledByAdmin")
   orderNotes         OrderNote[]
+  recordedPayments   Payment[]            @relation("PaymentRecordedByAdmin")
+  voidedPayments     Payment[]            @relation("PaymentVoidedByAdmin")
   region             OperatingRegion?     @relation(fields: [regionId], references: [id])
 
   @@index([email])

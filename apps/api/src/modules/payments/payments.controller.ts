@@ -32,7 +32,13 @@ export class PaymentsController {
     @CurrentUser() user: JwtPayload,
     @Body() dto: CheckoutCartDto,
   ) {
-    return this.payments.createCartGatewayOrder(user.sub, dto.specialNotes);
+    return dto.paymentPlan === 'PAY_LATER'
+      ? this.payments.createPayLaterBooking(user.sub, dto.specialNotes)
+      : this.payments.createCartGatewayOrder(
+          user.sub,
+          dto.specialNotes,
+          dto.paymentPlan,
+        );
   }
 
   @Post('orders/:id/payments/razorpay-order')

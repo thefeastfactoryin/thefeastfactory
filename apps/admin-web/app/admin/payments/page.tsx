@@ -184,7 +184,7 @@ export default function Payments() {
                 </td>
                 <td className="text-right font-semibold">₹{row.amount}</td>
                 <td>
-                  {row.paymentStatus === 'PAID' && (
+                  {row.paymentStatus === 'PAID' && row.source !== 'MANUAL' && (
                     <Button
                       variant="outline"
                       onClick={() => {
@@ -251,7 +251,7 @@ export default function Payments() {
                 {row.failureReason}
               </p>
             )}
-            {row.paymentStatus === 'PAID' && (
+            {row.paymentStatus === 'PAID' && row.source !== 'MANUAL' && (
               <Button
                 variant="outline"
                 className="mt-4 w-full"

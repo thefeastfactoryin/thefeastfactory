@@ -70,10 +70,12 @@ export const refundReasonOptions = [
 
 export const orderStatusOptions = [
   'PENDING_PAYMENT',
+  'AWAITING_APPROVAL',
   'CONFIRMED',
   'IN_PROGRESS',
   'READY_FOR_DELIVERY',
   'DELIVERED',
+  'DECLINED',
   'CANCELLED',
 ] as const;
 
@@ -85,8 +87,12 @@ export const adminTransitionOptions = [
 ] as const;
 
 export const paymentStatusOptions = [
+  'UNPAID',
   'PENDING',
+  'PARTIALLY_PAID',
   'PAID',
   'FAILED',
+  'REFUND_PENDING',
+  'REFUND_FAILED',
   'REFUNDED',
 ] as const;

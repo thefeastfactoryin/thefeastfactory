@@ -187,7 +187,12 @@ export class OperationsService {
         where: {
           eventDate: { gte: now, lte: upcoming },
           orderStatus: {
-            notIn: [OrderStatus.CANCELLED, OrderStatus.PENDING_PAYMENT],
+            notIn: [
+              OrderStatus.CANCELLED,
+              OrderStatus.DECLINED,
+              OrderStatus.AWAITING_APPROVAL,
+              OrderStatus.PENDING_PAYMENT,
+            ],
           },
           ...(regionId ? { regionId } : {}),
         },

@@ -62,9 +62,11 @@ export default function PaymentStatusPage() {
       if (timer !== undefined) window.clearTimeout(timer);
     };
   }, [session, orderId, router]);
-  const paid = order?.paymentStatus === 'PAID';
+  const paymentReceived =
+    order?.paymentStatus === 'PAID' ||
+    order?.paymentStatus === 'PARTIALLY_PAID';
   const checkFailed = Boolean(loadError);
-  const Icon = paid ? CheckCircle : checkFailed ? XCircle : Clock3;
+  const Icon = paymentReceived ? CheckCircle : checkFailed ? XCircle : Clock3;
   if (!session)
     return (
       <AuthRequiredPanel
@@ -88,11 +90,13 @@ export default function PaymentStatusPage() {
   return (
     <main className="mx-auto flex max-w-xl flex-col items-center px-5 py-20 text-center">
       <Icon
-        className={`h-12 w-12 ${paid ? 'text-primary' : checkFailed ? 'text-red-600' : 'text-amber-600'}`}
+        className={`h-12 w-12 ${paymentReceived ? 'text-primary' : checkFailed ? 'text-red-600' : 'text-amber-600'}`}
       />
       <h1 className="mt-5 text-3xl font-semibold">
-        {paid
-          ? 'Payment confirmed'
+        {paymentReceived
+          ? order?.paymentStatus === 'PARTIALLY_PAID'
+            ? 'Deposit received'
+            : 'Payment received'
           : checkFailed
             ? 'Could not check payment'
             : confirmationDelayed
@@ -100,8 +104,8 @@ export default function PaymentStatusPage() {
               : 'Confirming payment'}
       </h1>
       <p className="mt-2 text-muted-foreground">
-        {paid
-          ? 'Your order is confirmed.'
+        {paymentReceived
+          ? 'Your booking request is awaiting kitchen approval. We will show the kitchen’s decision in your order details.'
           : checkFailed
             ? loadError
             : confirmationDelayed

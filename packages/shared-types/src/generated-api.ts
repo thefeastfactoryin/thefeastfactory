@@ -257,6 +257,22 @@ export interface paths {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/admin/orders/{id}/approve": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        readonly post: operations["AdminOrdersController_approve"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/admin/orders/{id}/cancel": {
         readonly parameters: {
             readonly query?: never;
@@ -267,6 +283,38 @@ export interface paths {
         readonly get?: never;
         readonly put?: never;
         readonly post: operations["AdminOrdersController_cancel"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/admin/orders/{id}/decline": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        readonly post: operations["AdminOrdersController_decline"];
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
+    readonly "/admin/orders/{id}/payments/manual": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly get?: never;
+        readonly put?: never;
+        readonly post: operations["AdminOrdersController_manualPayment"];
         readonly delete?: never;
         readonly options?: never;
         readonly head?: never;
@@ -1382,6 +1430,11 @@ export interface components {
             readonly weightGrams?: number | null;
         };
         readonly CheckoutCartDto: {
+            /**
+             * @default FULL
+             * @enum {string}
+             */
+            readonly paymentPlan: "FULL" | "HALF" | "PAY_LATER";
             /** @example Please keep the food mildly spiced and pack chutney separately. */
             readonly specialNotes?: string;
         };
@@ -1492,6 +1545,9 @@ export interface components {
         readonly CreateRefundDto: {
             readonly reason?: string;
         };
+        readonly DeclineOrderDto: {
+            readonly reason: string;
+        };
         readonly ImportMenuItemRowDto: {
             /** @example 120.00 */
             readonly boxPrice: string;
@@ -1542,6 +1598,14 @@ export interface components {
             /** Format: uuid */
             readonly regionId?: string;
             readonly selectedItems: readonly components["schemas"]["SelectedPackageItemDto"][];
+        };
+        readonly RecordManualPaymentDto: {
+            readonly amount: number;
+            /** @enum {string} */
+            readonly method: "UPI" | "CASH" | "CARD_POS" | "BANK_TRANSFER" | "OTHER";
+            readonly note?: string;
+            readonly receivedAt?: string;
+            readonly reference?: string;
         };
         readonly RefreshTokenDto: {
             readonly refreshToken: string;
@@ -1703,7 +1767,7 @@ export interface components {
         readonly UpdateOrderStatusDto: {
             readonly notes?: string;
             /** @enum {string} */
-            readonly status: "DRAFT" | "PENDING_PAYMENT" | "CONFIRMED" | "IN_PROGRESS" | "READY_FOR_DELIVERY" | "DELIVERED" | "CANCELLED";
+            readonly status: "DRAFT" | "PENDING_PAYMENT" | "AWAITING_APPROVAL" | "CONFIRMED" | "IN_PROGRESS" | "READY_FOR_DELIVERY" | "DELIVERED" | "DECLINED" | "CANCELLED";
         };
         readonly UpdatePackageDto: {
             readonly badgeLabel?: string;
@@ -2186,10 +2250,10 @@ export interface operations {
                 readonly dateFrom?: string;
                 readonly dateTo?: string;
                 readonly mobileNumber?: string;
-                readonly orderStatus?: "DRAFT" | "PENDING_PAYMENT" | "CONFIRMED" | "IN_PROGRESS" | "READY_FOR_DELIVERY" | "DELIVERED" | "CANCELLED";
+                readonly orderStatus?: "DRAFT" | "PENDING_PAYMENT" | "AWAITING_APPROVAL" | "CONFIRMED" | "IN_PROGRESS" | "READY_FOR_DELIVERY" | "DELIVERED" | "DECLINED" | "CANCELLED";
                 readonly page?: components["schemas"]["Object"];
                 readonly pageSize?: components["schemas"]["Object"];
-                readonly paymentStatus?: "PENDING" | "PAID" | "FAILED" | "REFUNDED";
+                readonly paymentStatus?: "UNPAID" | "PENDING" | "PARTIALLY_PAID" | "PAID" | "FAILED" | "REFUND_PENDING" | "REFUND_FAILED" | "REFUNDED" | "VOIDED";
                 readonly regionId?: string;
             };
             readonly header?: never;
@@ -2225,6 +2289,25 @@ export interface operations {
             };
         };
     };
+    readonly AdminOrdersController_approve: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly id: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            readonly 201: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     readonly AdminOrdersController_cancel: {
         readonly parameters: {
             readonly query?: never;
@@ -2237,6 +2320,52 @@ export interface operations {
         readonly requestBody: {
             readonly content: {
                 readonly "application/json": components["schemas"]["AdminCancelOrderDto"];
+            };
+        };
+        readonly responses: {
+            readonly 201: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    readonly AdminOrdersController_decline: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly id: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["DeclineOrderDto"];
+            };
+        };
+        readonly responses: {
+            readonly 201: {
+                headers: {
+                    readonly [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    readonly AdminOrdersController_manualPayment: {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path: {
+                readonly id: string;
+            };
+            readonly cookie?: never;
+        };
+        readonly requestBody: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["RecordManualPaymentDto"];
             };
         };
         readonly responses: {

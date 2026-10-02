@@ -4,7 +4,7 @@ import { BadRequestException } from '@nestjs/common';
 import { AdminRole, OrderStatus, PaymentStatus } from '@prisma/client';
 import { AdminOrdersService } from '../src/modules/admin-orders/admin-orders.service';
 
-test('admin cannot confirm an order before payment is verified', async () => {
+test('pending-payment orders cannot bypass the kitchen approval flow', async () => {
   let updateCalls = 0;
   const service = new AdminOrdersService(
     {
@@ -33,9 +33,51 @@ test('admin cannot confirm an order before payment is verified', async () => {
     ),
     (error: unknown) =>
       error instanceof BadRequestException &&
-      /before payment is verified/.test(error.message),
+      /Cannot transition from PENDING_PAYMENT to CONFIRMED/.test(error.message),
   );
   assert.equal(updateCalls, 0);
+});
+
+test('kitchen can approve an unpaid booking request', async () => {
+  let updatedStatus: OrderStatus | undefined;
+  const service = new AdminOrdersService(
+    {
+      order: {
+        findUnique: async () => ({
+          id: 'order-1',
+          regionId: 'region-1',
+          orderStatus: OrderStatus.AWAITING_APPROVAL,
+          paymentStatus: PaymentStatus.UNPAID,
+        }),
+        updateMany: async () => ({ count: 1 }),
+      },
+      orderStatusHistory: { create: async () => undefined },
+      $transaction: async (callback: (tx: object) => Promise<void>) =>
+        callback({
+          order: {
+            updateMany: async ({
+              data,
+            }: {
+              data: { orderStatus: OrderStatus };
+            }) => {
+              updatedStatus = data.orderStatus;
+              return { count: 1 };
+            },
+          },
+          orderStatusHistory: { create: async () => undefined },
+        }),
+    } as never,
+    { serializeOrder: (value: unknown) => value } as never,
+    {} as never,
+    { resolveAdminScope: async () => undefined } as never,
+  );
+  service.get = async () => ({ id: 'order-1' }) as never;
+
+  await service.approve(
+    { sub: 'admin-1', type: 'admin', role: AdminRole.SUPER_ADMIN },
+    'order-1',
+  );
+  assert.equal(updatedStatus, OrderStatus.CONFIRMED);
 });
 
 test('stale admin status transitions cannot overwrite a concurrent change', async () => {
