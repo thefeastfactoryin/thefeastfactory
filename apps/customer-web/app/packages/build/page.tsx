@@ -1,4 +1,5 @@
 'use client';
+import { DataImage } from '../../../components/data-image';
 import { MobileOrderBar } from '../../../components/mobile-order-bar';
 
 import type {
@@ -15,7 +16,6 @@ import {
   ShoppingBag,
   X,
 } from 'lucide-react';
-import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { apiRequest } from '../../../lib/api';
@@ -44,6 +44,7 @@ type Dish = {
   itemPrice: string;
   includedValue?: string;
   adjustmentAmount: string;
+  imageUrl?: string | null;
 };
 type DishId = string;
 type CategoryFilter = 'all' | string;
@@ -62,6 +63,7 @@ function dishesFromConfig(config: PackageConfiguration): Dish[] {
       itemPrice: item.itemPrice,
       includedValue: item.includedValue,
       adjustmentAmount: item.adjustmentAmount,
+      imageUrl: item.imageUrl,
     })),
   );
 }
@@ -309,12 +311,9 @@ function DishCatalogue({
                 key={dish.id}
                 className="grid min-h-[64px] grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-2 rounded-xl border border-border bg-white px-2 py-1.5 transition hover:border-primary/25 hover:bg-[#fffdf8] sm:min-h-[76px] sm:grid-cols-[50px_minmax(0,1fr)_auto] sm:gap-2.5 sm:px-2.5 sm:py-2 lg:min-h-[88px] lg:grid-cols-[64px_minmax(0,1fr)_auto]"
               >
-                <Image
-                  src={getDishImage(dish)}
+                <DataImage
+                  src={dish.imageUrl ?? getDishImage(dish)}
                   alt=""
-                  width={64}
-                  height={64}
-                  sizes="(max-width: 639px) 40px, (max-width: 1023px) 50px, 64px"
                   className="h-10 w-10 rounded-lg object-cover sm:h-[50px] sm:w-[50px] lg:h-16 lg:w-16"
                 />
                 <div className="min-w-0">
@@ -707,7 +706,6 @@ function BuildPackageContent() {
   function toggleDish(id: DishId) {
     setOrder((current) => {
       if (current.includes(id)) return current.filter((item) => item !== id);
-      if (current.length >= 12) return current;
       return [...current, id];
     });
   }
