@@ -361,7 +361,7 @@ export default function AddressesPage() {
               </Field>
               {form.addressType === 'OTHER' && (
                 <Field
-                  label="Label"
+                  label="Name"
                   optional
                   optionalInline
                   className="col-span-2 lg:col-span-1"

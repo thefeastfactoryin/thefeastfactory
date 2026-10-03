@@ -20,7 +20,14 @@ import {
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { ReactNode } from 'react';
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { DataImage } from '../../../components/data-image';
 import { Button } from '../../../components/ui/button';
 import { StatePanel } from '../../../components/ui/state-panel';
@@ -160,10 +167,7 @@ function MenuSelectContent() {
     };
   }, [discardStaleCart, hydrateFromCart, requestedCartId, session]);
 
-  useEffect(
-    () => subscribeToCartCleared(discardStaleCart),
-    [discardStaleCart],
-  );
+  useEffect(() => subscribeToCartCleared(discardStaleCart), [discardStaleCart]);
 
   useEffect(() => setBoxCountInput(String(guestCount)), [guestCount]);
 
@@ -282,6 +286,7 @@ function MenuSelectContent() {
       }))
       .filter(
         (category, index, rows) =>
+          category.count > 0 &&
           rows.findIndex((row) => row.id === category.id) === index,
       );
   }, [includedRows, orderedCategoryRules]);
@@ -335,7 +340,28 @@ function MenuSelectContent() {
     Number(Boolean(menuSearch.trim())) +
     Number(!extrasExpanded && swappableOnly);
   const activeCategories = extrasExpanded ? extraCategories : categories;
-  const activeMenuCount = extrasExpanded ? extraRows.length : includedRows.length;
+  const activeMenuCount = extrasExpanded
+    ? extraRows.length
+    : includedRows.length;
+  const activeCategoryName = activeCategories.find(
+    (category) => category.id === menuCategory,
+  )?.name;
+
+  useEffect(() => {
+    if (
+      menuCategory !== 'all' &&
+      !activeCategories.some((category) => category.id === menuCategory)
+    ) {
+      setMenuCategory('all');
+    }
+  }, [activeCategories, menuCategory]);
+
+  const clearMenuFilters = useCallback(() => {
+    setMenuSearch('');
+    setMenuCategory('all');
+    setMenuDiet('all');
+    setSwappableOnly(false);
+  }, []);
 
   const currentSwaps = useMemo(
     () =>
@@ -382,31 +408,25 @@ function MenuSelectContent() {
   );
   const localPerPerson =
     Number(cartPackage?.basePricePerPlate ?? 0) +
-    selectedItems.reduce(
-      (total, item) => {
-        const configuredItem = configuredSelectionPrice(item);
-        if (item.role === 'EXTRA' && !item.replacedMenuItemId) {
-          const unitPrice = Number(
-            configuredItem?.itemPrice ??
-              item.itemPrice ??
-              item.adjustmentAmount ??
-              0,
-          );
-          return (
-            total +
-            (unitPrice * (item.quantity ?? guestCount)) /
-              Math.max(guestCount, 1)
-          );
-        }
+    selectedItems.reduce((total, item) => {
+      const configuredItem = configuredSelectionPrice(item);
+      if (item.role === 'EXTRA' && !item.replacedMenuItemId) {
+        const unitPrice = Number(
+          configuredItem?.itemPrice ??
+            item.itemPrice ??
+            item.adjustmentAmount ??
+            0,
+        );
         return (
           total +
-          Number(
-            configuredItem?.adjustmentAmount ?? item.adjustmentAmount ?? 0,
-          )
+          (unitPrice * (item.quantity ?? guestCount)) / Math.max(guestCount, 1)
         );
-      },
-      0,
-    );
+      }
+      return (
+        total +
+        Number(configuredItem?.adjustmentAmount ?? item.adjustmentAmount ?? 0)
+      );
+    }, 0);
   const basePerPerson = Number(
     preview.quote?.basePerPlatePrice ?? cartPackage?.basePricePerPlate ?? 0,
   );
@@ -414,10 +434,7 @@ function MenuSelectContent() {
     preview.quote?.totalAmount ?? localPerPerson * guestCount,
   );
   const basePackageTotal = basePerPerson * guestCount;
-  const additionalItemsTotal = Math.max(
-    menuSubtotal - basePackageTotal,
-    0,
-  );
+  const additionalItemsTotal = Math.max(menuSubtotal - basePackageTotal, 0);
 
   function alternativesFor(rule: CategoryRule, included: MenuSelectionItem) {
     return rule.items
@@ -518,7 +535,8 @@ function MenuSelectContent() {
     setSaving(true);
     setMessage('');
     try {
-      const requestedCartId = workingCartId.current || searchParams.get('cartId') || dbCartId;
+      const requestedCartId =
+        workingCartId.current || searchParams.get('cartId') || dbCartId;
       const createCart = () =>
         apiRequest<{ id: string }>(
           '/cart',
@@ -677,8 +695,8 @@ function MenuSelectContent() {
                   categories={activeCategories}
                   total={activeMenuCount}
                   extrasMode={extrasExpanded}
-                    swappableOnly={swappableOnly}
-                    setSwappableOnly={setSwappableOnly}
+                  swappableOnly={swappableOnly}
+                  setSwappableOnly={setSwappableOnly}
                 />
               </div>
             ) : (
@@ -933,8 +951,31 @@ function MenuSelectContent() {
               <Search className="mx-auto h-6 w-6 text-muted-foreground" />
               <h2 className="mt-3 font-semibold">No matching dishes</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Try another category, diet, or search term.
+                {activeCategoryName
+                  ? `No dishes match ${activeCategoryName} and the selected filters.`
+                  : 'Try another category, diet, or search term.'}
               </p>
+              <div className="mx-auto mt-5 flex max-w-sm flex-col gap-2 sm:flex-row sm:justify-center">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setMobileFiltersOpen(true)}
+                  className="min-h-11 flex-1"
+                >
+                  <SlidersHorizontal className="mr-2 h-4 w-4" />
+                  Change filters
+                </Button>
+                {activeFilterCount > 0 && (
+                  <Button
+                    type="button"
+                    onClick={clearMenuFilters}
+                    className="min-h-11 flex-1"
+                  >
+                    <X className="mr-2 h-4 w-4" />
+                    Clear filters
+                  </Button>
+                )}
+              </div>
             </div>
           )}
 
@@ -992,7 +1033,8 @@ function MenuSelectContent() {
             </span>
             <span className="mobile-order-bar-label normal-case tracking-normal font-medium">
               {summaryRows.length} dishes
-              {selectedExtras.length > 0 && ` · ${selectedExtras.length} extras`}
+              {selectedExtras.length > 0 &&
+                ` · ${selectedExtras.length} extras`}
               {' · View summary ›'}
             </span>
           </button>
@@ -1012,10 +1054,7 @@ function MenuSelectContent() {
       </MobileOrderBar>
 
       {mobileFiltersOpen && (
-        <MobileSheet
-          title="Filter"
-          onClose={() => setMobileFiltersOpen(false)}
-        >
+        <MobileSheet title="Filter" onClose={() => setMobileFiltersOpen(false)}>
           <FilterContents
             search={menuSearch}
             setSearch={setMenuSearch}
@@ -1111,10 +1150,7 @@ function MenuStepIndicator({
     'Confirm & pay',
   ];
   return (
-    <nav
-      aria-label="Order progress"
-      className="bg-transparent"
-    >
+    <nav aria-label="Order progress" className="bg-transparent">
       <ol className="grid grid-cols-3">
         {steps.map((label, index) => {
           const complete = index < current;
@@ -1229,9 +1265,7 @@ function FilterContents({
         ))}
       </nav>
       <div className="mt-5 border-t pt-4">
-        <p className="text-xs font-extrabold text-charcoal">
-          Diet preference
-        </p>
+        <p className="text-xs font-extrabold text-charcoal">Diet preference</p>
         <div className="mt-3 flex gap-2">
           {(['all', 'veg', 'nonveg'] as const).map((value) => (
             <button
@@ -1403,10 +1437,10 @@ function MenuSections({
                   />
                 );
               })}
-              </div>
             </div>
-          </section>
-        ))}
+          </div>
+        </section>
+      ))}
     </div>
   );
 }
@@ -1468,7 +1502,9 @@ function DishRow({
             aria-label={`${swapped ? 'Change replacement for' : 'Replace'} ${original.name}`}
           >
             <ArrowRightLeft className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">{swapped ? 'Change replacement' : 'Replace'}</span>
+            <span className="hidden sm:inline">
+              {swapped ? 'Change replacement' : 'Replace'}
+            </span>
             <span className="sm:hidden">Replace</span>
           </button>
         ) : (

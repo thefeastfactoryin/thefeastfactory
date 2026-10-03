@@ -42,18 +42,16 @@ export function AddressDetailsFields({
           value={value.addressType}
           onChange={(event) => {
             const addressType = event.target.value as AddressType;
-            const currentDefaultLabels = [
-              'Home',
-              'Work',
-              'Office',
-              'Event venue',
-            ];
             update({
               addressType,
               label:
-                !value.label || currentDefaultLabels.includes(value.label)
-                  ? defaultAddressLabel(addressType)
-                  : value.label,
+                addressType === 'OTHER'
+                  ? ['Home', 'Work', 'Office', 'Event venue'].includes(
+                      value.label,
+                    )
+                    ? ''
+                    : value.label
+                  : defaultAddressLabel(addressType),
             });
           }}
         >
@@ -63,14 +61,16 @@ export function AddressDetailsFields({
           <option value="OTHER">Other</option>
         </Select>
       </Field>
-      <Field label="Address label" optional>
-        <Input
-          value={value.label}
-          maxLength={50}
-          placeholder="e.g. Home or event venue"
-          onChange={(event) => update({ label: event.target.value })}
-        />
-      </Field>
+      {value.addressType === 'OTHER' && (
+        <Field label="Name" optional>
+          <Input
+            value={value.label}
+            maxLength={50}
+            placeholder="e.g. Parents' home"
+            onChange={(event) => update({ label: event.target.value })}
+          />
+        </Field>
+      )}
       <Field label="House, building or street" className="sm:col-span-2">
         <Input
           value={value.addressLine1}
