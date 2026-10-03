@@ -9,10 +9,13 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { AdminRole } from '@prisma/client';
 import { JwtPayload } from '../../common/auth/jwt-payload';
 import { AdminRegionQueryDto } from '../../common/dto/admin-region-query.dto';
 import { CurrentAdmin } from '../../common/decorators/current-admin.decorator';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { AdminAuthGuard } from '../../common/guards/admin-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
 import { AdminCancelOrderDto } from './dto/admin-cancel-order.dto';
 import { AdminOrdersQueryDto } from './dto/admin-orders-query.dto';
 import { CreateRefundDto } from './dto/create-refund.dto';
@@ -79,7 +82,10 @@ export class AdminOrdersController {
   ) {
     return this.service.listPayments(admin, query.regionId);
   }
-  @Post('payments/:id/full-refund') refund(
+  @Post('payments/:id/full-refund')
+  @UseGuards(AdminAuthGuard, RolesGuard)
+  @Roles(AdminRole.OPERATIONS)
+  refund(
     @CurrentAdmin() admin: JwtPayload,
     @Param('id') id: string,
     @Body() dto: CreateRefundDto,

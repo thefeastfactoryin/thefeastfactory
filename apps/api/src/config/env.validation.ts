@@ -10,6 +10,10 @@ const envSchema = z.object({
   API_CORS_ORIGINS: z
     .string()
     .default('http://localhost:3000,http://localhost:3001'),
+  API_SWAGGER_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
   JWT_ACCESS_SECRET: z.string().min(16),
   JWT_REFRESH_SECRET: z.string().min(16),
   JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
@@ -63,6 +67,14 @@ const envSchema = z.object({
       path: ['TEST_LOGIN_OTP_ENABLED'],
       message:
         'TEST_LOGIN_MOBILE and TEST_LOGIN_OTP are required when test login is enabled',
+    });
+  }
+
+  if (env.NODE_ENV === 'production' && env.TEST_LOGIN_OTP_ENABLED) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['TEST_LOGIN_OTP_ENABLED'],
+      message: 'Test login OTP cannot be enabled in production',
     });
   }
 

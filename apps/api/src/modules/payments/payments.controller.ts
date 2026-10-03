@@ -9,7 +9,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { JwtPayload } from '../../common/auth/jwt-payload';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -19,6 +19,7 @@ import { PaymentsService } from './payments.service';
 import type { RazorpayWebhookPayload } from './payments.service';
 import { CreateBatchPaymentDto } from './dto/create-batch-payment.dto';
 import { CheckoutCartDto } from '../cart/dto/checkout-cart.dto';
+import { CreateOrderPaymentDto } from './dto/create-order-payment.dto';
 
 @ApiTags('payments')
 @Controller()
@@ -43,9 +44,14 @@ export class PaymentsController {
 
   @Post('orders/:id/payments/razorpay-order')
   @ApiBearerAuth()
+  @ApiBody({ type: CreateOrderPaymentDto, required: false })
   @UseGuards(CustomerAuthGuard)
-  create(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
-    return this.payments.createGatewayOrder(user.sub, id);
+  create(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: CreateOrderPaymentDto = new CreateOrderPaymentDto(),
+  ) {
+    return this.payments.createGatewayOrder(user.sub, id, dto.amount);
   }
 
   @Get('orders/:id/payment-batch')

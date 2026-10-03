@@ -288,9 +288,10 @@ export class OrdersService {
     });
     if (!order) throw new NotFoundException('Order not found');
     const serialized = this.serializeOrder(order);
-    if (!order.cartId) return serialized;
+    const sourceCartId = order.cartId ?? order.sourceCartId;
+    if (!sourceCartId) return serialized;
     const cart = await this.prisma.cart.findUnique({
-      where: { id: order.cartId },
+      where: { id: sourceCartId },
       include: {
         packageVersion: {
           include: {
@@ -307,7 +308,10 @@ export class OrdersService {
         },
       },
     });
-    if (cart?.packageVersion.package.type !== PackageType.FIXED_PACKAGE) {
+    if (
+      cart?.packageVersion.package.type !== PackageType.FIXED_PACKAGE &&
+      cart?.packageVersion.package.type !== PackageType.MEAL_BOX
+    ) {
       return serialized;
     }
 
@@ -326,7 +330,7 @@ export class OrdersService {
         menuItemId: row.menuItemId,
         replacedMenuItemId: null,
         role: SelectedItemRole.INCLUDED,
-        quantity: 1,
+        quantity: order.guestCount ?? 1,
         menuItemName: row.menuItem.name,
         categoryName: row.category.name,
         replacedMenuItemName: null,

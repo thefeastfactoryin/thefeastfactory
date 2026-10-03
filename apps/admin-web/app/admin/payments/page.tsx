@@ -104,7 +104,11 @@ export default function Payments() {
       <AdminPageHeader
         eyebrow="Gateway ledger"
         title="Payments and refunds"
-        description="Review payment attempts and issue full refunds with a recorded reason."
+        description={
+          session?.admin.role === 'OPERATIONS'
+            ? 'Review your kitchen payments and refund captured payments for declined orders.'
+            : 'Review payments and refunds across kitchens. Refund processing is restricted to the assigned kitchen Operations team.'
+        }
       />
       <div className="admin-card mt-5 max-w-sm">
         {session?.admin.role === 'ADMIN' ? (
@@ -178,13 +182,22 @@ export default function Payments() {
                         <div key={refund.id} className="mb-1">
                           <StatusBadge value={refund.refundStatus} />{' '}
                           <span className="text-xs">₹{refund.amount}</span>
+                          <p className="mt-1 max-w-56 text-xs text-muted-foreground">
+                            {refund.reason || 'No reason recorded'} ·{' '}
+                            {new Date(refund.initiatedAt).toLocaleString(
+                              'en-IN',
+                            )}
+                          </p>
                         </div>
                       ))
                     : '—'}
                 </td>
                 <td className="text-right font-semibold">₹{row.amount}</td>
                 <td>
-                  {row.paymentStatus === 'PAID' && row.source !== 'MANUAL' && (
+                  {session?.admin.role === 'OPERATIONS' &&
+                    row.order.orderStatus === 'DECLINED' &&
+                    row.paymentStatus === 'PAID' &&
+                    row.source !== 'MANUAL' && (
                     <Button
                       variant="outline"
                       onClick={() => {
@@ -251,7 +264,29 @@ export default function Payments() {
                 {row.failureReason}
               </p>
             )}
-            {row.paymentStatus === 'PAID' && row.source !== 'MANUAL' && (
+            {row.refunds.length > 0 && (
+              <div className="mt-3 space-y-2 border-t pt-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Refund history
+                </p>
+                {row.refunds.map((refund) => (
+                  <div key={refund.id} className="rounded-lg bg-slate-50 p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <StatusBadge value={refund.refundStatus} />
+                      <span className="font-semibold">₹{refund.amount}</span>
+                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {refund.reason || 'No reason recorded'} ·{' '}
+                      {new Date(refund.initiatedAt).toLocaleString('en-IN')}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {session?.admin.role === 'OPERATIONS' &&
+              row.order.orderStatus === 'DECLINED' &&
+              row.paymentStatus === 'PAID' &&
+              row.source !== 'MANUAL' && (
               <Button
                 variant="outline"
                 className="mt-4 w-full"

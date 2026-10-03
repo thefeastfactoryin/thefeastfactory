@@ -1507,6 +1507,10 @@ export interface components {
         readonly CreateOrderNoteDto: {
             readonly body: string;
         };
+        readonly CreateOrderPaymentDto: {
+            /** @description Amount to pay toward the remaining order balance. Omit to pay the full balance. */
+            readonly amount?: number;
+        };
         readonly CreatePackageDto: {
             readonly badgeLabel?: string;
             readonly description?: string;
@@ -3705,7 +3709,11 @@ export interface operations {
             };
             readonly cookie?: never;
         };
-        readonly requestBody?: never;
+        readonly requestBody?: {
+            readonly content: {
+                readonly "application/json": components["schemas"]["CreateOrderPaymentDto"];
+            };
+        };
         readonly responses: {
             readonly 201: {
                 headers: {

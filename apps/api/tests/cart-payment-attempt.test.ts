@@ -132,6 +132,97 @@ test('payment snapshot preserves fixed-package menu before any order exists', as
   assert.equal(prepared.carts[0].selectedItems[0].role, 'INCLUDED');
 });
 
+test('payment snapshot preserves booking cutlery on its selected cart', async () => {
+  const carts = ['cart-1', 'cart-2'].map((id) => ({
+    id,
+    userId: 'user-1',
+    status: 'ACTIVE',
+    packageVersionId: `version-${id}`,
+    packageVersion: {
+      versionNo: 1,
+      package: {
+        type: PackageType.CUSTOM_PACKAGE,
+        imageUrl: null,
+      },
+    },
+    addressId: 'address-1',
+    regionId: 'region-1',
+    eventName: null,
+    eventDate: new Date('2026-10-20T00:00:00.000Z'),
+    eventTimeStart: new Date('1970-01-01T11:30:00.000Z'),
+    guestCount: 10,
+    deliveryServiceType: 'STANDARD',
+    helperCount: 0,
+    cutleryExtraCount: id === 'cart-2' ? 5 : 0,
+    contactNumber: '9876543210',
+    specialNotes: null,
+    items: [],
+    cutleryItems:
+      id === 'cart-2'
+        ? [{ cutleryItemId: 'serving-spoon', quantity: 5 }]
+        : [],
+  }));
+  const quoteFor = (cartId: string) => ({
+    region: { id: 'region-1' },
+    packageName: cartId === 'cart-1' ? 'Lunch' : 'Dinner',
+    packageType: PackageType.CUSTOM_PACKAGE,
+    guestCount: 10,
+    basePerPlatePrice: '100.00',
+    totalCustomizationCharges: '0.00',
+    finalPerPlatePrice: '100.00',
+    subtotalAmount: '1000.00',
+    deliveryFee: '0.00',
+    distanceKm: '5.00',
+    deliveryServiceType: 'STANDARD',
+    helperCount: 0,
+    cutleryIncludedCount: 10,
+    cutleryExtraCount: cartId === 'cart-2' ? 5 : 0,
+    cutleryUnitPrice: '20.00',
+    cutleryTotal: cartId === 'cart-2' ? '100.00' : '0.00',
+    cutleryItems:
+      cartId === 'cart-2'
+        ? [
+            {
+              id: 'serving-spoon',
+              name: 'Serving Spoon',
+              unitLabel: 'piece',
+              includedQuantity: 0,
+              quantity: 5,
+              unitPrice: '20.00',
+              lineTotal: '100.00',
+              imageUrl: null,
+            },
+          ]
+        : [],
+    items: [],
+  });
+  const service = new CartService(
+    {
+      cart: { findMany: async () => carts },
+    } as never,
+    {} as never,
+    {} as never,
+    {} as never,
+  );
+  service.quoteAll = async () =>
+    ({
+      valid: true,
+      carts: carts.map((cart) => ({
+        cartId: cart.id,
+        quote: quoteFor(cart.id),
+      })),
+    }) as never;
+
+  const prepared = await service.preparePayment('user-1');
+
+  assert.equal(prepared.totalAmount, '2100.00');
+  assert.equal(prepared.carts[0].cutleryTotal, '0.00');
+  assert.equal(prepared.carts[0].cutleryExtraCount, 0);
+  assert.equal(prepared.carts[1].cutleryTotal, '100.00');
+  assert.equal(prepared.carts[1].cutleryExtraCount, 5);
+  assert.equal(prepared.carts[1].cutleryItems[0].lineTotal, '100.00');
+});
+
 test('50% cart payment keeps carts active and creates a partially paid booking after verification', async () => {
   let attempt: Record<string, unknown> | undefined;
   let attempts = 0;

@@ -13,6 +13,8 @@ export function RetryPaymentButton({
   orderIds,
   className,
   label = 'Retry payment',
+  amount,
+  disabled = false,
   onStart,
   onFailure,
 }: {
@@ -20,6 +22,8 @@ export function RetryPaymentButton({
   orderIds?: string[];
   className?: string;
   label?: string;
+  amount?: number;
+  disabled?: boolean;
   onStart?: () => void;
   onFailure?: (message: string) => void;
 }) {
@@ -68,7 +72,10 @@ export function RetryPaymentButton({
             )
           : await apiRequest<GatewayOrder>(
               `/orders/${order.id}/payments/razorpay-order`,
-              { method: 'POST' },
+              {
+                method: 'POST',
+                body: JSON.stringify(amount === undefined ? {} : { amount }),
+              },
               session.accessToken,
             );
       if (gateway.localMode) {
@@ -105,7 +112,9 @@ export function RetryPaymentButton({
             );
           } catch (reason) {
             console.error('[RetryPayment] Verification failed', reason);
-            reportFailure('Payment could not be confirmed. Please retry or check your order.');
+            reportFailure(
+              'Payment could not be confirmed. Please retry or check your order.',
+            );
           }
         },
       });
@@ -131,7 +140,11 @@ export function RetryPaymentButton({
         src="https://checkout.razorpay.com/v1/checkout.js"
         strategy="afterInteractive"
       />
-      <Button onClick={retry} disabled={busy} className={cn(className)}>
+      <Button
+        onClick={retry}
+        disabled={busy || disabled}
+        className={cn(className)}
+      >
         {busy ? 'Opening payment…' : label}
       </Button>
     </>

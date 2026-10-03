@@ -1,9 +1,11 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import {
+  AdminRole,
   CancellationActor,
   OrderStatus,
   PaymentSource,
@@ -95,6 +97,7 @@ export class AdminOrdersService {
           address: true,
           region: true,
           selectedItems: true,
+          cutleryItems: true,
           payments: { include: { refunds: true } },
         },
         orderBy: { createdAt: 'desc' },
@@ -121,6 +124,7 @@ export class AdminOrdersService {
         address: true,
         region: true,
         selectedItems: true,
+        cutleryItems: true,
         payments: { include: { refunds: true } },
         statusHistory: {
           include: { changedBy: true },
@@ -133,7 +137,12 @@ export class AdminOrdersService {
       throw new NotFoundException('Order not found');
     if (row.orderStatus === OrderStatus.PENDING_PAYMENT)
       throw new NotFoundException('Order not found');
-    return this.orders.serializeOrder(row);
+    const serialized = this.orders.serializeOrder(row);
+    const completeCustomerOrder = await this.orders.get(row.userId, row.id);
+    return {
+      ...serialized,
+      selectedItems: completeCustomerOrder.selectedItems,
+    };
   }
 
   async updateStatus(admin: JwtPayload, id: string, dto: UpdateOrderStatusDto) {
@@ -358,15 +367,18 @@ export class AdminOrdersService {
   }
 
   async refund(admin: JwtPayload, paymentId: string, dto: CreateRefundDto) {
-    const regionId = await this.regions.resolveAdminScope(admin);
-    if (regionId) {
-      const payment = await this.prisma.payment.findUnique({
-        where: { id: paymentId },
-        include: { order: true },
-      });
-      if (!payment || payment.order.regionId !== regionId)
-        throw new NotFoundException('Payment not found');
+    if (admin.role !== AdminRole.OPERATIONS) {
+      throw new ForbiddenException(
+        'Only kitchen Operations can process declined-order refunds',
+      );
     }
+    const regionId = await this.regions.resolveAdminScope(admin);
+    const payment = await this.prisma.payment.findUnique({
+      where: { id: paymentId },
+      include: { order: true },
+    });
+    if (!payment || !regionId || payment.order.regionId !== regionId)
+      throw new NotFoundException('Payment not found');
     return this.payments.createRefund(admin.sub, paymentId, dto.reason);
   }
 }

@@ -244,7 +244,11 @@ export class PaymentsService {
     }
   }
 
-  async createGatewayOrder(userId: string, orderId: string) {
+  async createGatewayOrder(
+    userId: string,
+    orderId: string,
+    requestedAmount?: number,
+  ) {
     this.assertPaymentModeAvailable();
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, userId },
@@ -268,6 +272,18 @@ export class PaymentsService {
     );
     if (!ledgerSummary.balanceDue.greaterThan(0))
       throw new BadRequestException('This order is already fully paid');
+    const chargeAmount =
+      requestedAmount === undefined
+        ? ledgerSummary.balanceDue
+        : new Prisma.Decimal(requestedAmount);
+    if (chargeAmount.lessThan(1)) {
+      throw new BadRequestException('Payment amount must be at least ₹1.00');
+    }
+    if (chargeAmount.greaterThan(ledgerSummary.balanceDue)) {
+      throw new BadRequestException(
+        `Payment exceeds the remaining balance of ₹${ledgerSummary.balanceDue.toFixed(2)}`,
+      );
+    }
     const currency = await this.currency();
 
     const existing = order.payments.find(
@@ -287,14 +303,15 @@ export class PaymentsService {
         (sum, payment) => sum.plus(payment.amount),
         new Prisma.Decimal(0),
       );
-      const amount = this.paymentAmountInSubunits(linkedAmount);
+      const amount = this.paymentAmountInSubunits(chargeAmount);
       if (
-        !this.isConfigured() ||
-        (await this.canReuseGatewayOrder(
-          existing.razorpayOrderId!,
-          amount,
-          currency,
-        ))
+        linkedAmount.equals(chargeAmount) &&
+        (!this.isConfigured() ||
+          (await this.canReuseGatewayOrder(
+            existing.razorpayOrderId!,
+            amount,
+            currency,
+          )))
       ) {
         return {
           paymentId: existing.id,
@@ -309,7 +326,7 @@ export class PaymentsService {
       await this.retireGatewayOrder(existing.razorpayOrderId!);
     }
 
-    const amount = this.paymentAmountInSubunits(ledgerSummary.balanceDue);
+    const amount = this.paymentAmountInSubunits(chargeAmount);
     const gatewayOrder = this.isConfigured()
       ? await this.createRazorpayOrder(
           existing
@@ -327,7 +344,7 @@ export class PaymentsService {
     const payment = await this.prisma.payment.create({
       data: {
         orderId,
-        amount: ledgerSummary.balanceDue,
+        amount: chargeAmount,
         razorpayOrderId: gatewayOrder.id,
         gatewayResponse: {
           orderCreated: true,
@@ -999,6 +1016,11 @@ export class PaymentsService {
     if (!payment) {
       throw new BadRequestException('Refundable payment not found');
     }
+    if (payment.order.orderStatus !== OrderStatus.DECLINED) {
+      throw new BadRequestException(
+        'Only payments for declined orders can be refunded',
+      );
+    }
     const existing = payment.refunds.find(
       (refund) => refund.refundStatus !== RefundStatus.FAILED,
     );
@@ -1024,7 +1046,14 @@ export class PaymentsService {
         razorpayRefundId: this.isConfigured()
           ? undefined
           : `local_refund_${Date.now()}`,
-        gatewayResponse: { localMode: !this.isConfigured() },
+        gatewayResponse: {
+          localMode: !this.isConfigured(),
+          audit: {
+            orderStatusAtInitiation: payment.order.orderStatus,
+            regionId: payment.order.regionId,
+            initiatedById: adminId,
+          },
+        },
       },
     });
 
@@ -1054,7 +1083,14 @@ export class PaymentsService {
               ? RefundStatus.SUCCESS
               : RefundStatus.PROCESSING,
           processedAt: gateway.status === 'processed' ? new Date() : undefined,
-          gatewayResponse: gateway as unknown as Prisma.InputJsonValue,
+          gatewayResponse: {
+            gateway: gateway as unknown as Prisma.InputJsonValue,
+            audit: {
+              orderStatusAtInitiation: payment.order.orderStatus,
+              regionId: payment.order.regionId,
+              initiatedById: adminId,
+            },
+          },
         },
       });
       if (updated.refundStatus === RefundStatus.SUCCESS)

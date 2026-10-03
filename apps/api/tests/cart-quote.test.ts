@@ -596,8 +596,67 @@ test('batch checkout applies one trimmed kitchen instruction to every cart', asy
     data: { specialNotes: 'Keep the food mildly spiced.' },
   });
   assert.deepEqual(checkedOutCarts, [
-    { cartId: 'cart-1', deliveryFee: '220.00', cutleryExtraCount: 4 },
-    { cartId: 'cart-2', deliveryFee: '0.00', cutleryExtraCount: 0 },
+    { cartId: 'cart-1', deliveryFee: '220.00', cutleryExtraCount: 0 },
+    {
+      cartId: 'cart-2',
+      deliveryFee: '0.00',
+      cutleryExtraCount: undefined,
+    },
+  ]);
+});
+
+test('five-package checkout assigns booking cutlery to the cart that selected it', async () => {
+  const carts = Array.from({ length: 5 }, (_, index) => ({
+    id: `cart-${index + 1}`,
+    userId: 'user-1',
+    addressId: 'address-1',
+    regionId: 'region-1',
+    eventDate: new Date('2026-08-10T00:00:00.000Z'),
+    eventTimeStart: new Date('1970-01-01T18:00:00.000Z'),
+    guestCount: 20,
+    contactNumber: '9876543210',
+    cutleryExtraCount: index === 4 ? 5 : 0,
+    items: [],
+  }));
+  const allocations: Array<{
+    cartId: string;
+    cutleryExtraCount: number | undefined;
+  }> = [];
+  const service = new CartService(
+    {
+      cart: {
+        findMany: async () => carts,
+      },
+    } as never,
+    {} as never,
+    {} as never,
+    {} as never,
+  );
+  service.quote = async (_userId, cartId) =>
+    ({
+      valid: true,
+      deliveryFee: '0.00',
+      cutleryTotal: cartId === 'cart-5' ? '100.00' : '0.00',
+    }) as never;
+  service.checkout = async (
+    _userId,
+    cartId,
+    _batchId,
+    _deliveryFee,
+    cutleryExtraCount,
+  ) => {
+    allocations.push({ cartId, cutleryExtraCount });
+    return { id: `order-${cartId}` } as never;
+  };
+
+  await service.checkoutAll('user-1');
+
+  assert.deepEqual(allocations, [
+    { cartId: 'cart-1', cutleryExtraCount: 0 },
+    { cartId: 'cart-2', cutleryExtraCount: 0 },
+    { cartId: 'cart-3', cutleryExtraCount: 0 },
+    { cartId: 'cart-4', cutleryExtraCount: 0 },
+    { cartId: 'cart-5', cutleryExtraCount: undefined },
   ]);
 });
 

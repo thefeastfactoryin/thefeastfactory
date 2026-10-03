@@ -41,7 +41,7 @@ function service(prisma: object, generated: string[] = []) {
   );
 }
 
-function configuredService(prisma: object) {
+function configuredService(prisma: object, generated: string[] = []) {
   return new PaymentsService(
     prisma as never,
     {
@@ -52,7 +52,9 @@ function configuredService(prisma: object) {
           RAZORPAY_CURRENCY: 'INR',
         })[key] ?? fallback,
     } as never,
-    {} as never,
+    {
+      generateOrderDocuments: async (id: string) => generated.push(id),
+    } as never,
   );
 }
 
@@ -89,6 +91,63 @@ test('gateway orders reject amounts below one rupee', async () => {
   await assert.rejects(
     payments.createGatewayOrder('user-1', 'order-1'),
     BadRequestException,
+  );
+});
+
+test('customer can create a partial payment before kitchen approval', async () => {
+  let createdAmount = '';
+  const payments = service({
+    order: {
+      findFirst: async () => ({
+        id: 'order-1',
+        orderNumber: 'TFF-1',
+        orderStatus: OrderStatus.AWAITING_APPROVAL,
+        totalAmount: new Prisma.Decimal('1000.00'),
+        payments: [
+          {
+            amount: new Prisma.Decimal('200.00'),
+            paymentStatus: PaymentStatus.PAID,
+            refunds: [],
+          },
+        ],
+      }),
+    },
+    platformSetting: { findUnique: async () => null },
+    payment: {
+      create: async ({ data }: { data: { amount: Prisma.Decimal } }) => {
+        createdAmount = data.amount.toFixed(2);
+        return { id: 'payment-partial', ...data };
+      },
+    },
+  });
+
+  const result = await payments.createGatewayOrder('user-1', 'order-1', 250);
+  assert.equal(createdAmount, '250.00');
+  assert.equal(result.amount, 25000);
+});
+
+test('customer partial payment cannot exceed the remaining balance', async () => {
+  const payments = service({
+    order: {
+      findFirst: async () => ({
+        id: 'order-1',
+        orderNumber: 'TFF-1',
+        orderStatus: OrderStatus.CONFIRMED,
+        totalAmount: new Prisma.Decimal('1000.00'),
+        payments: [
+          {
+            amount: new Prisma.Decimal('800.00'),
+            paymentStatus: PaymentStatus.PAID,
+            refunds: [],
+          },
+        ],
+      }),
+    },
+  });
+
+  await assert.rejects(
+    payments.createGatewayOrder('user-1', 'order-1', 250),
+    /remaining balance of ₹200.00/,
   );
 });
 
@@ -297,26 +356,224 @@ test('checkout batch is recoverable before a gateway payment exists', async () =
 test('full refund is idempotent when a non-failed refund already exists', async () => {
   let createCalls = 0;
   const payments = service({
-    payment: {
-      findUnique: async () => ({
-        id: 'payment-1',
-        amount: new Prisma.Decimal('499.00'),
-        paymentStatus: PaymentStatus.REFUNDED,
-        refunds: [baseRefund],
-        order: { id: 'order-1' },
+    $transaction: async (callback: (tx: object) => Promise<unknown>) =>
+      callback({
+        $queryRaw: async () => [{ id: 'payment-1' }],
+        payment: {
+          findUnique: async () => ({
+            id: 'payment-1',
+            amount: new Prisma.Decimal('499.00'),
+            paymentStatus: PaymentStatus.REFUNDED,
+            refunds: [baseRefund],
+            order: {
+              id: 'order-1',
+              orderStatus: OrderStatus.DECLINED,
+              regionId: 'region-1',
+            },
+          }),
+        },
+        refund: {
+          create: async () => {
+            createCalls += 1;
+          },
+        },
       }),
-    },
-    refund: {
-      create: async () => {
-        createCalls += 1;
-      },
-    },
   });
 
   const result = await payments.createRefund('admin-1', 'payment-1', 'Retry');
   assert.equal(result.id, 'refund-1');
   assert.equal(result.amount, '499.00');
   assert.equal(createCalls, 0);
+});
+
+test('concurrent refund requests submit only one gateway refund', async () => {
+  let refundRecord: typeof baseRefund | undefined;
+  let gatewayCalls = 0;
+  let transactionTail = Promise.resolve();
+  const generated: string[] = [];
+  const payment = {
+    id: 'payment-1',
+    orderId: 'order-1',
+    amount: new Prisma.Decimal('499.00'),
+    paymentStatus: PaymentStatus.PAID,
+    razorpayPaymentId: 'pay-split-1',
+    refunds: [] as (typeof baseRefund)[],
+    order: {
+      id: 'order-1',
+      orderStatus: OrderStatus.DECLINED,
+      regionId: 'region-1',
+      totalAmount: new Prisma.Decimal('499.00'),
+    },
+  };
+  const tx = {
+    $queryRaw: async () => [{ id: payment.id }],
+    payment: {
+      findUnique: async () => ({
+        ...payment,
+        refunds: refundRecord ? [refundRecord] : [],
+      }),
+      update: async () => undefined,
+      findMany: async () => [
+        {
+          amount: payment.amount,
+          paymentStatus: PaymentStatus.REFUNDED,
+          refunds: refundRecord ? [refundRecord] : [],
+        },
+      ],
+    },
+    refund: {
+      create: async ({ data }: { data: Partial<typeof baseRefund> }) => {
+        refundRecord = {
+          ...baseRefund,
+          ...data,
+          id: 'refund-concurrent',
+          refundStatus: RefundStatus.PROCESSING,
+          updatedAt: new Date(),
+        };
+        return refundRecord;
+      },
+      update: async ({ data }: { data: Partial<typeof baseRefund> }) => {
+        refundRecord = { ...refundRecord!, ...data, updatedAt: new Date() };
+        return refundRecord;
+      },
+    },
+    order: { update: async () => undefined },
+  };
+  const prisma = {
+    $transaction: async (
+      callback: (transaction: typeof tx) => Promise<unknown>,
+    ) => {
+      const previous = transactionTail;
+      let release = () => undefined;
+      transactionTail = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      await previous;
+      try {
+        return await callback(tx);
+      } finally {
+        release();
+      }
+    },
+    payment: {
+      findUnique: async () => ({
+        ...payment,
+        refunds: refundRecord ? [refundRecord] : [],
+      }),
+    },
+    refund: {
+      update: tx.refund.update,
+    },
+  };
+  const payments = configuredService(prisma, generated);
+  (payments as unknown as { client: () => object }).client = () => ({
+    payments: {
+      refund: async () => {
+        gatewayCalls += 1;
+        return {
+          id: 'rfnd_gateway_1',
+          payment_id: payment.razorpayPaymentId,
+          amount: 49900,
+          status: 'processed',
+          receipt: 'tff_payment-1',
+        };
+      },
+      fetchMultipleRefund: async () => ({ items: [] }),
+    },
+  });
+
+  const results = await Promise.all([
+    payments.createRefund('operations-1', payment.id, 'Declined'),
+    payments.createRefund('operations-1', payment.id, 'Duplicate click'),
+  ]);
+
+  assert.equal(gatewayCalls, 1);
+  assert.equal(results[0].id, 'refund-concurrent');
+  assert.equal(results[1].id, 'refund-concurrent');
+  assert.equal(refundRecord?.refundStatus, RefundStatus.SUCCESS);
+  assert.deepEqual(generated, ['order-1']);
+});
+
+test('retry after an uncertain refund response reconciles the gateway before resubmitting', async () => {
+  let gatewaySubmitCalls = 0;
+  let refundRecord = {
+    ...baseRefund,
+    refundStatus: RefundStatus.FAILED,
+    razorpayRefundId: null,
+  };
+  const payment = {
+    id: 'payment-1',
+    orderId: 'order-1',
+    amount: new Prisma.Decimal('499.00'),
+    paymentStatus: PaymentStatus.PAID,
+    razorpayPaymentId: 'pay-split-1',
+    order: {
+      id: 'order-1',
+      orderStatus: OrderStatus.DECLINED,
+      regionId: 'region-1',
+      totalAmount: new Prisma.Decimal('499.00'),
+    },
+  };
+  const tx = {
+    $queryRaw: async () => [{ id: payment.id }],
+    payment: {
+      findUnique: async () => ({ ...payment, refunds: [refundRecord] }),
+      update: async () => undefined,
+      findMany: async () => [
+        {
+          amount: payment.amount,
+          paymentStatus: PaymentStatus.REFUNDED,
+          refunds: [refundRecord],
+        },
+      ],
+    },
+    refund: {
+      update: async ({ data }: { data: Partial<typeof baseRefund> }) => {
+        refundRecord = { ...refundRecord, ...data, updatedAt: new Date() };
+        return refundRecord;
+      },
+    },
+    order: { update: async () => undefined },
+  };
+  const prisma = {
+    $transaction: async (
+      callback: (transaction: typeof tx) => Promise<unknown>,
+    ) => callback(tx),
+    payment: {
+      findUnique: async () => ({ ...payment, refunds: [refundRecord] }),
+    },
+    refund: { update: tx.refund.update },
+  };
+  const payments = configuredService(prisma);
+  (payments as unknown as { client: () => object }).client = () => ({
+    payments: {
+      fetchMultipleRefund: async () => ({
+        items: [
+          {
+            id: 'rfnd_already_created',
+            payment_id: payment.razorpayPaymentId,
+            amount: 49900,
+            status: 'processed',
+            receipt: 'tff_payment-1',
+          },
+        ],
+      }),
+      refund: async () => {
+        gatewaySubmitCalls += 1;
+        throw new Error('must not submit a duplicate refund');
+      },
+    },
+  });
+
+  const result = await payments.createRefund(
+    'operations-1',
+    payment.id,
+    'Retry after timeout',
+  );
+
+  assert.equal(gatewaySubmitCalls, 0);
+  assert.equal(result.razorpayRefundId, 'rfnd_already_created');
+  assert.equal(result.refundStatus, RefundStatus.SUCCESS);
 });
 
 test('admin manual deposit closes the remaining balance without replacing payment history', async () => {
@@ -376,7 +633,6 @@ test('admin manual deposit closes the remaining balance without replacing paymen
 test('local full refund always uses the complete paid amount and reconciles both ledgers', async () => {
   const generated: string[] = [];
   const updates: Array<{ target: string; status: PaymentStatus }> = [];
-  let findCalls = 0;
   let createdAmount = '';
   const payment = {
     id: 'payment-1',
@@ -385,22 +641,22 @@ test('local full refund always uses the complete paid amount and reconciles both
     paymentStatus: PaymentStatus.PAID,
     razorpayPaymentId: 'pay-local',
     refunds: [] as (typeof baseRefund)[],
-    order: { id: 'order-1', totalAmount: new Prisma.Decimal('699.00') },
+    order: {
+      id: 'order-1',
+      orderStatus: OrderStatus.DECLINED,
+      regionId: 'region-1',
+      totalAmount: new Prisma.Decimal('699.00'),
+    },
   };
   const prisma = {
     payment: {
-      findUnique: async () => {
-        findCalls += 1;
-        return findCalls === 1
-          ? payment
-          : {
-              ...payment,
-              refunds: [
-                baseRefund,
-                { ...baseRefund, amount: new Prisma.Decimal('200.00') },
-              ],
-            };
-      },
+      findUnique: async () => ({
+        ...payment,
+        refunds: [
+          baseRefund,
+          { ...baseRefund, amount: new Prisma.Decimal('200.00') },
+        ],
+      }),
     },
     refund: {
       create: async ({ data }: { data: { amount: Prisma.Decimal } }) => {
@@ -410,7 +666,9 @@ test('local full refund always uses the complete paid amount and reconciles both
     },
     $transaction: async (callback: (tx: object) => Promise<void>) =>
       callback({
+        $queryRaw: async () => [{ id: 'payment-1' }],
         payment: {
+          findUnique: async () => payment,
           update: async ({
             data,
           }: {
@@ -427,6 +685,12 @@ test('local full refund always uses the complete paid amount and reconciles both
               ],
             },
           ],
+        },
+        refund: {
+          create: async ({ data }: { data: { amount: Prisma.Decimal } }) => {
+            createdAmount = data.amount.toFixed(2);
+            return { ...baseRefund, amount: data.amount };
+          },
         },
         order: {
           update: async ({
@@ -450,6 +714,35 @@ test('local full refund always uses the complete paid amount and reconciles both
     { target: 'order', status: PaymentStatus.REFUNDED },
   ]);
   assert.deepEqual(generated, ['order-1']);
+});
+
+test('refunds reject captured payments for orders that were not declined', async () => {
+  const payments = service({
+    $transaction: async (callback: (tx: object) => Promise<unknown>) =>
+      callback({
+        $queryRaw: async () => [{ id: 'payment-1' }],
+        payment: {
+          findUnique: async () => ({
+            id: 'payment-1',
+            orderId: 'order-1',
+            amount: new Prisma.Decimal('699.00'),
+            paymentStatus: PaymentStatus.PAID,
+            razorpayPaymentId: 'pay-confirmed',
+            refunds: [],
+            order: {
+              id: 'order-1',
+              orderStatus: OrderStatus.CONFIRMED,
+              regionId: 'region-1',
+            },
+          }),
+        },
+      }),
+  });
+
+  await assert.rejects(
+    payments.createRefund('operations-1', 'payment-1', 'Not eligible'),
+    /Only payments for declined orders can be refunded/,
+  );
 });
 
 test('refunding one duplicate charge keeps an order paid while another paid charge remains', async () => {

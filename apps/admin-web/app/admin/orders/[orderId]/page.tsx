@@ -232,12 +232,45 @@ export default function AdminOrderDetail() {
             <span>
               {item.weightGrams != null
                 ? `${item.weightGrams / 1000} kg`
-                : `${item.quantity} x`}{' '}
+                : `${item.role === 'EXTRA' ? item.quantity : (order.guestCount ?? item.quantity)} x`}{' '}
               {item.menuItemName}
+              {item.role === 'EXTRA'
+                ? ' (EXTRA)'
+                : item.role === 'SWAP'
+                  ? ` (SWAP${item.replacedMenuItemName ? ` FOR ${item.replacedMenuItemName}` : ''})`
+                  : ''}
             </span>
             <span>{item.isVeg ? 'VEG' : 'NON-VEG'}</span>
           </div>
         ))}
+        {order.cutleryItems?.some(
+          (item) => item.includedQuantity > 0 || item.extraQuantity > 0,
+        ) && (
+          <>
+            <div className="print-ticket-rule" />
+            <p className="print-ticket-label">CUTLERY &amp; SERVING</p>
+            {order.cutleryItems
+              .filter(
+                (item) => item.includedQuantity > 0 || item.extraQuantity > 0,
+              )
+              .map((item) => (
+                <div className="print-ticket-item" key={item.id}>
+                  <span>{item.itemName}</span>
+                  <span>
+                    {item.includedQuantity > 0
+                      ? `${item.includedQuantity} included`
+                      : ''}
+                    {item.includedQuantity > 0 && item.extraQuantity > 0
+                      ? ' + '
+                      : ''}
+                    {item.extraQuantity > 0
+                      ? `${item.extraQuantity} extra`
+                      : ''}
+                  </span>
+                </div>
+              ))}
+          </>
+        )}
         <div className="print-ticket-rule" />
         <p className="print-ticket-label">KITCHEN INSTRUCTIONS</p>
         <p>{order.specialNotes?.trim() || 'None'}</p>
@@ -398,18 +431,52 @@ export default function AdminOrderDetail() {
                     <p className="font-medium">{item.menuItemName}</p>
                     <p className="text-xs text-muted-foreground">
                       {item.categoryName} ·{' '}
-                      {item.isVeg ? 'Vegetarian' : 'Non-vegetarian'}
+                      {item.isVeg ? 'Vegetarian' : 'Non-vegetarian'} ·{' '}
+                      {item.role === 'EXTRA'
+                        ? `${item.quantity} portions · Extra`
+                        : item.role === 'SWAP'
+                          ? `${order.guestCount ?? item.quantity} portions · Swap${item.replacedMenuItemName ? ` for ${item.replacedMenuItemName}` : ''}`
+                          : `${order.guestCount ?? item.quantity} portions · Included`}
                     </p>
                   </div>
                   <span>
                     {item.weightGrams != null
                       ? `${item.weightGrams / 1000} kg × ₹${item.pricePerKg}/kg = ₹${item.lineTotal}`
-                      : `+₹${item.adjustmentAmount}`}
+                      : item.role === 'EXTRA'
+                        ? `+₹${item.totalAdjustmentAmount}`
+                        : 'Included'}
                   </span>
                 </div>
               ))}
             </div>
             <div className="mt-4 space-y-2 border-t pt-4 text-sm">
+              {order.cutleryItems?.some(
+                (item) => item.includedQuantity > 0 || item.extraQuantity > 0,
+              ) && (
+                <div className="space-y-2 pb-2">
+                  <p className="font-semibold">Cutlery &amp; serving</p>
+                  {order.cutleryItems
+                    .filter(
+                      (item) =>
+                        item.includedQuantity > 0 || item.extraQuantity > 0,
+                    )
+                    .map((item) => (
+                      <div className="flex justify-between" key={item.id}>
+                        <span className="text-muted-foreground">
+                          {item.itemName}
+                          {item.extraQuantity > 0
+                            ? ` · ${item.extraQuantity} extra`
+                            : ` · ${item.includedQuantity} included`}
+                        </span>
+                        <span>₹{item.lineTotal}</span>
+                      </div>
+                    ))}
+                </div>
+              )}
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Cutlery total</span>
+                <span>₹{order.cutleryTotal ?? '0.00'}</span>
+              </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Delivery fee</span>
                 <span>₹{order.deliveryFee ?? '0.00'}</span>

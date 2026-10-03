@@ -532,9 +532,8 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
     );
     const checkoutBatchId = randomUUID();
     const deliveryFee = this.batchDeliveryFee(quotes);
-    const sharedCutleryExtraCount = Math.max(
-      0,
-      ...carts.map((cart) => cart.cutleryExtraCount ?? 0),
+    const cutleryOwnerCartId = this.bookingCutleryOwner(
+      carts.map((cart, index) => ({ cartId: cart.id, quote: quotes[index] })),
     );
     const orders = [];
     for (const [index, cart] of carts.entries()) {
@@ -544,7 +543,7 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
           cart.id,
           checkoutBatchId,
           index === 0 ? deliveryFee : new Prisma.Decimal(0),
-          index === 0 ? sharedCutleryExtraCount : 0,
+          cart.id === cutleryOwnerCartId ? undefined : 0,
         ),
       );
     }
@@ -594,9 +593,13 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
     const sharedCutleryTotal = this.batchCutleryTotal(
       aggregate.carts.map((row) => row.quote),
     );
+    const cutleryOwnerCartId = this.bookingCutleryOwner(aggregate.carts);
+    const cutleryOwnerQuote = aggregate.carts.find(
+      (row) => row.cartId === cutleryOwnerCartId,
+    );
     const sharedExtraCount = Math.max(
       0,
-      ...carts.map((cart) => cart.cutleryExtraCount),
+      cutleryOwnerQuote?.quote.cutleryExtraCount ?? 0,
     );
     const snapshots: CheckoutSnapshot['carts'] = [];
 
@@ -684,8 +687,10 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
       }
       const deliveryFee =
         index === 0 ? sharedDeliveryFee : new Prisma.Decimal(0);
-      const cutleryTotal =
-        index === 0 ? sharedCutleryTotal : new Prisma.Decimal(0);
+      const ownsBookingCutlery = cart.id === cutleryOwnerCartId;
+      const cutleryTotal = ownsBookingCutlery
+        ? sharedCutleryTotal
+        : new Prisma.Decimal(0);
       snapshots.push({
         cartId: cart.id,
         cartFingerprint: cartFingerprint(cart),
@@ -713,11 +718,11 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
         deliveryServiceType: quote.deliveryServiceType,
         helperCount: quote.helperCount,
         cutleryIncludedCount: quote.cutleryIncludedCount,
-        cutleryExtraCount: index === 0 ? sharedExtraCount : 0,
+        cutleryExtraCount: ownsBookingCutlery ? sharedExtraCount : 0,
         cutleryUnitPrice: quote.cutleryUnitPrice,
         cutleryTotal: cutleryTotal.toFixed(2),
         cutleryItems:
-          index === 0
+          ownsBookingCutlery
             ? (quote.cutleryItems ?? []).map((item) => ({
                 itemId: item.id,
                 itemName: item.name,
@@ -764,6 +769,19 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
       const total = new Prisma.Decimal(quote.cutleryTotal ?? '0.00');
       return total.greaterThan(highest) ? total : highest;
     }, new Prisma.Decimal(0));
+  }
+
+  private bookingCutleryOwner(
+    rows: Array<{ cartId: string; quote: { cutleryTotal?: string } }>,
+  ) {
+    return [...rows].sort((left, right) => {
+      const amountDifference = new Prisma.Decimal(
+        right.quote.cutleryTotal ?? '0.00',
+      ).comparedTo(
+        new Prisma.Decimal(left.quote.cutleryTotal ?? '0.00'),
+      );
+      return amountDifference || left.cartId.localeCompare(right.cartId);
+    })[0]?.cartId;
   }
 
   private async saveCheckoutInstructions(
