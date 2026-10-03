@@ -49,10 +49,13 @@ export function createApiRequester<Session>({
   ) {
     const isFormData =
       typeof FormData !== 'undefined' && init.body instanceof FormData;
+    const hasBody = init.body !== undefined && init.body !== null;
     return fetch(`${baseUrl}${path}`, {
       ...init,
       headers: {
-        ...(!isFormData ? { 'Content-Type': 'application/json' } : {}),
+        ...(hasBody && !isFormData
+          ? { 'Content-Type': 'application/json' }
+          : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...init.headers,
       },

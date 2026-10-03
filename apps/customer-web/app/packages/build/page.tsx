@@ -507,6 +507,9 @@ function BuildPackageContent() {
   const [guestInput, setGuestInput] = useState('150');
   const [dishes, setDishes] = useState<Dish[]>([]);
   const [config, setConfig] = useState<PackageConfiguration>();
+  const [menuLoading, setMenuLoading] = useState(true);
+  const [menuError, setMenuError] = useState('');
+  const [menuLoadAttempt, setMenuLoadAttempt] = useState(0);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const hydratedCartVersion = useRef<string | undefined>(undefined);
@@ -529,54 +532,57 @@ function BuildPackageContent() {
   }, [router, searchParams, setDbCartId]);
 
   useEffect(() => {
-    if (requestedVersionId) return;
     let active = true;
-    apiRequest<PackageSummary[]>('/packages')
-      .then((packages) => {
-        const selectedPackage = packageId
-          ? packages.find((pkg) => pkg.id === packageId)
-          : packages.find((pkg) => pkg.type === 'CUSTOM_PACKAGE');
-        const latestVersion = selectedPackage?.activeVersion?.id;
-        if (active && latestVersion) setPackageVersionId(latestVersion);
-        if (active && !latestVersion)
-          setMessage('Custom menu is currently unavailable.');
-      })
-      .catch(() => {
-        if (active) setMessage('Custom menu is currently unavailable.');
-      });
-    return () => {
-      active = false;
-    };
-  }, [packageId, requestedVersionId]);
+    setMenuLoading(true);
+    setMenuError('');
+    setMessage('');
+    setConfig(undefined);
+    setDishes([]);
+    setPackageVersionId(requestedVersionId);
 
-  useEffect(() => {
-    if (!packageVersionId) return;
-    let active = true;
-    apiRequest<PackageConfiguration>(
-      `/package-versions/${packageVersionId}/configuration`,
-    )
-      .then((nextConfig) => {
+    async function loadMenu() {
+      try {
+        let nextVersionId = requestedVersionId;
+        if (!nextVersionId) {
+          const packages = await apiRequest<PackageSummary[]>('/packages');
+          const selectedPackage = packageId
+            ? packages.find((pkg) => pkg.id === packageId)
+            : packages.find((pkg) => pkg.type === 'CUSTOM_PACKAGE');
+          nextVersionId = selectedPackage?.activeVersion?.id ?? null;
+        }
+
+        if (!nextVersionId) {
+          throw new Error('No custom menu is currently available.');
+        }
+
+        const nextConfig = await apiRequest<PackageConfiguration>(
+          `/package-versions/${nextVersionId}/configuration`,
+        );
         if (!active) return;
         const nextDishes = dishesFromConfig(nextConfig);
+        setPackageVersionId(nextVersionId);
         setConfig(nextConfig);
         setDishes(nextDishes);
         setClampedGuestCount(nextConfig.minGuestCount || MIN_GUESTS);
         setOrder((current) =>
           current.filter((id) => nextDishes.some((dish) => dish.id === id)),
         );
-      })
-      .catch((reason) => {
+      } catch (reason) {
         if (active) {
-          setDishes([]);
-          setMessage(
+          setMenuError(
             (reason as Error).message || 'Menu is currently unavailable.',
           );
         }
-      });
+      } finally {
+        if (active) setMenuLoading(false);
+      }
+    }
+
+    void loadMenu();
     return () => {
       active = false;
     };
-  }, [packageVersionId]);
+  }, [menuLoadAttempt, packageId, requestedVersionId]);
 
   useEffect(() => {
     if (
@@ -840,7 +846,23 @@ function BuildPackageContent() {
     />
   );
 
-  if (!dishes.length && (message || !packageVersionId)) {
+  if (menuLoading) {
+    return (
+      <main className="grid min-h-[60vh] place-items-center bg-background p-6">
+        <section
+          role="status"
+          className="w-full max-w-md rounded-2xl border border-border bg-white p-8 shadow-sm"
+        >
+          <div className="h-6 w-48 animate-pulse rounded bg-muted" />
+          <div className="mt-4 h-4 w-full animate-pulse rounded bg-muted" />
+          <div className="mt-2 h-4 w-3/4 animate-pulse rounded bg-muted" />
+          <span className="sr-only">Loading menu…</span>
+        </section>
+      </main>
+    );
+  }
+
+  if (menuError) {
     return (
       <main className="grid min-h-[60vh] place-items-center bg-background p-6">
         <section className="max-w-md rounded-2xl border border-border bg-white p-8 text-center shadow-sm">
@@ -848,7 +870,29 @@ function BuildPackageContent() {
             Menu currently unavailable
           </h1>
           <p className="mt-3 text-sm leading-6 text-muted-foreground">
-            We could not load the menu right now. Please try again in a moment.
+            {menuError}
+          </p>
+          <button
+            type="button"
+            onClick={() => setMenuLoadAttempt((attempt) => attempt + 1)}
+            className="mt-5 inline-flex min-h-11 items-center justify-center rounded-full bg-primary px-5 text-sm font-extrabold text-white transition hover:bg-primary/90"
+          >
+            Try again
+          </button>
+        </section>
+      </main>
+    );
+  }
+
+  if (!config || !dishes.length) {
+    return (
+      <main className="grid min-h-[60vh] place-items-center bg-background p-6">
+        <section className="max-w-md rounded-2xl border border-border bg-white p-8 text-center shadow-sm">
+          <h1 className="font-sans text-2xl font-semibold text-foreground">
+            No dishes available
+          </h1>
+          <p className="mt-3 text-sm leading-6 text-muted-foreground">
+            This menu does not have any available dishes right now.
           </p>
         </section>
       </main>

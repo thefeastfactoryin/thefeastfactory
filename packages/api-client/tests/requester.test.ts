@@ -45,6 +45,44 @@ test('parses a successful JSON response', async () => {
   }
 });
 
+test('does not add a content-type header to bodyless GET requests', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (_input, init) => {
+    assert.deepEqual(init?.headers, {});
+    return new Response(JSON.stringify([]), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+  try {
+    assert.deepEqual(await requester().request('/packages'), []);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('adds a JSON content-type header when a request has a body', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (_input, init) => {
+    assert.deepEqual(init?.headers, { 'Content-Type': 'application/json' });
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+  try {
+    assert.deepEqual(
+      await requester().request('/package-versions/version-1/preview-quote', {
+        method: 'POST',
+        body: JSON.stringify({ guestCount: 20 }),
+      }),
+      { ok: true },
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('does not expose an HTML error document to the user', async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () => new Response('<!doctype html><h1>Proxy error</h1>', { status: 502, headers: { 'content-type': 'text/html' } });
