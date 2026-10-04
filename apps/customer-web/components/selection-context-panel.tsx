@@ -403,7 +403,7 @@ function ThemedDatePicker({
         onClick={() => setOpen((current) => !current)}
         className={cn(
           compact
-            ? 'flex min-h-10 w-full min-w-0 items-center gap-1.5 rounded-md border border-input bg-white/90 px-2 py-1 text-left text-xs outline-none transition hover:border-primary/40 focus-visible:ring-2 focus-visible:ring-primary/30'
+            ? 'flex min-h-14 w-full min-w-0 items-center gap-2.5 rounded-xl border border-input bg-white px-3 py-2 text-left text-sm shadow-sm outline-none transition hover:border-primary/40 focus-visible:ring-2 focus-visible:ring-primary/30'
             : 'flex min-h-12 w-full items-center gap-3 rounded-xl border border-input bg-white/95 px-3 py-2 text-left text-sm outline-none transition hover:border-primary/40 focus-visible:ring-2 focus-visible:ring-primary/30',
           open && 'border-primary/50 ring-2 ring-primary/15',
           invalid &&
@@ -413,7 +413,9 @@ function ThemedDatePicker({
         <span
           className={cn(
             'grid shrink-0 place-items-center rounded-md bg-primary/[0.06] text-primary',
-            compact ? 'h-6 w-6' : 'h-8 w-8 rounded-lg bg-primary/[0.07]',
+            compact
+              ? 'h-9 w-9 rounded-lg bg-primary/[0.08]'
+              : 'h-8 w-8 rounded-lg bg-primary/[0.07]',
           )}
         >
           <CalendarDays className="h-4 w-4" />
@@ -572,7 +574,7 @@ function ThemedTimePicker({
         onClick={() => setOpen((current) => !current)}
         className={cn(
           compact
-            ? 'flex min-h-10 w-full min-w-0 items-center gap-1.5 rounded-md border border-input bg-white/90 px-2 py-1 text-left text-xs outline-none transition hover:border-primary/40 focus-visible:ring-2 focus-visible:ring-primary/30'
+            ? 'flex min-h-14 w-full min-w-0 items-center gap-2.5 rounded-xl border border-input bg-white px-3 py-2 text-left text-sm shadow-sm outline-none transition hover:border-primary/40 focus-visible:ring-2 focus-visible:ring-primary/30'
             : 'flex min-h-12 w-full items-center gap-3 rounded-xl border border-input bg-white/95 px-3 py-2 text-left text-sm outline-none transition hover:border-primary/40 focus-visible:ring-2 focus-visible:ring-primary/30',
           open && 'border-primary/50 ring-2 ring-primary/15',
           invalid &&
@@ -582,7 +584,9 @@ function ThemedTimePicker({
         <span
           className={cn(
             'grid shrink-0 place-items-center rounded-md bg-primary/[0.06] text-primary',
-            compact ? 'h-6 w-6' : 'h-8 w-8 rounded-lg bg-primary/[0.07]',
+            compact
+              ? 'h-9 w-9 rounded-lg bg-primary/[0.08]'
+              : 'h-8 w-8 rounded-lg bg-primary/[0.07]',
           )}
         >
           <Clock3 className="h-4 w-4" />
@@ -1334,7 +1338,7 @@ export function SelectionContextPanel({
           className={cn(
             'grid gap-3',
             checkoutCompact
-              ? 'mt-4 max-w-2xl grid-cols-2 gap-3 max-[340px]:grid-cols-1'
+              ? 'mt-4 grid-cols-2 gap-3 rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/[0.055] to-accent/[0.075] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,.75)] max-[440px]:grid-cols-1 sm:gap-4 sm:p-5'
               : 'mt-5 gap-4 rounded-2xl border border-border bg-[#fcfaf6] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]',
             !checkoutCompact && sidebar
               ? 'grid-cols-1'
@@ -1345,12 +1349,22 @@ export function SelectionContextPanel({
                   : '',
           )}
         >
-          <Field
-            label="Delivery date"
-            className={
-              checkoutCompact ? '[&>span:first-child]:sr-only' : undefined
-            }
-          >
+          {checkoutCompact && (
+            <div className="col-span-full flex items-start gap-3">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary text-white shadow-sm">
+                <CalendarClock className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <div>
+                <h3 className="font-sans text-base font-semibold leading-5 text-foreground">
+                  Schedule your delivery
+                </h3>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  Both fields are required before checkout.
+                </p>
+              </div>
+            </div>
+          )}
+          <Field label="Delivery date">
             <ThemedDatePicker
               min={firstEventDate}
               value={eventDate}
@@ -1368,12 +1382,7 @@ export function SelectionContextPanel({
               </span>
             )}
           </Field>
-          <Field
-            label="Delivery time"
-            className={
-              checkoutCompact ? '[&>span:first-child]:sr-only' : undefined
-            }
-          >
+          <Field label="Delivery time">
             <ThemedTimePicker
               value={eventTimeStart}
               onChange={setEventTimeStart}
@@ -1401,7 +1410,7 @@ export function SelectionContextPanel({
               )}
             </p>
           )}
-          {!hideQuantity && !isKg && (
+          {!hideQuantity && !isKg && !checkoutCompact && (
             <div>
               <span className="mb-2 block text-sm font-semibold">
                 {guestLabel}
@@ -1588,16 +1597,15 @@ export function SelectionContextPanel({
       {checkoutCompact && (
         <>
           {!checkoutEditing && eventDate && eventTimeStart && (
-            <div className="mt-4 flex min-w-0 items-center gap-3 rounded-xl border border-border/60 bg-ivory/60 p-3 sm:p-4">
-              <CalendarClock
-                className="h-4 w-4 shrink-0 text-primary"
-                aria-hidden="true"
-              />
+            <div className="mt-4 flex min-w-0 items-center gap-3 rounded-2xl border border-primary/20 bg-gradient-to-r from-primary/[0.055] to-accent/[0.08] p-4 shadow-sm sm:gap-4 sm:p-5">
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-primary text-white shadow-sm">
+                <CalendarClock className="h-5 w-5" aria-hidden="true" />
+              </span>
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium leading-4 text-muted-foreground">
-                  Delivery date &amp; time
+                <p className="text-xs font-bold uppercase tracking-wide text-primary">
+                  Delivery scheduled
                 </p>
-                <p className="truncate text-sm font-semibold leading-5 text-foreground">
+                <p className="mt-1 text-base font-semibold leading-5 text-foreground">
                   {formattedEventSlot(eventDate, eventTimeStart)}
                 </p>
               </div>
@@ -1606,7 +1614,7 @@ export function SelectionContextPanel({
                 aria-haspopup="dialog"
                 aria-expanded={scheduleChooserOpen}
                 onClick={() => setScheduleChooserOpen(true)}
-                className="inline-flex min-h-10 shrink-0 items-center px-1 text-sm font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                className="inline-flex min-h-10 shrink-0 items-center rounded-full border border-primary/20 bg-white px-4 text-sm font-semibold text-primary shadow-sm transition hover:bg-primary/[0.04] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
               >
                 Change
               </button>
@@ -1753,7 +1761,9 @@ export function SelectionContextPanel({
         )}
         aria-expanded={sidebar ? expanded : true}
       >
-        {!checkoutCompact && (
+        {checkoutCompact ? (
+          <CalendarClock className="h-5 w-5 shrink-0 text-primary" />
+        ) : (
           <MapPin className="h-5 w-5 shrink-0 text-primary" />
         )}
         <span className="min-w-0 flex-1">
@@ -1766,12 +1776,28 @@ export function SelectionContextPanel({
           >
             {checkoutCompact ? 'When & where' : 'Delivery details'}
           </span>
-          {!checkoutCompact && (
+          {checkoutCompact ? (
+            <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">
+              Confirm the required schedule and delivery address.
+            </span>
+          ) : (
             <span className="mt-0.5 block text-xs text-muted-foreground">
               Choose when and where we should deliver.
             </span>
           )}
         </span>
+        {checkoutCompact && (
+          <span
+            className={cn(
+              'shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide',
+              checkoutDetailsComplete
+                ? 'bg-emerald-50 text-emerald-700'
+                : 'bg-amber-100 text-amber-800',
+            )}
+          >
+            {checkoutDetailsComplete ? 'Confirmed' : 'Required'}
+          </span>
+        )}
         {sidebar && (
           <ChevronDown
             className={cn(
