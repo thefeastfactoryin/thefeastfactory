@@ -11,6 +11,7 @@ import { cn } from '../lib/utils';
 export function RetryPaymentButton({
   order,
   orderIds,
+  bookingId,
   className,
   label = 'Retry payment',
   amount,
@@ -20,6 +21,7 @@ export function RetryPaymentButton({
 }: {
   order: OrderSummary;
   orderIds?: string[];
+  bookingId?: string;
   className?: string;
   label?: string;
   amount?: number;
@@ -51,7 +53,9 @@ export function RetryPaymentButton({
       session!.accessToken,
     );
     window.location.assign(
-      `/payment/status?orderId=${order.id}&status=success`,
+      bookingId
+        ? `/payment/status?bookingId=${bookingId}&status=success`
+        : `/payment/status?orderId=${order.id}&status=success`,
     );
   }
   async function retry() {
@@ -60,8 +64,16 @@ export function RetryPaymentButton({
     onStart?.();
     try {
       const batchIds = [...new Set(orderIds ?? [order.id])];
-      const gateway =
-        batchIds.length > 1
+      const gateway = bookingId
+        ? await apiRequest<GatewayOrder>(
+            `/bookings/${bookingId}/payments/razorpay-order`,
+            {
+              method: 'POST',
+              body: JSON.stringify(amount === undefined ? {} : { amount }),
+            },
+            session.accessToken,
+          )
+        : batchIds.length > 1
           ? await apiRequest<GatewayOrder>(
               '/payments/razorpay/batch-order',
               {

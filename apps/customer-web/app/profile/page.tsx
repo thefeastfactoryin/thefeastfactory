@@ -132,7 +132,7 @@ export default function ProfilePage() {
         </form>
         <aside className="space-y-3">
           <Link
-            href="/orders"
+            href="/bookings"
             className="surface-card flex items-center gap-4 p-5 transition hover:border-primary/30"
           >
             <span className="grid h-11 w-11 place-items-center rounded-full bg-primary/10 text-primary">

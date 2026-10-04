@@ -15,14 +15,12 @@ import {
   Prisma,
   SelectedItemRole,
 } from '@prisma/client';
-import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { eventLocalInstant } from '../../common/event-time';
 import {
   clockMinutes,
   positiveIntegerSetting,
 } from '../../common/setting-values';
-import { OrdersService } from '../orders/orders.service';
 import { cartFingerprint, type CheckoutSnapshot } from './checkout-snapshot';
 import { PricingService } from '../pricing/pricing.service';
 import { OperatingRegionsService } from '../operating-regions/operating-regions.service';
@@ -66,7 +64,6 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly prisma: PrismaService,
     private readonly pricing: PricingService,
-    private readonly orders: OrdersService,
     private readonly regions: OperatingRegionsService,
     @Optional() private readonly cutlery?: CutleryService,
   ) {}
@@ -153,27 +150,29 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
         cart.deliveryServiceType,
         cart.helperCount,
       );
+      await this.syncSessionFields(userId, cart.id, {
+        addressId: dto.addressId,
+        regionId: event.region.id,
+        eventName: dto.eventName,
+        eventDate: event.eventDate,
+        eventTimeStart: event.eventTime,
+        distanceKm: event.distanceKm,
+        deliveryFee: event.deliveryFee,
+        deliveryServiceType: event.deliveryServiceType,
+        helperCount: event.helperCount,
+        contactNumber: dto.contactNumber ?? cart.contactNumber,
+        specialNotes: dto.specialNotes,
+        lastQuotedAt: null,
+        expiresAt: this.expiryDate(),
+      });
       const updated = await this.prisma.cart.update({
         where: { id: cart.id },
         data: {
-          addressId: dto.addressId,
-          regionId: event.region.id,
-          eventName: dto.eventName,
-          eventDate: event.eventDate,
-          eventTimeStart: event.eventTime,
           guestCount: isKg ? null : dto.guestCount,
           cutleryIncludedCount: this.includedCutleryCount(
             version.package.type,
             isKg ? null : dto.guestCount,
           ),
-          distanceKm: event.distanceKm,
-          deliveryFee: event.deliveryFee,
-          deliveryServiceType: event.deliveryServiceType,
-          helperCount: event.helperCount,
-          contactNumber: dto.contactNumber ?? cart.contactNumber,
-          specialNotes: dto.specialNotes,
-          lastQuotedAt: null,
-          expiresAt: this.expiryDate(),
         },
         include: this.cartInclude(),
       });
@@ -231,22 +230,29 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
     ) {
       throw new BadRequestException('Guest count is outside package limits');
     }
-    const user = await this.prisma.user.findUniqueOrThrow({
-      where: { id: userId },
-      select: { mobileNumber: true },
-    });
+    const session = await this.ensureActiveSession(userId, dto.regionId);
     const cart = await this.prisma.cart.create({
       data: {
         userId,
+        cartSessionId: session.id,
         packageVersionId: dto.packageVersionId,
-        regionId: await this.validRegionId(dto.regionId),
+        addressId: session.addressId,
+        regionId: session.regionId,
+        eventName: session.eventName,
+        eventDate: session.eventDate,
+        eventTimeStart: session.eventTimeStart,
         guestCount,
+        distanceKm: session.distanceKm,
+        deliveryFee: session.deliveryFee,
+        deliveryServiceType: session.deliveryServiceType,
+        helperCount: session.helperCount,
         cutleryIncludedCount: this.includedCutleryCount(
           version.package.type,
           guestCount,
         ),
         cutleryUnitPrice: CUTLERY_UNIT_PRICE,
-        contactNumber: user.mobileNumber,
+        contactNumber: session.contactNumber,
+        specialNotes: session.specialNotes,
         expiresAt: this.expiryDate(),
       },
       include: this.cartInclude(),
@@ -279,27 +285,29 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
         cart.deliveryServiceType,
         cart.helperCount,
       );
+      await this.syncSessionFields(userId, id, {
+        addressId: dto.addressId,
+        regionId: event.region.id,
+        eventName: dto.eventName,
+        eventDate: event.eventDate,
+        eventTimeStart: event.eventTime,
+        distanceKm: event.distanceKm,
+        deliveryFee: event.deliveryFee,
+        deliveryServiceType: event.deliveryServiceType,
+        helperCount: event.helperCount,
+        contactNumber: dto.contactNumber ?? cart.contactNumber,
+        specialNotes: dto.specialNotes,
+        lastQuotedAt: null,
+        expiresAt: this.expiryDate(),
+      });
       const updated = await this.prisma.cart.update({
         where: { id },
         data: {
-          addressId: dto.addressId,
-          regionId: event.region.id,
-          eventName: dto.eventName,
-          eventDate: event.eventDate,
-          eventTimeStart: event.eventTime,
           guestCount: isKg ? null : dto.guestCount,
           cutleryIncludedCount: this.includedCutleryCount(
             cart.packageVersion.package.type,
             isKg ? null : dto.guestCount,
           ),
-          distanceKm: event.distanceKm,
-          deliveryFee: event.deliveryFee,
-          deliveryServiceType: event.deliveryServiceType,
-          helperCount: event.helperCount,
-          contactNumber: dto.contactNumber ?? cart.contactNumber,
-          specialNotes: dto.specialNotes,
-          lastQuotedAt: null,
-          expiresAt: this.expiryDate(),
         },
         include: this.cartInclude(),
       });
@@ -352,14 +360,26 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
         status: CartStatus.ACTIVE,
         ...this.unexpiredCartScope(),
       },
-      select: { id: true },
+      select: { id: true, cartSessionId: true },
     });
     const ids = carts.map((cart) => cart.id);
     if (!ids.length) return { success: true, count: 0 };
-    await this.prisma.$transaction([
-      this.prisma.cartItem.deleteMany({ where: { cartId: { in: ids } } }),
-      this.prisma.cart.deleteMany({ where: { id: { in: ids } } }),
-    ]);
+    const sessionIds = [
+      ...new Set(
+        carts
+          .map((cart) => cart.cartSessionId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    await this.prisma.$transaction(async (tx) => {
+      await tx.cartItem.deleteMany({ where: { cartId: { in: ids } } });
+      await tx.cart.deleteMany({ where: { id: { in: ids } } });
+      if (sessionIds.length) {
+        await tx.cartSession.deleteMany({
+          where: { id: { in: sessionIds }, userId, booking: { is: null } },
+        });
+      }
+    });
     return { success: true, count: ids.length };
   }
 
@@ -371,12 +391,6 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
   async quoteActive(userId: string) {
     const cart = await this.requireActive(userId);
     return this.quote(userId, cart.id);
-  }
-
-  async checkoutActive(userId: string, specialNotes?: string) {
-    const cart = await this.requireActive(userId);
-    await this.saveCheckoutInstructions(userId, [cart.id], specialNotes);
-    return this.checkout(userId, cart.id);
   }
 
   async getActive(userId: string) {
@@ -454,6 +468,23 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
     await this.prisma.$transaction(async (tx) => {
       await tx.cartItem.deleteMany({ where: { cartId: id } });
       await tx.cart.delete({ where: { id } });
+      if (cart.cartSessionId) {
+        const remaining = await tx.cart.count({
+          where: {
+            cartSessionId: cart.cartSessionId,
+            status: CartStatus.ACTIVE,
+          },
+        });
+        if (remaining === 0) {
+          await tx.cartSession.deleteMany({
+            where: {
+              id: cart.cartSessionId,
+              userId,
+              booking: { is: null },
+            },
+          });
+        }
+      }
     });
     return { success: true, id };
   }
@@ -468,6 +499,7 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
       orderBy: { updatedAt: 'desc' },
     });
     if (!carts.length) throw new NotFoundException('Active cart not found');
+    this.assertSharedBookingDetails(carts);
     const quotes = await Promise.all(
       carts.map((cart) => this.quote(userId, cart.id)),
     );
@@ -493,63 +525,6 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  async checkoutAll(userId: string, specialNotes?: string) {
-    const carts = await this.prisma.cart.findMany({
-      where: {
-        userId,
-        status: CartStatus.ACTIVE,
-        ...this.unexpiredCartScope(),
-      },
-      include: this.cartInclude(),
-      orderBy: { updatedAt: 'asc' },
-    });
-    if (!carts.length) throw new NotFoundException('Active cart not found');
-    const incomplete = carts.find(
-      (cart) =>
-        !cart.addressId ||
-        !cart.regionId ||
-        !cart.eventDate ||
-        !cart.eventTimeStart ||
-        !cart.contactNumber ||
-        (!cart.guestCount &&
-          cart.packageVersion.package.type !== PackageType.ORDER_BY_KG),
-    );
-    if (incomplete) {
-      throw new BadRequestException(
-        'Add event and venue details for every package before checkout',
-      );
-    }
-    // Validate the full batch before creating the first order. Without this
-    // preflight, a stale or invalid later cart could leave an earlier cart in
-    // PENDING_PAYMENT with no complete payment batch to resume.
-    const quotes = await Promise.all(
-      carts.map((cart) => this.quote(userId, cart.id)),
-    );
-    await this.saveCheckoutInstructions(
-      userId,
-      carts.map((cart) => cart.id),
-      specialNotes,
-    );
-    const checkoutBatchId = randomUUID();
-    const deliveryFee = this.batchDeliveryFee(quotes);
-    const cutleryOwnerCartId = this.bookingCutleryOwner(
-      carts.map((cart, index) => ({ cartId: cart.id, quote: quotes[index] })),
-    );
-    const orders = [];
-    for (const [index, cart] of carts.entries()) {
-      orders.push(
-        await this.checkout(
-          userId,
-          cart.id,
-          checkoutBatchId,
-          index === 0 ? deliveryFee : new Prisma.Decimal(0),
-          cart.id === cutleryOwnerCartId ? undefined : 0,
-        ),
-      );
-    }
-    return orders;
-  }
-
   async preparePayment(
     userId: string,
     specialNotes?: string,
@@ -564,6 +539,7 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
       orderBy: { updatedAt: 'asc' },
     });
     if (!initial.length) throw new NotFoundException('Active cart not found');
+    this.assertSharedBookingDetails(initial);
     await this.saveCheckoutInstructions(
       userId,
       initial.map((cart) => cart.id),
@@ -721,28 +697,27 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
         cutleryExtraCount: ownsBookingCutlery ? sharedExtraCount : 0,
         cutleryUnitPrice: quote.cutleryUnitPrice,
         cutleryTotal: cutleryTotal.toFixed(2),
-        cutleryItems:
-          ownsBookingCutlery
-            ? (quote.cutleryItems ?? []).map((item) => ({
-                itemId: item.id,
-                itemName: item.name,
-                unitLabel: item.unitLabel,
-                includedQuantity: item.includedQuantity,
-                extraQuantity: item.quantity,
-                unitPrice: item.unitPrice,
-                lineTotal: item.lineTotal,
-                imageUrl: item.imageUrl,
-              }))
-            : (quote.cutleryItems ?? []).map((item) => ({
-                itemId: item.id,
-                itemName: item.name,
-                unitLabel: item.unitLabel,
-                includedQuantity: item.includedQuantity,
-                extraQuantity: 0,
-                unitPrice: item.unitPrice,
-                lineTotal: '0.00',
-                imageUrl: item.imageUrl,
-              })),
+        cutleryItems: ownsBookingCutlery
+          ? (quote.cutleryItems ?? []).map((item) => ({
+              itemId: item.id,
+              itemName: item.name,
+              unitLabel: item.unitLabel,
+              includedQuantity: item.includedQuantity,
+              extraQuantity: item.quantity,
+              unitPrice: item.unitPrice,
+              lineTotal: item.lineTotal,
+              imageUrl: item.imageUrl,
+            }))
+          : (quote.cutleryItems ?? []).map((item) => ({
+              itemId: item.id,
+              itemName: item.name,
+              unitLabel: item.unitLabel,
+              includedQuantity: item.includedQuantity,
+              extraQuantity: 0,
+              unitPrice: item.unitPrice,
+              lineTotal: '0.00',
+              imageUrl: item.imageUrl,
+            })),
         selectedItems,
       });
     }
@@ -764,6 +739,38 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
     }, new Prisma.Decimal(0));
   }
 
+  private assertSharedBookingDetails(
+    carts: Array<{
+      addressId: string | null;
+      regionId: string | null;
+      eventDate: Date | null;
+      eventTimeStart: Date | null;
+      deliveryServiceType: DeliveryServiceType;
+      helperCount: number;
+      contactNumber: string;
+      cartSessionId?: string | null;
+    }>,
+  ) {
+    if (carts.length < 2) return;
+    const first = carts[0];
+    const value = (cart: (typeof carts)[number]) =>
+      JSON.stringify({
+        session: cart.cartSessionId ?? null,
+        addressId: cart.addressId,
+        regionId: cart.regionId,
+        eventDate: cart.eventDate?.toISOString() ?? null,
+        eventTimeStart: cart.eventTimeStart?.toISOString() ?? null,
+        deliveryServiceType: cart.deliveryServiceType,
+        helperCount: cart.helperCount,
+        contactNumber: cart.contactNumber,
+      });
+    if (carts.some((cart) => value(cart) !== value(first))) {
+      throw new BadRequestException(
+        'All packages in a booking must use the same address, date, time, contact and delivery service',
+      );
+    }
+  }
+
   private batchCutleryTotal(quotes: Array<{ cutleryTotal?: string }>) {
     return quotes.reduce((highest, quote) => {
       const total = new Prisma.Decimal(quote.cutleryTotal ?? '0.00');
@@ -777,9 +784,7 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
     return [...rows].sort((left, right) => {
       const amountDifference = new Prisma.Decimal(
         right.quote.cutleryTotal ?? '0.00',
-      ).comparedTo(
-        new Prisma.Decimal(left.quote.cutleryTotal ?? '0.00'),
-      );
+      ).comparedTo(new Prisma.Decimal(left.quote.cutleryTotal ?? '0.00'));
       return amountDifference || left.cartId.localeCompare(right.cartId);
     })[0]?.cartId;
   }
@@ -790,14 +795,43 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
     specialNotes?: string,
   ) {
     if (specialNotes === undefined) return;
-    await this.prisma.cart.updateMany({
-      where: {
-        id: { in: cartIds },
-        userId,
-        status: CartStatus.ACTIVE,
-      },
-      data: { specialNotes: specialNotes.trim() || null },
+    const value = specialNotes.trim() || null;
+    if (!this.prisma.cartSession) {
+      await this.prisma.cart.updateMany({
+        where: {
+          id: { in: cartIds },
+          userId,
+          status: CartStatus.ACTIVE,
+        },
+        data: { specialNotes: value },
+      });
+      return;
+    }
+    const carts = await this.prisma.cart.findMany({
+      where: { id: { in: cartIds }, userId, status: CartStatus.ACTIVE },
+      select: { cartSessionId: true },
     });
+    const sessionIds = [
+      ...new Set(
+        carts
+          .map((cart) => cart.cartSessionId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    await this.prisma.$transaction([
+      this.prisma.cart.updateMany({
+        where: {
+          id: { in: cartIds },
+          userId,
+          status: CartStatus.ACTIVE,
+        },
+        data: { specialNotes: value },
+      }),
+      this.prisma.cartSession.updateMany({
+        where: { id: { in: sessionIds }, userId, status: CartStatus.ACTIVE },
+        data: { specialNotes: value },
+      }),
+    ]);
   }
 
   async createOrFetch(userId: string, dto: CreateCartDto) {
@@ -805,6 +839,7 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
     if (version.package.type === PackageType.ORDER_BY_KG && dto.regionId) {
       await this.assertKgRegionAvailability(version.package.id, dto.regionId);
     }
+    const session = await this.ensureActiveSession(userId, dto.regionId);
     const existing = await this.prisma.cart.findFirst({
       where: {
         userId,
@@ -816,18 +851,31 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
       orderBy: { updatedAt: 'desc' },
     });
     if (existing) {
+      if (!existing.cartSessionId) {
+        const linked = await this.prisma.cart.update({
+          where: { id: existing.id },
+          data: { cartSessionId: session.id },
+          include: this.cartInclude(),
+        });
+        return this.serializeCart(linked);
+      }
       return this.serializeCart(existing);
     }
 
-    const user = await this.prisma.user.findUniqueOrThrow({
-      where: { id: userId },
-      select: { mobileNumber: true },
-    });
     const cart = await this.prisma.cart.create({
       data: {
         userId,
+        cartSessionId: session.id,
         packageVersionId: dto.packageVersionId,
-        regionId: await this.validRegionId(dto.regionId),
+        addressId: session.addressId,
+        regionId: session.regionId,
+        eventName: session.eventName,
+        eventDate: session.eventDate,
+        eventTimeStart: session.eventTimeStart,
+        distanceKm: session.distanceKm,
+        deliveryFee: session.deliveryFee,
+        deliveryServiceType: session.deliveryServiceType,
+        helperCount: session.helperCount,
         cutleryIncludedCount: this.includedCutleryCount(
           version.package.type,
           version.package.type === PackageType.ORDER_BY_KG
@@ -835,7 +883,8 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
             : version.minGuestCount,
         ),
         cutleryUnitPrice: CUTLERY_UNIT_PRICE,
-        contactNumber: user.mobileNumber,
+        contactNumber: session.contactNumber,
+        specialNotes: session.specialNotes,
         expiresAt: this.expiryDate(),
       },
       include: this.cartInclude(),
@@ -962,50 +1011,6 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  async checkout(
-    userId: string,
-    id: string,
-    checkoutBatchId?: string,
-    deliveryFeeOverride?: Prisma.Decimal,
-    cutleryExtraCountOverride?: number,
-  ) {
-    const cart = await this.assertActiveCart(userId, id);
-    if (
-      !cart.addressId ||
-      !cart.eventDate ||
-      !cart.eventTimeStart ||
-      !cart.contactNumber ||
-      (!cart.guestCount &&
-        cart.packageVersion.package.type !== PackageType.ORDER_BY_KG)
-    ) {
-      throw new BadRequestException(
-        'Add event and venue details before checkout',
-      );
-    }
-    const order = await this.orders.create(
-      userId,
-      {
-        selectedItems: cart.items.map((item) => ({
-          categoryId: item.categoryId,
-          menuItemId: item.menuItemId,
-          replacedMenuItemId: item.replacedMenuItemId,
-          role: item.role,
-          quantity: item.quantity,
-          weightGrams: item.weightGrams,
-        })),
-      },
-      cart.id,
-      checkoutBatchId,
-      deliveryFeeOverride,
-      cutleryExtraCountOverride,
-    );
-    await this.prisma.cart.update({
-      where: { id },
-      data: { status: CartStatus.CHECKED_OUT },
-    });
-    return order;
-  }
-
   private async validateCartItems(
     packageVersionId: string,
     items: CartSelectionItemDto[],
@@ -1069,6 +1074,7 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
     return {
       id: cart.id,
       userId: cart.userId,
+      cartSessionId: cart.cartSessionId,
       packageVersionId: cart.packageVersionId,
       guestCount: cart.guestCount,
       status: cart.status,
@@ -1168,6 +1174,135 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
   private expiryDate() {
     // An active cart ends only on successful payment or customer deletion.
     return null;
+  }
+
+  private async ensureActiveSession(userId: string, regionId?: string) {
+    if (!this.prisma.cartSession) {
+      const user = await this.prisma.user.findUniqueOrThrow({
+        where: { id: userId },
+        select: { mobileNumber: true },
+      });
+      return {
+        id: `session-${userId}`,
+        userId,
+        addressId: null,
+        regionId: await this.validRegionId(regionId),
+        eventName: null,
+        eventDate: null,
+        eventTimeStart: null,
+        distanceKm: null,
+        deliveryFee: new Prisma.Decimal(0),
+        deliveryServiceType: DeliveryServiceType.STANDARD,
+        helperCount: 0,
+        contactNumber: user.mobileNumber.slice(-10),
+        specialNotes: null,
+        status: CartStatus.ACTIVE,
+        expiresAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+    }
+    const existing = await this.prisma.cartSession.findFirst({
+      where: { userId, status: CartStatus.ACTIVE },
+      orderBy: { updatedAt: 'desc' },
+    });
+    if (existing) {
+      await this.prisma.cart.updateMany({
+        where: {
+          userId,
+          status: CartStatus.ACTIVE,
+          cartSessionId: null,
+        },
+        data: { cartSessionId: existing.id },
+      });
+      return existing;
+    }
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { mobileNumber: true },
+    });
+    try {
+      const created = await this.prisma.cartSession.create({
+        data: {
+          userId,
+          regionId: await this.validRegionId(regionId),
+          contactNumber: user.mobileNumber.slice(-10),
+          expiresAt: this.expiryDate(),
+        },
+      });
+      await this.prisma.cart.updateMany({
+        where: { userId, status: CartStatus.ACTIVE, cartSessionId: null },
+        data: { cartSessionId: created.id },
+      });
+      return created;
+    } catch (error) {
+      if ((error as { code?: string }).code !== 'P2002') throw error;
+      return this.prisma.cartSession.findFirstOrThrow({
+        where: { userId, status: CartStatus.ACTIVE },
+        orderBy: { updatedAt: 'desc' },
+      });
+    }
+  }
+
+  private async syncSessionFields(
+    userId: string,
+    cartId: string,
+    data: Prisma.CartUncheckedUpdateManyInput,
+  ) {
+    if (!this.prisma.cartSession) {
+      return this.prisma.cart.update({
+        where: { id: cartId },
+        data,
+        include: this.cartInclude(),
+      });
+    }
+    const cart = await this.prisma.cart.findFirst({
+      where: { id: cartId, userId, status: CartStatus.ACTIVE },
+      select: { id: true, cartSessionId: true },
+    });
+    if (!cart) throw new NotFoundException('Active cart not found');
+    const session = cart.cartSessionId
+      ? await this.prisma.cartSession.findFirst({
+          where: {
+            id: cart.cartSessionId,
+            userId,
+            status: CartStatus.ACTIVE,
+          },
+        })
+      : await this.ensureActiveSession(userId);
+    const sessionId = session?.id;
+    if (!sessionId)
+      throw new NotFoundException('Active cart session not found');
+    const shared = {
+      addressId: data.addressId as string | null | undefined,
+      regionId: data.regionId as string | null | undefined,
+      eventName: data.eventName as string | null | undefined,
+      eventDate: data.eventDate as Date | null | undefined,
+      eventTimeStart: data.eventTimeStart as Date | null | undefined,
+      distanceKm: data.distanceKm as Prisma.Decimal | null | undefined,
+      deliveryFee: data.deliveryFee as Prisma.Decimal | undefined,
+      deliveryServiceType: data.deliveryServiceType as
+        | DeliveryServiceType
+        | undefined,
+      helperCount: data.helperCount as number | undefined,
+      contactNumber: data.contactNumber as string | undefined,
+      specialNotes: data.specialNotes as string | null | undefined,
+      expiresAt: data.expiresAt as Date | null | undefined,
+    };
+    const sessionData = Object.fromEntries(
+      Object.entries(shared).filter(([, value]) => value !== undefined),
+    );
+    await this.prisma.$transaction([
+      this.prisma.cartSession.update({
+        where: { id: sessionId },
+        data: sessionData,
+      }),
+      this.prisma.cart.updateMany({
+        where: { userId, status: CartStatus.ACTIVE },
+        data: { ...data, cartSessionId: sessionId },
+      }),
+    ]);
+    return this.assertActiveCart(userId, cartId);
   }
 
   private unexpiredCartScope() {
@@ -1327,19 +1462,15 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
           deliveryServiceType,
           helperCount,
         );
-    const updated = await this.prisma.cart.update({
-      where: { id: cartId },
-      data: {
-        addressId,
-        regionId: assignment.region.id,
-        distanceKm: assignment.distanceKm,
-        deliveryServiceType: assignment.deliveryServiceType,
-        helperCount: assignment.helperCount,
-        deliveryFee: assignment.deliveryFee,
-        lastQuotedAt: null,
-        expiresAt: this.expiryDate(),
-      },
-      include: this.cartInclude(),
+    const updated = await this.syncSessionFields(userId, cartId, {
+      addressId,
+      regionId: assignment.region.id,
+      distanceKm: assignment.distanceKm,
+      deliveryServiceType: assignment.deliveryServiceType,
+      helperCount: assignment.helperCount,
+      deliveryFee: assignment.deliveryFee,
+      lastQuotedAt: null,
+      expiresAt: this.expiryDate(),
     });
     return this.serializeCart(updated);
   }
@@ -1359,22 +1490,18 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
           helperCount,
         )
       : null;
-    const updated = await this.prisma.cart.update({
-      where: { id },
-      data: {
-        deliveryServiceType,
-        helperCount: assignment?.helperCount ?? helperCount,
-        ...(assignment
-          ? {
-              regionId: assignment.region.id,
-              distanceKm: assignment.distanceKm,
-              deliveryFee: assignment.deliveryFee,
-            }
-          : {}),
-        lastQuotedAt: null,
-        expiresAt: this.expiryDate(),
-      },
-      include: this.cartInclude(),
+    const updated = await this.syncSessionFields(userId, id, {
+      deliveryServiceType,
+      helperCount: assignment?.helperCount ?? helperCount,
+      ...(assignment
+        ? {
+            regionId: assignment.region.id,
+            distanceKm: assignment.distanceKm,
+            deliveryFee: assignment.deliveryFee,
+          }
+        : {}),
+      lastQuotedAt: null,
+      expiresAt: this.expiryDate(),
     });
     return this.serializeCart(updated);
   }
@@ -1430,24 +1557,19 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
     contactNumber: string,
   ) {
     await this.assertActiveCart(userId, id);
-    const updated = await this.prisma.cart.update({
-      where: { id },
-      data: { contactNumber, expiresAt: this.expiryDate() },
-      include: this.cartInclude(),
+    const updated = await this.syncSessionFields(userId, id, {
+      contactNumber,
+      expiresAt: this.expiryDate(),
     });
     return this.serializeCart(updated);
   }
 
   private async updateRegion(userId: string, id: string, regionId: string) {
     await this.assertActiveCart(userId, id);
-    const updated = await this.prisma.cart.update({
-      where: { id },
-      data: {
-        regionId: await this.validRegionId(regionId),
-        lastQuotedAt: null,
-        expiresAt: this.expiryDate(),
-      },
-      include: this.cartInclude(),
+    const updated = await this.syncSessionFields(userId, id, {
+      regionId: await this.validRegionId(regionId),
+      lastQuotedAt: null,
+      expiresAt: this.expiryDate(),
     });
     return this.serializeCart(updated);
   }

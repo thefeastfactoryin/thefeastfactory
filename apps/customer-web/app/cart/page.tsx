@@ -1312,6 +1312,7 @@ export default function CartPage() {
   async function verifyPayment(response: Record<string, string>) {
     const verified = await apiRequest<{
       success: boolean;
+      bookingId?: string;
       orderId?: string;
       needsReview?: boolean;
     }>(
@@ -1337,7 +1338,11 @@ export default function CartPage() {
     }
     reset();
     notifyCartCleared();
-    router.push(`/payment/status?orderId=${verified.orderId}&status=success`);
+    router.push(
+      verified.bookingId
+        ? `/payment/status?bookingId=${verified.bookingId}&status=success`
+        : `/payment/status?orderId=${verified.orderId}&status=success`,
+    );
   }
 
   async function pay() {
@@ -1369,6 +1374,7 @@ export default function CartPage() {
         | GatewayOrder
         | {
             success: true;
+            bookingId: string;
             orderId: string;
             orderIds: string[];
             paymentPlan: 'PAY_LATER';
@@ -1385,7 +1391,11 @@ export default function CartPage() {
       if ('success' in checkoutResult) {
         reset();
         notifyCartCleared();
-        router.push(`/orders/${checkoutResult.orderId}?booking=requested`);
+        router.push(
+          checkoutResult.bookingId
+            ? `/bookings/${checkoutResult.bookingId}?booking=requested`
+            : `/orders/${checkoutResult.orderId}?booking=requested`,
+        );
         return;
       }
       const gateway = checkoutResult;

@@ -5,6 +5,7 @@ import { AdminOrdersService } from './admin-orders.service';
 import { PaymentsModule } from '../payments/payments.module';
 import { OperationsModule } from '../operations/operations.module';
 import { OperatingRegionsModule } from '../operating-regions/operating-regions.module';
+import { BookingsModule } from '../bookings/bookings.module';
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { OperatingRegionsModule } from '../operating-regions/operating-regions.m
     PaymentsModule,
     OperationsModule,
     OperatingRegionsModule,
+    BookingsModule,
   ],
   controllers: [AdminOrdersController],
   providers: [AdminOrdersService],

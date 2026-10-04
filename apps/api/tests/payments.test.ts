@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  BookingStatus,
   OrderStatus,
   PaymentSource,
   PaymentStatus,
@@ -11,7 +12,10 @@ import {
   BadRequestException,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { PaymentsService } from '../src/modules/payments/payments.service';
+import {
+  PaymentsService,
+  type RazorpayWebhookPayload,
+} from '../src/modules/payments/payments.service';
 
 const baseRefund = {
   id: 'refund-1',
@@ -630,6 +634,58 @@ test('admin manual deposit closes the remaining balance without replacing paymen
   assert.deepEqual(generated, ['order-1']);
 });
 
+test('manual refunds are recorded once for declined booking deposits', async () => {
+  let createdRefund: Record<string, unknown> | undefined;
+  const reconciled: string[] = [];
+  const payments = service({
+    $transaction: async (callback: (tx: object) => Promise<unknown>) =>
+      callback({
+        $queryRaw: async () => [{ id: 'manual-payment-1' }],
+        payment: {
+          findFirst: async () => ({
+            id: 'manual-payment-1',
+            bookingId: 'booking-1',
+            amount: new Prisma.Decimal('500.00'),
+            paymentStatus: PaymentStatus.PAID,
+            source: PaymentSource.MANUAL,
+            refunds: [],
+            booking: { status: BookingStatus.DECLINED },
+            order: { id: 'order-1' },
+          }),
+        },
+        refund: {
+          create: async ({ data }: { data: Record<string, unknown> }) => {
+            createdRefund = data;
+            return {
+              ...baseRefund,
+              id: 'manual-refund-1',
+              amount: data.amount as Prisma.Decimal,
+              refundStatus: RefundStatus.SUCCESS,
+            };
+          },
+        },
+      }),
+  });
+  const internal = payments as unknown as {
+    reconcileRefund(paymentId: string): Promise<void>;
+  };
+  internal.reconcileRefund = async (paymentId: string) => {
+    reconciled.push(paymentId);
+  };
+
+  const result = await payments.recordManualRefund(
+    'operations-1',
+    'booking-1',
+    'manual-payment-1',
+    'Refunded by UPI',
+  );
+
+  assert.equal(createdRefund?.refundStatus, RefundStatus.SUCCESS);
+  assert.equal(createdRefund?.reason, 'Refunded by UPI');
+  assert.equal(result.amount, '500.00');
+  assert.deepEqual(reconciled, ['manual-payment-1']);
+});
+
 test('local full refund always uses the complete paid amount and reconciles both ledgers', async () => {
   const generated: string[] = [];
   const updates: Array<{ target: string; status: PaymentStatus }> = [];
@@ -1010,6 +1066,103 @@ test('a stale failure webhook cannot overwrite a concurrently paid ledger', asyn
     },
   });
   assert.equal(orderUpdates, 0);
+});
+
+test('a failed booking balance payment resynchronizes every child ledger', async () => {
+  const orderStatuses = new Map<string, PaymentStatus>();
+  let bookingStatus: PaymentStatus | undefined;
+  const payments = service({
+    payment: {
+      findMany: async () => [
+        {
+          id: 'failed-payment',
+          orderId: 'order-1',
+          bookingId: 'booking-1',
+          paymentStatus: PaymentStatus.PENDING,
+          order: {
+            id: 'order-1',
+            totalAmount: new Prisma.Decimal('400.00'),
+          },
+        },
+      ],
+    },
+    $transaction: async (callback: (tx: object) => Promise<void>) =>
+      callback({
+        payment: {
+          updateMany: async () => ({ count: 1 }),
+        },
+        booking: {
+          findUnique: async () => ({
+            id: 'booking-1',
+            totalAmount: new Prisma.Decimal('1000.00'),
+            orders: [
+              { id: 'order-1', totalAmount: new Prisma.Decimal('400.00') },
+              { id: 'order-2', totalAmount: new Prisma.Decimal('600.00') },
+            ],
+            payments: [
+              {
+                amount: new Prisma.Decimal('500.00'),
+                paymentStatus: PaymentStatus.PAID,
+                refunds: [],
+                allocations: [
+                  {
+                    orderId: 'order-1',
+                    amount: new Prisma.Decimal('200.00'),
+                  },
+                  {
+                    orderId: 'order-2',
+                    amount: new Prisma.Decimal('300.00'),
+                  },
+                ],
+              },
+            ],
+          }),
+          update: async ({
+            data,
+          }: {
+            data: { paymentStatus: PaymentStatus };
+          }) => {
+            bookingStatus = data.paymentStatus;
+          },
+        },
+        order: {
+          update: async ({
+            where,
+            data,
+          }: {
+            where: { id: string };
+            data: { paymentStatus: PaymentStatus };
+          }) => {
+            orderStatuses.set(where.id, data.paymentStatus);
+          },
+        },
+      }),
+  });
+  const internal = payments as unknown as {
+    processWebhook(
+      eventType: string,
+      payload: RazorpayWebhookPayload,
+    ): Promise<void>;
+  };
+
+  await internal.processWebhook('payment.failed', {
+    payload: {
+      payment: {
+        entity: {
+          id: 'gateway-payment-failed',
+          order_id: 'gateway-order-1',
+          amount: 50000,
+          status: 'failed',
+        },
+      },
+    },
+  });
+
+  assert.equal(bookingStatus, PaymentStatus.PARTIALLY_PAID);
+  assert.deepEqual(Object.fromEntries(orderStatuses), {
+    'order-1': PaymentStatus.PARTIALLY_PAID,
+    'order-2': PaymentStatus.PARTIALLY_PAID,
+  });
 });
 
 test('a late captured payment cannot resurrect a cancelled order', async () => {

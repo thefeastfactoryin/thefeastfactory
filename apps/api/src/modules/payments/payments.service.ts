@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  BookingStatus,
   CartStatus,
   CheckoutAttemptStatus,
   OrderStatus,
@@ -132,37 +133,219 @@ export class PaymentsService {
   async createPayLaterBooking(userId: string, specialNotes?: string) {
     if (!this.carts)
       throw new ServiceUnavailableException('Cart checkout is unavailable');
-    const orders = await this.carts.checkoutAll(userId, specialNotes);
-    const orderIds = orders.map((order) => order.id);
-    await this.prisma.$transaction(async (tx) => {
-      await tx.order.updateMany({
-        where: {
-          id: { in: orderIds },
-          userId,
-          orderStatus: OrderStatus.PENDING_PAYMENT,
-        },
-        data: {
-          orderStatus: OrderStatus.AWAITING_APPROVAL,
-          paymentStatus: PaymentStatus.UNPAID,
-          paymentPlan: PaymentPlan.PAY_LATER,
-        },
-      });
-      await tx.orderStatusHistory.createMany({
-        data: orderIds.map((orderId) => ({
-          orderId,
-          fromStatus: OrderStatus.PENDING_PAYMENT,
-          toStatus: OrderStatus.AWAITING_APPROVAL,
-          notes: 'Pay-later booking submitted for kitchen approval',
-        })),
-      });
-    });
-    for (const orderId of orderIds) {
-      void this.notifications?.notifyBookingRequest(orderId);
+    const snapshot = await this.carts.preparePayment(userId, specialNotes);
+    await this.assertNoUnconfirmedCapture(userId, snapshot);
+    const result = await this.prisma.$transaction(
+      async (tx) => {
+        const sourceCartIds = snapshot.carts.map((cart) => cart.cartId);
+        for (const cart of snapshot.carts) {
+          await tx.$queryRaw`SELECT id FROM "carts" WHERE id = ${cart.cartId} FOR UPDATE`;
+          const current = await tx.cart.findFirst({
+            where: { id: cart.cartId, userId, status: CartStatus.ACTIVE },
+            include: { items: true, cutleryItems: true },
+          });
+          if (!current || cartFingerprint(current) !== cart.cartFingerprint) {
+            throw new BadRequestException(
+              'Your cart changed. Review it and submit the booking again.',
+            );
+          }
+        }
+        const firstCart = snapshot.carts[0];
+        if (!firstCart)
+          throw new BadRequestException('Checkout does not contain any carts');
+        const address = await tx.userAddress.findFirst({
+          where: { id: firstCart.addressId, userId },
+        });
+        if (!address)
+          throw new BadRequestException(
+            'Delivery address is no longer available',
+          );
+        const sourceCart = await tx.cart.findUnique({
+          where: { id: firstCart.cartId },
+          select: { cartSessionId: true },
+        });
+        const checkoutBatchId =
+          snapshot.carts.length > 1 ? crypto.randomUUID() : null;
+        const bookingId = crypto.randomUUID();
+        const deliveryFee = snapshot.carts.reduce(
+          (sum, cart) => sum.plus(cart.deliveryFee),
+          new Prisma.Decimal(0),
+        );
+        const cutleryTotal = snapshot.carts.reduce(
+          (sum, cart) => sum.plus(cart.cutleryTotal),
+          new Prisma.Decimal(0),
+        );
+        const itemsSubtotal = snapshot.carts.reduce(
+          (sum, cart) =>
+            sum.plus(
+              new Prisma.Decimal(cart.totalAmount)
+                .minus(cart.deliveryFee)
+                .minus(cart.cutleryTotal),
+            ),
+          new Prisma.Decimal(0),
+        );
+        const bookingCutlery =
+          snapshot.carts.find((cart) =>
+            new Prisma.Decimal(cart.cutleryTotal).greaterThan(0),
+          )?.cutleryItems ??
+          firstCart.cutleryItems ??
+          [];
+        await tx.booking.create({
+          data: {
+            id: bookingId,
+            bookingNumber: this.bookingNumber(),
+            userId,
+            cartSessionId: sourceCart?.cartSessionId ?? null,
+            sourceCheckoutBatchId: checkoutBatchId,
+            regionId: firstCart.regionId,
+            addressId: firstCart.addressId,
+            addressLabel: address.label ?? address.addressType,
+            addressLine1: address.addressLine1,
+            addressLine2: address.addressLine2,
+            city: address.city,
+            state: address.state,
+            pincode: address.pincode,
+            landmark: address.landmark,
+            latitude: address.latitude,
+            longitude: address.longitude,
+            eventName: firstCart.eventName,
+            eventDate: new Date(firstCart.eventDate),
+            eventTimeStart: new Date(firstCart.eventTimeStart),
+            contactNumber: firstCart.contactNumber,
+            specialNotes: firstCart.specialNotes,
+            distanceKm: firstCart.distanceKm,
+            deliveryFee,
+            deliveryServiceType: firstCart.deliveryServiceType,
+            helperCount: firstCart.helperCount,
+            itemsSubtotal,
+            cutleryTotal,
+            totalAmount: snapshot.totalAmount,
+            status: BookingStatus.AWAITING_APPROVAL,
+            paymentStatus: PaymentStatus.UNPAID,
+            paymentPlan: PaymentPlan.PAY_LATER,
+            cutleryItems: {
+              create: bookingCutlery.map((item) => ({
+                cutleryItemId: item.itemId,
+                itemName: item.itemName,
+                unitLabel: item.unitLabel,
+                includedQuantity: item.includedQuantity,
+                extraQuantity: item.extraQuantity,
+                unitPrice: item.unitPrice,
+                lineTotal: item.lineTotal,
+                imageUrl: item.imageUrl,
+              })),
+            },
+            statusHistory: {
+              create: {
+                toStatus: BookingStatus.AWAITING_APPROVAL,
+                notes: 'Pay-later booking submitted for kitchen approval',
+              },
+            },
+          },
+        });
+        const orderIds: string[] = [];
+        for (const cart of snapshot.carts) {
+          const eventDate = new Date(cart.eventDate);
+          const eventTimeStart = new Date(cart.eventTimeStart);
+          const leadHours = Math.floor(
+            (storedEventInstant(eventDate, eventTimeStart).getTime() -
+              Date.now()) /
+              3_600_000,
+          );
+          const order = await tx.order.create({
+            data: {
+              orderNumber: `ORD-${new Date().toISOString().slice(2, 10).replaceAll('-', '')}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`,
+              userId,
+              sourceCartId: cart.cartId,
+              checkoutBatchId,
+              bookingId,
+              regionId: cart.regionId,
+              addressId: cart.addressId,
+              eventName: cart.eventName,
+              eventDate,
+              eventTimeStart,
+              specialNotes: cart.specialNotes,
+              contactNumber: cart.contactNumber,
+              packageType: cart.packageType,
+              guestCount: cart.guestCount,
+              basePerPlatePrice: cart.basePerPlatePrice,
+              totalCustomizationCharges: cart.totalCustomizationCharges,
+              finalPerPlatePrice: cart.finalPerPlatePrice,
+              totalAmount: cart.totalAmount,
+              distanceKm: cart.distanceKm,
+              deliveryFee: cart.deliveryFee,
+              deliveryServiceType: cart.deliveryServiceType,
+              helperCount: cart.helperCount,
+              cutleryIncludedCount: cart.cutleryIncludedCount,
+              cutleryExtraCount: cart.cutleryExtraCount,
+              cutleryUnitPrice: cart.cutleryUnitPrice,
+              cutleryTotal: cart.cutleryTotal,
+              packageName: cart.packageName,
+              packageImageUrl: cart.packageImageUrl,
+              packageVersionNo: cart.packageVersionNo,
+              orderStatus: OrderStatus.AWAITING_APPROVAL,
+              paymentStatus: PaymentStatus.UNPAID,
+              paymentPlan: PaymentPlan.PAY_LATER,
+              bookingLeadHours: leadHours,
+              selectedItems: { create: cart.selectedItems },
+              cutleryItems: {
+                create: cart.cutleryItems.map((item) => ({
+                  cutleryItemId: item.itemId,
+                  itemName: item.itemName,
+                  unitLabel: item.unitLabel,
+                  includedQuantity: item.includedQuantity,
+                  extraQuantity: item.extraQuantity,
+                  unitPrice: item.unitPrice,
+                  lineTotal: item.lineTotal,
+                  imageUrl: item.imageUrl,
+                })),
+              },
+              statusHistory: {
+                create: {
+                  toStatus: OrderStatus.AWAITING_APPROVAL,
+                  notes: 'Pay-later booking submitted for kitchen approval',
+                },
+              },
+            },
+            select: { id: true },
+          });
+          orderIds.push(order.id);
+        }
+        await tx.cartItem.deleteMany({
+          where: { cartId: { in: sourceCartIds } },
+        });
+        await tx.cart.deleteMany({
+          where: {
+            id: { in: sourceCartIds },
+            userId,
+            status: CartStatus.ACTIVE,
+          },
+        });
+        if (sourceCart?.cartSessionId) {
+          await tx.cartSession.update({
+            where: { id: sourceCart.cartSessionId },
+            data: { status: CartStatus.CHECKED_OUT },
+          });
+        }
+        return { bookingId, orderIds };
+      },
+      { timeout: 30_000 },
+    );
+    for (const orderId of result.orderIds) {
+      try {
+        await this.operations.generateOrderDocuments(orderId);
+      } catch (error) {
+        console.error('[Payments] Order document generation failed', error);
+      }
+    }
+    if (result.orderIds[0]) {
+      void this.notifications?.notifyBookingRequest(result.orderIds[0]);
     }
     return {
       success: true,
-      orderId: orderIds[0],
-      orderIds,
+      bookingId: result.bookingId,
+      orderId: result.orderIds[0],
+      orderIds: result.orderIds,
       paymentPlan: PaymentPlan.PAY_LATER,
     };
   }
@@ -260,6 +443,13 @@ export class PaymentsService {
       },
     });
     if (!order) throw new NotFoundException('Order not found');
+    if (order.bookingId) {
+      return this.createBookingGatewayOrder(
+        userId,
+        order.bookingId,
+        requestedAmount,
+      );
+    }
     if (
       order.orderStatus === OrderStatus.DECLINED ||
       order.orderStatus === OrderStatus.CANCELLED
@@ -353,6 +543,145 @@ export class PaymentsService {
       },
     });
     return {
+      paymentId: payment.id,
+      keyId: this.keyId() || 'local',
+      ...gatewayOrder,
+      localMode: !this.isConfigured(),
+      reused: false,
+    };
+  }
+
+  async createBookingGatewayOrder(
+    userId: string,
+    bookingId: string,
+    requestedAmount?: number,
+  ) {
+    this.assertPaymentModeAvailable();
+    const booking = await this.prisma.booking.findFirst({
+      where: { id: bookingId, userId },
+      include: {
+        orders: { orderBy: { createdAt: 'asc' } },
+        payments: {
+          include: { refunds: true, allocations: true },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+    if (!booking) throw new NotFoundException('Booking not found');
+    if (booking.status !== BookingStatus.CONFIRMED) {
+      throw new BadRequestException(
+        'The booking must be approved before another payment can be made',
+      );
+    }
+    const summary = this.paymentLedgerSummary(
+      booking.totalAmount,
+      booking.payments,
+    );
+    if (!summary.balanceDue.greaterThan(0)) {
+      throw new BadRequestException('This booking is already fully paid');
+    }
+    const chargeAmount =
+      requestedAmount === undefined
+        ? summary.balanceDue
+        : new Prisma.Decimal(requestedAmount);
+    if (chargeAmount.lessThan(1))
+      throw new BadRequestException('Payment amount must be at least ₹1.00');
+    if (chargeAmount.greaterThan(summary.balanceDue)) {
+      throw new BadRequestException(
+        `Payment exceeds the remaining balance of ₹${summary.balanceDue.toFixed(2)}`,
+      );
+    }
+    const currency = await this.currency();
+    const existing = booking.payments.find(
+      (payment) =>
+        payment.paymentStatus === PaymentStatus.PENDING &&
+        payment.razorpayOrderId,
+    );
+    const amount = this.paymentAmountInSubunits(chargeAmount);
+    if (
+      existing?.razorpayOrderId &&
+      existing.amount.equals(chargeAmount) &&
+      (!this.isConfigured() ||
+        (await this.canReuseGatewayOrder(
+          existing.razorpayOrderId,
+          amount,
+          currency,
+        )))
+    ) {
+      return {
+        bookingId,
+        paymentId: existing.id,
+        keyId: this.keyId() || 'local',
+        id: existing.razorpayOrderId,
+        amount,
+        currency,
+        localMode: !this.isConfigured(),
+        reused: true,
+      };
+    }
+    if (existing?.razorpayOrderId) {
+      await this.retireGatewayOrder(existing.razorpayOrderId);
+    }
+    const gatewayOrder = this.isConfigured()
+      ? await this.createRazorpayOrder(
+          `booking-${booking.bookingNumber}-${Date.now()}`,
+          amount,
+          currency,
+        )
+      : {
+          id: `local_booking_${booking.id}_${Date.now()}`,
+          amount,
+          currency,
+        };
+    const paidByOrder = new Map<string, Prisma.Decimal>();
+    for (const payment of booking.payments) {
+      if (
+        payment.paymentStatus !== PaymentStatus.PAID &&
+        payment.paymentStatus !== PaymentStatus.REFUNDED
+      )
+        continue;
+      for (const allocation of payment.allocations) {
+        paidByOrder.set(
+          allocation.orderId,
+          (paidByOrder.get(allocation.orderId) ?? new Prisma.Decimal(0)).plus(
+            allocation.amount,
+          ),
+        );
+      }
+    }
+    let remaining = chargeAmount;
+    const allocations: Array<{ orderId: string; amount: Prisma.Decimal }> = [];
+    for (const order of booking.orders) {
+      if (!remaining.greaterThan(0)) break;
+      const balance = Prisma.Decimal.max(
+        order.totalAmount.minus(
+          paidByOrder.get(order.id) ?? new Prisma.Decimal(0),
+        ),
+        new Prisma.Decimal(0),
+      );
+      const allocation = Prisma.Decimal.min(balance, remaining);
+      if (!allocation.greaterThan(0)) continue;
+      allocations.push({ orderId: order.id, amount: allocation });
+      remaining = remaining.minus(allocation);
+    }
+    const primaryOrder = allocations[0]?.orderId ?? booking.orders[0]?.id;
+    if (!primaryOrder) throw new BadRequestException('Booking has no orders');
+    const payment = await this.prisma.payment.create({
+      data: {
+        bookingId,
+        orderId: primaryOrder,
+        amount: chargeAmount,
+        razorpayOrderId: gatewayOrder.id,
+        gatewayResponse: {
+          orderCreated: true,
+          bookingId,
+          localMode: !this.isConfigured(),
+        },
+        allocations: { create: allocations },
+      },
+    });
+    return {
+      bookingId,
       paymentId: payment.id,
       keyId: this.keyId() || 'local',
       ...gatewayOrder,
@@ -504,7 +833,12 @@ export class PaymentsService {
         throw new NotFoundException('Payment not found');
       if (cartAttempt.status === CheckoutAttemptStatus.PAID) {
         const ids = cartAttempt.orderIds as string[] | null;
-        return { success: true, orderId: ids?.[0], orderIds: ids ?? [] };
+        return {
+          success: true,
+          bookingId: cartAttempt.bookingId ?? undefined,
+          orderId: ids?.[0],
+          orderIds: ids ?? [],
+        };
       }
       const expectedSignature = this.isConfigured()
         ? crypto
@@ -630,6 +964,7 @@ export class PaymentsService {
           const ids = attempt.orderIds as string[] | null;
           return {
             success: true,
+            bookingId: attempt.bookingId ?? undefined,
             orderId: ids?.[0],
             orderIds: ids ?? [],
             created: false,
@@ -674,6 +1009,7 @@ export class PaymentsService {
           return current.status === CheckoutAttemptStatus.PAID
             ? {
                 success: true,
+                bookingId: current.bookingId ?? undefined,
                 orderId: ids?.[0],
                 orderIds: ids ?? [],
                 created: false,
@@ -697,6 +1033,106 @@ export class PaymentsService {
         }
         const checkoutBatchId =
           snapshot.carts.length > 1 ? crypto.randomUUID() : null;
+        const firstCart = snapshot.carts[0];
+        if (!firstCart) {
+          throw new BadRequestException('Checkout does not contain any carts');
+        }
+        const address = await tx.userAddress.findFirst({
+          where: { id: firstCart.addressId, userId: attempt.userId },
+        });
+        if (!address) {
+          throw new BadRequestException(
+            'Delivery address is no longer available',
+          );
+        }
+        const sourceCart = await tx.cart.findUnique({
+          where: { id: firstCart.cartId },
+          select: { cartSessionId: true },
+        });
+        const bookingId = crypto.randomUUID();
+        const bookingPaymentStatus =
+          attempt.paymentPlan === PaymentPlan.FULL
+            ? PaymentStatus.PAID
+            : PaymentStatus.PARTIALLY_PAID;
+        const deliveryFee = snapshot.carts.reduce(
+          (sum, cart) => sum.plus(cart.deliveryFee),
+          new Prisma.Decimal(0),
+        );
+        const cutleryTotal = snapshot.carts.reduce(
+          (sum, cart) => sum.plus(cart.cutleryTotal),
+          new Prisma.Decimal(0),
+        );
+        const itemsSubtotal = snapshot.carts.reduce(
+          (sum, cart) =>
+            sum.plus(
+              new Prisma.Decimal(cart.totalAmount)
+                .minus(cart.deliveryFee)
+                .minus(cart.cutleryTotal),
+            ),
+          new Prisma.Decimal(0),
+        );
+        const bookingCutlery =
+          snapshot.carts.find((cart) =>
+            new Prisma.Decimal(cart.cutleryTotal).greaterThan(0),
+          )?.cutleryItems ??
+          firstCart.cutleryItems ??
+          [];
+        await tx.booking.create({
+          data: {
+            id: bookingId,
+            bookingNumber: this.bookingNumber(),
+            userId: attempt.userId,
+            cartSessionId: sourceCart?.cartSessionId ?? null,
+            sourceCheckoutBatchId: checkoutBatchId,
+            regionId: firstCart.regionId,
+            addressId: firstCart.addressId,
+            addressLabel: address.label ?? address.addressType,
+            addressLine1: address.addressLine1,
+            addressLine2: address.addressLine2,
+            city: address.city,
+            state: address.state,
+            pincode: address.pincode,
+            landmark: address.landmark,
+            latitude: address.latitude,
+            longitude: address.longitude,
+            eventName: firstCart.eventName,
+            eventDate: new Date(firstCart.eventDate),
+            eventTimeStart: new Date(firstCart.eventTimeStart),
+            contactNumber: firstCart.contactNumber,
+            specialNotes: firstCart.specialNotes,
+            distanceKm: firstCart.distanceKm,
+            deliveryFee,
+            deliveryServiceType: firstCart.deliveryServiceType,
+            helperCount: firstCart.helperCount,
+            itemsSubtotal,
+            cutleryTotal,
+            totalAmount: snapshot.totalAmount,
+            status: BookingStatus.AWAITING_APPROVAL,
+            paymentStatus: bookingPaymentStatus,
+            paymentPlan: attempt.paymentPlan,
+            cutleryItems: {
+              create: bookingCutlery.map((item) => ({
+                cutleryItemId: item.itemId,
+                itemName: item.itemName,
+                unitLabel: item.unitLabel,
+                includedQuantity: item.includedQuantity,
+                extraQuantity: item.extraQuantity,
+                unitPrice: item.unitPrice,
+                lineTotal: item.lineTotal,
+                imageUrl: item.imageUrl,
+              })),
+            },
+            statusHistory: {
+              create: {
+                toStatus: BookingStatus.AWAITING_APPROVAL,
+                notes:
+                  attempt.paymentPlan === PaymentPlan.HALF
+                    ? '50% deposit received; awaiting kitchen approval'
+                    : 'Full payment received; awaiting kitchen approval',
+              },
+            },
+          },
+        });
         const orderIds: string[] = [];
         const paidAmounts = this.allocateCheckoutPayment(
           snapshot,
@@ -720,6 +1156,7 @@ export class PaymentsService {
               userId: attempt.userId,
               sourceCartId: cart.cartId,
               checkoutBatchId,
+              bookingId,
               regionId: cart.regionId,
               addressId: cart.addressId,
               eventName: cart.eventName,
@@ -770,25 +1207,32 @@ export class PaymentsService {
                       : 'Full payment received; awaiting kitchen approval',
                 },
               },
-              payments: {
-                create: {
-                  amount: paidAmount,
-                  paymentStatus: PaymentStatus.PAID,
-                  source: PaymentSource.RAZORPAY,
-                  razorpayOrderId: attempt.razorpayOrderId,
-                  razorpayPaymentId: gatewayPayment.id,
-                  razorpaySignature: signature,
-                  paymentMethod: gatewayPayment.method,
-                  paidAt: new Date(),
-                  gatewayResponse:
-                    gatewayPayment as unknown as Prisma.InputJsonValue,
-                },
-              },
             },
             select: { id: true },
           });
           orderIds.push(order.id);
         }
+        const payment = await tx.payment.create({
+          data: {
+            bookingId,
+            orderId: orderIds[0],
+            amount: attempt.amount,
+            paymentStatus: PaymentStatus.PAID,
+            source: PaymentSource.RAZORPAY,
+            razorpayOrderId: attempt.razorpayOrderId,
+            razorpayPaymentId: gatewayPayment.id,
+            razorpaySignature: signature,
+            paymentMethod: gatewayPayment.method,
+            paidAt: new Date(),
+            gatewayResponse: gatewayPayment as unknown as Prisma.InputJsonValue,
+            allocations: {
+              create: orderIds.map((orderId, index) => ({
+                orderId,
+                amount: paidAmounts[index],
+              })),
+            },
+          },
+        });
         for (const paidCart of snapshot.carts) {
           await tx.$queryRaw`SELECT id FROM "carts" WHERE id = ${paidCart.cartId} FOR UPDATE`;
           const current = await tx.cart.findUnique({
@@ -843,15 +1287,33 @@ export class PaymentsService {
           await tx.cartItem.deleteMany({ where: { cartId: paidCart.cartId } });
           await tx.cart.delete({ where: { id: paidCart.cartId } });
         }
+        if (sourceCart?.cartSessionId) {
+          await tx.cartSession.updateMany({
+            where: {
+              id: sourceCart.cartSessionId,
+              userId: attempt.userId,
+              status: CartStatus.ACTIVE,
+            },
+            data: { status: CartStatus.CHECKED_OUT },
+          });
+        }
         await tx.checkoutAttempt.update({
           where: { id: attemptId },
           data: {
             status: CheckoutAttemptStatus.PAID,
+            bookingId,
             orderIds,
             failureReason: null,
           },
         });
-        return { success: true, orderId: orderIds[0], orderIds, created: true };
+        return {
+          success: true,
+          bookingId,
+          paymentId: payment.id,
+          orderId: orderIds[0],
+          orderIds,
+          created: true,
+        };
       },
       { timeout: 30_000 },
     );
@@ -862,8 +1324,10 @@ export class PaymentsService {
         } catch (error) {
           console.error('[Payments] Order document generation failed', error);
         }
-        void this.notifications?.notifyBookingRequest(orderId);
       }
+      const firstOrderId = result.orderIds?.[0];
+      if (firstOrderId)
+        void this.notifications?.notifyBookingRequest(firstOrderId);
     }
     return result;
   }
@@ -1007,55 +1471,245 @@ export class PaymentsService {
     return { ...result, amount: result.amount.toFixed(2) };
   }
 
+  async recordManualBookingPayment(
+    adminId: string,
+    bookingId: string,
+    input: {
+      amount: number;
+      method: string;
+      receivedAt?: string;
+      reference?: string;
+      note?: string;
+    },
+  ) {
+    const requestedAmount = new Prisma.Decimal(input.amount);
+    const result = await this.prisma.$transaction(
+      async (tx) => {
+        await tx.$queryRaw`SELECT id FROM "bookings" WHERE id = ${bookingId} FOR UPDATE`;
+        const booking = await tx.booking.findUnique({
+          where: { id: bookingId },
+          include: {
+            orders: { orderBy: { createdAt: 'asc' } },
+            payments: {
+              include: { refunds: true, allocations: true },
+              orderBy: { createdAt: 'asc' },
+            },
+          },
+        });
+        if (!booking) throw new NotFoundException('Booking not found');
+        if (booking.status !== BookingStatus.CONFIRMED) {
+          throw new BadRequestException(
+            'Approve the booking before recording an offline payment',
+          );
+        }
+        const before = this.paymentLedgerSummary(
+          booking.totalAmount,
+          booking.payments,
+        );
+        if (requestedAmount.greaterThan(before.balanceDue)) {
+          throw new BadRequestException(
+            `Payment exceeds the remaining balance of ₹${before.balanceDue.toFixed(2)}`,
+          );
+        }
+        const paidByOrder = new Map<string, Prisma.Decimal>();
+        for (const payment of booking.payments) {
+          if (
+            payment.paymentStatus !== PaymentStatus.PAID &&
+            payment.paymentStatus !== PaymentStatus.REFUNDED
+          ) {
+            continue;
+          }
+          for (const allocation of payment.allocations) {
+            paidByOrder.set(
+              allocation.orderId,
+              (
+                paidByOrder.get(allocation.orderId) ?? new Prisma.Decimal(0)
+              ).plus(allocation.amount),
+            );
+          }
+        }
+        let remaining = requestedAmount;
+        const allocations: Array<{ orderId: string; amount: Prisma.Decimal }> =
+          [];
+        for (const order of booking.orders) {
+          if (!remaining.greaterThan(0)) break;
+          const orderBalance = Prisma.Decimal.max(
+            order.totalAmount.minus(
+              paidByOrder.get(order.id) ?? new Prisma.Decimal(0),
+            ),
+            new Prisma.Decimal(0),
+          );
+          const amount = Prisma.Decimal.min(orderBalance, remaining);
+          if (!amount.greaterThan(0)) continue;
+          allocations.push({ orderId: order.id, amount });
+          remaining = remaining.minus(amount);
+        }
+        const primaryOrder = allocations[0]?.orderId ?? booking.orders[0]?.id;
+        if (!primaryOrder)
+          throw new BadRequestException('Booking has no orders');
+        const payment = await tx.payment.create({
+          data: {
+            bookingId,
+            orderId: primaryOrder,
+            amount: requestedAmount,
+            paymentStatus: PaymentStatus.PAID,
+            source: PaymentSource.MANUAL,
+            paymentMethod: input.method,
+            externalReference: input.reference?.trim() || null,
+            notes: input.note?.trim() || null,
+            recordedByAdminId: adminId,
+            paidAt: input.receivedAt ? new Date(input.receivedAt) : new Date(),
+            gatewayResponse: { recordedInAdminPortal: true },
+            allocations: { create: allocations },
+          },
+        });
+        const nextPaid = before.amountPaid.plus(requestedAmount);
+        const paymentStatus = nextPaid.gte(booking.totalAmount)
+          ? PaymentStatus.PAID
+          : PaymentStatus.PARTIALLY_PAID;
+        await tx.booking.update({
+          where: { id: bookingId },
+          data: { paymentStatus },
+        });
+        for (const order of booking.orders) {
+          const allocatedNow =
+            allocations.find((entry) => entry.orderId === order.id)?.amount ??
+            new Prisma.Decimal(0);
+          const orderPaid = (
+            paidByOrder.get(order.id) ?? new Prisma.Decimal(0)
+          ).plus(allocatedNow);
+          await tx.order.update({
+            where: { id: order.id },
+            data: {
+              paymentStatus: orderPaid.gte(order.totalAmount)
+                ? PaymentStatus.PAID
+                : orderPaid.greaterThan(0)
+                  ? PaymentStatus.PARTIALLY_PAID
+                  : PaymentStatus.UNPAID,
+            },
+          });
+        }
+        return { payment, orderIds: booking.orders.map((order) => order.id) };
+      },
+      { timeout: 15_000 },
+    );
+    for (const orderId of result.orderIds) {
+      await this.operations.generateOrderDocuments(orderId);
+    }
+    return { ...result.payment, amount: result.payment.amount.toFixed(2) };
+  }
+
   async createRefund(adminId: string, paymentId: string, reason?: string) {
     this.assertPaymentModeAvailable();
-    const payment = await this.prisma.payment.findUnique({
-      where: { id: paymentId },
-      include: { refunds: true, order: true },
-    });
-    if (!payment) {
-      throw new BadRequestException('Refundable payment not found');
-    }
-    if (payment.order.orderStatus !== OrderStatus.DECLINED) {
-      throw new BadRequestException(
-        'Only payments for declined orders can be refunded',
+    const inspected = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "payments" WHERE id = ${paymentId} FOR UPDATE`;
+      const payment = await tx.payment.findUnique({
+        where: { id: paymentId },
+        include: { refunds: true, order: true, booking: true },
+      });
+      if (!payment)
+        throw new BadRequestException('Refundable payment not found');
+      if (
+        payment.booking?.status !== BookingStatus.DECLINED &&
+        payment.order.orderStatus !== OrderStatus.DECLINED
+      ) {
+        throw new BadRequestException(
+          'Only payments for declined orders can be refunded',
+        );
+      }
+      const existing = payment.refunds.find(
+        (refund) => refund.refundStatus !== RefundStatus.FAILED,
       );
+      if (existing) {
+        return { payment, existing, uncertain: undefined };
+      }
+      if (
+        payment.paymentStatus !== PaymentStatus.PAID ||
+        !payment.razorpayPaymentId
+      ) {
+        throw new BadRequestException('Refundable payment not found');
+      }
+      return {
+        payment,
+        existing,
+        uncertain: payment.refunds.find(
+          (refund) =>
+            refund.refundStatus === RefundStatus.FAILED &&
+            !refund.razorpayRefundId,
+        ),
+      };
+    });
+    if (inspected.existing) return this.serializeRefund(inspected.existing);
+    if (inspected.uncertain && this.isConfigured()) {
+      const gatewayRefunds = (await this.client().payments.fetchMultipleRefund(
+        inspected.payment.razorpayPaymentId!,
+      )) as unknown as {
+        items: Array<{ id: string; amount: number; status: string }>;
+      };
+      const recovered = gatewayRefunds.items.find(
+        (item) =>
+          Number(item.amount) === inspected.payment.amount.mul(100).toNumber(),
+      );
+      if (recovered) {
+        const updated = await this.prisma.refund.update({
+          where: { id: inspected.uncertain.id },
+          data: {
+            razorpayRefundId: recovered.id,
+            refundStatus:
+              recovered.status === 'processed'
+                ? RefundStatus.SUCCESS
+                : RefundStatus.PROCESSING,
+            processedAt:
+              recovered.status === 'processed' ? new Date() : undefined,
+            gatewayResponse: recovered,
+          },
+        });
+        if (updated.refundStatus === RefundStatus.SUCCESS)
+          await this.reconcileRefund(paymentId);
+        return this.serializeRefund(updated);
+      }
     }
-    const existing = payment.refunds.find(
-      (refund) => refund.refundStatus !== RefundStatus.FAILED,
-    );
-    if (existing) return this.serializeRefund(existing);
-    if (
-      payment.paymentStatus !== PaymentStatus.PAID ||
-      !payment.razorpayPaymentId
-    ) {
-      throw new BadRequestException('Refundable payment not found');
-    }
-    const amount = payment.amount;
-
-    const refund = await this.prisma.refund.create({
-      data: {
-        paymentId,
-        amount,
-        reason: reason?.trim(),
-        initiatedById: adminId,
-        refundStatus: this.isConfigured()
-          ? RefundStatus.PROCESSING
-          : RefundStatus.SUCCESS,
-        processedAt: this.isConfigured() ? undefined : new Date(),
-        razorpayRefundId: this.isConfigured()
-          ? undefined
-          : `local_refund_${Date.now()}`,
-        gatewayResponse: {
-          localMode: !this.isConfigured(),
-          audit: {
-            orderStatusAtInitiation: payment.order.orderStatus,
-            regionId: payment.order.regionId,
-            initiatedById: adminId,
+    const claimed = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "payments" WHERE id = ${paymentId} FOR UPDATE`;
+      const payment = await tx.payment.findUnique({
+        where: { id: paymentId },
+        include: { refunds: true, order: true, booking: true },
+      });
+      if (!payment)
+        throw new BadRequestException('Refundable payment not found');
+      const existing = payment.refunds.find(
+        (refund) => refund.refundStatus !== RefundStatus.FAILED,
+      );
+      if (existing) return { payment, refund: existing, existing: true };
+      const refund = await tx.refund.create({
+        data: {
+          paymentId,
+          amount: payment.amount,
+          reason: reason?.trim(),
+          initiatedById: adminId,
+          refundStatus: this.isConfigured()
+            ? RefundStatus.PROCESSING
+            : RefundStatus.SUCCESS,
+          processedAt: this.isConfigured() ? undefined : new Date(),
+          razorpayRefundId: this.isConfigured()
+            ? undefined
+            : `local_refund_${Date.now()}`,
+          gatewayResponse: {
+            localMode: !this.isConfigured(),
+            audit: {
+              orderStatusAtInitiation: payment.order.orderStatus,
+              bookingStatusAtInitiation: payment.booking?.status,
+              regionId: payment.booking?.regionId ?? payment.order.regionId,
+              initiatedById: adminId,
+            },
           },
         },
-      },
+      });
+      return { payment, refund, existing: false };
     });
+    if (claimed.existing) return this.serializeRefund(claimed.refund);
+    const { payment, refund } = claimed;
+    const amount = payment.amount;
 
     if (!this.isConfigured()) {
       await this.reconcileRefund(paymentId);
@@ -1063,8 +1717,8 @@ export class PaymentsService {
     }
 
     try {
-      const gateway = await this.client().payments.refund(
-        payment.razorpayPaymentId,
+      const gateway = (await this.client().payments.refund(
+        payment.razorpayPaymentId!,
         {
           amount: amount.mul(100).toNumber(),
           speed: 'normal',
@@ -1073,7 +1727,7 @@ export class PaymentsService {
             orderId: payment.orderId,
           },
         },
-      );
+      )) as unknown as { id: string; status: string };
       const updated = await this.prisma.refund.update({
         where: { id: refund.id },
         data: {
@@ -1087,7 +1741,8 @@ export class PaymentsService {
             gateway: gateway as unknown as Prisma.InputJsonValue,
             audit: {
               orderStatusAtInitiation: payment.order.orderStatus,
-              regionId: payment.order.regionId,
+              bookingStatusAtInitiation: payment.booking?.status,
+              regionId: payment.booking?.regionId ?? payment.order.regionId,
               initiatedById: adminId,
             },
           },
@@ -1107,6 +1762,57 @@ export class PaymentsService {
       });
       throw new BadGatewayException('Razorpay refund could not be initiated');
     }
+  }
+
+  async recordManualRefund(
+    adminId: string,
+    bookingId: string,
+    paymentId: string,
+    reason?: string,
+  ) {
+    const result = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "payments" WHERE id = ${paymentId} FOR UPDATE`;
+      const payment = await tx.payment.findFirst({
+        where: { id: paymentId, bookingId },
+        include: { refunds: true, booking: true, order: true },
+      });
+      if (!payment) throw new NotFoundException('Payment not found');
+      if (payment.booking?.status !== BookingStatus.DECLINED) {
+        throw new BadRequestException(
+          'Manual refunds can only be recorded for declined bookings',
+        );
+      }
+      if (payment.source !== PaymentSource.MANUAL) {
+        throw new BadRequestException(
+          'Online payments must be refunded through the payment provider',
+        );
+      }
+      const existing = payment.refunds.find(
+        (refund) => refund.refundStatus !== RefundStatus.FAILED,
+      );
+      if (existing) return { refund: existing, created: false };
+      if (payment.paymentStatus !== PaymentStatus.PAID) {
+        throw new BadRequestException('Refundable manual payment not found');
+      }
+      const refund = await tx.refund.create({
+        data: {
+          paymentId,
+          amount: payment.amount,
+          refundStatus: RefundStatus.SUCCESS,
+          razorpayRefundId: `manual_refund_${crypto.randomUUID()}`,
+          reason: reason?.trim() || 'Manual refund completed',
+          initiatedById: adminId,
+          processedAt: new Date(),
+          gatewayResponse: {
+            manualRefundRecordedInAdminPortal: true,
+            recordedByAdminId: adminId,
+          },
+        },
+      });
+      return { refund, created: true };
+    });
+    if (result.created) await this.reconcileRefund(paymentId);
+    return this.serializeRefund(result.refund);
   }
 
   private async processWebhook(
@@ -1189,6 +1895,10 @@ export class PaymentsService {
             },
           });
           if (failed.count === 0) continue;
+          if (payment.bookingId) {
+            await this.syncBookingPaymentState(tx, payment.bookingId);
+            continue;
+          }
           const ledger = await tx.payment.findMany({
             where: { orderId: payment.orderId },
             include: { refunds: true },
@@ -1275,10 +1985,23 @@ export class PaymentsService {
         where: { id: payment.orderId },
         data: { paymentStatus: summary.paymentStatus },
       });
+      if (payment.bookingId) {
+        await this.syncBookingPaymentState(tx, payment.bookingId);
+      }
       return true;
     });
     if (marked) {
-      await this.operations.generateOrderDocuments(payment.orderId);
+      if (payment.bookingId) {
+        const orders = await this.prisma.order.findMany({
+          where: { bookingId: payment.bookingId },
+          select: { id: true },
+        });
+        for (const order of orders) {
+          await this.operations.generateOrderDocuments(order.id);
+        }
+      } else {
+        await this.operations.generateOrderDocuments(payment.orderId);
+      }
     }
   }
 
@@ -1311,8 +2034,85 @@ export class PaymentsService {
         where: { id: payment.orderId },
         data: { paymentStatus: summary.paymentStatus },
       });
+      if (payment.bookingId) {
+        await this.syncBookingPaymentState(tx, payment.bookingId);
+      }
     });
-    await this.operations.generateOrderDocuments(payment.orderId);
+    if (payment.bookingId) {
+      const orders = await this.prisma.order.findMany({
+        where: { bookingId: payment.bookingId },
+        select: { id: true },
+      });
+      for (const order of orders) {
+        await this.operations.generateOrderDocuments(order.id);
+      }
+    } else {
+      await this.operations.generateOrderDocuments(payment.orderId);
+    }
+  }
+
+  private async syncBookingPaymentState(
+    tx: Prisma.TransactionClient,
+    bookingId: string,
+  ) {
+    const booking = await tx.booking.findUnique({
+      where: { id: bookingId },
+      include: {
+        orders: true,
+        payments: { include: { refunds: true, allocations: true } },
+      },
+    });
+    if (!booking) return;
+    const summary = this.paymentLedgerSummary(
+      booking.totalAmount,
+      booking.payments,
+    );
+    await tx.booking.update({
+      where: { id: bookingId },
+      data: { paymentStatus: summary.paymentStatus },
+    });
+    const paidByOrder = new Map<string, Prisma.Decimal>();
+    for (const payment of booking.payments) {
+      if (
+        payment.paymentStatus !== PaymentStatus.PAID &&
+        payment.paymentStatus !== PaymentStatus.REFUNDED
+      )
+        continue;
+      const refunded = payment.refunds
+        .filter((refund) => refund.refundStatus === RefundStatus.SUCCESS)
+        .reduce(
+          (sum, refund) => sum.plus(refund.amount),
+          new Prisma.Decimal(0),
+        );
+      const netRatio = payment.amount.greaterThan(0)
+        ? Prisma.Decimal.max(payment.amount.minus(refunded), 0).div(
+            payment.amount,
+          )
+        : new Prisma.Decimal(0);
+      for (const allocation of payment.allocations) {
+        paidByOrder.set(
+          allocation.orderId,
+          (paidByOrder.get(allocation.orderId) ?? new Prisma.Decimal(0)).plus(
+            allocation.amount.mul(netRatio),
+          ),
+        );
+      }
+    }
+    for (const order of booking.orders) {
+      const paid = paidByOrder.get(order.id) ?? new Prisma.Decimal(0);
+      await tx.order.update({
+        where: { id: order.id },
+        data: {
+          paymentStatus: paid.gte(order.totalAmount)
+            ? PaymentStatus.PAID
+            : paid.greaterThan(0)
+              ? PaymentStatus.PARTIALLY_PAID
+              : summary.paymentStatus === PaymentStatus.REFUNDED
+                ? PaymentStatus.REFUNDED
+                : PaymentStatus.UNPAID,
+        },
+      });
+    }
   }
 
   private async createRazorpayOrder(
@@ -1458,6 +2258,11 @@ export class PaymentsService {
     const left = Buffer.from(actual);
     const right = Buffer.from(expected);
     return left.length === right.length && crypto.timingSafeEqual(left, right);
+  }
+
+  private bookingNumber() {
+    const date = new Date().toISOString().slice(2, 10).replaceAll('-', '');
+    return `BKG-${date}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
   }
 
   private paymentAmountInSubunits(amount: Prisma.Decimal) {

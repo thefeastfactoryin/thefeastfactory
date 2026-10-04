@@ -15,7 +15,6 @@ test('customer order history excludes pending-payment attempts', async () => {
       },
     } as never,
     {} as never,
-    {} as never,
   );
 
   assert.deepEqual(await service.list('user-1'), []);

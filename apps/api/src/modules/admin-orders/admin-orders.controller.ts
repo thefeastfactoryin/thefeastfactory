@@ -18,6 +18,7 @@ import { AdminAuthGuard } from '../../common/guards/admin-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { AdminCancelOrderDto } from './dto/admin-cancel-order.dto';
 import { AdminOrdersQueryDto } from './dto/admin-orders-query.dto';
+import { AdminBookingsQueryDto } from './dto/admin-bookings-query.dto';
 import { CreateRefundDto } from './dto/create-refund.dto';
 import { DeclineOrderDto } from './dto/decline-order.dto';
 import { RecordManualPaymentDto } from './dto/record-manual-payment.dto';
@@ -35,6 +36,61 @@ export class AdminOrdersController {
     @Query() query: AdminOrdersQueryDto,
   ) {
     return this.service.list(admin, query);
+  }
+  @Get('bookings')
+  bookings(
+    @CurrentAdmin() admin: JwtPayload,
+    @Query() query: AdminBookingsQueryDto,
+  ) {
+    return this.service.listBookings(admin, query);
+  }
+  @Get('bookings/:id')
+  booking(@CurrentAdmin() admin: JwtPayload, @Param('id') id: string) {
+    return this.service.getBooking(admin, id);
+  }
+  @Post('bookings/:id/approve')
+  approveBooking(@CurrentAdmin() admin: JwtPayload, @Param('id') id: string) {
+    return this.service.approveBooking(admin, id);
+  }
+  @Post('bookings/:id/decline')
+  declineBooking(
+    @CurrentAdmin() admin: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: DeclineOrderDto,
+  ) {
+    return this.service.declineBooking(admin, id, dto);
+  }
+  @Post('bookings/:id/cancel')
+  cancelBooking(
+    @CurrentAdmin() admin: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: AdminCancelOrderDto,
+  ) {
+    return this.service.cancelBooking(admin, id, dto);
+  }
+  @Post('bookings/:id/payments/manual')
+  bookingManualPayment(
+    @CurrentAdmin() admin: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: RecordManualPaymentDto,
+  ) {
+    return this.service.recordManualBookingPayment(admin, id, dto);
+  }
+  @Post('bookings/:id/payments/:paymentId/manual-refund')
+  @UseGuards(AdminAuthGuard, RolesGuard)
+  @Roles(AdminRole.OPERATIONS)
+  bookingManualRefund(
+    @CurrentAdmin() admin: JwtPayload,
+    @Param('id') id: string,
+    @Param('paymentId') paymentId: string,
+    @Body() dto: CreateRefundDto,
+  ) {
+    return this.service.recordManualBookingRefund(
+      admin,
+      id,
+      paymentId,
+      dto,
+    );
   }
   @Get('orders/:id') get(
     @CurrentAdmin() admin: JwtPayload,

@@ -38,7 +38,6 @@ for (const packageType of [PackageType.FIXED_PACKAGE, PackageType.MEAL_BOX]) {
         },
       } as never,
       {} as never,
-      {} as never,
     );
     service.serializeOrder = (() => ({ selectedItems: [] })) as never;
 

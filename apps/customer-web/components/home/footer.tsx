@@ -17,7 +17,7 @@ const quickLinks = [
   { href: '/', label: 'Home' },
   { href: '/menu', label: 'Browse Menu' },
   { href: '/packages', label: 'Packages' },
-  { href: '/orders', label: 'My Orders' },
+  { href: '/bookings', label: 'My Bookings' },
 ];
 
 const services = [

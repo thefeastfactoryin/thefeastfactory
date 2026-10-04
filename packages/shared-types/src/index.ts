@@ -383,6 +383,14 @@ export type OrderStatus =
   | 'DELIVERED'
   | 'DECLINED'
   | 'CANCELLED';
+export type BookingStatus =
+  | 'PENDING_PAYMENT'
+  | 'AWAITING_APPROVAL'
+  | 'CONFIRMED'
+  | 'DECLINED'
+  | 'CANCELLED'
+  | 'COMPLETED'
+  | 'NEEDS_REVIEW';
 
 export type RefundSummary = {
   id: string;
@@ -413,6 +421,7 @@ export type PaymentSummary = {
 
 export type OrderSummary = {
   id: string;
+  bookingId?: string | null;
   orderNumber: string;
   orderStatus: OrderStatus;
   paymentStatus: PaymentStatus;
@@ -500,7 +509,61 @@ export type GatewayOrder = {
   currency: string;
   localMode: boolean;
   reused: boolean;
+  bookingId?: string;
 };
+
+export type BookingStatusEntry = {
+  id: string;
+  fromStatus?: BookingStatus | null;
+  toStatus: BookingStatus;
+  notes?: string | null;
+  changedAt: string;
+};
+
+export type BookingSummary = {
+  id: string;
+  bookingNumber: string;
+  status: BookingStatus;
+  paymentStatus: PaymentStatus;
+  paymentPlan: PaymentPlan;
+  eventName?: string | null;
+  eventDate: string;
+  eventTimeStart?: string | null;
+  contactNumber: string;
+  regionId?: string | null;
+  region?: OperatingRegion | null;
+  distanceKm?: string | null;
+  deliveryFee: string;
+  deliveryServiceType: DeliveryServiceType;
+  helperCount: number;
+  itemsSubtotal: string;
+  cutleryTotal: string;
+  totalAmount: string;
+  amountPaid: string;
+  balanceDue: string;
+  refundedAmount: string;
+  declineReason?: string | null;
+  specialNotes?: string | null;
+  migrationNeedsReview?: boolean;
+  createdAt: string;
+  user?: UserProfile;
+  addressSnapshot: {
+    label?: string | null;
+    addressLine1: string;
+    addressLine2?: string | null;
+    city: string;
+    state: string;
+    pincode: string;
+    landmark?: string | null;
+    latitude?: string | null;
+    longitude?: string | null;
+  };
+  orders: OrderSummary[];
+  payments?: PaymentSummary[];
+  statusHistory?: BookingStatusEntry[];
+};
+
+export type BookingDetails = BookingSummary;
 
 export type AdminPayment = Omit<PaymentSummary, 'refunds'> & {
   refunds: RefundSummary[];

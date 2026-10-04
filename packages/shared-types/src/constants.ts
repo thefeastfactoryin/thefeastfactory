@@ -30,7 +30,7 @@ export const customerNavigation = [
   { href: '/', label: 'Home' },
   { href: '/menu', label: 'Menu' },
   { href: '/packages', label: 'Packages' },
-  { href: '/orders', label: 'Orders' },
+  { href: '/bookings', label: 'Bookings' },
 ] as const;
 
 export const footerNavigation = [

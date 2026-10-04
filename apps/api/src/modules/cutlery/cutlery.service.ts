@@ -64,7 +64,7 @@ export class CutleryService {
   ) {
     const cart = await this.prisma.cart.findFirst({
       where: { id: cartId, userId, status: CartStatus.ACTIVE },
-      select: { id: true },
+      select: { id: true, cartSessionId: true },
     });
     if (!cart) throw new NotFoundException('Active cart not found');
     const unique = new Map<string, number>();
@@ -89,21 +89,36 @@ export class CutleryService {
         'One or more cutlery items are unavailable',
       );
     await this.prisma.$transaction(async (tx) => {
-      await tx.cartCutleryItem.deleteMany({ where: { cartId } });
+      const sessionCarts = cart.cartSessionId
+        ? await tx.cart.findMany({
+            where: {
+              cartSessionId: cart.cartSessionId,
+              userId,
+              status: CartStatus.ACTIVE,
+            },
+            select: { id: true },
+          })
+        : [{ id: cartId }];
+      const cartIds = sessionCarts.map((row) => row.id);
+      await tx.cartCutleryItem.deleteMany({
+        where: { cartId: { in: cartIds } },
+      });
       const selected = [...unique.entries()].filter(
         ([, quantity]) => quantity > 0,
       );
       if (selected.length) {
         await tx.cartCutleryItem.createMany({
-          data: selected.map(([cutleryItemId, quantity]) => ({
-            cartId,
-            cutleryItemId,
-            quantity,
-          })),
+          data: cartIds.flatMap((targetCartId) =>
+            selected.map(([cutleryItemId, quantity]) => ({
+              cartId: targetCartId,
+              cutleryItemId,
+              quantity,
+            })),
+          ),
         });
       }
-      await tx.cart.update({
-        where: { id: cartId },
+      await tx.cart.updateMany({
+        where: { id: { in: cartIds } },
         data: {
           cutleryExtraCount: selected.reduce(
             (sum, [, quantity]) => sum + quantity,

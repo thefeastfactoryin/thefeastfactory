@@ -12,6 +12,13 @@ const kitchenLeadTimeMigrationPath = new URL(
   import.meta.url,
 );
 
+const bookingAggregateMigrationPath = new URL(
+  '../prisma/migrations/20261003120000_booking_aggregate/migration.sql',
+  import.meta.url,
+);
+
+const prismaSchemaPath = new URL('../prisma/schema.prisma', import.meta.url);
+
 test('event collapse copies cart/order data and guards required fields before dropping source data', async () => {
   const sql = await readFile(migrationPath, 'utf8');
   const cartCopy = sql.indexOf('UPDATE "carts"');
@@ -36,4 +43,24 @@ test('kitchen lead-time migration backfills regions before removing the global s
   assert.ok(backfill > addColumn);
   assert.ok(removeGlobal > backfill);
   assert.match(sql, /CHECK \("min_booking_lead_hours" >= 0\)/);
+});
+
+test('booking payment allocations use payment ownership without a duplicate booking column', async () => {
+  const [sql, schema] = await Promise.all([
+    readFile(bookingAggregateMigrationPath, 'utf8'),
+    readFile(prismaSchemaPath, 'utf8'),
+  ]);
+  const allocationTable = sql.match(
+    /CREATE TABLE "payment_allocations" \([\s\S]*?\n\);/,
+  )?.[0];
+  const allocationModel = schema.match(
+    /model PaymentAllocation \{[\s\S]*?\n\}/,
+  )?.[0];
+
+  assert.ok(allocationTable);
+  assert.ok(allocationModel);
+  assert.doesNotMatch(allocationTable, /"booking_id"/);
+  assert.doesNotMatch(allocationModel, /bookingId|booking\s+Booking/);
+  assert.match(allocationModel, /paymentId String/);
+  assert.match(allocationModel, /orderId\s+String/);
 });

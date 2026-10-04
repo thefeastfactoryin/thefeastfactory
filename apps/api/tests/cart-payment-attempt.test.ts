@@ -10,6 +10,7 @@ import {
 } from '@prisma/client';
 import type { CheckoutSnapshot } from '../src/modules/cart/checkout-snapshot';
 import { CartService } from '../src/modules/cart/cart.service';
+import { cartFingerprint } from '../src/modules/cart/checkout-snapshot';
 import { PaymentsService } from '../src/modules/payments/payments.service';
 
 const snapshot: CheckoutSnapshot = {
@@ -92,8 +93,7 @@ test('payment snapshot preserves fixed-package menu before any order exists', as
   };
   const carts = new CartService(
     prisma as never,
-    {} as never,
-    {} as never,
+    { generateOrderDocuments: async () => undefined } as never,
     {} as never,
   );
   carts.quoteAll = async () =>
@@ -158,9 +158,7 @@ test('payment snapshot preserves booking cutlery on its selected cart', async ()
     specialNotes: null,
     items: [],
     cutleryItems:
-      id === 'cart-2'
-        ? [{ cutleryItemId: 'serving-spoon', quantity: 5 }]
-        : [],
+      id === 'cart-2' ? [{ cutleryItemId: 'serving-spoon', quantity: 5 }] : [],
   }));
   const quoteFor = (cartId: string) => ({
     region: { id: 'region-1' },
@@ -202,7 +200,6 @@ test('payment snapshot preserves booking cutlery on its selected cart', async ()
     } as never,
     {} as never,
     {} as never,
-    {} as never,
   );
   service.quoteAll = async () =>
     ({
@@ -227,6 +224,8 @@ test('50% cart payment keeps carts active and creates a partially paid booking a
   let attempt: Record<string, unknown> | undefined;
   let attempts = 0;
   const createdOrders: Array<Record<string, unknown>> = [];
+  let createdBooking: Record<string, unknown> | undefined;
+  let createdPayment: Record<string, unknown> | undefined;
   const prisma = {
     platformSetting: { findUnique: async () => null },
     checkoutAttempt: {
@@ -244,7 +243,35 @@ test('50% cart payment keeps carts active and creates a partially paid booking a
             attempts += data.paymentTryCount.increment;
             return { count: 1 };
           },
-          findUnique: async () => null,
+          findUnique: async () => ({ cartSessionId: 'session-1' }),
+        },
+        cartSession: { updateMany: async () => ({ count: 1 }) },
+        cartItem: { deleteMany: async () => ({ count: 0 }) },
+        userAddress: {
+          findFirst: async () => ({
+            id: 'address-1',
+            addressType: 'EVENT_VENUE',
+            label: 'Venue',
+            addressLine1: '12 Celebration Road',
+            addressLine2: null,
+            city: 'Hyderabad',
+            state: 'Telangana',
+            pincode: '500001',
+            landmark: null,
+            latitude: new Prisma.Decimal('17.3850'),
+            longitude: new Prisma.Decimal('78.4867'),
+          }),
+        },
+        booking: {
+          create: async ({ data }: { data: Record<string, unknown> }) => {
+            createdBooking = data;
+          },
+        },
+        payment: {
+          create: async ({ data }: { data: Record<string, unknown> }) => {
+            createdPayment = data;
+            return { id: 'payment-1', ...data };
+          },
         },
         checkoutAttempt: {
           create: async ({ data }: { data: Record<string, unknown> }) => {
@@ -300,14 +327,9 @@ test('50% cart payment keeps carts active and creates a partially paid booking a
   assert.equal(createdOrders[0].orderStatus, OrderStatus.AWAITING_APPROVAL);
   assert.equal(createdOrders[0].paymentStatus, PaymentStatus.PARTIALLY_PAID);
   assert.equal(createdOrders[0].paymentPlan, PaymentPlan.HALF);
-  assert.equal(
-    (
-      createdOrders[0].payments as {
-        create: { amount: Prisma.Decimal };
-      }
-    ).create.amount.toFixed(2),
-    '749.50',
-  );
+  assert.equal((createdPayment?.amount as Prisma.Decimal).toFixed(2), '749.50');
+  assert.equal(createdBooking?.paymentStatus, PaymentStatus.PARTIALLY_PAID);
+  assert.equal(createdOrders[0].bookingId, createdBooking?.id);
   assert.equal(createdOrders[0].packageImageUrl, '/pkg-lunch.png');
   assert.equal(attempt?.status, CheckoutAttemptStatus.PAID);
 
@@ -364,53 +386,132 @@ test('failed gateway callbacks update the attempt without creating an order', as
 });
 
 test('pay later creates an unpaid booking awaiting kitchen approval', async () => {
-  let orderUpdate: Record<string, unknown> | undefined;
-  let historyRows: Array<Record<string, unknown>> = [];
+  const currentCart = {
+    id: 'cart-1',
+    userId: 'user-1',
+    packageVersionId: 'version-1',
+    addressId: 'address-1',
+    regionId: 'region-1',
+    eventName: null,
+    eventDate: new Date('2026-10-20T00:00:00.000Z'),
+    eventTimeStart: new Date('1970-01-01T11:30:00.000Z'),
+    guestCount: 10,
+    deliveryServiceType: 'STANDARD',
+    helperCount: 0,
+    cutleryExtraCount: 0,
+    contactNumber: '9876543210',
+    specialNotes: null,
+    items: [],
+    cutleryItems: [],
+    status: 'ACTIVE',
+  };
+  const payLaterSnapshot = {
+    ...snapshot,
+    carts: [
+      {
+        ...snapshot.carts[0],
+        cutleryItems: [],
+        cartFingerprint: cartFingerprint(currentCart as never),
+      },
+    ],
+  };
+  let createdBooking: Record<string, unknown> | undefined;
+  const createdOrders: Array<Record<string, unknown>> = [];
   const notified: string[] = [];
   const payments = new PaymentsService(
     {
+      checkoutAttempt: { findMany: async () => [] },
       $transaction: async (callback: (tx: object) => Promise<void>) =>
         callback({
-          order: {
-            updateMany: async ({ data }: { data: Record<string, unknown> }) => {
-              orderUpdate = data;
-              return { count: 1 };
+          $queryRaw: async () => [],
+          userAddress: {
+            findFirst: async () => ({
+              id: 'address-1',
+              addressType: 'EVENT_VENUE',
+              label: 'Venue',
+              addressLine1: '12 Celebration Road',
+              addressLine2: null,
+              city: 'Hyderabad',
+              state: 'Telangana',
+              pincode: '500001',
+              landmark: null,
+              latitude: new Prisma.Decimal('17.3850'),
+              longitude: new Prisma.Decimal('78.4867'),
+            }),
+          },
+          booking: {
+            create: async ({ data }: { data: Record<string, unknown> }) => {
+              createdBooking = data;
             },
           },
-          orderStatusHistory: {
-            createMany: async ({
-              data,
-            }: {
-              data: Array<Record<string, unknown>>;
-            }) => {
-              historyRows = data;
+          cart: {
+            findFirst: async () => currentCart,
+            findUnique: async () => ({ cartSessionId: 'session-1' }),
+            deleteMany: async () => ({ count: 1 }),
+          },
+          cartItem: { deleteMany: async () => ({ count: 0 }) },
+          cartSession: { update: async () => undefined },
+          order: {
+            create: async ({ data }: { data: Record<string, unknown> }) => {
+              createdOrders.push(data);
+              return { id: 'order-pay-later' };
             },
           },
         }),
     } as never,
     { get: () => undefined } as never,
-    {} as never,
+    { generateOrderDocuments: async () => undefined } as never,
     {
       notifyBookingRequest: async (orderId: string) => {
         notified.push(orderId);
       },
     } as never,
     {
-      checkoutAll: async () => [{ id: 'order-pay-later' }],
+      preparePayment: async () => payLaterSnapshot,
     } as never,
   );
 
   const result = await payments.createPayLaterBooking('user-1');
   assert.equal(result.orderId, 'order-pay-later');
+  assert.equal(result.bookingId, createdBooking?.id);
   assert.equal(result.paymentPlan, PaymentPlan.PAY_LATER);
-  assert.deepEqual(orderUpdate, {
-    orderStatus: OrderStatus.AWAITING_APPROVAL,
-    paymentStatus: PaymentStatus.UNPAID,
-    paymentPlan: PaymentPlan.PAY_LATER,
-  });
-  assert.equal(historyRows[0].toStatus, OrderStatus.AWAITING_APPROVAL);
+  assert.equal(createdBooking?.paymentStatus, PaymentStatus.UNPAID);
+  assert.equal(createdBooking?.paymentPlan, PaymentPlan.PAY_LATER);
+  assert.equal(createdOrders[0].orderStatus, OrderStatus.AWAITING_APPROVAL);
+  assert.equal(createdOrders[0].bookingId, createdBooking?.id);
   await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(notified, ['order-pay-later']);
+});
+
+test('pay later is blocked while a captured cart payment needs review', async () => {
+  let transactionStarted = false;
+  const payments = new PaymentsService(
+    {
+      checkoutAttempt: {
+        findMany: async () => [
+          {
+            id: 'attempt-1',
+            status: CheckoutAttemptStatus.NEEDS_REVIEW,
+            snapshot,
+            razorpayPaymentId: 'gateway-payment-1',
+          },
+        ],
+      },
+      $transaction: async () => {
+        transactionStarted = true;
+      },
+    } as never,
+    { get: () => undefined } as never,
+    {} as never,
+    undefined,
+    { preparePayment: async () => snapshot } as never,
+  );
+
+  await assert.rejects(
+    payments.createPayLaterBooking('user-1'),
+    /Payment captured; order confirmation is pending/,
+  );
+  assert.equal(transactionStarted, false);
 });
 
 test('50% checkout is calculated once from the final batch total', () => {

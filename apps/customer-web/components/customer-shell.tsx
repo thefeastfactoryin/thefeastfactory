@@ -331,7 +331,7 @@ export function CustomerShell({
                 {[
                   { href: '/profile', label: 'My Profile', icon: User },
                   {
-                    href: '/orders',
+                    href: '/bookings',
                     label: 'My Orders',
                     icon: ClipboardList,
                   },
@@ -499,7 +499,7 @@ export function CustomerShell({
                 ? [
                     { href: '/profile', label: 'My Profile', icon: User },
                     {
-                      href: '/orders',
+                      href: '/bookings',
                       label: 'My Orders',
                       icon: ClipboardList,
                     },

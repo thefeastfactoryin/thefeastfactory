@@ -27,7 +27,7 @@ const navigationGroups = [
     label: 'Operations',
     links: [
       [adminCopy.navigation.dashboard, '/admin/dashboard', BarChart3],
-      [adminCopy.navigation.orders, '/admin/orders', ClipboardList],
+      ['Bookings', '/admin/bookings', ClipboardList],
       [adminCopy.navigation.payments, '/admin/payments', CreditCard],
     ],
   },

@@ -23,7 +23,6 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '../../../components/ui/button';
-import { RetryPaymentButton } from '../../../components/retry-payment-button';
 import {
   AuthRequiredPanel,
   StatePanel,
@@ -95,7 +94,7 @@ export default function OrderPage() {
           tone="danger"
           title="Order could not load"
           description={error}
-          actionHref="/orders"
+          actionHref="/bookings"
           actionLabel="Back to orders"
         />
       </main>
@@ -122,7 +121,7 @@ export default function OrderPage() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_28%,hsl(var(--accent)/0.18),transparent_28%),linear-gradient(100deg,hsl(var(--hero-end)),hsl(var(--primary)))]" />
         <div className="container-pad relative py-7 sm:py-9">
           <Link
-            href="/orders"
+            href="/bookings"
             className="inline-flex min-h-10 items-center gap-2 text-sm font-bold text-white/80 hover:text-white"
           >
             <ArrowLeft className="h-4 w-4" /> All orders
@@ -310,8 +309,6 @@ export default function OrderPage() {
               </div>
             </section>
 
-            <OrderPaymentCard order={order} />
-
             {order.event && (
               <section className="rounded-2xl border border-border bg-white p-5 shadow-card">
                 <div className="flex items-center gap-3">
@@ -484,122 +481,5 @@ function PriceLine({ label, value }: { label: string; value: string }) {
       <span className="text-muted-foreground">{label}</span>
       <span className="money-text font-bold">{value}</span>
     </div>
-  );
-}
-
-function OrderPaymentCard({ order }: { order: OrderDetails }) {
-  const balance = Number(order.balanceDue);
-  const [mode, setMode] = useState<'FULL' | 'PARTIAL'>('FULL');
-  const [partialAmount, setPartialAmount] = useState('');
-  const [error, setError] = useState('');
-  const unavailable =
-    order.orderStatus === 'DECLINED' || order.orderStatus === 'CANCELLED';
-  if (unavailable || balance <= 0) return null;
-
-  const amount = mode === 'FULL' ? balance : Number(partialAmount);
-  const amountIsValid =
-    Number.isFinite(amount) && amount >= 1 && amount <= balance;
-  const awaitingApproval = order.orderStatus === 'AWAITING_APPROVAL';
-
-  return (
-    <section className="rounded-2xl border border-primary/20 bg-primary/[0.04] p-5 shadow-card">
-      <p className="eyebrow text-primary">Payment</p>
-      <h2 className="mt-1 font-sans text-xl font-semibold">
-        Pay toward this order
-      </h2>
-      <p className="mt-2 text-sm leading-6 text-muted-foreground">
-        Balance due: <strong>{formatCurrency(order.balanceDue)}</strong>.
-        {awaitingApproval
-          ? ' You may pay before kitchen confirmation. If the kitchen declines the booking, captured online payments will be refunded.'
-          : ' You can pay the full balance or choose a smaller amount.'}
-      </p>
-
-      <div
-        className="mt-4 grid grid-cols-2 gap-2"
-        role="group"
-        aria-label="Payment amount type"
-      >
-        <button
-          type="button"
-          aria-pressed={mode === 'FULL'}
-          className={cn(
-            'min-h-11 rounded-xl border px-3 text-sm font-bold',
-            mode === 'FULL'
-              ? 'border-primary bg-primary text-white'
-              : 'border-border bg-white text-foreground',
-          )}
-          onClick={() => {
-            setMode('FULL');
-            setError('');
-          }}
-        >
-          Full balance
-        </button>
-        <button
-          type="button"
-          aria-pressed={mode === 'PARTIAL'}
-          className={cn(
-            'min-h-11 rounded-xl border px-3 text-sm font-bold',
-            mode === 'PARTIAL'
-              ? 'border-primary bg-primary text-white'
-              : 'border-border bg-white text-foreground',
-          )}
-          onClick={() => {
-            setMode('PARTIAL');
-            setPartialAmount('');
-            setError('');
-          }}
-        >
-          Partial amount
-        </button>
-      </div>
-
-      {mode === 'PARTIAL' && (
-        <label className="mt-4 block">
-          <span className="text-sm font-bold">Amount to pay</span>
-          <span className="relative mt-1.5 flex items-center rounded-xl border border-border bg-white focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15">
-            <span className="pl-3 font-bold text-muted-foreground">₹</span>
-            <input
-              type="number"
-              inputMode="decimal"
-              min="1"
-              max={balance}
-              step="0.01"
-              value={partialAmount}
-              onChange={(event) => {
-                setPartialAmount(event.target.value);
-                setError('');
-              }}
-              className="h-11 min-w-0 flex-1 bg-transparent px-2 outline-none"
-              placeholder="Enter amount"
-            />
-          </span>
-          {!amountIsValid && partialAmount && (
-            <span className="mt-1.5 block text-xs font-semibold text-red-700">
-              Enter an amount from ₹1 to {formatCurrency(order.balanceDue)}.
-            </span>
-          )}
-        </label>
-      )}
-
-      {error && (
-        <p role="alert" className="mt-3 text-sm font-semibold text-red-700">
-          {error}
-        </p>
-      )}
-      <RetryPaymentButton
-        order={order}
-        amount={amountIsValid ? amount : undefined}
-        disabled={!amountIsValid}
-        label={
-          amountIsValid
-            ? `Pay ${formatCurrency(amount)} securely`
-            : 'Enter a valid amount'
-        }
-        className="mt-4 w-full"
-        onStart={() => setError('')}
-        onFailure={setError}
-      />
-    </section>
   );
 }

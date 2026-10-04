@@ -38,12 +38,7 @@ test('adding the same package twice creates independent cart records', async () 
       }),
     },
   };
-  const service = new CartService(
-    prisma as never,
-    {} as never,
-    {} as never,
-    {} as never,
-  );
+  const service = new CartService(prisma as never, {} as never, {} as never);
 
   const first = await service.create('user-1', {
     packageVersionId: 'version-1',
@@ -167,7 +162,6 @@ test('selecting an address updates an incomplete cart immediately', async () => 
   const service = new CartService(
     prisma as never,
     {} as never,
-    {} as never,
     regions as never,
   );
 
@@ -235,7 +229,6 @@ test('cart quote combines menu subtotal and delivery fee', async () => {
   const service = new CartService(
     prisma as never,
     pricing as never,
-    {} as never,
     regions as never,
   );
 
@@ -308,7 +301,6 @@ test('cart quote includes additional cutlery sets in final total', async () => {
   const service = new CartService(
     prisma as never,
     pricing as never,
-    {} as never,
     regions as never,
   );
 
@@ -326,12 +318,7 @@ test('multi-package quote charges the highest delivery fee only once', async () 
   const prisma = {
     cart: { findMany: async () => carts },
   };
-  const service = new CartService(
-    prisma as never,
-    {} as never,
-    {} as never,
-    {} as never,
-  );
+  const service = new CartService(prisma as never, {} as never, {} as never);
   service.quote = async (_userId, cartId) =>
     ({
       subtotalAmount: cartId === 'cart-1' ? '1000.00' : '1500.00',
@@ -367,12 +354,7 @@ test('removing an active package cart leaves other deliveries unchanged', async 
         },
       }),
   };
-  const service = new CartService(
-    prisma as never,
-    {} as never,
-    {} as never,
-    {} as never,
-  );
+  const service = new CartService(prisma as never, {} as never, {} as never);
 
   assert.deepEqual(await service.removeActive('user-1', 'cart-1'), {
     success: true,
@@ -424,12 +406,7 @@ test('package quantities update independently within package limits', async () =
       },
     },
   };
-  const service = new CartService(
-    prisma as never,
-    {} as never,
-    {} as never,
-    {} as never,
-  );
+  const service = new CartService(prisma as never, {} as never, {} as never);
 
   const updated = await service.updateQuantity('user-1', 'cart-1', 15);
   assert.equal(savedCount, 15);
@@ -456,12 +433,7 @@ test('item replacement targets the requested customer cart', async () => {
       throw transactionFailure;
     },
   };
-  const service = new CartService(
-    prisma as never,
-    {} as never,
-    {} as never,
-    {} as never,
-  );
+  const service = new CartService(prisma as never, {} as never, {} as never);
 
   await assert.rejects(
     service.replaceItems('user-1', 'cart-2', { items: [] }),
@@ -471,193 +443,6 @@ test('item replacement targets the requested customer cart', async () => {
   assert.equal(lookupWhere?.userId, 'user-1');
   assert.equal(lookupWhere?.status, 'ACTIVE');
   assert.equal(lookupWhere?.OR, undefined);
-});
-
-test('batch checkout validates every cart before creating any order', async () => {
-  let createdOrders = 0;
-  const carts = ['cart-1', 'cart-2'].map((id) => ({
-    id,
-    userId: 'user-1',
-    addressId: 'address-1',
-    regionId: 'region-1',
-    eventDate: new Date('2026-08-10T00:00:00.000Z'),
-    eventTimeStart: new Date('1970-01-01T18:00:00.000Z'),
-    guestCount: 20,
-    contactNumber: '9876543210',
-    cutleryExtraCount: id === 'cart-1' ? 2 : 4,
-    items: [],
-  }));
-  const prisma = {
-    cart: {
-      findMany: async () => carts,
-      findFirst: async ({ where }: { where: { id: string } }) => ({
-        ...carts.find((cart) => cart.id === where.id),
-        packageVersionId: `version-${where.id}`,
-        packageVersion: { minGuestCount: 20 },
-        region: null,
-        distanceKm: null,
-        deliveryFee: new Prisma.Decimal(0),
-      }),
-      update: async () => ({}),
-    },
-  };
-  const pricing = {
-    quote: async (versionId: string) => {
-      if (versionId.endsWith('cart-2')) throw new Error('stale menu');
-      return { totalAmount: new Prisma.Decimal(100) };
-    },
-    serialize: () => ({ totalAmount: '100.00' }),
-  };
-  const orders = {
-    create: async () => {
-      createdOrders += 1;
-      return {};
-    },
-  };
-  const service = new CartService(
-    prisma as never,
-    pricing as never,
-    orders as never,
-    {} as never,
-  );
-
-  await assert.rejects(service.checkoutAll('user-1'), /stale menu/);
-  assert.equal(createdOrders, 0);
-});
-
-test('batch checkout applies one trimmed kitchen instruction to every cart', async () => {
-  const carts = ['cart-1', 'cart-2'].map((id) => ({
-    id,
-    userId: 'user-1',
-    addressId: 'address-1',
-    regionId: 'region-1',
-    eventDate: new Date('2026-08-10T00:00:00.000Z'),
-    eventTimeStart: new Date('1970-01-01T18:00:00.000Z'),
-    guestCount: 20,
-    contactNumber: '9876543210',
-    cutleryExtraCount: id === 'cart-1' ? 2 : 4,
-    items: [],
-  }));
-  let savedUpdate:
-    | {
-        where: Record<string, unknown>;
-        data: { specialNotes: string | null };
-      }
-    | undefined;
-  const checkedOutCarts: Array<{
-    cartId: string;
-    deliveryFee: string | undefined;
-    cutleryExtraCount: number | undefined;
-  }> = [];
-  const prisma = {
-    cart: {
-      findMany: async () => carts,
-      updateMany: async (update: typeof savedUpdate) => {
-        savedUpdate = update;
-        return { count: carts.length };
-      },
-    },
-  };
-  const service = new CartService(
-    prisma as never,
-    {} as never,
-    {} as never,
-    {} as never,
-  );
-  service.quote = async (_userId, cartId) =>
-    ({
-      valid: true,
-      deliveryFee: cartId === 'cart-1' ? '220.00' : '200.00',
-      cutleryTotal: cartId === 'cart-1' ? '10.00' : '20.00',
-    }) as never;
-  service.checkout = async (
-    _userId,
-    cartId,
-    _batchId,
-    deliveryFee,
-    cutleryExtraCount,
-  ) => {
-    checkedOutCarts.push({
-      cartId,
-      deliveryFee: deliveryFee?.toFixed(2),
-      cutleryExtraCount,
-    });
-    return { id: `order-${cartId}` } as never;
-  };
-
-  await service.checkoutAll('user-1', '  Keep the food mildly spiced.  ');
-
-  assert.deepEqual(savedUpdate, {
-    where: {
-      id: { in: ['cart-1', 'cart-2'] },
-      userId: 'user-1',
-      status: 'ACTIVE',
-    },
-    data: { specialNotes: 'Keep the food mildly spiced.' },
-  });
-  assert.deepEqual(checkedOutCarts, [
-    { cartId: 'cart-1', deliveryFee: '220.00', cutleryExtraCount: 0 },
-    {
-      cartId: 'cart-2',
-      deliveryFee: '0.00',
-      cutleryExtraCount: undefined,
-    },
-  ]);
-});
-
-test('five-package checkout assigns booking cutlery to the cart that selected it', async () => {
-  const carts = Array.from({ length: 5 }, (_, index) => ({
-    id: `cart-${index + 1}`,
-    userId: 'user-1',
-    addressId: 'address-1',
-    regionId: 'region-1',
-    eventDate: new Date('2026-08-10T00:00:00.000Z'),
-    eventTimeStart: new Date('1970-01-01T18:00:00.000Z'),
-    guestCount: 20,
-    contactNumber: '9876543210',
-    cutleryExtraCount: index === 4 ? 5 : 0,
-    items: [],
-  }));
-  const allocations: Array<{
-    cartId: string;
-    cutleryExtraCount: number | undefined;
-  }> = [];
-  const service = new CartService(
-    {
-      cart: {
-        findMany: async () => carts,
-      },
-    } as never,
-    {} as never,
-    {} as never,
-    {} as never,
-  );
-  service.quote = async (_userId, cartId) =>
-    ({
-      valid: true,
-      deliveryFee: '0.00',
-      cutleryTotal: cartId === 'cart-5' ? '100.00' : '0.00',
-    }) as never;
-  service.checkout = async (
-    _userId,
-    cartId,
-    _batchId,
-    _deliveryFee,
-    cutleryExtraCount,
-  ) => {
-    allocations.push({ cartId, cutleryExtraCount });
-    return { id: `order-${cartId}` } as never;
-  };
-
-  await service.checkoutAll('user-1');
-
-  assert.deepEqual(allocations, [
-    { cartId: 'cart-1', cutleryExtraCount: 0 },
-    { cartId: 'cart-2', cutleryExtraCount: 0 },
-    { cartId: 'cart-3', cutleryExtraCount: 0 },
-    { cartId: 'cart-4', cutleryExtraCount: 0 },
-    { cartId: 'cart-5', cutleryExtraCount: undefined },
-  ]);
 });
 
 test('active cart queries keep saved carts regardless of old expiry timestamps', async () => {
@@ -670,12 +455,7 @@ test('active cart queries keep saved carts regardless of old expiry timestamps',
       },
     },
   };
-  const service = new CartService(
-    prisma as never,
-    {} as never,
-    {} as never,
-    {} as never,
-  );
+  const service = new CartService(prisma as never, {} as never, {} as never);
 
   assert.deepEqual(await service.getAllActive('user-1'), []);
   assert.equal(lookupWhere?.status, 'ACTIVE');
@@ -717,12 +497,7 @@ test('only abandoned or expired carts older than 30 days are hard-deleted', asyn
       callback: (tx: typeof transactionClient) => Promise<{ count: number }>,
     ) => callback(transactionClient),
   };
-  const service = new CartService(
-    prisma as never,
-    {} as never,
-    {} as never,
-    {} as never,
-  );
+  const service = new CartService(prisma as never, {} as never, {} as never);
 
   assert.equal(await service.purgeExpiredCarts(), 1);
   assert.deepEqual(deletedItemCartIds, ['expired-cart-1']);

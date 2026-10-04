@@ -1,6 +1,6 @@
 'use client';
 
-import type { OrderSummary } from '@aranyam/shared-types';
+import type { BookingSummary, OrderSummary } from '@aranyam/shared-types';
 import { CheckCircle, Clock3, XCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -17,34 +17,43 @@ export default function PaymentStatusPage() {
   const router = useRouter();
   const session = useSessionStore((state) => state.session);
   const [orderId, setOrderId] = useState('');
-  const [order, setOrder] = useState<OrderSummary>();
+  const [bookingId, setBookingId] = useState('');
+  const [record, setRecord] = useState<OrderSummary | BookingSummary>();
   const [loadError, setLoadError] = useState('');
   const [confirmationDelayed, setConfirmationDelayed] = useState(false);
   useEffect(() => {
     const nextOrderId =
       new URLSearchParams(window.location.search).get('orderId') ?? '';
+    const nextBookingId =
+      new URLSearchParams(window.location.search).get('bookingId') ?? '';
     setOrderId(nextOrderId);
-    if (!nextOrderId) setLoadError('This payment link is missing an order ID.');
+    setBookingId(nextBookingId);
+    if (!nextOrderId && !nextBookingId)
+      setLoadError('This payment link is missing a booking ID.');
   }, []);
   useEffect(() => {
-    if (!session || !orderId) return;
+    if (!session || (!orderId && !bookingId)) return;
     let active = true;
     let attempts = 0;
     let timer: number | undefined;
     const check = async () => {
       if (!active) return;
       try {
-        const next = await apiRequest<OrderSummary>(
-          `/orders/${orderId}`,
+        const next = await apiRequest<OrderSummary | BookingSummary>(
+          bookingId ? `/bookings/${bookingId}` : `/orders/${orderId}`,
           {},
           session.accessToken,
         );
         if (!active) return;
         if (next.paymentStatus === 'FAILED') {
-          router.replace(`/cart?payment=failed&orderId=${orderId}`);
+          router.replace(
+            bookingId
+              ? `/bookings/${bookingId}?payment=failed`
+              : `/cart?payment=failed&orderId=${orderId}`,
+          );
           return;
         }
-        setOrder(next);
+        setRecord(next);
         setLoadError('');
         attempts += 1;
         if (next.paymentStatus === 'PENDING' && attempts < 10) {
@@ -61,10 +70,10 @@ export default function PaymentStatusPage() {
       active = false;
       if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [session, orderId, router]);
+  }, [session, orderId, bookingId, router]);
   const paymentReceived =
-    order?.paymentStatus === 'PAID' ||
-    order?.paymentStatus === 'PARTIALLY_PAID';
+    record?.paymentStatus === 'PAID' ||
+    record?.paymentStatus === 'PARTIALLY_PAID';
   const checkFailed = Boolean(loadError);
   const Icon = paymentReceived ? CheckCircle : checkFailed ? XCircle : Clock3;
   if (!session)
@@ -72,17 +81,23 @@ export default function PaymentStatusPage() {
       <AuthRequiredPanel
         title="Sign in to check payment status"
         description="Payment confirmation is linked to the verified customer account."
-        returnHref={orderId ? `/payment/status?orderId=${orderId}` : '/orders'}
+        returnHref={
+          bookingId
+            ? `/payment/status?bookingId=${bookingId}`
+            : orderId
+              ? `/payment/status?orderId=${orderId}`
+              : '/orders'
+        }
       />
     );
-  if (!orderId && loadError)
+  if (!orderId && !bookingId && loadError)
     return (
       <main className="page-shell">
         <StatePanel
           tone="danger"
           title="Payment link is incomplete"
           description={loadError}
-          actionHref="/orders"
+          actionHref="/bookings"
           actionLabel="View orders"
         />
       </main>
@@ -94,7 +109,7 @@ export default function PaymentStatusPage() {
       />
       <h1 className="mt-5 text-3xl font-semibold">
         {paymentReceived
-          ? order?.paymentStatus === 'PARTIALLY_PAID'
+          ? record?.paymentStatus === 'PARTIALLY_PAID'
             ? 'Deposit received'
             : 'Payment received'
           : checkFailed
@@ -113,9 +128,13 @@ export default function PaymentStatusPage() {
               : 'We are waiting for secure confirmation from Razorpay. This can take a few moments.'}
       </p>
       <div className="mt-8 flex gap-3">
-        {orderId && (
+        {(bookingId || orderId) && (
           <Button asChild>
-            <Link href={`/orders/${orderId}`}>View order</Link>
+            <Link
+              href={bookingId ? `/bookings/${bookingId}` : `/orders/${orderId}`}
+            >
+              View booking
+            </Link>
           </Button>
         )}
         {checkFailed && (

@@ -4,8 +4,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  BookingStatus,
   CancellationActor,
-  CartStatus,
   OrderStatus,
   PackageMenuItemRole,
   PackageType,
@@ -26,11 +26,9 @@ import type {
   UserAddress,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { storedEventInstant, storedEventTime } from '../../common/event-time';
+import { storedEventTime } from '../../common/event-time';
 import { OperatingRegionsService } from '../operating-regions/operating-regions.service';
-import { PricingService } from '../pricing/pricing.service';
 import { CancelOrderDto } from './dto/cancel-order.dto';
-import { OrderSelectionDto } from './dto/order-selection.dto';
 
 type SerializableOrder = Order & {
   address?: UserAddress | null;
@@ -46,215 +44,8 @@ type SerializableOrder = Order & {
 export class OrdersService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly pricing: PricingService,
     private readonly regions: OperatingRegionsService,
   ) {}
-
-  async create(
-    userId: string,
-    dto: OrderSelectionDto,
-    cartId: string,
-    checkoutBatchId?: string,
-    deliveryFeeOverride?: Prisma.Decimal,
-    cutleryExtraCountOverride?: number,
-  ) {
-    const cart = await this.prisma.cart.findFirst({
-      where: { id: cartId, userId, status: CartStatus.ACTIVE },
-      include: {
-        address: true,
-        region: true,
-        order: true,
-        packageVersion: { include: { package: true } },
-        cutleryItems: true,
-      },
-    });
-    if (
-      !cart ||
-      !cart.address ||
-      !cart.eventDate ||
-      !cart.eventTimeStart ||
-      !cart.contactNumber ||
-      (!cart.guestCount &&
-        cart.packageVersion.package.type !== PackageType.ORDER_BY_KG)
-    ) {
-      throw new BadRequestException(
-        'Complete event and venue details before checkout',
-      );
-    }
-    const existingOrder = cart.order;
-    if (existingOrder?.orderStatus === OrderStatus.PENDING_PAYMENT) {
-      return this.get(userId, existingOrder.id);
-    }
-    if (existingOrder)
-      throw new BadRequestException('An order already exists for this cart');
-    const assignment = await this.regions.assign(
-      cart.address.latitude,
-      cart.address.longitude,
-      cart.deliveryServiceType,
-      cart.helperCount,
-    );
-    const menuQuote = await this.pricing.quote(
-      cart.packageVersionId,
-      cart.guestCount ?? 1,
-      dto.selectedItems,
-      assignment.region.id,
-    );
-    const deliveryFee = deliveryFeeOverride ?? assignment.deliveryFee;
-    const cutleryCatalog = this.prisma.cutleryItem?.findMany
-      ? await this.prisma.cutleryItem.findMany({
-          where: { isActive: true },
-          orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
-        })
-      : [];
-    const selectedCutlery = new Map(
-      (cart.cutleryItems ?? []).map((item) => [
-        item.cutleryItemId,
-        item.quantity,
-      ]),
-    );
-    const cutleryRows = cutleryCatalog.map((item) => {
-      const extraQuantity = Math.max(0, selectedCutlery.get(item.id) ?? 0);
-      return {
-        item,
-        extraQuantity,
-        lineTotal: item.unitPrice.mul(extraQuantity),
-      };
-    });
-    const cutleryUnitPrice =
-      cart.cutleryUnitPrice ?? new Prisma.Decimal('5.00');
-    const cutleryExtraCount = cutleryRows.length
-      ? cutleryExtraCountOverride === 0
-        ? 0
-        : cutleryRows.reduce((sum, row) => sum + row.extraQuantity, 0)
-      : Math.max(0, cutleryExtraCountOverride ?? cart.cutleryExtraCount ?? 0);
-    const cutleryTotal = cutleryRows.length
-      ? cutleryExtraCountOverride === 0
-        ? new Prisma.Decimal(0)
-        : cutleryRows.reduce(
-            (sum, row) => sum.plus(row.lineTotal),
-            new Prisma.Decimal(0),
-          )
-      : cutleryUnitPrice.mul(cutleryExtraCount);
-    const cutleryIncludedCount = cutleryRows.length
-      ? Math.max(0, ...cutleryRows.map((row) => row.item.includedQuantity))
-      : cart.packageVersion?.package?.type === PackageType.ORDER_BY_KG
-        ? 0
-        : Math.max(0, cart.guestCount ?? 0);
-    const totalAmount = menuQuote.totalAmount
-      .plus(cutleryTotal)
-      .plus(deliveryFee);
-    const eventDate = cart.eventDate;
-    const addressId = cart.addressId!;
-    const eventInstant = storedEventInstant(eventDate, cart.eventTimeStart);
-    const leadHours = Math.floor(
-      (eventInstant.getTime() - Date.now()) / 3_600_000,
-    );
-    try {
-      return await this.prisma.$transaction(async (tx) => {
-        const order = await tx.order.create({
-          data: {
-            orderNumber: this.orderNumber(),
-            userId,
-            cartId,
-            sourceCartId: cartId,
-            checkoutBatchId,
-            regionId: assignment.region.id,
-            addressId,
-            eventName: cart.eventName,
-            eventDate,
-            eventTimeStart: cart.eventTimeStart,
-            specialNotes: cart.specialNotes,
-            contactNumber: cart.contactNumber,
-            packageType: menuQuote.packageType,
-            guestCount: menuQuote.guestCount,
-            basePerPlatePrice: menuQuote.basePerPlatePrice,
-            totalCustomizationCharges: menuQuote.totalCustomizationCharges,
-            finalPerPlatePrice: menuQuote.finalPerPlatePrice,
-            totalAmount,
-            distanceKm: assignment.distanceKm,
-            deliveryServiceType: assignment.deliveryServiceType,
-            helperCount: assignment.helperCount,
-            deliveryFee,
-            cutleryIncludedCount,
-            cutleryExtraCount,
-            cutleryUnitPrice,
-            cutleryTotal,
-            packageName: menuQuote.packageName,
-            packageImageUrl: cart.packageVersion.package.imageUrl ?? null,
-            packageVersionNo: menuQuote.packageVersionNo,
-            orderStatus: OrderStatus.PENDING_PAYMENT,
-            bookingLeadHours: leadHours,
-            selectedItems: {
-              create: menuQuote.items.map((item) => ({
-                categoryId: item.categoryId,
-                menuItemId: item.menuItemId,
-                replacedMenuItemId: item.replacedMenuItemId ?? null,
-                role: item.role,
-                quantity: item.quantity,
-                weightGrams: item.weightGrams ?? null,
-                pricePerKg: item.pricePerKg ?? null,
-                lineTotal: item.lineTotal ?? null,
-                menuItemName: item.menuItemName,
-                categoryName: item.categoryName,
-                replacedMenuItemName: item.replacedMenuItemName ?? null,
-                isVeg: item.isVeg,
-                itemPrice: item.itemPrice,
-                includedValue: item.includedValue,
-                adjustmentAmount: item.adjustmentAmount,
-              })),
-            },
-            ...(cutleryRows.length
-              ? {
-                  cutleryItems: {
-                    create: cutleryRows.map(
-                      ({ item, extraQuantity, lineTotal }) => ({
-                        cutleryItemId: item.id,
-                        itemName: item.name,
-                        unitLabel: item.unitLabel,
-                        includedQuantity: item.includedQuantity,
-                        extraQuantity:
-                          cutleryExtraCountOverride === 0 ? 0 : extraQuantity,
-                        unitPrice: item.unitPrice,
-                        lineTotal:
-                          cutleryExtraCountOverride === 0
-                            ? new Prisma.Decimal(0)
-                            : lineTotal,
-                        imageUrl: item.imageUrl,
-                      }),
-                    ),
-                  },
-                }
-              : {}),
-            statusHistory: {
-              create: {
-                toStatus: OrderStatus.PENDING_PAYMENT,
-                notes: 'Order created',
-              },
-            },
-          },
-          include: {
-            selectedItems: true,
-            cutleryItems: true,
-            statusHistory: true,
-            region: true,
-            address: true,
-          },
-        });
-        return this.serializeOrder(order);
-      });
-    } catch (error) {
-      if ((error as { code?: string }).code === 'P2002') {
-        const concurrentOrder = await this.prisma.order.findUnique({
-          where: { cartId },
-          select: { id: true, userId: true },
-        });
-        if (concurrentOrder?.userId === userId) {
-          return this.get(userId, concurrentOrder.id);
-        }
-      }
-      throw error;
-    }
-  }
 
   async list(userId: string) {
     const orders = await this.prisma.order.findMany({
@@ -350,6 +141,73 @@ export class OrdersService {
   async cancel(userId: string, id: string, dto: CancelOrderDto) {
     const order = await this.prisma.order.findFirst({ where: { id, userId } });
     if (!order) throw new NotFoundException('Order not found');
+    if (order.bookingId) {
+      const booking = await this.prisma.booking.findFirst({
+        where: { id: order.bookingId, userId },
+        include: { orders: true },
+      });
+      if (!booking) throw new NotFoundException('Booking not found');
+      if (
+        booking.status === BookingStatus.CANCELLED ||
+        booking.status === BookingStatus.COMPLETED ||
+        booking.status === BookingStatus.DECLINED
+      ) {
+        throw new BadRequestException('Booking cannot be cancelled');
+      }
+      await this.prisma.$transaction(async (tx) => {
+        const updated = await tx.booking.updateMany({
+          where: {
+            id: booking.id,
+            userId,
+            status: booking.status,
+          },
+          data: {
+            status: BookingStatus.CANCELLED,
+            cancelledAt: new Date(),
+            cancelledBy: CancellationActor.CUSTOMER,
+            cancellationReason: dto.reason,
+          },
+        });
+        if (updated.count !== 1) {
+          throw new BadRequestException(
+            'Booking status changed; reload before trying again',
+          );
+        }
+        await tx.bookingStatusHistory.create({
+          data: {
+            bookingId: booking.id,
+            fromStatus: booking.status,
+            toStatus: BookingStatus.CANCELLED,
+            notes: dto.reason,
+          },
+        });
+        for (const child of booking.orders) {
+          if (
+            child.orderStatus === OrderStatus.CANCELLED ||
+            child.orderStatus === OrderStatus.DELIVERED
+          )
+            continue;
+          await tx.order.update({
+            where: { id: child.id },
+            data: {
+              orderStatus: OrderStatus.CANCELLED,
+              cancelledAt: new Date(),
+              cancelledBy: CancellationActor.CUSTOMER,
+              cancellationReason: dto.reason,
+            },
+          });
+          await tx.orderStatusHistory.create({
+            data: {
+              orderId: child.id,
+              fromStatus: child.orderStatus,
+              toStatus: OrderStatus.CANCELLED,
+              notes: dto.reason,
+            },
+          });
+        }
+      });
+      return this.get(userId, id);
+    }
     if (
       order.orderStatus === OrderStatus.DELIVERED ||
       order.orderStatus === OrderStatus.CANCELLED
@@ -402,11 +260,32 @@ export class OrdersService {
         item.adjustmentAmount.mul(order.guestCount ?? 1).toFixed(2),
     }));
     const payments = order.payments?.map((payment) => ({
-      ...payment,
+      id: payment.id,
+      orderId: payment.orderId,
+      bookingId: payment.bookingId,
       amount: payment.amount.toFixed(2),
+      paymentStatus: payment.paymentStatus,
+      source: payment.source,
+      razorpayOrderId: payment.razorpayOrderId,
+      razorpayPaymentId: payment.razorpayPaymentId,
+      paymentMethod: payment.paymentMethod,
+      externalReference: payment.externalReference,
+      notes: payment.notes,
+      paidAt: payment.paidAt,
+      failureReason: payment.failureReason,
+      createdAt: payment.createdAt,
+      updatedAt: payment.updatedAt,
       refunds: payment.refunds?.map((refund) => ({
-        ...refund,
+        id: refund.id,
+        paymentId: refund.paymentId,
         amount: refund.amount.toFixed(2),
+        refundStatus: refund.refundStatus,
+        razorpayRefundId: refund.razorpayRefundId,
+        reason: refund.reason,
+        initiatedAt: refund.initiatedAt,
+        processedAt: refund.processedAt,
+        createdAt: refund.createdAt,
+        updatedAt: refund.updatedAt,
       })),
     }));
     const grossPaid = (order.payments ?? [])

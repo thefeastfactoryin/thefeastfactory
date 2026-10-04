@@ -18,6 +18,7 @@ import { CartModule } from './modules/cart/cart.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { CutleryModule } from './modules/cutlery/cutlery.module';
+import { BookingsModule } from './modules/bookings/bookings.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { CutleryModule } from './modules/cutlery/cutlery.module';
     CatalogModule,
     NotificationsModule,
     CutleryModule,
+    BookingsModule,
   ],
 })
 export class AppModule {}

@@ -54,6 +54,18 @@ export class PaymentsController {
     return this.payments.createGatewayOrder(user.sub, id, dto.amount);
   }
 
+  @Post('bookings/:id/payments/razorpay-order')
+  @ApiBearerAuth()
+  @ApiBody({ type: CreateOrderPaymentDto, required: false })
+  @UseGuards(CustomerAuthGuard)
+  createBookingPayment(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: CreateOrderPaymentDto = new CreateOrderPaymentDto(),
+  ) {
+    return this.payments.createBookingGatewayOrder(user.sub, id, dto.amount);
+  }
+
   @Get('orders/:id/payment-batch')
   @ApiBearerAuth()
   @UseGuards(CustomerAuthGuard)
