@@ -182,6 +182,75 @@ test('selecting an address updates an incomplete cart immediately', async () => 
   assert.equal(updated.event, null);
 });
 
+test('updating a cart saves a trimmed kitchen note before checkout', async () => {
+  const packageVersion = {
+    id: 'version-1',
+    minGuestCount: 10,
+    maxGuestCount: 100,
+    versionNo: 1,
+    basePricePerPlate: new Prisma.Decimal('499.00'),
+    package: {
+      id: 'package-1',
+      name: 'Celebration Package',
+      type: 'FIXED_PACKAGE',
+    },
+  };
+  const cart = {
+    id: 'cart-1',
+    userId: 'user-1',
+    packageVersionId: 'version-1',
+    guestCount: 20,
+    status: 'ACTIVE',
+    expiresAt: null,
+    lastQuotedAt: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    pendingOrderId: null,
+    specialNotes: null,
+    eventName: null,
+    eventDate: null,
+    eventTimeStart: null,
+    distanceKm: null,
+    deliveryFee: new Prisma.Decimal(0),
+    deliveryServiceType: 'STANDARD',
+    helperCount: 0,
+    cutleryIncludedCount: 0,
+    cutleryExtraCount: 0,
+    cutleryUnitPrice: new Prisma.Decimal(5),
+    contactNumber: '9876543210',
+    packageVersion,
+    address: null,
+    region: null,
+    items: [],
+    cutleryItems: [],
+    order: null,
+  };
+  let savedNotes: string | null | undefined;
+  const prisma = {
+    cart: {
+      findFirst: async () => cart,
+      update: async ({ data }: { data: { specialNotes?: string | null } }) => {
+        savedNotes = data.specialNotes;
+        return { ...cart, ...data };
+      },
+    },
+  };
+  const service = new CartService(
+    prisma as never,
+    {} as never,
+    {} as never,
+    {} as never,
+  );
+
+  const updated = await service.update('user-1', 'cart-1', {
+    packageVersionId: 'version-1',
+    specialNotes: '  Keep the food mildly spiced.  ',
+  });
+
+  assert.equal(savedNotes, 'Keep the food mildly spiced.');
+  assert.equal(updated.specialNotes, 'Keep the food mildly spiced.');
+});
+
 test('cart quote combines menu subtotal and delivery fee', async () => {
   const region = {
     id: 'region-1',
