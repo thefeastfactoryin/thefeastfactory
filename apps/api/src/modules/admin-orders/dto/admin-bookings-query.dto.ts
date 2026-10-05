@@ -1,5 +1,9 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { BookingStatus, PaymentStatus } from '@prisma/client';
+import {
+  BookingFulfilmentStatus,
+  BookingStatus,
+  PaymentStatus,
+} from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   IsDateString,
@@ -32,6 +36,11 @@ export class AdminBookingsQueryDto {
   @IsOptional()
   @IsEnum(BookingStatus)
   status?: BookingStatus;
+
+  @ApiPropertyOptional({ enum: BookingFulfilmentStatus })
+  @IsOptional()
+  @IsEnum(BookingFulfilmentStatus)
+  fulfilmentStatus?: BookingFulfilmentStatus;
 
   @ApiPropertyOptional({ enum: PaymentStatus })
   @IsOptional()

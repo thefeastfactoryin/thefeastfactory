@@ -3,7 +3,6 @@
 import {
   formatTimeOfDay,
   type OrderDetails,
-  type OrderDocument,
   type OrderSelectedItem,
 } from '@aranyam/shared-types';
 import {
@@ -11,7 +10,6 @@ import {
   CalendarDays,
   Check,
   Clock3,
-  Download,
   MapPin,
   Package,
   Phone,
@@ -22,16 +20,19 @@ import {
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
-import { Button } from '../../../components/ui/button';
+import { Button } from '../../../../../components/ui/button';
 import {
   AuthRequiredPanel,
   StatePanel,
-} from '../../../components/ui/state-panel';
-import { apiRequest, downloadAuthenticated } from '../../../lib/api';
-import { formatCurrency, formatStatus } from '../../../lib/format';
-import { sortMenuCategories } from '../../../lib/menu-category-order';
-import { cn } from '../../../lib/utils';
-import { useSessionStore } from '../../../store/session.store';
+} from '../../../../../components/ui/state-panel';
+import { apiRequest } from '../../../../../lib/api';
+import {
+  formatCurrency,
+  formatCustomerBookingStatus,
+} from '../../../../../lib/format';
+import { sortMenuCategories } from '../../../../../lib/menu-category-order';
+import { cn } from '../../../../../lib/utils';
+import { useSessionStore } from '../../../../../store/session.store';
 
 const roleCopy = {
   INCLUDED: { label: 'Included', style: 'bg-accent/10 text-gold-text' },
@@ -41,28 +42,24 @@ const roleCopy = {
 } as const;
 
 export default function OrderPage() {
-  const { orderId } = useParams<{ orderId: string }>();
+  const { bookingId, orderId } = useParams<{
+    bookingId: string;
+    orderId: string;
+  }>();
   const session = useSessionStore((state) => state.session);
   const [order, setOrder] = useState<OrderDetails>();
-  const [documents, setDocuments] = useState<OrderDocument[]>([]);
   const [error, setError] = useState('');
 
   useEffect(() => {
     if (!session) return;
-    Promise.all([
-      apiRequest<OrderDetails>(`/orders/${orderId}`, {}, session.accessToken),
-      apiRequest<OrderDocument[]>(
-        `/orders/${orderId}/documents`,
-        {},
-        session.accessToken,
-      ),
-    ])
-      .then(([nextOrder, nextDocuments]) => {
-        setOrder(nextOrder);
-        setDocuments(nextDocuments);
-      })
+    apiRequest<OrderDetails>(
+      `/bookings/${bookingId}/orders/${orderId}`,
+      {},
+      session.accessToken,
+    )
+      .then(setOrder)
       .catch((reason) => setError((reason as Error).message));
-  }, [orderId, session]);
+  }, [bookingId, orderId, session]);
 
   const menuGroups = useMemo(() => {
     if (!order) return [];
@@ -83,8 +80,8 @@ export default function OrderPage() {
     return (
       <AuthRequiredPanel
         title="Sign in to view this order"
-        description="Order details and documents are available only to the customer who placed the order."
-        returnHref={`/orders/${orderId}`}
+        description="Order details are available only to the customer who placed the booking."
+        returnHref={`/bookings/${bookingId}/orders/${orderId}`}
       />
     );
   if (error)
@@ -114,6 +111,14 @@ export default function OrderPage() {
       })
     : 'Date unavailable';
   const deliveryTime = formatTimeOfDay(order.event?.eventTimeStart);
+  const publicStatusHistory = order.statusHistory.reduce<
+    Array<(typeof order.statusHistory)[number] & { publicLabel: string }>
+  >((entries, entry) => {
+    const publicLabel = formatCustomerBookingStatus(entry.toStatus);
+    if (entries.at(-1)?.publicLabel === publicLabel) return entries;
+    entries.push({ ...entry, publicLabel });
+    return entries;
+  }, []);
 
   return (
     <main className="min-h-screen bg-background pb-24">
@@ -143,10 +148,7 @@ export default function OrderPage() {
             </div>
             <div className="flex flex-wrap gap-2">
               <span className="rounded-full border border-white/20 bg-white/10 px-3 py-2 text-xs font-bold">
-                {formatStatus(order.orderStatus)}
-              </span>
-              <span className="rounded-full bg-accent px-3 py-2 text-xs font-bold text-accent-foreground">
-                {formatStatus(order.paymentStatus)}
+                {formatCustomerBookingStatus(order.orderStatus)}
               </span>
             </div>
           </div>
@@ -238,74 +240,25 @@ export default function OrderPage() {
                   {order.declineReason ||
                     'The kitchen could not accept this booking.'}
                 </p>
-                {Number(order.refundedAmount) > 0 && (
-                  <p className="mt-3 text-sm font-semibold text-red-900">
-                    Refunded: {formatCurrency(order.refundedAmount)}
-                  </p>
-                )}
-                {order.paymentStatus === 'REFUND_PENDING' && (
-                  <p className="mt-3 text-sm font-semibold text-amber-800">
-                    Your refund is being processed.
-                  </p>
-                )}
-                {order.paymentStatus === 'REFUND_FAILED' && (
-                  <p className="mt-3 text-sm font-semibold text-red-800">
-                    The refund needs staff assistance. Our team will contact
-                    you.
-                  </p>
-                )}
-              </section>
-            )}
-
-            {order.paymentStatus === 'PENDING' && (
-              <section className="rounded-2xl border border-accent/35 bg-accent/[0.08] p-5">
-                <div className="flex items-center gap-3">
-                  <h2 className="font-sans text-xl font-semibold">
-                    Payment pending
-                  </h2>
-                </div>
-                <p className="my-3 text-sm leading-6 text-muted-foreground">
-                  This attempt remains in your cart until payment is completed.
-                </p>
-                <Button asChild>
-                  <Link href="/cart">Return to cart</Link>
-                </Button>
               </section>
             )}
 
             <section className="rounded-2xl border border-border bg-white p-5 shadow-card">
               <p className="eyebrow text-primary">Price summary</p>
               <div className="mt-4 space-y-3 text-sm">
-                <PriceLine
-                  label="Menu subtotal"
-                  value={formatCurrency(
-                    Number(order.totalAmount) -
-                      Number(order.deliveryFee ?? 0) -
-                      Number(order.cutleryTotal ?? 0),
-                  )}
-                />
-                <PriceLine
-                  label="Cutlery & serving"
-                  value={formatCurrency(order.cutleryTotal)}
-                />
-                <PriceLine
-                  label="Delivery"
-                  value={formatCurrency(order.deliveryFee)}
-                />
-                <PriceLine
-                  label="Amount received"
-                  value={formatCurrency(order.amountPaid)}
-                />
-                <PriceLine
-                  label="Balance"
-                  value={formatCurrency(order.balanceDue)}
-                />
                 <div className="flex items-end justify-between gap-4 border-t pt-4">
-                  <span className="font-bold">Order total</span>
+                  <span className="font-bold">Package total</span>
                   <strong className="money-text text-2xl font-extrabold text-primary">
                     {formatCurrency(order.totalAmount)}
                   </strong>
                 </div>
+                {order.bookingId && (
+                  <Button asChild variant="outline" className="mt-3 w-full">
+                    <Link href={`/bookings/${order.bookingId}`}>
+                      View booking total, payments &amp; invoices
+                    </Link>
+                  </Button>
+                )}
               </div>
             </section>
 
@@ -342,12 +295,12 @@ export default function OrderPage() {
                 Order progress
               </h2>
               <div className="mt-5 space-y-0">
-                {order.statusHistory.map((entry, index) => (
+                {publicStatusHistory.map((entry, index) => (
                   <div
                     key={entry.id}
                     className="relative flex gap-3 pb-5 last:pb-0"
                   >
-                    {index < order.statusHistory.length - 1 && (
+                    {index < publicStatusHistory.length - 1 && (
                       <span className="absolute left-[15px] top-8 h-[calc(100%-1.25rem)] w-px bg-accent/45" />
                     )}
                     <span className="relative grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary text-white">
@@ -355,7 +308,7 @@ export default function OrderPage() {
                     </span>
                     <div>
                       <p className="font-bold">
-                        {formatStatus(entry.toStatus)}
+                        {entry.publicLabel}
                       </p>
                       <p className="numeric-text mt-0.5 text-xs text-muted-foreground">
                         {new Date(entry.changedAt).toLocaleString('en-IN')}
@@ -366,34 +319,6 @@ export default function OrderPage() {
               </div>
             </section>
 
-            <section className="rounded-2xl border border-border bg-white p-5 shadow-card">
-              <h2 className="font-sans text-xl font-semibold">
-                Receipts and invoices
-              </h2>
-              <div className="mt-4 space-y-2">
-                {documents.map((document) => (
-                  <Button
-                    key={document.id}
-                    variant="outline"
-                    className="w-full justify-start"
-                    onClick={() =>
-                      downloadAuthenticated(
-                        `/orders/${orderId}/documents/${document.id}/download`,
-                        session.accessToken,
-                      )
-                    }
-                  >
-                    <Download className="mr-2 h-4 w-4" />
-                    {formatStatus(document.documentType)}
-                  </Button>
-                ))}
-                {!documents.length && (
-                  <p className="text-sm leading-6 text-muted-foreground">
-                    Documents become available after payment confirmation.
-                  </p>
-                )}
-              </div>
-            </section>
           </aside>
         </div>
       </div>
@@ -472,14 +397,5 @@ function MenuItemRow({
         </span>
       )}
     </article>
-  );
-}
-
-function PriceLine({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex justify-between gap-4">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="money-text font-bold">{value}</span>
-    </div>
   );
 }

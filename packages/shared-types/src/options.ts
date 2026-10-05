@@ -74,6 +74,7 @@ export const orderStatusOptions = [
   'CONFIRMED',
   'IN_PROGRESS',
   'READY_FOR_DELIVERY',
+  'OUT_FOR_DELIVERY',
   'DELIVERED',
   'DECLINED',
   'CANCELLED',
@@ -82,6 +83,7 @@ export const orderStatusOptions = [
 export const adminTransitionOptions = [
   'IN_PROGRESS',
   'READY_FOR_DELIVERY',
+  'OUT_FOR_DELIVERY',
   'DELIVERED',
   'CANCELLED',
 ] as const;

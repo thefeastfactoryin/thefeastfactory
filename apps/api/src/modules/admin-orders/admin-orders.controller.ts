@@ -17,12 +17,11 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { AdminAuthGuard } from '../../common/guards/admin-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { AdminCancelOrderDto } from './dto/admin-cancel-order.dto';
-import { AdminOrdersQueryDto } from './dto/admin-orders-query.dto';
 import { AdminBookingsQueryDto } from './dto/admin-bookings-query.dto';
 import { CreateRefundDto } from './dto/create-refund.dto';
 import { DeclineOrderDto } from './dto/decline-order.dto';
 import { RecordManualPaymentDto } from './dto/record-manual-payment.dto';
-import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
+import { UpdateBookingFulfilmentDto } from './dto/update-booking-fulfilment.dto';
 import { AdminOrdersService } from './admin-orders.service';
 
 @ApiTags('admin-orders')
@@ -31,12 +30,6 @@ import { AdminOrdersService } from './admin-orders.service';
 @Controller('admin')
 export class AdminOrdersController {
   constructor(private readonly service: AdminOrdersService) {}
-  @Get('orders') list(
-    @CurrentAdmin() admin: JwtPayload,
-    @Query() query: AdminOrdersQueryDto,
-  ) {
-    return this.service.list(admin, query);
-  }
   @Get('bookings')
   bookings(
     @CurrentAdmin() admin: JwtPayload,
@@ -68,6 +61,14 @@ export class AdminOrdersController {
   ) {
     return this.service.cancelBooking(admin, id, dto);
   }
+  @Patch('bookings/:id/fulfilment')
+  updateBookingFulfilment(
+    @CurrentAdmin() admin: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: UpdateBookingFulfilmentDto,
+  ) {
+    return this.service.updateBookingFulfilment(admin, id, dto);
+  }
   @Post('bookings/:id/payments/manual')
   bookingManualPayment(
     @CurrentAdmin() admin: JwtPayload,
@@ -92,45 +93,12 @@ export class AdminOrdersController {
       dto,
     );
   }
-  @Get('orders/:id') get(
+  @Get('bookings/:bookingId/orders/:id') getOrder(
     @CurrentAdmin() admin: JwtPayload,
+    @Param('bookingId') bookingId: string,
     @Param('id') id: string,
   ) {
-    return this.service.get(admin, id);
-  }
-  @Patch('orders/:id/status') status(
-    @CurrentAdmin() admin: JwtPayload,
-    @Param('id') id: string,
-    @Body() dto: UpdateOrderStatusDto,
-  ) {
-    return this.service.updateStatus(admin, id, dto);
-  }
-  @Post('orders/:id/cancel') cancel(
-    @CurrentAdmin() admin: JwtPayload,
-    @Param('id') id: string,
-    @Body() dto: AdminCancelOrderDto,
-  ) {
-    return this.service.cancel(admin, id, dto);
-  }
-  @Post('orders/:id/approve') approve(
-    @CurrentAdmin() admin: JwtPayload,
-    @Param('id') id: string,
-  ) {
-    return this.service.approve(admin, id);
-  }
-  @Post('orders/:id/decline') decline(
-    @CurrentAdmin() admin: JwtPayload,
-    @Param('id') id: string,
-    @Body() dto: DeclineOrderDto,
-  ) {
-    return this.service.decline(admin, id, dto);
-  }
-  @Post('orders/:id/payments/manual') manualPayment(
-    @CurrentAdmin() admin: JwtPayload,
-    @Param('id') id: string,
-    @Body() dto: RecordManualPaymentDto,
-  ) {
-    return this.service.recordManualPayment(admin, id, dto);
+    return this.service.getOrder(admin, bookingId, id);
   }
   @Get('payments') payments(
     @CurrentAdmin() admin: JwtPayload,

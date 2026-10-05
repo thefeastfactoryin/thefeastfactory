@@ -1,17 +1,22 @@
 'use client';
 
-import type { BookingDetails } from '@aranyam/shared-types';
-import { CalendarDays, MapPin, Package, WalletCards } from 'lucide-react';
+import type { BookingDetails, BookingDocument } from '@aranyam/shared-types';
+import { CalendarDays, Download, MapPin, Package, WalletCards } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { RetryPaymentButton } from '../../../components/retry-payment-button';
+import { Button } from '../../../components/ui/button';
 import {
   AuthRequiredPanel,
   StatePanel,
 } from '../../../components/ui/state-panel';
-import { apiRequest } from '../../../lib/api';
-import { formatCurrency, formatStatus } from '../../../lib/format';
+import { apiRequest, downloadAuthenticated } from '../../../lib/api';
+import {
+  formatCurrency,
+  formatCustomerBookingStatus,
+  formatStatus,
+} from '../../../lib/format';
 import { cn } from '../../../lib/utils';
 import { useSessionStore } from '../../../store/session.store';
 
@@ -19,16 +24,27 @@ export default function BookingDetailsPage() {
   const { bookingId } = useParams<{ bookingId: string }>();
   const session = useSessionStore((state) => state.session);
   const [booking, setBooking] = useState<BookingDetails>();
+  const [documents, setDocuments] = useState<BookingDocument[]>([]);
   const [error, setError] = useState('');
 
   useEffect(() => {
     if (!session || !bookingId) return;
-    apiRequest<BookingDetails>(
-      `/bookings/${bookingId}`,
-      {},
-      session.accessToken,
-    )
-      .then(setBooking)
+    Promise.all([
+      apiRequest<BookingDetails>(
+        `/bookings/${bookingId}`,
+        {},
+        session.accessToken,
+      ),
+      apiRequest<BookingDocument[]>(
+        `/bookings/${bookingId}/documents`,
+        {},
+        session.accessToken,
+      ),
+    ])
+      .then(([nextBooking, nextDocuments]) => {
+        setBooking(nextBooking);
+        setDocuments(nextDocuments);
+      })
       .catch((reason) => setError((reason as Error).message));
   }, [session, bookingId]);
 
@@ -78,7 +94,7 @@ export default function BookingDetailsPage() {
               </h1>
             </div>
             <span className="rounded-full bg-white/15 px-4 py-2 text-sm font-bold">
-              {formatStatus(booking.status)}
+              {formatCustomerBookingStatus(booking.status)}
             </span>
           </div>
         </div>
@@ -126,7 +142,7 @@ export default function BookingDetailsPage() {
               {booking.orders.map((order) => (
                 <Link
                   key={order.id}
-                  href={`/orders/${order.id}`}
+                  href={`/bookings/${booking.id}/orders/${order.id}`}
                   className="flex items-center justify-between gap-4 p-5 hover:bg-ivory/70"
                 >
                   <div className="flex min-w-0 items-center gap-3">
@@ -149,7 +165,7 @@ export default function BookingDetailsPage() {
                       {formatCurrency(order.totalAmount)}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {formatStatus(order.orderStatus)}
+                      {formatCustomerBookingStatus(booking.status)}
                     </p>
                   </div>
                 </Link>
@@ -192,6 +208,32 @@ export default function BookingDetailsPage() {
               {booking.declineReason}
             </p>
           )}
+          <div className="mt-5 border-t border-border pt-5">
+            <h3 className="font-semibold">Receipts &amp; invoices</h3>
+            <div className="mt-3 space-y-2">
+              {documents.map((document) => (
+                <Button
+                  key={document.id}
+                  variant="outline"
+                  className="w-full justify-start"
+                  onClick={() =>
+                    downloadAuthenticated(
+                      `/bookings/${bookingId}/documents/${document.id}/download`,
+                      session.accessToken,
+                    )
+                  }
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  {formatStatus(document.documentType)}
+                </Button>
+              ))}
+              {!documents.length && (
+                <p className="text-sm text-muted-foreground">
+                  Documents become available after payment confirmation.
+                </p>
+              )}
+            </div>
+          </div>
         </aside>
       </div>
     </main>

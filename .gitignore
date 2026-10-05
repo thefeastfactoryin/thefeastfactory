@@ -10,6 +10,7 @@ coverage
 .local-uploads/
 .nx/*
 docs/*
+!docs/booking-aggregate-architecture.md
 # Windows NUL device artifact (created by bash > NUL redirects)
 nul
 

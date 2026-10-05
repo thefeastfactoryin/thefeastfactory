@@ -12,12 +12,12 @@ const operationsAdmin = {
 };
 
 function service() {
-  let orderWhere: Record<string, unknown> | undefined;
+  let bookingWhere: Record<string, unknown> | undefined;
   const operations = new OperationsService(
     {
-      order: {
+      booking: {
         findFirst: async ({ where }: { where: Record<string, unknown> }) => {
-          orderWhere = where;
+          bookingWhere = where;
           return null;
         },
       },
@@ -25,17 +25,17 @@ function service() {
     {} as never,
     { resolveAdminScope: async () => 'region-1' } as never,
   );
-  return { operations, where: () => orderWhere };
+  return { operations, where: () => bookingWhere };
 }
 
 test('operations notes are scoped to the assigned region', async () => {
   const context = service();
   await assert.rejects(
-    context.operations.notes(operationsAdmin, 'order-elsewhere'),
+    context.operations.notes(operationsAdmin, 'booking-elsewhere'),
     NotFoundException,
   );
   assert.deepEqual(context.where(), {
-    id: 'order-elsewhere',
+    id: 'booking-elsewhere',
     regionId: 'region-1',
   });
 });
@@ -45,13 +45,13 @@ test('admin document lookup includes the operations region scope', async () => {
   await assert.rejects(
     context.operations.documents(
       operationsAdmin.sub,
-      'order-elsewhere',
+      'booking-elsewhere',
       operationsAdmin,
     ),
     NotFoundException,
   );
   assert.deepEqual(context.where(), {
-    id: 'order-elsewhere',
+    id: 'booking-elsewhere',
     regionId: 'region-1',
   });
 });

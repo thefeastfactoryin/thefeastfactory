@@ -307,7 +307,6 @@ export type CartSummary = {
   lastQuotedAt?: string | null;
   createdAt: string;
   updatedAt: string;
-  pendingOrderId?: string | null;
   paymentTryCount?: number;
   specialNotes?: string | null;
   contactNumber: string;
@@ -380,6 +379,7 @@ export type OrderStatus =
   | 'CONFIRMED'
   | 'IN_PROGRESS'
   | 'READY_FOR_DELIVERY'
+  | 'OUT_FOR_DELIVERY'
   | 'DELIVERED'
   | 'DECLINED'
   | 'CANCELLED';
@@ -391,6 +391,12 @@ export type BookingStatus =
   | 'CANCELLED'
   | 'COMPLETED'
   | 'NEEDS_REVIEW';
+export type BookingFulfilmentStatus =
+  | 'NOT_STARTED'
+  | 'PREPARING'
+  | 'READY_FOR_DELIVERY'
+  | 'OUT_FOR_DELIVERY'
+  | 'COMPLETED';
 
 export type RefundSummary = {
   id: string;
@@ -404,7 +410,7 @@ export type RefundSummary = {
 
 export type PaymentSummary = {
   id: string;
-  orderId: string;
+  bookingId: string;
   amount: string;
   paymentStatus: PaymentStatus;
   source?: PaymentSource;
@@ -426,9 +432,6 @@ export type OrderSummary = {
   orderStatus: OrderStatus;
   paymentStatus: PaymentStatus;
   paymentPlan: PaymentPlan;
-  amountPaid: string;
-  balanceDue: string;
-  refundedAmount: string;
   declineReason?: string | null;
   packageName: string;
   packageImageUrl?: string | null;
@@ -464,7 +467,6 @@ export type OrderSummary = {
     eventTimeStart?: string | null;
     address?: UserAddress;
   };
-  payments?: PaymentSummary[];
   user?: UserProfile;
 };
 
@@ -520,10 +522,19 @@ export type BookingStatusEntry = {
   changedAt: string;
 };
 
+export type BookingFulfilmentEntry = {
+  id: string;
+  fromStatus?: BookingFulfilmentStatus | null;
+  toStatus: BookingFulfilmentStatus;
+  notes?: string | null;
+  changedAt: string;
+};
+
 export type BookingSummary = {
   id: string;
   bookingNumber: string;
   status: BookingStatus;
+  fulfilmentStatus: BookingFulfilmentStatus;
   paymentStatus: PaymentStatus;
   paymentPlan: PaymentPlan;
   eventName?: string | null;
@@ -561,24 +572,31 @@ export type BookingSummary = {
   orders: OrderSummary[];
   payments?: PaymentSummary[];
   statusHistory?: BookingStatusEntry[];
+  fulfilmentHistory?: BookingFulfilmentEntry[];
 };
 
 export type BookingDetails = BookingSummary;
 
 export type AdminPayment = Omit<PaymentSummary, 'refunds'> & {
   refunds: RefundSummary[];
-  order: OrderSummary & { user: UserProfile };
+  booking: {
+    id: string;
+    bookingNumber: string;
+    status: BookingStatus;
+    user: UserProfile;
+    region?: OperatingRegion | null;
+  };
 };
 
-export type OrderNote = {
+export type BookingNote = {
   id: string;
-  orderId: string;
+  bookingId: string;
   body: string;
   createdAt: string;
   author: { id: string; name: string; role: 'ADMIN' | 'OPERATIONS' };
 };
 
-export type OrderDocument = {
+export type BookingDocument = {
   id: string;
   documentType: 'PAYMENT_RECEIPT' | 'GST_INVOICE' | 'REFUND_CREDIT_NOTE';
   documentNumber: string;

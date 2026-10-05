@@ -10,7 +10,6 @@ import {
 import {
   CartStatus,
   DeliveryServiceType,
-  OrderStatus,
   PackageType,
   Prisma,
   SelectedItemRole,
@@ -44,7 +43,6 @@ const cartInclude = Prisma.validator<Prisma.CartInclude>()({
     },
     orderBy: { createdAt: 'asc' },
   },
-  order: { select: { id: true, orderStatus: true, paymentStatus: true } },
   cutleryItems: {
     include: { cutleryItem: true },
     orderBy: { createdAt: 'asc' },
@@ -95,7 +93,6 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
             },
             expiresAt: { lt: new Date() },
             updatedAt: { lt: retentionCutoff },
-            order: { is: null },
           },
           select: { id: true },
           take: CART_CLEANUP_BATCH_SIZE,
@@ -105,7 +102,7 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
         const deleted = await this.prisma.$transaction(async (tx) => {
           await tx.cartItem.deleteMany({ where: { cartId: { in: ids } } });
           return tx.cart.deleteMany({
-            where: { id: { in: ids }, order: { is: null } },
+            where: { id: { in: ids } },
           });
         });
         deletedCount += deleted.count;
@@ -414,17 +411,7 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
       include: this.cartInclude(),
       orderBy: { updatedAt: 'desc' },
     });
-    if (active) return this.serializeCart(active);
-    const awaitingPayment = await this.prisma.cart.findFirst({
-      where: {
-        userId,
-        status: CartStatus.CHECKED_OUT,
-        order: { orderStatus: OrderStatus.PENDING_PAYMENT },
-      },
-      include: this.cartInclude(),
-      orderBy: { updatedAt: 'desc' },
-    });
-    return awaitingPayment ? this.serializeCart(awaitingPayment) : null;
+    return active ? this.serializeCart(active) : null;
   }
 
   async getAllActive(userId: string) {
@@ -1094,10 +1081,6 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
       createdAt: cart.createdAt.toISOString(),
       updatedAt: cart.updatedAt.toISOString(),
       paymentTryCount: cart.paymentTryCount,
-      pendingOrderId:
-        cart.order?.orderStatus === OrderStatus.PENDING_PAYMENT
-          ? cart.order.id
-          : null,
       specialNotes: cart.specialNotes,
       contactNumber: cart.contactNumber,
       deliveryServiceType: cart.deliveryServiceType,

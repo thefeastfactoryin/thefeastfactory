@@ -1,6 +1,10 @@
 'use client';
 
-import { formatTimeOfDay, type OperatingRegion } from '@aranyam/shared-types';
+import {
+  formatTimeOfDay,
+  type OperatingRegion,
+  type OrderStatus,
+} from '@aranyam/shared-types';
 import {
   AlertTriangle,
   CalendarDays,
@@ -17,7 +21,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { AdminPageHeader } from '../../../components/admin-page-header';
 import { AdminSectionTabs } from '../../../components/admin-section-tabs';
-import { StatusBadge } from '../../../components/status-badge';
+import { OrderStatusBadge } from '../../../components/status-badge';
 import { Button } from '../../../components/ui/button';
 import { Select } from '../../../components/ui/form';
 import { apiRequest } from '../../../lib/api';
@@ -27,6 +31,7 @@ type DashboardView = 'agenda' | 'calendar';
 
 type CalendarEvent = {
   id: string;
+  bookingNumber: string;
   eventName?: string | null;
   eventDate: string;
   eventTimeStart?: string | null;
@@ -39,13 +44,13 @@ type CalendarEvent = {
   orders: Array<{
     id: string;
     orderNumber: string;
-    orderStatus: string;
+    orderStatus: OrderStatus;
     paymentStatus: string;
   }>;
 };
 
 type RevenueReport = { netRevenue: number };
-type OrderStatusRow = { orderStatus: string; _count: number };
+type OrderStatusRow = { orderStatus: OrderStatus; _count: number };
 type OrdersReport = { total: number; byStatus: OrderStatusRow[] };
 type PaymentsReport = { total: number };
 type OperationsQueue = {
@@ -356,15 +361,10 @@ export default function Dashboard() {
                     </header>
                     <div className="space-y-2 p-2">
                       {events.map((event) => {
-                        const order = event.orders[0];
                         return (
                           <Link
                             key={event.id}
-                            href={
-                              order
-                                ? `/admin/orders/${order.id}`
-                                : '/admin/orders'
-                            }
+                            href={`/admin/bookings/${event.id}`}
                             className="block rounded-md border-l-4 border-primary bg-muted/40 p-2.5 hover:bg-muted"
                           >
                             <p className="text-xs font-semibold text-primary">
@@ -423,7 +423,7 @@ export default function Dashboard() {
                 key={row.orderStatus}
                 className="flex items-center justify-between rounded-lg border px-3 py-2.5"
               >
-                <StatusBadge value={row.orderStatus} />
+                <OrderStatusBadge value={row.orderStatus} />
                 <strong>{row._count}</strong>
               </div>
             ))}
@@ -443,7 +443,7 @@ function AgendaRow({ event }: { event: CalendarEvent }) {
           {timeLabel(event.eventTimeStart)}
         </p>
         <p className="text-xs text-muted-foreground">
-          {order?.orderNumber ?? 'No order'}
+          {event.bookingNumber}
         </p>
       </div>
       <div className="min-w-0">
@@ -470,19 +470,17 @@ function AgendaRow({ event }: { event: CalendarEvent }) {
         </p>
       </div>
       <div className="flex items-center justify-between gap-3 md:justify-end">
-        {order && <StatusBadge value={order.orderStatus} />}
-        {order && (
-          <Button
-            asChild
-            variant="outline"
-            className="h-10 w-10 px-0"
-            aria-label={`Open ${order.orderNumber}`}
-          >
-            <Link href={`/admin/orders/${order.id}`}>
-              <ChevronRight className="h-4 w-4" />
-            </Link>
-          </Button>
-        )}
+        {order && <OrderStatusBadge value={order.orderStatus} />}
+        <Button
+          asChild
+          variant="outline"
+          className="h-10 w-10 px-0"
+          aria-label={`Open ${event.bookingNumber}`}
+        >
+          <Link href={`/admin/bookings/${event.id}`}>
+            <ChevronRight className="h-4 w-4" />
+          </Link>
+        </Button>
       </div>
     </article>
   );

@@ -2,11 +2,11 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsNumber, IsOptional, Min } from 'class-validator';
 
-export class CreateOrderPaymentDto {
+export class CreateBookingPaymentDto {
   @ApiPropertyOptional({
     minimum: 1,
     description:
-      'Amount to pay toward the remaining order balance. Omit to pay the full balance.',
+      'Amount to pay toward the remaining booking balance. Omit to pay the full balance.',
   })
   @IsOptional()
   @Type(() => Number)

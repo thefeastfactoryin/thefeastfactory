@@ -1,6 +1,7 @@
 'use client';
 
 import type {
+  BookingFulfilmentStatus,
   BookingStatus,
   BookingSummary,
   OperatingRegion,
@@ -10,6 +11,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { AdminPageHeader } from '../../../components/admin-page-header';
 import { StatusBadge } from '../../../components/status-badge';
+import { FulfilmentStatusBadge } from '../../../components/status-badge';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { apiRequest } from '../../../lib/api';
@@ -23,6 +25,13 @@ const statuses: BookingStatus[] = [
   'CANCELLED',
   'NEEDS_REVIEW',
 ];
+const fulfilmentStatuses: BookingFulfilmentStatus[] = [
+  'NOT_STARTED',
+  'PREPARING',
+  'READY_FOR_DELIVERY',
+  'OUT_FOR_DELIVERY',
+  'COMPLETED',
+];
 
 export default function AdminBookingsPage() {
   const session = useAdminSessionStore((state) => state.session);
@@ -34,6 +43,7 @@ export default function AdminBookingsPage() {
     totalPages: 1,
   });
   const [status, setStatus] = useState('');
+  const [fulfilmentStatus, setFulfilmentStatus] = useState('');
   const [mobile, setMobile] = useState('');
   const [regionId, setRegionId] = useState('');
   const [regions, setRegions] = useState<OperatingRegion[]>([]);
@@ -47,10 +57,11 @@ export default function AdminBookingsPage() {
   const query = useMemo(() => {
     const params = new URLSearchParams({ page: String(page), pageSize: '20' });
     if (status) params.set('status', status);
+    if (fulfilmentStatus) params.set('fulfilmentStatus', fulfilmentStatus);
     if (mobile) params.set('mobileNumber', mobile);
     if (effectiveRegion) params.set('regionId', effectiveRegion);
     return params.toString();
-  }, [effectiveRegion, mobile, page, status]);
+  }, [effectiveRegion, fulfilmentStatus, mobile, page, status]);
 
   useEffect(() => {
     if (!session || session.admin.role !== 'ADMIN') return;
@@ -86,7 +97,7 @@ export default function AdminBookingsPage() {
         description="Approve and manage the complete customer booking while package orders remain available for kitchen fulfilment."
       />
       <section className="admin-card mt-6 p-4">
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <select
             value={status}
             onChange={(event) => {
@@ -98,6 +109,21 @@ export default function AdminBookingsPage() {
             <option value="">All booking statuses</option>
             {statuses.map((value) => (
               <option key={value}>{value}</option>
+            ))}
+          </select>
+          <select
+            value={fulfilmentStatus}
+            onChange={(event) => {
+              setFulfilmentStatus(event.target.value);
+              setPage(1);
+            }}
+            className="h-10 rounded-lg border border-input bg-white px-3 text-sm"
+          >
+            <option value="">All fulfilment statuses</option>
+            {fulfilmentStatuses.map((value) => (
+              <option key={value} value={value}>
+                {value.replaceAll('_', ' ')}
+              </option>
             ))}
           </select>
           <Input
@@ -141,7 +167,7 @@ export default function AdminBookingsPage() {
               <Link
                 key={booking.id}
                 href={`/admin/bookings/${booking.id}`}
-                className="grid gap-3 p-5 hover:bg-muted/30 md:grid-cols-[1.2fr_1fr_.8fr_.8fr_.7fr] md:items-center"
+                className="grid gap-3 p-5 hover:bg-muted/30 md:grid-cols-[1.2fr_1fr_.8fr_.8fr_.8fr_.7fr] md:items-center"
               >
                 <div>
                   <p className="font-semibold text-primary">
@@ -159,6 +185,7 @@ export default function AdminBookingsPage() {
                   </p>
                 </div>
                 <StatusBadge value={booking.status} />
+                <FulfilmentStatusBadge value={booking.fulfilmentStatus} />
                 <StatusBadge value={booking.paymentStatus} />
                 <p className="text-right font-semibold">
                   ₹{Number(booking.totalAmount).toLocaleString('en-IN')}

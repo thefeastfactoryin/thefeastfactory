@@ -184,7 +184,6 @@ export function CustomerShell({
     '/login',
     '/otp',
     '/payment',
-    '/orders',
     '/profile',
     '/addresses',
   ].some((route) => pathname.startsWith(route));

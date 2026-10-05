@@ -1,126 +1,86 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { BadRequestException } from '@nestjs/common';
 import {
   AdminRole,
+  BookingFulfilmentStatus,
+  BookingStatus,
   OrderStatus,
   PaymentSource,
   PaymentStatus,
 } from '@prisma/client';
 import { AdminOrdersService } from '../src/modules/admin-orders/admin-orders.service';
 
-test('pending-payment orders cannot bypass the kitchen approval flow', async () => {
-  let updateCalls = 0;
+test('booking fulfilment can jump directly to completed and synchronizes every package', async () => {
+  let storedFulfilment = BookingFulfilmentStatus.NOT_STARTED;
+  let storedBookingStatus = BookingStatus.CONFIRMED;
+  const childStatuses = new Map([
+    ['order-1', OrderStatus.CONFIRMED],
+    ['order-2', OrderStatus.CONFIRMED],
+  ]);
   const service = new AdminOrdersService(
     {
-      order: {
-        findUnique: async () => ({
-          id: 'order-1',
+      booking: {
+        findFirst: async () => ({
+          id: 'booking-1',
           regionId: 'region-1',
-          orderStatus: OrderStatus.PENDING_PAYMENT,
-          paymentStatus: PaymentStatus.PENDING,
+          status: storedBookingStatus,
+          fulfilmentStatus: storedFulfilment,
+          orders: [...childStatuses].map(([id, orderStatus]) => ({
+            id,
+            orderStatus,
+          })),
         }),
       },
-      $transaction: async () => {
-        updateCalls += 1;
-      },
-    } as never,
-    {} as never,
-    {} as never,
-    { resolveAdminScope: async () => undefined } as never,
-  );
-
-  await assert.rejects(
-    service.updateStatus(
-      { sub: 'admin-1', type: 'admin', role: AdminRole.SUPER_ADMIN },
-      'order-1',
-      { status: OrderStatus.CONFIRMED },
-    ),
-    (error: unknown) =>
-      error instanceof BadRequestException &&
-      /Cannot transition from PENDING_PAYMENT to CONFIRMED/.test(error.message),
-  );
-  assert.equal(updateCalls, 0);
-});
-
-test('kitchen can approve an unpaid booking request', async () => {
-  let updatedStatus: OrderStatus | undefined;
-  const service = new AdminOrdersService(
-    {
-      order: {
-        findUnique: async () => ({
-          id: 'order-1',
-          regionId: 'region-1',
-          orderStatus: OrderStatus.AWAITING_APPROVAL,
-          paymentStatus: PaymentStatus.UNPAID,
-        }),
-        updateMany: async () => ({ count: 1 }),
-      },
-      orderStatusHistory: { create: async () => undefined },
       $transaction: async (callback: (tx: object) => Promise<void>) =>
         callback({
-          order: {
+          booking: {
             updateMany: async ({
               data,
             }: {
+              data: {
+                status: BookingStatus;
+                fulfilmentStatus: BookingFulfilmentStatus;
+              };
+            }) => {
+              storedBookingStatus = data.status;
+              storedFulfilment = data.fulfilmentStatus;
+              return { count: 1 };
+            },
+          },
+          bookingFulfilmentHistory: { create: async () => undefined },
+          bookingStatusHistory: { create: async () => undefined },
+          order: {
+            update: async ({
+              where,
+              data,
+            }: {
+              where: { id: string };
               data: { orderStatus: OrderStatus };
             }) => {
-              updatedStatus = data.orderStatus;
-              return { count: 1 };
+              childStatuses.set(where.id, data.orderStatus);
             },
           },
           orderStatusHistory: { create: async () => undefined },
         }),
     } as never,
-    { serializeOrder: (value: unknown) => value } as never,
-    {} as never,
-    { resolveAdminScope: async () => undefined } as never,
-  );
-  service.get = async () => ({ id: 'order-1' }) as never;
-
-  await service.approve(
-    { sub: 'admin-1', type: 'admin', role: AdminRole.SUPER_ADMIN },
-    'order-1',
-  );
-  assert.equal(updatedStatus, OrderStatus.CONFIRMED);
-});
-
-test('stale admin status transitions cannot overwrite a concurrent change', async () => {
-  let historyWrites = 0;
-  const service = new AdminOrdersService(
-    {
-      order: {
-        findUnique: async () => ({
-          id: 'order-1',
-          regionId: 'region-1',
-          orderStatus: OrderStatus.CONFIRMED,
-          paymentStatus: PaymentStatus.PAID,
-        }),
-      },
-      $transaction: async (callback: (tx: object) => Promise<void>) =>
-        callback({
-          order: { updateMany: async () => ({ count: 0 }) },
-          orderStatusHistory: {
-            create: async () => {
-              historyWrites += 1;
-            },
-          },
-        }),
-    } as never,
     {} as never,
     {} as never,
     { resolveAdminScope: async () => undefined } as never,
+    {} as never,
   );
+  service.getBooking = async () => ({ id: 'booking-1' }) as never;
 
-  await assert.rejects(
-    service.updateStatus(
-      { sub: 'admin-1', type: 'admin', role: AdminRole.SUPER_ADMIN },
-      'order-1',
-      { status: OrderStatus.IN_PROGRESS },
-    ),
-    /reload before trying again/,
+  await service.updateBookingFulfilment(
+    { sub: 'admin-1', type: 'admin', role: AdminRole.ADMIN },
+    'booking-1',
+    { status: BookingFulfilmentStatus.COMPLETED },
   );
-  assert.equal(historyWrites, 0);
+  assert.equal(storedFulfilment, BookingFulfilmentStatus.COMPLETED);
+  assert.equal(storedBookingStatus, BookingStatus.COMPLETED);
+  assert.deepEqual([...childStatuses.values()], [
+    OrderStatus.DELIVERED,
+    OrderStatus.DELIVERED,
+  ]);
 });
 
 test('admin order detail uses the same complete menu as the customer order', async () => {
@@ -129,6 +89,7 @@ test('admin order detail uses the same complete menu as the customer order', asy
       order: {
         findUnique: async () => ({
           id: 'order-1',
+          bookingId: 'booking-1',
           userId: 'user-1',
           regionId: 'region-1',
           orderStatus: OrderStatus.AWAITING_APPROVAL,
@@ -145,8 +106,9 @@ test('admin order detail uses the same complete menu as the customer order', asy
     { resolveAdminScope: async () => undefined } as never,
   );
 
-  const order = await service.get(
+  const order = await service.getOrder(
     { sub: 'admin-1', type: 'admin', role: AdminRole.ADMIN },
+    'booking-1',
     'order-1',
   );
   assert.deepEqual(
@@ -157,15 +119,17 @@ test('admin order detail uses the same complete menu as the customer order', asy
 
 test('declining a booking refunds every captured online partial payment', async () => {
   const refundedPaymentIds: string[] = [];
-  let declinedStatus: OrderStatus | undefined;
+  let declinedStatus: BookingStatus | undefined;
   const service = new AdminOrdersService(
     {
-      order: {
-        findUnique: async () => ({
-          id: 'order-1',
-          userId: 'user-1',
+      booking: {
+        findFirst: async () => ({
+          id: 'booking-1',
           regionId: 'region-1',
-          orderStatus: OrderStatus.AWAITING_APPROVAL,
+          status: BookingStatus.AWAITING_APPROVAL,
+          orders: [
+            { id: 'order-1', orderStatus: OrderStatus.AWAITING_APPROVAL },
+          ],
           payments: [
             {
               id: 'online-part-1',
@@ -190,15 +154,19 @@ test('declining a booking refunds every captured online partial payment', async 
       },
       $transaction: async (callback: (tx: object) => Promise<void>) =>
         callback({
-          order: {
+          booking: {
             updateMany: async ({
               data,
             }: {
-              data: { orderStatus: OrderStatus };
+              data: { status: BookingStatus };
             }) => {
-              declinedStatus = data.orderStatus;
+              declinedStatus = data.status;
               return { count: 1 };
             },
+          },
+          bookingStatusHistory: { create: async () => undefined },
+          order: {
+            update: async () => undefined,
           },
           orderStatusHistory: { create: async () => undefined },
         }),
@@ -211,15 +179,15 @@ test('declining a booking refunds every captured online partial payment', async 
     } as never,
     { resolveAdminScope: async () => undefined } as never,
   );
-  service.get = async () => ({ id: 'order-1' }) as never;
+  service.getBooking = async () => ({ id: 'booking-1' }) as never;
 
-  const result = await service.decline(
+  const result = await service.declineBooking(
     { sub: 'admin-1', type: 'admin', role: AdminRole.ADMIN },
-    'order-1',
+    'booking-1',
     { reason: 'Kitchen cannot fulfil this booking' },
   );
 
-  assert.equal(declinedStatus, OrderStatus.DECLINED);
+  assert.equal(declinedStatus, BookingStatus.DECLINED);
   assert.deepEqual(refundedPaymentIds, ['online-part-1', 'online-part-2']);
   assert.equal(result.refundRequired, true);
   assert.equal(result.manualRefundRequired, true);
@@ -233,7 +201,7 @@ test('only assigned kitchen Operations can invoke the refund endpoint', async ()
       payment: {
         findUnique: async () => ({
           id: 'payment-1',
-          order: { regionId: 'region-1', orderStatus: OrderStatus.DECLINED },
+          booking: { regionId: 'region-1', status: BookingStatus.DECLINED },
         }),
       },
     } as never,
@@ -273,7 +241,7 @@ test('Operations cannot refund a payment from another kitchen', async () => {
       payment: {
         findUnique: async () => ({
           id: 'payment-elsewhere',
-          order: { regionId: 'region-2', orderStatus: OrderStatus.DECLINED },
+          booking: { regionId: 'region-2', status: BookingStatus.DECLINED },
         }),
       },
     } as never,

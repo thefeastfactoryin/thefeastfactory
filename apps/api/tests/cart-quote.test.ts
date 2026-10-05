@@ -34,7 +34,6 @@ test('adding the same package twice creates independent cart records', async () 
         address: null,
         region: null,
         items: [],
-        order: null,
       }),
     },
   };
@@ -113,7 +112,6 @@ test('selecting an address updates an incomplete cart immediately', async () => 
     lastQuotedAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),
-    pendingOrderId: null,
     specialNotes: null,
     eventName: null,
     eventDate: null,
@@ -124,7 +122,6 @@ test('selecting an address updates an incomplete cart immediately', async () => 
     address: null,
     region: null,
     items: [],
-    order: null,
   };
   let savedAddressId: string | undefined;
   const prisma = {
@@ -199,7 +196,6 @@ test('updating a cart saves a trimmed kitchen note before checkout', async () =>
     lastQuotedAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),
-    pendingOrderId: null,
     specialNotes: null,
     eventName: null,
     eventDate: null,
@@ -217,7 +213,6 @@ test('updating a cart saves a trimmed kitchen note before checkout', async () =>
     region: null,
     items: [],
     cutleryItems: [],
-    order: null,
   };
   let savedNotes: string | null | undefined;
   const prisma = {
@@ -458,7 +453,6 @@ test('package quantities update independently within package limits', async () =
           lastQuotedAt: null,
           createdAt: new Date(),
           updatedAt: new Date(),
-          order: null,
           address: null,
           region: null,
           packageVersion: {
@@ -571,7 +565,7 @@ test('only abandoned or expired carts older than 30 days are hard-deleted', asyn
   assert.equal(await service.purgeExpiredCarts(), 1);
   assert.deepEqual(deletedItemCartIds, ['expired-cart-1']);
   assert.deepEqual(deletedCartIds, ['expired-cart-1']);
-  assert.deepEqual(lookupWhere?.order, { is: null });
+  assert.equal(lookupWhere?.order, undefined);
   assert.deepEqual(lookupWhere?.status, { in: ['ABANDONED', 'EXPIRED'] });
   assert.ok((lookupWhere?.expiresAt as { lt: Date }).lt instanceof Date);
   assert.ok((lookupWhere?.updatedAt as { lt: Date }).lt instanceof Date);

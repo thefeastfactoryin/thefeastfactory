@@ -26,7 +26,7 @@ test('operations calendar rejects a reversed date range before querying', async 
   let queryCalls = 0;
   const service = new OperationsService(
     {
-      order: {
+      booking: {
         findMany: async () => {
           queryCalls += 1;
           return [];

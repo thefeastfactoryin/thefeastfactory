@@ -17,6 +17,24 @@ export function formatStatus(value: string) {
     .join(' ');
 }
 
+export function formatCustomerBookingStatus(value: string) {
+  const labels: Record<string, string> = {
+    DRAFT: 'Awaiting Confirmation',
+    PENDING_PAYMENT: 'Awaiting Confirmation',
+    AWAITING_APPROVAL: 'Awaiting Confirmation',
+    NEEDS_REVIEW: 'Awaiting Confirmation',
+    CONFIRMED: 'Confirmed',
+    IN_PROGRESS: 'Confirmed',
+    READY_FOR_DELIVERY: 'Confirmed',
+    OUT_FOR_DELIVERY: 'Confirmed',
+    DELIVERED: 'Completed',
+    COMPLETED: 'Completed',
+    DECLINED: 'Declined',
+    CANCELLED: 'Cancelled',
+  };
+  return labels[value] ?? formatStatus(value);
+}
+
 const CATEGORY_LABELS: Record<string, string> = {
   Starters: 'Starters',
   'Indian Breads': 'Indian Breads',

@@ -15,6 +15,10 @@ import { createOpenApiDocument } from './swagger';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { rawBody: true });
   const config = app.get(ConfigService);
+  const trustProxyHops = config.get<number>('API_TRUST_PROXY_HOPS', 0);
+  if (trustProxyHops > 0) {
+    app.getHttpAdapter().getInstance().set('trust proxy', trustProxyHops);
+  }
   const origins = config
     .getOrThrow<string>('API_CORS_ORIGINS')
     .split(',')

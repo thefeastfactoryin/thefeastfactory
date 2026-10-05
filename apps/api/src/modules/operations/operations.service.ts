@@ -5,8 +5,8 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  BookingStatus,
   DocumentType,
-  OrderStatus,
   PaymentStatus,
   Prisma,
   RefundStatus,
@@ -15,7 +15,7 @@ import PDFDocument from 'pdfkit';
 import { JwtPayload } from '../../common/auth/jwt-payload';
 import { OperatingRegionsService } from '../operating-regions/operating-regions.service';
 import { PrismaService } from '../../prisma/prisma.service';
-import { CreateOrderNoteDto } from './dto/create-order-note.dto';
+import { CreateBookingNoteDto } from './dto/create-booking-note.dto';
 import { UpdateSettingsDto } from './dto/update-settings.dto';
 import {
   clockMinutes,
@@ -62,13 +62,10 @@ type PdfSnapshot = {
     sacCode: string;
     legalFooter: string;
   };
-  order: {
-    orderNumber: string;
-    packageName: string;
-    guestCount: number | null;
-    finalPerPlatePrice: string | null;
-    basePerPlatePrice: string | null;
-    customizationCharges: string | null;
+  booking: {
+    bookingNumber: string;
+    itemsSubtotal: string;
+    cutleryTotal: string;
     deliveryFee: string;
     totalAmount: string;
     eventDate: string | Date;
@@ -84,19 +81,27 @@ type PdfSnapshot = {
       email?: string | null;
     };
     payment?: {
+      amount: string;
       reference?: string | null;
       method?: string | null;
       paidAt?: string | Date | null;
     } | null;
-    items: Array<{
-      weightGrams?: number | null;
-      pricePerKg?: string | null;
-      lineTotal?: string | null;
-      name: string;
-      category: string;
-      role: string;
-      itemPrice: string;
-      adjustmentAmount: string;
+    packages: Array<{
+      orderNumber: string;
+      packageName: string;
+      guestCount: number | null;
+      finalPerPlatePrice: string | null;
+      totalAmount: string;
+      items: Array<{
+        weightGrams?: number | null;
+        pricePerKg?: string | null;
+        lineTotal?: string | null;
+        name: string;
+        category: string;
+        role: string;
+        itemPrice: string;
+        adjustmentAmount: string;
+      }>;
     }>;
   };
   tax: { cgstRate: string; sgstRate: string; igstRate: string };
@@ -111,19 +116,19 @@ export class OperationsService {
     private readonly regions: OperatingRegionsService,
   ) {}
 
-  async notes(admin: JwtPayload, orderId: string) {
-    await this.assertAdminOrder(admin, orderId);
-    return this.prisma.orderNote.findMany({
-      where: { orderId },
+  async notes(admin: JwtPayload, bookingId: string) {
+    await this.assertAdminBooking(admin, bookingId);
+    return this.prisma.bookingNote.findMany({
+      where: { bookingId },
       include: { author: { select: { id: true, name: true, role: true } } },
       orderBy: { createdAt: 'desc' },
     });
   }
 
-  async addNote(admin: JwtPayload, orderId: string, dto: CreateOrderNoteDto) {
-    await this.assertAdminOrder(admin, orderId);
-    return this.prisma.orderNote.create({
-      data: { orderId, authorId: admin.sub, body: dto.body.trim() },
+  async addNote(admin: JwtPayload, bookingId: string, dto: CreateBookingNoteDto) {
+    await this.assertAdminBooking(admin, bookingId);
+    return this.prisma.bookingNote.create({
+      data: { bookingId, authorId: admin.sub, body: dto.body.trim() },
       include: { author: { select: { id: true, name: true, role: true } } },
     });
   }
@@ -146,33 +151,31 @@ export class OperationsService {
         'Calendar start date must not be after the end date',
       );
     }
-    const orders = await this.prisma.order.findMany({
+    const bookings = await this.prisma.booking.findMany({
       where: {
         eventDate: { gte: start, lte: end },
-        orderStatus: { not: OrderStatus.PENDING_PAYMENT },
+        status: { not: BookingStatus.PENDING_PAYMENT },
         ...(regionId ? { regionId } : {}),
         ...(city
-          ? { address: { city: { contains: city, mode: 'insensitive' } } }
+          ? { city: { contains: city, mode: 'insensitive' } }
           : {}),
       },
       include: {
-        address: true,
         region: true,
         user: { select: { id: true, name: true, mobileNumber: true } },
+        orders: {
+          select: {
+            id: true,
+            orderNumber: true,
+            orderStatus: true,
+            paymentStatus: true,
+            guestCount: true,
+          },
+        },
       },
       orderBy: [{ eventDate: 'asc' }, { eventTimeStart: 'asc' }],
     });
-    return orders.map((order) => ({
-      ...order,
-      orders: [
-        {
-          id: order.id,
-          orderNumber: order.orderNumber,
-          orderStatus: order.orderStatus,
-          paymentStatus: order.paymentStatus,
-        },
-      ],
-    }));
+    return bookings.map((booking) => this.serializeOperationsBooking(booking));
   }
 
   async queue(admin: JwtPayload, requestedRegionId?: string) {
@@ -183,29 +186,43 @@ export class OperationsService {
     const now = new Date();
     const upcoming = new Date(now.getTime() + 7 * 86_400_000);
     const [events, failedPayments, pendingRefunds] = await Promise.all([
-      this.prisma.order.findMany({
+      this.prisma.booking.findMany({
         where: {
           eventDate: { gte: now, lte: upcoming },
-          orderStatus: {
+          status: {
             notIn: [
-              OrderStatus.CANCELLED,
-              OrderStatus.DECLINED,
-              OrderStatus.AWAITING_APPROVAL,
-              OrderStatus.PENDING_PAYMENT,
+              BookingStatus.CANCELLED,
+              BookingStatus.DECLINED,
+              BookingStatus.AWAITING_APPROVAL,
+              BookingStatus.PENDING_PAYMENT,
             ],
           },
           ...(regionId ? { regionId } : {}),
         },
-        include: { address: true, region: true, user: true },
+        include: {
+          region: true,
+          user: true,
+          orders: {
+            select: {
+              id: true,
+              orderNumber: true,
+              orderStatus: true,
+              paymentStatus: true,
+              guestCount: true,
+            },
+          },
+        },
         orderBy: { eventDate: 'asc' },
         take: 30,
       }),
       this.prisma.payment.findMany({
         where: {
           paymentStatus: PaymentStatus.FAILED,
-          ...(regionId ? { order: { regionId } } : {}),
+          ...(regionId ? { booking: { regionId } } : {}),
         },
-        include: { order: { include: { user: true, region: true } } },
+        include: {
+          booking: { include: { user: true, region: true } },
+        },
         orderBy: { updatedAt: 'desc' },
         take: 20,
       }),
@@ -214,27 +231,23 @@ export class OperationsService {
           refundStatus: {
             in: [RefundStatus.INITIATED, RefundStatus.PROCESSING],
           },
-          ...(regionId ? { payment: { order: { regionId } } } : {}),
+          ...(regionId ? { payment: { booking: { regionId } } } : {}),
         },
         include: {
-          payment: { include: { order: { include: { region: true } } } },
+          payment: {
+            include: {
+              booking: { include: { region: true } },
+            },
+          },
         },
         orderBy: { initiatedAt: 'asc' },
         take: 20,
       }),
     ]);
     return {
-      upcomingEvents: events.map((order) => ({
-        ...order,
-        orders: [
-          {
-            id: order.id,
-            orderNumber: order.orderNumber,
-            orderStatus: order.orderStatus,
-            paymentStatus: order.paymentStatus,
-          },
-        ],
-      })),
+      upcomingEvents: events.map((booking) =>
+        this.serializeOperationsBooking(booking),
+      ),
       failedPayments,
       pendingRefunds,
     };
@@ -356,11 +369,11 @@ export class OperationsService {
     };
   }
 
-  async documents(userId: string, orderId: string, admin?: JwtPayload) {
-    const order = await this.loadDocumentOrder(orderId, userId, admin);
-    await this.ensureDocuments(order);
-    return this.prisma.orderDocument.findMany({
-      where: { orderId },
+  async documents(userId: string, bookingId: string, admin?: JwtPayload) {
+    const booking = await this.loadDocumentBooking(bookingId, userId, admin);
+    await this.ensureDocuments(booking);
+    return this.prisma.bookingDocument.findMany({
+      where: { bookingId },
       select: {
         id: true,
         documentType: true,
@@ -373,13 +386,13 @@ export class OperationsService {
 
   async documentPdf(
     userId: string,
-    orderId: string,
+    bookingId: string,
     documentId: string,
     admin?: JwtPayload,
   ) {
-    await this.loadDocumentOrder(orderId, userId, admin);
-    const document = await this.prisma.orderDocument.findFirst({
-      where: { id: documentId, orderId },
+    await this.loadDocumentBooking(bookingId, userId, admin);
+    const document = await this.prisma.bookingDocument.findFirst({
+      where: { id: documentId, bookingId },
     });
     if (!document) throw new NotFoundException('Document not found');
     return {
@@ -392,97 +405,103 @@ export class OperationsService {
     };
   }
 
-  private async loadDocumentOrder(
-    orderId: string,
+  private async loadDocumentBooking(
+    bookingId: string,
     userId: string,
     admin?: JwtPayload,
   ) {
     const regionId = admin
       ? await this.regions.resolveAdminScope(admin)
       : undefined;
-    const order = await this.prisma.order.findFirst({
+    const booking = await this.prisma.booking.findFirst({
       where: {
-        id: orderId,
+        id: bookingId,
         ...(admin ? (regionId ? { regionId } : {}) : { userId }),
       },
       include: {
         user: true,
-        address: true,
-        selectedItems: true,
+        cutleryItems: true,
+        orders: {
+          include: { selectedItems: true },
+          orderBy: { createdAt: 'asc' },
+        },
         payments: { include: { refunds: true } },
       },
     });
-    if (!order) throw new NotFoundException('Order not found');
-    return order;
+    if (!booking) throw new NotFoundException('Booking not found');
+    return booking;
   }
 
   private async ensureDocuments(
-    order: Awaited<ReturnType<OperationsService['loadDocumentOrder']>>,
+    booking: Awaited<ReturnType<OperationsService['loadDocumentBooking']>>,
   ) {
-    const paid = order.payments.find(
+    const paidPayments = booking.payments.filter(
       (payment) =>
         payment.paymentStatus === PaymentStatus.PAID ||
         payment.paymentStatus === PaymentStatus.REFUNDED,
     );
-    if (!paid) return;
+    if (!paidPayments.length) return;
     const settings = Object.fromEntries(
       (await this.settings()).map((setting) => [setting.key, setting.value]),
     );
-    const baseSnapshot = this.snapshot(order, settings);
-    await this.ensureDocument(
-      order.id,
-      order.userId,
-      paid.id,
-      undefined,
-      DocumentType.PAYMENT_RECEIPT,
-      baseSnapshot,
-      settings.receipt_prefix || 'RCT',
-    );
-    if (settings.business_gstin && settings.tax_sac_code) {
+    for (const payment of paidPayments) {
+      const paymentSnapshot = this.snapshot(booking, settings, payment);
       await this.ensureDocument(
-        order.id,
-        order.userId,
-        paid.id,
+        booking.id,
+        booking.userId,
+        payment.id,
+        undefined,
+        DocumentType.PAYMENT_RECEIPT,
+        paymentSnapshot,
+        settings.receipt_prefix || 'RCT',
+      );
+      for (const refund of payment.refunds.filter(
+        (item) => item.refundStatus === RefundStatus.SUCCESS,
+      )) {
+        await this.ensureDocument(
+          booking.id,
+          booking.userId,
+          payment.id,
+          refund.id,
+          DocumentType.REFUND_CREDIT_NOTE,
+          {
+            ...paymentSnapshot,
+            refund: {
+              amount: refund.amount.toFixed(2),
+              reason: refund.reason,
+              processedAt: refund.processedAt,
+            },
+          },
+          settings.credit_note_prefix || 'CRN',
+        );
+      }
+    }
+    if (settings.business_gstin && settings.tax_sac_code) {
+      const latestPayment = paidPayments.at(-1)!;
+      await this.ensureDocument(
+        booking.id,
+        booking.userId,
+        latestPayment.id,
         undefined,
         DocumentType.GST_INVOICE,
-        baseSnapshot,
+        this.snapshot(booking, settings),
         settings.invoice_prefix || 'INV',
       );
     }
-    for (const refund of paid.refunds.filter(
-      (item) => item.refundStatus === RefundStatus.SUCCESS,
-    )) {
-      await this.ensureDocument(
-        order.id,
-        order.userId,
-        paid.id,
-        refund.id,
-        DocumentType.REFUND_CREDIT_NOTE,
-        {
-          ...baseSnapshot,
-          refund: {
-            amount: refund.amount.toFixed(2),
-            reason: refund.reason,
-            processedAt: refund.processedAt,
-          },
-        },
-        settings.credit_note_prefix || 'CRN',
-      );
-    }
   }
 
-  async generateOrderDocuments(orderId: string) {
-    const owner = await this.prisma.order.findUnique({
-      where: { id: orderId },
+  async generateBookingDocuments(bookingId: string) {
+    const owner = await this.prisma.booking.findUnique({
+      where: { id: bookingId },
       select: { userId: true },
     });
-    if (!owner) throw new NotFoundException('Order not found');
-    const order = await this.loadDocumentOrder(orderId, owner.userId);
-    await this.ensureDocuments(order);
+    if (!owner) throw new NotFoundException('Booking not found');
+    const booking = await this.loadDocumentBooking(bookingId, owner.userId);
+    await this.ensureDocuments(booking);
   }
 
   private async ensureDocument(
-    orderId: string,
+    bookingId: string,
     userId: string,
     paymentId: string,
     refundId: string | undefined,
@@ -490,14 +509,19 @@ export class OperationsService {
     snapshot: Prisma.InputJsonValue,
     prefix: string,
   ) {
-    const exists = await this.prisma.orderDocument.findFirst({
-      where: { orderId, documentType, refundId: refundId ?? null },
+    const exists = await this.prisma.bookingDocument.findFirst({
+      where: {
+        bookingId,
+        documentType,
+        ...(documentType === DocumentType.PAYMENT_RECEIPT ? { paymentId } : {}),
+        refundId: refundId ?? null,
+      },
     });
     if (exists) return exists;
-    const number = `${prefix}-${new Date().getFullYear()}-${orderId.slice(0, 8).toUpperCase()}${refundId ? `-${refundId.slice(0, 4).toUpperCase()}` : ''}`;
-    return this.prisma.orderDocument.create({
+    const number = `${prefix}-${new Date().getFullYear()}-${bookingId.slice(0, 8).toUpperCase()}-${paymentId.slice(0, 4).toUpperCase()}${refundId ? `-${refundId.slice(0, 4).toUpperCase()}` : ''}`;
+    return this.prisma.bookingDocument.create({
       data: {
-        orderId,
+        bookingId,
         userId,
         paymentId,
         refundId,
@@ -509,8 +533,9 @@ export class OperationsService {
   }
 
   private snapshot(
-    order: Awaited<ReturnType<OperationsService['loadDocumentOrder']>>,
+    booking: Awaited<ReturnType<OperationsService['loadDocumentBooking']>>,
     settings: Record<string, string>,
+    payment?: (typeof booking.payments)[number],
   ) {
     return {
       business: {
@@ -526,40 +551,50 @@ export class OperationsService {
         sacCode: settings.tax_sac_code || '',
         legalFooter: settings.invoice_legal_footer || '',
       },
-      order: {
-        orderNumber: order.orderNumber,
-        packageName: order.packageName,
-        guestCount: order.guestCount,
-        finalPerPlatePrice: order.finalPerPlatePrice?.toFixed(2) ?? null,
-        basePerPlatePrice: order.basePerPlatePrice?.toFixed(2) ?? null,
-        customizationCharges:
-          order.totalCustomizationCharges?.toFixed(2) ?? null,
-        deliveryFee: order.deliveryFee.toFixed(2),
-        totalAmount: order.totalAmount.toFixed(2),
-        createdAt: order.createdAt,
-        eventDate: order.eventDate,
-        address: order.address,
-        customer: {
-          name: order.user.name,
-          mobileNumber: order.contactNumber,
-          email: order.user.email,
+      booking: {
+        bookingNumber: booking.bookingNumber,
+        itemsSubtotal: booking.itemsSubtotal.toFixed(2),
+        cutleryTotal: booking.cutleryTotal.toFixed(2),
+        deliveryFee: booking.deliveryFee.toFixed(2),
+        totalAmount: booking.totalAmount.toFixed(2),
+        createdAt: booking.createdAt,
+        eventDate: booking.eventDate,
+        address: {
+          addressLine1: booking.addressLine1,
+          city: booking.city,
+          state: booking.state,
+          pincode: booking.pincode,
         },
-        payment: order.payments[0]
+        customer: {
+          name: booking.user.name,
+          mobileNumber: booking.contactNumber,
+          email: booking.user.email,
+        },
+        payment: payment
           ? {
-              reference: order.payments[0].razorpayPaymentId,
-              method: order.payments[0].paymentMethod,
-              paidAt: order.payments[0].paidAt,
+              amount: payment.amount.toFixed(2),
+              reference:
+                payment.externalReference || payment.razorpayPaymentId,
+              method: payment.paymentMethod,
+              paidAt: payment.paidAt,
             }
           : null,
-        items: order.selectedItems.map((item) => ({
-          name: item.menuItemName,
-          weightGrams: item.weightGrams,
-          pricePerKg: item.pricePerKg?.toFixed(2) ?? null,
-          lineTotal: item.lineTotal?.toFixed(2) ?? null,
-          category: item.categoryName,
-          role: item.role,
-          itemPrice: item.itemPrice.toFixed(2),
-          adjustmentAmount: item.adjustmentAmount.toFixed(2),
+        packages: booking.orders.map((order) => ({
+          orderNumber: order.orderNumber,
+          packageName: order.packageName,
+          guestCount: order.guestCount,
+          finalPerPlatePrice: order.finalPerPlatePrice?.toFixed(2) ?? null,
+          totalAmount: order.totalAmount.toFixed(2),
+          items: order.selectedItems.map((item) => ({
+            name: item.menuItemName,
+            weightGrams: item.weightGrams,
+            pricePerKg: item.pricePerKg?.toFixed(2) ?? null,
+            lineTotal: item.lineTotal?.toFixed(2) ?? null,
+            category: item.categoryName,
+            role: item.role,
+            itemPrice: item.itemPrice.toFixed(2),
+            adjustmentAmount: item.adjustmentAmount.toFixed(2),
+          })),
         })),
       },
       tax: {
@@ -599,53 +634,60 @@ export class OperationsService {
             : type.replaceAll('_', ' '),
         );
       document.fontSize(10).text(`Document: ${number}`);
-      document.text(`Order: ${data.order.orderNumber}`);
+      document.text(`Booking: ${data.booking.bookingNumber}`);
       document.text(
-        `Customer: ${data.order.customer.name || data.order.customer.mobileNumber}`,
+        `Customer: ${data.booking.customer.name || data.booking.customer.mobileNumber}`,
       );
-      document.text(`Mobile: ${data.order.customer.mobileNumber}`);
-      if (data.order.customer.email)
-        document.text(`Email: ${data.order.customer.email}`);
+      document.text(`Mobile: ${data.booking.customer.mobileNumber}`);
+      if (data.booking.customer.email)
+        document.text(`Email: ${data.booking.customer.email}`);
       document.text(
-        `Event date: ${new Date(data.order.eventDate).toLocaleDateString('en-IN')}`,
+        `Event date: ${new Date(data.booking.eventDate).toLocaleDateString('en-IN')}`,
       );
       document
         .moveDown()
-        .fontSize(12)
-        .text(
-          data.order.guestCount == null
-            ? `${data.order.packageName} — Order by KG`
-            : `${data.order.packageName} for ${data.order.guestCount} guests`,
-        );
-      document
         .fontSize(10)
         .text(
-          `Venue: ${data.order.address.addressLine1}, ${data.order.address.city}, ${data.order.address.state} ${data.order.address.pincode}`,
+          `Venue: ${data.booking.address.addressLine1}, ${data.booking.address.city}, ${data.booking.address.state} ${data.booking.address.pincode}`,
         );
-      document.moveDown().fontSize(11).text('Selected items');
-      for (const item of data.order.items) {
-        document
-          .fontSize(9)
-          .text(
-            item.weightGrams
-              ? `${item.name} — ${item.weightGrams / 1000} kg x INR ${item.pricePerKg}/kg — INR ${item.lineTotal}`
-              : `${item.name} — ${item.category} (${item.role}) — INR ${item.itemPrice}`,
-          );
-      }
-      if (data.order.guestCount != null) {
+      for (const orderedPackage of data.booking.packages) {
         document
           .moveDown()
+          .fontSize(12)
+          .text(
+            orderedPackage.guestCount == null
+              ? `${orderedPackage.packageName} — Order by KG`
+              : `${orderedPackage.packageName} for ${orderedPackage.guestCount} guests`,
+          );
+        document
+          .fontSize(9)
+          .fillColor('#555')
+          .text(`Package ref: ${orderedPackage.orderNumber}`)
+          .fillColor('#111');
+        for (const item of orderedPackage.items) {
+          document
+            .fontSize(9)
+            .text(
+              item.weightGrams
+                ? `${item.name} — ${item.weightGrams / 1000} kg x INR ${item.pricePerKg}/kg — INR ${item.lineTotal}`
+                : `${item.name} — ${item.category} (${item.role}) — INR ${item.itemPrice}`,
+            );
+        }
+        document
           .fontSize(10)
-          .text(`Base per pax: INR ${data.order.basePerPlatePrice}`);
-        document.text(
-          `Customization per pax: INR ${data.order.customizationCharges}`,
-        );
-        document.text(`Final per pax: INR ${data.order.finalPerPlatePrice}`);
+          .text(`Package total: INR ${orderedPackage.totalAmount}`);
       }
-      document.text(`Delivery fee: INR ${data.order.deliveryFee}`);
-      document.text(`Total paid: INR ${data.order.totalAmount}`);
-      if (data.order.payment?.reference)
-        document.text(`Payment reference: ${data.order.payment.reference}`);
+      document.moveDown().text(`Items subtotal: INR ${data.booking.itemsSubtotal}`);
+      document.text(`Cutlery: INR ${data.booking.cutleryTotal}`);
+      document.text(`Delivery fee: INR ${data.booking.deliveryFee}`);
+      document.text(`Booking total: INR ${data.booking.totalAmount}`);
+      if (data.booking.payment) {
+        document.text(`Payment amount: INR ${data.booking.payment.amount}`);
+        if (data.booking.payment.reference)
+          document.text(
+            `Payment reference: ${data.booking.payment.reference}`,
+          );
+      }
       if (data.refund) document.text(`Refund: INR ${data.refund.amount}`);
       if (type === DocumentType.GST_INVOICE) {
         document.moveDown().fontSize(10).text(`GSTIN: ${data.business.gstin}`);
@@ -662,12 +704,40 @@ export class OperationsService {
     });
   }
 
-  private async assertAdminOrder(admin: JwtPayload, orderId: string) {
+  private serializeOperationsBooking<
+    T extends {
+      addressLine1: string;
+      addressLine2: string | null;
+      city: string;
+      state: string;
+      pincode: string;
+      landmark: string | null;
+      orders: Array<{ guestCount: number | null }>;
+    },
+  >(booking: T) {
+    return {
+      ...booking,
+      address: {
+        addressLine1: booking.addressLine1,
+        addressLine2: booking.addressLine2,
+        city: booking.city,
+        state: booking.state,
+        pincode: booking.pincode,
+        landmark: booking.landmark,
+      },
+      guestCount: booking.orders.reduce(
+        (total, order) => total + (order.guestCount ?? 0),
+        0,
+      ),
+    };
+  }
+
+  private async assertAdminBooking(admin: JwtPayload, bookingId: string) {
     const regionId = await this.regions.resolveAdminScope(admin);
-    const order = await this.prisma.order.findFirst({
-      where: { id: orderId, ...(regionId ? { regionId } : {}) },
+    const booking = await this.prisma.booking.findFirst({
+      where: { id: bookingId, ...(regionId ? { regionId } : {}) },
       select: { id: true },
     });
-    if (!order) throw new NotFoundException('Order not found');
+    if (!booking) throw new NotFoundException('Booking not found');
   }
 }

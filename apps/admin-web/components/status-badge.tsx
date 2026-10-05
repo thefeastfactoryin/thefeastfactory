@@ -1,6 +1,17 @@
+import {
+  statusLabels,
+  type BookingFulfilmentStatus,
+  type OrderStatus,
+} from '@aranyam/shared-types';
 import { cn } from '../lib/utils';
 
-export function StatusBadge({ value }: { value: string }) {
+export function StatusBadge({
+  value,
+  label,
+}: {
+  value: string;
+  label?: string;
+}) {
   const tone =
     value.includes('FAILED') || value === 'CANCELLED' || value === 'DECLINED'
       ? 'bg-red-50 text-red-700'
@@ -13,9 +24,11 @@ export function StatusBadge({ value }: { value: string }) {
         : value === 'PAID' ||
             value === 'DELIVERED' ||
             value === 'SUCCESS' ||
-            value === 'CONFIRMED'
+            value === 'COMPLETED'
           ? 'bg-emerald-50 text-emerald-700'
-          : 'bg-rose-50 text-rose-800';
+          : value === 'OUT_FOR_DELIVERY'
+            ? 'bg-sky-50 text-sky-700'
+            : 'bg-rose-50 text-rose-800';
   return (
     <span
       className={cn(
@@ -23,7 +36,32 @@ export function StatusBadge({ value }: { value: string }) {
         tone,
       )}
     >
-      {value.replaceAll('_', ' ')}
+      {label ?? value.replaceAll('_', ' ')}
     </span>
+  );
+}
+
+export function OrderStatusBadge({ value }: { value: OrderStatus }) {
+  return (
+    <StatusBadge
+      value={value}
+      label={
+        statusLabels.order[value as keyof typeof statusLabels.order] ??
+        value.replaceAll('_', ' ')
+      }
+    />
+  );
+}
+
+export function FulfilmentStatusBadge({
+  value,
+}: {
+  value: BookingFulfilmentStatus;
+}) {
+  return (
+    <StatusBadge
+      value={value}
+      label={statusLabels.fulfilment[value]}
+    />
   );
 }

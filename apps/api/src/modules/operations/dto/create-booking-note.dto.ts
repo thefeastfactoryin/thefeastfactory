@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString, MaxLength, MinLength } from 'class-validator';
 
-export class CreateOrderNoteDto {
+export class CreateBookingNoteDto {
   @ApiProperty()
   @IsString()
   @MinLength(1)

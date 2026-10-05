@@ -5,12 +5,12 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt.strategy';
 import { ConsoleOtpProvider } from './providers/console-otp.provider';
-import { AuthRateLimitGuard } from '../../common/guards/auth-rate-limit.guard';
+import { RateLimitGuard } from '../../common/guards/rate-limit.guard';
 
 @Module({
   imports: [JwtModule.register({}), PassportModule],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, ConsoleOtpProvider, AuthRateLimitGuard],
+  providers: [AuthService, JwtStrategy, ConsoleOtpProvider, RateLimitGuard],
   exports: [AuthService],
 })
 export class AuthModule {}

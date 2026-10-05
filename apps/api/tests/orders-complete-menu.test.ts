@@ -1,50 +1,32 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { PackageType, SelectedItemRole } from '@prisma/client';
 import { OrdersService } from '../src/modules/orders/orders.service';
 
-for (const packageType of [PackageType.FIXED_PACKAGE, PackageType.MEAL_BOX]) {
-  test(`${packageType} order detail reconstructs included dishes with guest quantities`, async () => {
-    const service = new OrdersService(
-      {
-        order: {
-          findFirst: async () => ({
-            id: 'order-1',
-            cartId: 'cart-1',
-            guestCount: 20,
-            createdAt: new Date(),
-            selectedItems: [],
-          }),
+test('booking order detail uses its immutable menu snapshot without reading the source cart', async () => {
+  const selectedItems = [
+    {
+      id: 'item-1',
+      role: 'INCLUDED',
+      menuItemName: 'Veg Manchurian',
+    },
+  ];
+  const service = new OrdersService(
+    {
+      order: {
+        findFirst: async () => ({ id: 'order-1', selectedItems }),
+      },
+      cart: {
+        findUnique: async () => {
+          throw new Error('Order detail must not depend on a checkout cart');
         },
-        cart: {
-          findUnique: async () => ({
-            packageVersion: {
-              package: { type: packageType },
-              packageMenuItems: [
-                {
-                  id: 'package-item-1',
-                  categoryId: 'category-1',
-                  menuItemId: 'menu-item-1',
-                  menuItem: {
-                    name: 'Veg Manchurian',
-                    isVeg: true,
-                    generalPrice: { toFixed: () => '50.00' },
-                  },
-                  category: { name: 'Starters' },
-                },
-              ],
-            },
-          }),
-        },
-      } as never,
-      {} as never,
-    );
-    service.serializeOrder = (() => ({ selectedItems: [] })) as never;
+      },
+    } as never,
+    {} as never,
+  );
+  service.serializeOrder = ((order: { selectedItems: unknown[] }) => ({
+    selectedItems: order.selectedItems,
+  })) as never;
 
-    const order = await service.get('user-1', 'order-1');
-    assert.equal(order.selectedItems.length, 1);
-    assert.equal(order.selectedItems[0].role, SelectedItemRole.INCLUDED);
-    assert.equal(order.selectedItems[0].quantity, 20);
-    assert.equal(order.selectedItems[0].menuItemName, 'Veg Manchurian');
-  });
-}
+  const order = await service.get('user-1', 'booking-1', 'order-1');
+  assert.deepEqual(order.selectedItems, selectedItems);
+});

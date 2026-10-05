@@ -40,7 +40,7 @@ function service(prisma: object, generated: string[] = []) {
     } as never,
     { get: () => undefined } as never,
     {
-      generateOrderDocuments: async (id: string) => generated.push(id),
+      generateBookingDocuments: async (id: string) => generated.push(id),
     } as never,
   );
 }
@@ -57,7 +57,7 @@ function configuredService(prisma: object, generated: string[] = []) {
         })[key] ?? fallback,
     } as never,
     {
-      generateOrderDocuments: async (id: string) => generated.push(id),
+      generateBookingDocuments: async (id: string) => generated.push(id),
     } as never,
   );
 }
@@ -78,14 +78,15 @@ test('Razorpay currency prefers the managed database setting', async () => {
   assert.equal(await managedCurrency.currency(), 'AED');
 });
 
-test('gateway orders reject amounts below one rupee', async () => {
+test('booking gateway orders reject amounts below one rupee', async () => {
   const payments = service({
-    order: {
+    booking: {
       findFirst: async () => ({
-        id: 'order-1',
-        orderNumber: 'TFF-1',
-        orderStatus: OrderStatus.PENDING_PAYMENT,
+        id: 'booking-1',
+        bookingNumber: 'TFF-B-1',
+        status: BookingStatus.CONFIRMED,
         totalAmount: new Prisma.Decimal('0.50'),
+        orders: [{ id: 'order-1', totalAmount: new Prisma.Decimal('0.50') }],
         payments: [],
       }),
     },
@@ -93,25 +94,31 @@ test('gateway orders reject amounts below one rupee', async () => {
   });
 
   await assert.rejects(
-    payments.createGatewayOrder('user-1', 'order-1'),
+    payments.createBookingGatewayOrder('user-1', 'booking-1'),
     BadRequestException,
   );
 });
 
-test('customer can create a partial payment before kitchen approval', async () => {
+test('customer can create a partial booking payment after kitchen approval', async () => {
   let createdAmount = '';
   const payments = service({
-    order: {
+    booking: {
       findFirst: async () => ({
-        id: 'order-1',
-        orderNumber: 'TFF-1',
-        orderStatus: OrderStatus.AWAITING_APPROVAL,
+        id: 'booking-1',
+        bookingNumber: 'TFF-B-1',
+        status: BookingStatus.CONFIRMED,
         totalAmount: new Prisma.Decimal('1000.00'),
+        orders: [
+          { id: 'order-1', totalAmount: new Prisma.Decimal('1000.00') },
+        ],
         payments: [
           {
             amount: new Prisma.Decimal('200.00'),
             paymentStatus: PaymentStatus.PAID,
             refunds: [],
+            allocations: [
+              { orderId: 'order-1', amount: new Prisma.Decimal('200.00') },
+            ],
           },
         ],
       }),
@@ -125,24 +132,34 @@ test('customer can create a partial payment before kitchen approval', async () =
     },
   });
 
-  const result = await payments.createGatewayOrder('user-1', 'order-1', 250);
+  const result = await payments.createBookingGatewayOrder(
+    'user-1',
+    'booking-1',
+    250,
+  );
   assert.equal(createdAmount, '250.00');
   assert.equal(result.amount, 25000);
 });
 
-test('customer partial payment cannot exceed the remaining balance', async () => {
+test('customer partial booking payment cannot exceed the remaining balance', async () => {
   const payments = service({
-    order: {
+    booking: {
       findFirst: async () => ({
-        id: 'order-1',
-        orderNumber: 'TFF-1',
-        orderStatus: OrderStatus.CONFIRMED,
+        id: 'booking-1',
+        bookingNumber: 'TFF-B-1',
+        status: BookingStatus.CONFIRMED,
         totalAmount: new Prisma.Decimal('1000.00'),
+        orders: [
+          { id: 'order-1', totalAmount: new Prisma.Decimal('1000.00') },
+        ],
         payments: [
           {
             amount: new Prisma.Decimal('800.00'),
             paymentStatus: PaymentStatus.PAID,
             refunds: [],
+            allocations: [
+              { orderId: 'order-1', amount: new Prisma.Decimal('800.00') },
+            ],
           },
         ],
       }),
@@ -150,7 +167,7 @@ test('customer partial payment cannot exceed the remaining balance', async () =>
   });
 
   await assert.rejects(
-    payments.createGatewayOrder('user-1', 'order-1', 250),
+    payments.createBookingGatewayOrder('user-1', 'booking-1', 250),
     /remaining balance of ₹200.00/,
   );
 });
@@ -158,25 +175,26 @@ test('customer partial payment cannot exceed the remaining balance', async () =>
 test('a pending gateway order is reused only after provider validation', async () => {
   let fetchedId = '';
   const payments = configuredService({
-    order: {
+    booking: {
       findFirst: async () => ({
-        id: 'order-1',
-        orderNumber: 'TFF-1',
-        orderStatus: OrderStatus.PENDING_PAYMENT,
+        id: 'booking-1',
+        bookingNumber: 'TFF-B-1',
+        status: BookingStatus.CONFIRMED,
         totalAmount: new Prisma.Decimal('1000.00'),
+        orders: [
+          { id: 'order-1', totalAmount: new Prisma.Decimal('1000.00') },
+        ],
         payments: [
           {
             id: 'payment-1',
+            amount: new Prisma.Decimal('1000.00'),
             paymentStatus: PaymentStatus.PENDING,
             razorpayOrderId: 'gateway-current',
+            refunds: [],
+            allocations: [],
           },
         ],
       }),
-    },
-    payment: {
-      findMany: async () => [
-        { id: 'payment-1', amount: new Prisma.Decimal('1000.00') },
-      ],
     },
     platformSetting: { findUnique: async () => null },
   });
@@ -196,7 +214,10 @@ test('a pending gateway order is reused only after provider validation', async (
     },
   });
 
-  const result = await payments.createGatewayOrder('user-1', 'order-1');
+  const result = await payments.createBookingGatewayOrder(
+    'user-1',
+    'booking-1',
+  );
   assert.equal(fetchedId, 'gateway-current');
   assert.equal(result.id, 'gateway-current');
   assert.equal(result.reused, true);
@@ -206,25 +227,28 @@ test('a gateway order from previous credentials is retired and replaced', async 
   let retiredId = '';
   let createdPaymentOrderId = '';
   const payments = configuredService({
-    order: {
+    booking: {
       findFirst: async () => ({
-        id: 'order-1',
-        orderNumber: 'TFF-1',
-        orderStatus: OrderStatus.PENDING_PAYMENT,
+        id: 'booking-1',
+        bookingNumber: 'TFF-B-1',
+        status: BookingStatus.CONFIRMED,
         totalAmount: new Prisma.Decimal('1000.00'),
+        orders: [
+          { id: 'order-1', totalAmount: new Prisma.Decimal('1000.00') },
+        ],
         payments: [
           {
             id: 'payment-old',
+            amount: new Prisma.Decimal('1000.00'),
             paymentStatus: PaymentStatus.PENDING,
             razorpayOrderId: 'gateway-previous-account',
+            refunds: [],
+            allocations: [],
           },
         ],
       }),
     },
     payment: {
-      findMany: async () => [
-        { id: 'payment-old', amount: new Prisma.Decimal('1000.00') },
-      ],
       updateMany: async ({ where }: { where: { razorpayOrderId: string } }) => {
         retiredId = where.razorpayOrderId;
         return { count: 1 };
@@ -252,109 +276,14 @@ test('a gateway order from previous credentials is retired and replaced', async 
     },
   });
 
-  const result = await payments.createGatewayOrder('user-1', 'order-1');
+  const result = await payments.createBookingGatewayOrder(
+    'user-1',
+    'booking-1',
+  );
   assert.equal(retiredId, 'gateway-previous-account');
   assert.equal(createdPaymentOrderId, 'gateway-current-account');
   assert.equal(result.id, 'gateway-current-account');
   assert.equal(result.reused, false);
-});
-
-test('batch checkout creates one gateway charge with one payment ledger per order', async () => {
-  let createdRows: Array<{ orderId: string; amount: Prisma.Decimal }> = [];
-  const payments = service({
-    order: {
-      findMany: async () => [
-        {
-          id: '11111111-1111-4111-8111-111111111111',
-          orderNumber: 'TFF-1',
-          orderStatus: OrderStatus.PENDING_PAYMENT,
-          totalAmount: new Prisma.Decimal('1000.00'),
-          payments: [],
-        },
-        {
-          id: '22222222-2222-4222-8222-222222222222',
-          orderNumber: 'TFF-2',
-          orderStatus: OrderStatus.PENDING_PAYMENT,
-          totalAmount: new Prisma.Decimal('750.00'),
-          payments: [],
-        },
-      ],
-    },
-    platformSetting: { findUnique: async () => null },
-    payment: {
-      createMany: async ({ data }: { data: typeof createdRows }) => {
-        createdRows = data;
-        return { count: data.length };
-      },
-    },
-  });
-
-  const result = await payments.createBatchGatewayOrder('user-1', [
-    '11111111-1111-4111-8111-111111111111',
-    '22222222-2222-4222-8222-222222222222',
-  ]);
-
-  assert.equal(result.amount, 175000);
-  assert.equal(result.localMode, true);
-  assert.equal(createdRows.length, 2);
-  assert.deepEqual(
-    createdRows.map((row) => row.amount.toFixed(2)),
-    ['1000.00', '750.00'],
-  );
-});
-
-test('payment batch summary returns the combined amount for retry screens', async () => {
-  const payments = service({
-    payment: {
-      findFirst: async () => ({
-        id: 'payment-1',
-        orderId: 'order-1',
-        amount: new Prisma.Decimal('1000.00'),
-        razorpayOrderId: 'gateway-batch-1',
-      }),
-      findMany: async () => [
-        {
-          orderId: 'order-1',
-          amount: new Prisma.Decimal('1000.00'),
-        },
-        {
-          orderId: 'order-2',
-          amount: new Prisma.Decimal('750.00'),
-        },
-      ],
-    },
-  });
-
-  assert.deepEqual(await payments.getPaymentBatchSummary('user-1', 'order-1'), {
-    orderCount: 2,
-    orderIds: ['order-1', 'order-2'],
-    totalAmount: '1750.00',
-  });
-});
-
-test('checkout batch is recoverable before a gateway payment exists', async () => {
-  const payments = service({
-    payment: {
-      findFirst: async () => null,
-    },
-    order: {
-      findFirst: async () => ({
-        id: 'order-1',
-        totalAmount: new Prisma.Decimal('1000.00'),
-        checkoutBatchId: '11111111-1111-4111-8111-111111111111',
-      }),
-      findMany: async () => [
-        { id: 'order-1', totalAmount: new Prisma.Decimal('1000.00') },
-        { id: 'order-2', totalAmount: new Prisma.Decimal('750.00') },
-      ],
-    },
-  });
-
-  assert.deepEqual(await payments.getPaymentBatchSummary('user-1', 'order-1'), {
-    orderCount: 2,
-    orderIds: ['order-1', 'order-2'],
-    totalAmount: '1750.00',
-  });
 });
 
 test('full refund is idempotent when a non-failed refund already exists', async () => {
@@ -369,9 +298,9 @@ test('full refund is idempotent when a non-failed refund already exists', async 
             amount: new Prisma.Decimal('499.00'),
             paymentStatus: PaymentStatus.REFUNDED,
             refunds: [baseRefund],
-            order: {
-              id: 'order-1',
-              orderStatus: OrderStatus.DECLINED,
+            booking: {
+              id: 'booking-1',
+              status: BookingStatus.DECLINED,
               regionId: 'region-1',
             },
           }),
@@ -397,14 +326,14 @@ test('concurrent refund requests submit only one gateway refund', async () => {
   const generated: string[] = [];
   const payment = {
     id: 'payment-1',
-    orderId: 'order-1',
+    bookingId: 'booking-1',
     amount: new Prisma.Decimal('499.00'),
     paymentStatus: PaymentStatus.PAID,
     razorpayPaymentId: 'pay-split-1',
     refunds: [] as (typeof baseRefund)[],
-    order: {
-      id: 'order-1',
-      orderStatus: OrderStatus.DECLINED,
+    booking: {
+      id: 'booking-1',
+      status: BookingStatus.DECLINED,
       regionId: 'region-1',
       totalAmount: new Prisma.Decimal('499.00'),
     },
@@ -470,6 +399,8 @@ test('concurrent refund requests submit only one gateway refund', async () => {
     },
   };
   const payments = configuredService(prisma, generated);
+  (payments as unknown as { reconcileRefund: () => Promise<void> }).reconcileRefund =
+    async () => undefined;
   (payments as unknown as { client: () => object }).client = () => ({
     payments: {
       refund: async () => {
@@ -495,7 +426,7 @@ test('concurrent refund requests submit only one gateway refund', async () => {
   assert.equal(results[0].id, 'refund-concurrent');
   assert.equal(results[1].id, 'refund-concurrent');
   assert.equal(refundRecord?.refundStatus, RefundStatus.SUCCESS);
-  assert.deepEqual(generated, ['order-1']);
+  assert.deepEqual(generated, []);
 });
 
 test('retry after an uncertain refund response reconciles the gateway before resubmitting', async () => {
@@ -507,13 +438,13 @@ test('retry after an uncertain refund response reconciles the gateway before res
   };
   const payment = {
     id: 'payment-1',
-    orderId: 'order-1',
+    bookingId: 'booking-1',
     amount: new Prisma.Decimal('499.00'),
     paymentStatus: PaymentStatus.PAID,
     razorpayPaymentId: 'pay-split-1',
-    order: {
-      id: 'order-1',
-      orderStatus: OrderStatus.DECLINED,
+    booking: {
+      id: 'booking-1',
+      status: BookingStatus.DECLINED,
       regionId: 'region-1',
       totalAmount: new Prisma.Decimal('499.00'),
     },
@@ -549,6 +480,8 @@ test('retry after an uncertain refund response reconciles the gateway before res
     refund: { update: tx.refund.update },
   };
   const payments = configuredService(prisma);
+  (payments as unknown as { reconcileRefund: () => Promise<void> }).reconcileRefund =
+    async () => undefined;
   (payments as unknown as { client: () => object }).client = () => ({
     payments: {
       fetchMultipleRefund: async () => ({
@@ -580,60 +513,6 @@ test('retry after an uncertain refund response reconciles the gateway before res
   assert.equal(result.refundStatus, RefundStatus.SUCCESS);
 });
 
-test('admin manual deposit closes the remaining balance without replacing payment history', async () => {
-  let createdPayment: Record<string, unknown> | undefined;
-  let orderPaymentStatus: PaymentStatus | undefined;
-  const generated: string[] = [];
-  const payments = service(
-    {
-      $transaction: async (callback: (tx: object) => Promise<unknown>) =>
-        callback({
-          $queryRaw: async () => [{ id: 'order-1' }],
-          order: {
-            findUnique: async () => ({
-              id: 'order-1',
-              orderStatus: OrderStatus.CONFIRMED,
-              totalAmount: new Prisma.Decimal('1000.00'),
-              payments: [
-                {
-                  amount: new Prisma.Decimal('500.00'),
-                  paymentStatus: PaymentStatus.PAID,
-                  refunds: [],
-                },
-              ],
-            }),
-            update: async ({
-              data,
-            }: {
-              data: { paymentStatus: PaymentStatus };
-            }) => {
-              orderPaymentStatus = data.paymentStatus;
-            },
-          },
-          payment: {
-            create: async ({ data }: { data: Record<string, unknown> }) => {
-              createdPayment = data;
-              return { id: 'manual-payment-1', ...data };
-            },
-          },
-        }),
-    },
-    generated,
-  );
-
-  const result = await payments.recordManualPayment('admin-1', 'order-1', {
-    amount: 500,
-    method: 'UPI',
-    reference: 'UPI-123',
-  });
-  assert.equal(createdPayment?.source, PaymentSource.MANUAL);
-  assert.equal(createdPayment?.paymentStatus, PaymentStatus.PAID);
-  assert.equal(createdPayment?.externalReference, 'UPI-123');
-  assert.equal(orderPaymentStatus, PaymentStatus.PAID);
-  assert.equal(result.amount, '500.00');
-  assert.deepEqual(generated, ['order-1']);
-});
-
 test('manual refunds are recorded once for declined booking deposits', async () => {
   let createdRefund: Record<string, unknown> | undefined;
   const reconciled: string[] = [];
@@ -650,7 +529,6 @@ test('manual refunds are recorded once for declined booking deposits', async () 
             source: PaymentSource.MANUAL,
             refunds: [],
             booking: { status: BookingStatus.DECLINED },
-            order: { id: 'order-1' },
           }),
         },
         refund: {
@@ -686,61 +564,29 @@ test('manual refunds are recorded once for declined booking deposits', async () 
   assert.deepEqual(reconciled, ['manual-payment-1']);
 });
 
-test('local full refund always uses the complete paid amount and reconciles both ledgers', async () => {
-  const generated: string[] = [];
-  const updates: Array<{ target: string; status: PaymentStatus }> = [];
+test('local full refund uses the complete paid amount and reconciles the booking ledger', async () => {
   let createdAmount = '';
+  const reconciled: string[] = [];
   const payment = {
     id: 'payment-1',
-    orderId: 'order-1',
+    bookingId: 'booking-1',
     amount: new Prisma.Decimal('699.00'),
     paymentStatus: PaymentStatus.PAID,
     razorpayPaymentId: 'pay-local',
     refunds: [] as (typeof baseRefund)[],
-    order: {
-      id: 'order-1',
-      orderStatus: OrderStatus.DECLINED,
+    booking: {
+      id: 'booking-1',
+      status: BookingStatus.DECLINED,
       regionId: 'region-1',
       totalAmount: new Prisma.Decimal('699.00'),
     },
   };
   const prisma = {
-    payment: {
-      findUnique: async () => ({
-        ...payment,
-        refunds: [
-          baseRefund,
-          { ...baseRefund, amount: new Prisma.Decimal('200.00') },
-        ],
-      }),
-    },
-    refund: {
-      create: async ({ data }: { data: { amount: Prisma.Decimal } }) => {
-        createdAmount = data.amount.toFixed(2);
-        return { ...baseRefund, amount: data.amount };
-      },
-    },
     $transaction: async (callback: (tx: object) => Promise<void>) =>
       callback({
         $queryRaw: async () => [{ id: 'payment-1' }],
         payment: {
           findUnique: async () => payment,
-          update: async ({
-            data,
-          }: {
-            data: { paymentStatus: PaymentStatus };
-          }) => updates.push({ target: 'payment', status: data.paymentStatus }),
-          count: async () => 0,
-          findMany: async () => [
-            {
-              amount: new Prisma.Decimal('699.00'),
-              paymentStatus: PaymentStatus.REFUNDED,
-              refunds: [
-                baseRefund,
-                { ...baseRefund, amount: new Prisma.Decimal('200.00') },
-              ],
-            },
-          ],
         },
         refund: {
           create: async ({ data }: { data: { amount: Prisma.Decimal } }) => {
@@ -748,31 +594,25 @@ test('local full refund always uses the complete paid amount and reconciles both
             return { ...baseRefund, amount: data.amount };
           },
         },
-        order: {
-          update: async ({
-            data,
-          }: {
-            data: { paymentStatus: PaymentStatus };
-          }) => updates.push({ target: 'order', status: data.paymentStatus }),
-        },
       }),
   };
 
-  const result = await service(prisma, generated).createRefund(
+  const payments = service(prisma);
+  (payments as unknown as { reconcileRefund: (id: string) => Promise<void> }).reconcileRefund =
+    async (id: string) => {
+      reconciled.push(id);
+    };
+  const result = await payments.createRefund(
     'admin-1',
     'payment-1',
     'Customer request',
   );
   assert.equal(createdAmount, '699.00');
   assert.equal(result.amount, '699.00');
-  assert.deepEqual(updates, [
-    { target: 'payment', status: PaymentStatus.REFUNDED },
-    { target: 'order', status: PaymentStatus.REFUNDED },
-  ]);
-  assert.deepEqual(generated, ['order-1']);
+  assert.deepEqual(reconciled, ['payment-1']);
 });
 
-test('refunds reject captured payments for orders that were not declined', async () => {
+test('refunds reject captured payments for bookings that were not declined', async () => {
   const payments = service({
     $transaction: async (callback: (tx: object) => Promise<unknown>) =>
       callback({
@@ -780,14 +620,14 @@ test('refunds reject captured payments for orders that were not declined', async
         payment: {
           findUnique: async () => ({
             id: 'payment-1',
-            orderId: 'order-1',
+            bookingId: 'booking-1',
             amount: new Prisma.Decimal('699.00'),
             paymentStatus: PaymentStatus.PAID,
             razorpayPaymentId: 'pay-confirmed',
             refunds: [],
-            order: {
-              id: 'order-1',
-              orderStatus: OrderStatus.CONFIRMED,
+            booking: {
+              id: 'booking-1',
+              status: BookingStatus.CONFIRMED,
               regionId: 'region-1',
             },
           }),
@@ -797,41 +637,62 @@ test('refunds reject captured payments for orders that were not declined', async
 
   await assert.rejects(
     payments.createRefund('operations-1', 'payment-1', 'Not eligible'),
-    /Only payments for declined orders can be refunded/,
+    /Only payments for declined bookings can be refunded/,
   );
 });
 
-test('refunding one duplicate charge keeps an order paid while another paid charge remains', async () => {
+test('refunding one duplicate charge keeps the booking paid while another charge remains', async () => {
+  let bookingStatus: PaymentStatus | undefined;
   let orderStatus: PaymentStatus | undefined;
   const payments = service({
     payment: {
       findUnique: async () => ({
         id: 'payment-1',
-        orderId: 'order-1',
+        bookingId: 'booking-1',
         amount: new Prisma.Decimal('699.00'),
         refunds: [{ ...baseRefund, amount: new Prisma.Decimal('699.00') }],
-        order: { id: 'order-1', totalAmount: new Prisma.Decimal('699.00') },
       }),
     },
     $transaction: async (callback: (tx: object) => Promise<void>) =>
       callback({
         payment: {
           update: async () => undefined,
-          count: async () => 1,
-          findMany: async () => [
-            {
-              amount: new Prisma.Decimal('699.00'),
-              paymentStatus: PaymentStatus.REFUNDED,
-              refunds: [
-                { ...baseRefund, amount: new Prisma.Decimal('699.00') },
-              ],
-            },
-            {
-              amount: new Prisma.Decimal('699.00'),
-              paymentStatus: PaymentStatus.PAID,
-              refunds: [],
-            },
-          ],
+        },
+        booking: {
+          findUnique: async () => ({
+            id: 'booking-1',
+            totalAmount: new Prisma.Decimal('699.00'),
+            orders: [
+              { id: 'order-1', totalAmount: new Prisma.Decimal('699.00') },
+            ],
+            payments: [
+              {
+                amount: new Prisma.Decimal('699.00'),
+                paymentStatus: PaymentStatus.REFUNDED,
+                refunds: [
+                  { ...baseRefund, amount: new Prisma.Decimal('699.00') },
+                ],
+                allocations: [
+                  { orderId: 'order-1', amount: new Prisma.Decimal('699.00') },
+                ],
+              },
+              {
+                amount: new Prisma.Decimal('699.00'),
+                paymentStatus: PaymentStatus.PAID,
+                refunds: [],
+                allocations: [
+                  { orderId: 'order-1', amount: new Prisma.Decimal('699.00') },
+                ],
+              },
+            ],
+          }),
+          update: async ({
+            data,
+          }: {
+            data: { paymentStatus: PaymentStatus };
+          }) => {
+            bookingStatus = data.paymentStatus;
+          },
         },
         order: {
           update: async ({
@@ -849,6 +710,7 @@ test('refunding one duplicate charge keeps an order paid while another paid char
   };
 
   await internal.reconcileRefund('payment-1');
+  assert.equal(bookingStatus, PaymentStatus.PAID);
   assert.equal(orderStatus, PaymentStatus.PAID);
 });
 
@@ -862,7 +724,7 @@ test('production payments fail closed when Razorpay is not configured', async ()
   );
 
   await assert.rejects(
-    payments.createGatewayOrder('user-1', 'order-1'),
+    payments.createBookingGatewayOrder('user-1', 'booking-1'),
     ServiceUnavailableException,
   );
   await assert.rejects(
@@ -1165,32 +1027,45 @@ test('a failed booking balance payment resynchronizes every child ledger', async
   });
 });
 
-test('a late captured payment cannot resurrect a cancelled order', async () => {
+test('a late captured payment cannot resurrect a cancelled booking', async () => {
+  let bookingData: Record<string, unknown> | undefined;
   let orderData: Record<string, unknown> | undefined;
   const payments = service({
     payment: {
       findUnique: async () => ({
         id: 'payment-1',
-        orderId: 'order-1',
+        bookingId: 'booking-1',
         amount: new Prisma.Decimal('100.00'),
         paymentStatus: PaymentStatus.PENDING,
-        order: {
-          orderStatus: OrderStatus.CANCELLED,
-          totalAmount: new Prisma.Decimal('100.00'),
-        },
       }),
     },
     $transaction: async (callback: (tx: object) => Promise<boolean>) =>
       callback({
         payment: {
           updateMany: async () => ({ count: 1 }),
-          findMany: async () => [
-            {
-              amount: new Prisma.Decimal('100.00'),
-              paymentStatus: PaymentStatus.PAID,
-              refunds: [],
-            },
-          ],
+        },
+        booking: {
+          findUnique: async () => ({
+            id: 'booking-1',
+            status: BookingStatus.CANCELLED,
+            totalAmount: new Prisma.Decimal('100.00'),
+            orders: [
+              { id: 'order-1', totalAmount: new Prisma.Decimal('100.00') },
+            ],
+            payments: [
+              {
+                amount: new Prisma.Decimal('100.00'),
+                paymentStatus: PaymentStatus.PAID,
+                refunds: [],
+                allocations: [
+                  { orderId: 'order-1', amount: new Prisma.Decimal('100.00') },
+                ],
+              },
+            ],
+          }),
+          update: async ({ data }: { data: Record<string, unknown> }) => {
+            bookingData = data;
+          },
         },
         order: {
           update: async ({ data }: { data: Record<string, unknown> }) => {
@@ -1213,6 +1088,8 @@ test('a late captured payment cannot resurrect a cancelled order', async () => {
     amount: 10000,
     status: 'captured',
   });
+  assert.equal(bookingData?.paymentStatus, PaymentStatus.PAID);
+  assert.equal(bookingData?.status, undefined);
   assert.equal(orderData?.paymentStatus, PaymentStatus.PAID);
   assert.equal(orderData?.orderStatus, undefined);
   assert.equal(orderData?.statusHistory, undefined);

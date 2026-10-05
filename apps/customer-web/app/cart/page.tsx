@@ -7,7 +7,6 @@ import type {
   DeliveryServiceType,
   GatewayOrder,
   LocationResolution,
-  OrderSummary,
   PaymentPlan,
   PackageConfiguration,
   PackageSelectionPrice,
@@ -17,7 +16,6 @@ import type {
 import { createAddressSchema, mobileNumberSchema } from '@aranyam/validation';
 import {
   AlertCircle,
-  CalendarDays,
   Check,
   ChevronDown,
   ChevronUp,
@@ -32,14 +30,12 @@ import {
   Utensils,
   UserRound,
   Trash2,
-  Users,
   X,
 } from 'lucide-react';
 import Link from 'next/link';
 import Script from 'next/script';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { RetryPaymentButton } from '../../components/retry-payment-button';
 import { DataImage } from '../../components/data-image';
 import {
   AddressMapPicker,
@@ -429,12 +425,6 @@ export default function CartPage() {
   >({});
   const [quote, setQuote] = useState<PackageSelectionPrice>();
   const [multiCartQuote, setMultiCartQuote] = useState<MultiCartQuote>();
-  const [pendingOrder, setPendingOrder] = useState<OrderSummary>();
-  const [pendingBatch, setPendingBatch] = useState<{
-    orderCount: number;
-    orderIds: string[];
-    totalAmount: string;
-  }>();
   const [loading, setLoading] = useState(true);
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [cartReloadKey, setCartReloadKey] = useState(0);
@@ -504,8 +494,6 @@ export default function CartPage() {
     setConfigByCartId({});
     setQuote(undefined);
     setMultiCartQuote(undefined);
-    setPendingOrder(undefined);
-    setPendingBatch(undefined);
     setSpecialNotes('');
     noteSaveVersion.current += 1;
     pendingSpecialNotes.current = null;
@@ -777,16 +765,13 @@ export default function CartPage() {
         publishCheckoutCartCount(allCarts.length);
         const currentCart =
           allCarts.find((entry) => entry.id === value?.id) ??
-          allCarts[0] ??
-          (value?.pendingOrderId ? value : undefined);
+          allCarts[0];
         if (!currentCart) {
           missingCartRecoveryAttempts.current = 0;
           clearCartViewState();
           return;
         }
         setCart(currentCart);
-        setPendingOrder(undefined);
-        setPendingBatch(undefined);
         const savedSpecialNotes = currentCart.specialNotes ?? '';
         noteSaveVersion.current += 1;
         pendingSpecialNotes.current = null;
@@ -828,29 +813,7 @@ export default function CartPage() {
             ),
           );
         }
-        if (currentCart.pendingOrderId) {
-          const order = await apiRequest<OrderSummary>(
-            `/orders/${currentCart.pendingOrderId}`,
-            {},
-            session!.accessToken,
-          );
-          const batch = await apiRequest<{
-            orderCount: number;
-            orderIds: string[];
-            totalAmount: string;
-          }>(
-            `/orders/${currentCart.pendingOrderId}/payment-batch`,
-            {},
-            session!.accessToken,
-          );
-          if (active) {
-            missingCartRecoveryAttempts.current = 0;
-            setPendingOrder(order);
-            setPendingBatch(batch);
-          }
-        } else {
-          await loadQuote(currentCart.id);
-        }
+        await loadQuote(currentCart.id);
       } catch (reason) {
         if (active && !recoverMissingCart(reason))
           setError(friendlyCheckoutError(reason));
@@ -945,7 +908,7 @@ export default function CartPage() {
     packageCart: CartSummary,
     requestedCount: number,
   ) {
-    if (!session || updatingCartId || pendingOrder) return;
+    if (!session || updatingCartId) return;
     const guestCount = clampPackageQuantity(packageCart, requestedCount);
     if (guestCount === packageCart.guestCount) return;
     setUpdatingCartId(packageCart.id);
@@ -983,8 +946,7 @@ export default function CartPage() {
       !cart ||
       updatingDelivery ||
       updatingCutlery ||
-      cutleryPending ||
-      pendingOrder
+      cutleryPending
     )
       return;
     setUpdatingDelivery(true);
@@ -1027,8 +989,7 @@ export default function CartPage() {
       !session ||
       !cart ||
       updatingDelivery ||
-      updatingCutlery ||
-      pendingOrder
+      updatingCutlery
     )
       return;
     setUpdatingCutlery(true);
@@ -1189,7 +1150,7 @@ export default function CartPage() {
   }, [cart, notesExpanded, persistSpecialNotes, session, specialNotes]);
 
   async function removeCart(cartId: string) {
-    if (!session || deletingCartId || pendingOrder) return;
+    if (!session || deletingCartId) return;
     setDeletingCartId(cartId);
     setError('');
     try {
@@ -1234,7 +1195,7 @@ export default function CartPage() {
   }
 
   async function clearCart() {
-    if (!session || clearingCart || pendingOrder) return;
+    if (!session || clearingCart) return;
     setClearingCart(true);
     setError('');
     try {
@@ -1408,7 +1369,6 @@ export default function CartPage() {
     const verified = await apiRequest<{
       success: boolean;
       bookingId?: string;
-      orderId?: string;
       needsReview?: boolean;
     }>(
       '/payments/razorpay/verify',
@@ -1422,7 +1382,7 @@ export default function CartPage() {
       },
       session!.accessToken,
     );
-    if (!verified.success || !verified.orderId) {
+    if (!verified.success || !verified.bookingId) {
       setPaymentNeedsReview(true);
       setValidationIssue('payment');
       setError(
@@ -1434,9 +1394,7 @@ export default function CartPage() {
     reset();
     notifyCartCleared();
     router.push(
-      verified.bookingId
-        ? `/payment/status?bookingId=${verified.bookingId}&status=success`
-        : `/payment/status?orderId=${verified.orderId}&status=success`,
+      `/payment/status?bookingId=${verified.bookingId}&status=success`,
     );
   }
 
@@ -1468,11 +1426,9 @@ export default function CartPage() {
       const checkoutResult = await apiRequest<
         | GatewayOrder
         | {
-            success: true;
-            bookingId: string;
-            orderId: string;
-            orderIds: string[];
-            paymentPlan: 'PAY_LATER';
+          success: true;
+          bookingId: string;
+          paymentPlan: 'PAY_LATER';
           }
       >(
         '/payments/razorpay/cart-order',
@@ -1486,11 +1442,7 @@ export default function CartPage() {
       if ('success' in checkoutResult) {
         reset();
         notifyCartCleared();
-        router.push(
-          checkoutResult.bookingId
-            ? `/bookings/${checkoutResult.bookingId}?booking=requested`
-            : `/orders/${checkoutResult.orderId}?booking=requested`,
-        );
+        router.push(`/bookings/${checkoutResult.bookingId}?booking=requested`);
         return;
       }
       const gateway = checkoutResult;
@@ -1729,7 +1681,7 @@ export default function CartPage() {
       </main>
     );
   }
-  if (!cart || (activeCarts.length === 0 && !pendingOrder)) {
+  if (!cart || activeCarts.length === 0) {
     return (
       <main className="page-shell">
         <StatePanel
@@ -1745,9 +1697,7 @@ export default function CartPage() {
 
   const ready =
     activeCarts.length > 0 && activeCarts.every((entry) => eventReady(entry));
-  const mobileTotal = pendingOrder
-    ? (pendingBatch?.totalAmount ?? pendingOrder.totalAmount)
-    : multiCartQuote?.totalAmount;
+  const mobileTotal = multiCartQuote?.totalAmount;
   const payableNow = paymentPlanAmount(mobileTotal, paymentPlan);
   const checkoutActionLabel =
     paymentPlan === 'PAY_LATER'
@@ -1757,15 +1707,6 @@ export default function CartPage() {
         : `Pay ${formatCheckoutCurrency(payableNow)} securely`;
   const paymentError =
     validationIssue === 'payment' && error && !paying ? error : '';
-  const startRetryPayment = () => {
-    setValidationIssue(undefined);
-    setError('');
-  };
-  const reportRetryFailure = (message: string) => {
-    setValidationIssue('payment');
-    setError(message);
-  };
-
   return (
     <main
       className="min-h-screen bg-[radial-gradient(circle_at_top_left,hsl(var(--primary)/.07),transparent_30%),linear-gradient(to_bottom,hsl(var(--ivory)),hsl(var(--background))_18rem)] pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-12"
@@ -1857,7 +1798,7 @@ export default function CartPage() {
         {error &&
           !paying &&
           validationIssue !== 'payment' &&
-          !(!pendingOrder && inlineDeliveryField) && (
+          !inlineDeliveryField && (
             <section
               role="alert"
               aria-live="assertive"
@@ -1908,7 +1849,7 @@ export default function CartPage() {
                 ({activeCarts.length})
               </span>
             </h2>
-            {!pendingOrder && (
+            {(
               <Link
                 href="/packages"
                 className="hidden text-xs font-bold text-primary hover:underline sm:inline"
@@ -1977,7 +1918,7 @@ export default function CartPage() {
                             ? `${weightKg} kg · ${menuSummary}`
                             : `${guestCount} ${packageCart.package.type === 'MEAL_BOX' ? 'boxes' : 'guests'} · ${menuSummary}`}
                         </p>
-                        {!pendingOrder && (
+                        {(
                           <div className="mt-1.5 flex min-h-8 flex-wrap items-center gap-x-3 gap-y-1 sm:gap-x-5">
                             <Link
                               href={menuHref}
@@ -2015,8 +1956,7 @@ export default function CartPage() {
                         )}
                       </div>
                     </div>
-                    {!pendingOrder &&
-                      editingQuantityCartId === packageCart.id &&
+                    {editingQuantityCartId === packageCart.id &&
                       packageCart.package.type !== 'ORDER_BY_KG' && (
                         <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-3">
                           <span className="text-sm font-medium text-muted-foreground">
@@ -2086,7 +2026,7 @@ export default function CartPage() {
               },
             )}
           </div>
-          {!pendingOrder && (
+          {(
             <Link
               href="/packages"
               className="inline-flex min-h-12 items-center px-4 text-sm font-bold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:hidden"
@@ -2098,11 +2038,7 @@ export default function CartPage() {
         </section>
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1.55fr)_minmax(340px,0.9fr)] lg:items-start lg:gap-8">
           <div className="min-w-0 space-y-5">
-            {pendingOrder ? (
-              <EventSummary cart={cart} />
-            ) : (
-              <>
-                <SelectionContextPanel
+            <SelectionContextPanel
                   checkoutCompact
                   cartId={cart.id}
                   packageVersionId={cart.packageVersionId}
@@ -2140,11 +2076,9 @@ export default function CartPage() {
                   onMissingCart={() =>
                     recoverMissingCart(new Error('Active cart not found'))
                   }
-                />
-              </>
-            )}
+            />
 
-            {!pendingOrder && (
+            {(
               <section
                 id="checkout-contact"
                 className="rounded-xl border border-border/70 bg-white px-3 py-3 sm:px-4"
@@ -2327,36 +2261,7 @@ export default function CartPage() {
                     </h2>
                   </div>
                 </div>
-                {pendingOrder ? (
-                  <div>
-                    <div className="flex items-center justify-between gap-4 border-t border-border/60 pt-2">
-                      <span className="font-semibold">Total</span>
-                      <strong className="money-text text-lg font-bold text-primary">
-                        {formatCheckoutCurrency(
-                          pendingBatch?.totalAmount ?? pendingOrder.totalAmount,
-                        )}
-                      </strong>
-                    </div>
-                    <div className="hidden lg:block">
-                      <RetryPaymentButton
-                        order={pendingOrder}
-                        orderIds={pendingBatch?.orderIds}
-                        label={
-                          paymentError ? 'Retry payment' : 'Secure payment'
-                        }
-                        className="mt-5 h-12 w-full"
-                        onStart={startRetryPayment}
-                        onFailure={reportRetryFailure}
-                      />
-                      {paymentError && (
-                        <p role="alert" className="mt-2 text-sm text-red-700">
-                          {paymentError}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <div>
+                <div>
                     {multiCartQuote ? (
                       <>
                         <MultiCartPriceSummary
@@ -2412,8 +2317,7 @@ export default function CartPage() {
                           : 'Payment is received first; kitchen approval follows.'}
                       </p>
                     </div>
-                  </div>
-                )}
+                </div>
               </div>
             </section>
           </aside>
@@ -2534,7 +2438,7 @@ export default function CartPage() {
           </div>
         )}
 
-        {clearCartOpen && !pendingOrder && (
+        {clearCartOpen && (
           <div
             className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/60 p-4 backdrop-blur-sm"
             role="alertdialog"
@@ -2606,17 +2510,7 @@ export default function CartPage() {
                     : 'Add event details'}
               </strong>
             </div>
-            {pendingOrder ? (
-              <RetryPaymentButton
-                order={pendingOrder}
-                orderIds={pendingBatch?.orderIds}
-                className="mobile-order-bar-action"
-                label={paymentError ? 'Retry payment' : 'Secure payment'}
-                onStart={startRetryPayment}
-                onFailure={reportRetryFailure}
-              />
-            ) : (
-              <Button
+            <Button
                 className="mobile-order-bar-action"
                 onClick={requestPayment}
                 disabled={
@@ -2639,8 +2533,7 @@ export default function CartPage() {
                     : paymentPlan === 'HALF'
                       ? 'Pay deposit'
                       : 'Pay securely'}
-              </Button>
-            )}
+            </Button>
           </div>
           {paymentError && (
             <p
@@ -2659,60 +2552,6 @@ export default function CartPage() {
 function eventReady(cart: CartSummary) {
   return Boolean(
     cart.event?.address && cart.event.eventDate && cart.event.eventTimeStart,
-  );
-}
-
-function formatVenueAddress(
-  address?: CartSummary['address'] | null,
-  maxLines = 4,
-) {
-  if (!address) return 'Not set';
-  const lines = [
-    address.label,
-    address.addressLine1,
-    address.addressLine2,
-    address.landmark ? `Landmark: ${address.landmark}` : undefined,
-    [address.city, address.pincode].filter(Boolean).join(' '),
-  ]
-    .filter(Boolean)
-    .map((line) => String(line).trim())
-    .filter(Boolean);
-  return lines.length ? lines.slice(0, maxLines).join(', ') : 'Not set';
-}
-
-function EventSummary({ cart }: { cart: CartSummary }) {
-  const address = cart.event?.address ?? cart.address;
-  return (
-    <section className="rounded-2xl border bg-white p-5 sm:p-6">
-      <p className="eyebrow">Delivery details</p>
-      <div className="mt-5 grid gap-5 sm:grid-cols-3">
-        <Info
-          icon={CalendarDays}
-          label="When"
-          value={
-            cart.event
-              ? `${cart.event.eventDate} at ${cart.event.eventTimeStart || ''}`
-              : 'Not set'
-          }
-        />
-        <Info
-          icon={Users}
-          label={
-            cart.package.type === 'ORDER_BY_KG'
-              ? 'Weight'
-              : cart.package.type === 'MEAL_BOX'
-                ? 'Boxes'
-                : 'Guests'
-          }
-          value={
-            cart.package.type === 'ORDER_BY_KG'
-              ? `${cart.items.reduce((sum, item) => sum + (item.weightGrams ?? 0), 0) / 1000} kg`
-              : String(cart.event?.guestCount ?? cart.guestCount ?? 'Not set')
-          }
-        />
-        <Info icon={MapPin} label="Venue" value={formatVenueAddress(address)} />
-      </div>
-    </section>
   );
 }
 
@@ -3324,26 +3163,6 @@ function PriceLine({ label, value }: { label: string; value: string }) {
     <div className="flex items-center justify-between gap-4">
       <span className="text-muted-foreground">{label}</span>
       <span className="money-text font-bold text-foreground">{value}</span>
-    </div>
-  );
-}
-
-function Info({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: typeof CalendarDays;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="flex gap-3">
-      <Icon className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-      <div>
-        <p className="text-xs font-bold text-muted-foreground">{label}</p>
-        <p className="mt-1 text-sm leading-6">{value}</p>
-      </div>
     </div>
   );
 }

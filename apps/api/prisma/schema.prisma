@@ -24,6 +24,7 @@ enum OrderStatus {
   CONFIRMED
   IN_PROGRESS
   READY_FOR_DELIVERY
+  OUT_FOR_DELIVERY
   DELIVERED
   DECLINED
   CANCELLED
@@ -37,6 +38,14 @@ enum BookingStatus {
   CANCELLED
   COMPLETED
   NEEDS_REVIEW
+}
+
+enum BookingFulfilmentStatus {
+  NOT_STARTED
+  PREPARING
+  READY_FOR_DELIVERY
+  OUT_FOR_DELIVERY
+  COMPLETED
 }
 
 enum PaymentStatus {
@@ -152,7 +161,7 @@ model User {
   bookings         Booking[]
   orders           Order[]
   checkoutAttempts CheckoutAttempt[]
-  documents        OrderDocument[]
+  documents        BookingDocument[]
 
   @@index([mobileNumber])
   @@index([isActive])
@@ -432,7 +441,6 @@ model Cart {
   region         OperatingRegion?  @relation(fields: [regionId], references: [id])
   items          CartItem[]
   cutleryItems   CartCutleryItem[]
-  order          Order?
 
   @@index([userId, status])
   @@index([cartSessionId])
@@ -541,6 +549,7 @@ model Booking {
   cutleryTotal          Decimal             @default(0) @map("cutlery_total") @db.Decimal(10, 2)
   totalAmount           Decimal             @map("total_amount") @db.Decimal(10, 2)
   status                BookingStatus       @default(AWAITING_APPROVAL)
+  fulfilmentStatus      BookingFulfilmentStatus @default(NOT_STARTED) @map("fulfilment_status")
   paymentStatus         PaymentStatus       @default(UNPAID) @map("payment_status")
   paymentPlan           PaymentPlan         @default(FULL) @map("payment_plan")
   declineReason         String?             @map("decline_reason") @db.VarChar(500)
@@ -561,6 +570,9 @@ model Booking {
   checkoutAttempts CheckoutAttempt[]
   cutleryItems     BookingCutleryItem[]
   statusHistory    BookingStatusHistory[]
+  fulfilmentHistory BookingFulfilmentHistory[]
+  notes             BookingNote[]
+  documents         BookingDocument[]
 
   @@index([userId, createdAt])
   @@index([regionId, status])
@@ -595,10 +607,9 @@ model Order {
   id              String  @id @default(uuid())
   orderNumber     String  @unique @map("order_number") @db.VarChar(20)
   userId          String  @map("user_id")
-  cartId          String? @unique @map("cart_id")
   sourceCartId    String? @unique @map("source_cart_id")
   checkoutBatchId String? @map("checkout_batch_id") @db.Uuid
-  bookingId       String? @map("booking_id")
+  bookingId       String  @map("booking_id")
   regionId        String? @map("region_id")
   addressId       String  @map("address_id")
 
@@ -642,16 +653,12 @@ model Order {
   updatedAt          DateTime           @default(now()) @updatedAt @map("updated_at")
 
   user               User                 @relation(fields: [userId], references: [id])
-  booking            Booking?             @relation(fields: [bookingId], references: [id])
+  booking            Booking              @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   address            UserAddress          @relation(fields: [addressId], references: [id])
-  cart               Cart?                @relation(fields: [cartId], references: [id])
   region             OperatingRegion?     @relation(fields: [regionId], references: [id])
   selectedItems      OrderSelectedItem[]
   cutleryItems       OrderCutleryItem[]
-  payments           Payment[]
   statusHistory      OrderStatusHistory[]
-  notes              OrderNote[]
-  documents          OrderDocument[]
   cancelledByAdmin   AdminUser?           @relation("OrderCancelledByAdmin", fields: [cancelledByAdminId], references: [id])
   paymentAllocations PaymentAllocation[]
 
@@ -731,8 +738,7 @@ model OrderSelectedItem {
 
 model Payment {
   id            String        @id @default(uuid())
-  orderId       String        @map("order_id")
-  bookingId     String?       @map("booking_id")
+  bookingId     String        @map("booking_id")
   amount        Decimal       @db.Decimal(10, 2)
   paymentStatus PaymentStatus @default(PENDING) @map("payment_status")
   source        PaymentSource @default(RAZORPAY)
@@ -753,15 +759,13 @@ model Payment {
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at")
 
-  order           Order               @relation(fields: [orderId], references: [id])
-  booking         Booking?            @relation(fields: [bookingId], references: [id])
+  booking         Booking             @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   recordedByAdmin AdminUser?          @relation("PaymentRecordedByAdmin", fields: [recordedByAdminId], references: [id])
   voidedByAdmin   AdminUser?          @relation("PaymentVoidedByAdmin", fields: [voidedByAdminId], references: [id])
   refunds         Refund[]
   allocations     PaymentAllocation[]
-  documents       OrderDocument[]
+  documents       BookingDocument[]
 
-  @@index([orderId])
   @@index([bookingId])
   @@index([paymentStatus])
   @@index([razorpayOrderId])
@@ -832,7 +836,7 @@ model Refund {
   updatedAt        DateTime     @default(now()) @updatedAt @map("updated_at")
 
   payment   Payment         @relation(fields: [paymentId], references: [id])
-  documents OrderDocument[]
+  documents BookingDocument[]
 
   @@index([paymentId])
   @@index([refundStatus])
@@ -858,8 +862,9 @@ model AdminUser {
 
   orderStatusHistory   OrderStatusHistory[]
   bookingStatusHistory BookingStatusHistory[]
+  bookingFulfilmentHistory BookingFulfilmentHistory[]
   cancelledOrders      Order[]                @relation("OrderCancelledByAdmin")
-  orderNotes           OrderNote[]
+  bookingNotes         BookingNote[]
   recordedPayments     Payment[]              @relation("PaymentRecordedByAdmin")
   voidedPayments       Payment[]              @relation("PaymentVoidedByAdmin")
   region               OperatingRegion?       @relation(fields: [regionId], references: [id])
@@ -934,6 +939,22 @@ model BookingStatusHistory {
   @@map("booking_status_history")
 }
 
+model BookingFulfilmentHistory {
+  id          String                   @id @default(uuid())
+  bookingId   String                   @map("booking_id")
+  fromStatus  BookingFulfilmentStatus? @map("from_status")
+  toStatus    BookingFulfilmentStatus  @map("to_status")
+  changedById String?                  @map("changed_by_id")
+  notes       String?                  @db.VarChar(500)
+  changedAt   DateTime                 @default(now()) @map("changed_at")
+
+  booking   Booking    @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  changedBy AdminUser? @relation(fields: [changedById], references: [id])
+
+  @@index([bookingId, changedAt])
+  @@map("booking_fulfilment_history")
+}
+
 model PaymentWebhookEvent {
   id              String    @id @default(uuid())
   providerEventId String    @unique @map("provider_event_id") @db.VarChar(150)
@@ -948,24 +969,24 @@ model PaymentWebhookEvent {
   @@map("payment_webhook_events")
 }
 
-model OrderNote {
+model BookingNote {
   id        String   @id @default(uuid())
-  orderId   String   @map("order_id")
+  bookingId String   @map("booking_id")
   authorId  String   @map("author_id")
   body      String   @db.VarChar(2000)
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
-  order  Order     @relation(fields: [orderId], references: [id])
+  booking Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   author AdminUser @relation(fields: [authorId], references: [id])
 
-  @@index([orderId, createdAt])
-  @@map("order_notes")
+  @@index([bookingId, createdAt])
+  @@map("booking_notes")
 }
 
-model OrderDocument {
+model BookingDocument {
   id             String       @id @default(uuid())
-  orderId        String       @map("order_id")
+  bookingId      String       @map("booking_id")
   userId         String       @map("user_id")
   paymentId      String?      @map("payment_id")
   refundId       String?      @map("refund_id")
@@ -974,14 +995,16 @@ model OrderDocument {
   snapshot       Json
   generatedAt    DateTime     @default(now()) @map("generated_at")
 
-  order   Order    @relation(fields: [orderId], references: [id])
+  booking Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   user    User     @relation(fields: [userId], references: [id])
   payment Payment? @relation(fields: [paymentId], references: [id])
   refund  Refund?  @relation(fields: [refundId], references: [id])
 
-  @@index([orderId, documentType])
+  @@index([bookingId, documentType])
   @@index([userId, generatedAt])
-  @@map("order_documents")
+  @@index([paymentId])
+  @@index([refundId])
+  @@map("booking_documents")
 }
 
 // =============================================================================

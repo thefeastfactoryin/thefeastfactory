@@ -145,7 +145,7 @@ export default function Payments() {
         <table className="admin-table">
           <thead>
             <tr>
-              <th>Order</th>
+              <th>Booking</th>
               <th>Attempt</th>
               <th>Status</th>
               <th>Method</th>
@@ -158,10 +158,10 @@ export default function Payments() {
             {rows.map((row) => (
               <tr key={row.id}>
                 <td className="font-semibold">
-                  {row.order.orderNumber}
+                  {row.booking.bookingNumber}
                   <span className="block text-xs font-normal text-muted-foreground">
-                    {row.order.user.mobileNumber} ·{' '}
-                    {row.order.region?.name ?? 'Unassigned'}
+                    {row.booking.user.mobileNumber} ·{' '}
+                    {row.booking.region?.name ?? 'Unassigned'}
                   </span>
                 </td>
                 <td className="max-w-48 truncate text-xs text-muted-foreground">
@@ -195,7 +195,7 @@ export default function Payments() {
                 <td className="text-right font-semibold">₹{row.amount}</td>
                 <td>
                   {session?.admin.role === 'OPERATIONS' &&
-                    row.order.orderStatus === 'DECLINED' &&
+                    row.booking.status === 'DECLINED' &&
                     row.paymentStatus === 'PAID' &&
                     row.source !== 'MANUAL' && (
                     <Button
@@ -231,10 +231,10 @@ export default function Payments() {
           <article key={row.id} className="admin-card p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h2 className="font-semibold">{row.order.orderNumber}</h2>
+                <h2 className="font-semibold">{row.booking.bookingNumber}</h2>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {row.order.user.mobileNumber} ·{' '}
-                  {row.order.region?.name ?? 'Unassigned'}
+                  {row.booking.user.mobileNumber} ·{' '}
+                  {row.booking.region?.name ?? 'Unassigned'}
                 </p>
               </div>
               <p className="font-semibold">₹{row.amount}</p>
@@ -284,7 +284,7 @@ export default function Payments() {
               </div>
             )}
             {session?.admin.role === 'OPERATIONS' &&
-              row.order.orderStatus === 'DECLINED' &&
+              row.booking.status === 'DECLINED' &&
               row.paymentStatus === 'PAID' &&
               row.source !== 'MANUAL' && (
               <Button
@@ -323,7 +323,7 @@ export default function Payments() {
               Issue refund
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              {selected.order.orderNumber} · paid ₹{selected.amount}
+              {selected.booking.bookingNumber} · paid ₹{selected.amount}
             </p>
             <div className="mt-5 space-y-3">
               <p className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">

@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  BookingFulfilmentStatus,
   BookingStatus,
   CancellationActor,
   OrderStatus,
@@ -31,12 +32,17 @@ const bookingInclude = {
       region: true,
       selectedItems: true,
       cutleryItems: true,
-      payments: { include: { refunds: true } },
       statusHistory: { orderBy: { changedAt: 'asc' } },
     },
     orderBy: { createdAt: 'asc' },
   },
   statusHistory: {
+    include: {
+      changedBy: { select: { id: true, name: true } },
+    },
+    orderBy: { changedAt: 'asc' },
+  },
+  fulfilmentHistory: {
     include: {
       changedBy: { select: { id: true, name: true } },
     },
@@ -81,6 +87,7 @@ export class BookingsService {
     regionId?: string,
     filters?: {
       status?: BookingStatus;
+      fulfilmentStatus?: BookingFulfilmentStatus;
       paymentStatus?: PaymentStatus;
       mobileNumber?: string;
       dateFrom?: string;
@@ -99,6 +106,9 @@ export class BookingsService {
         : { status: { not: BookingStatus.PENDING_PAYMENT } }),
       ...(filters?.paymentStatus
         ? { paymentStatus: filters.paymentStatus }
+        : {}),
+      ...(filters?.fulfilmentStatus
+        ? { fulfilmentStatus: filters.fulfilmentStatus }
         : {}),
       ...(filters?.mobileNumber
         ? { contactNumber: { contains: filters.mobileNumber } }
@@ -143,15 +153,6 @@ export class BookingsService {
     return this.serialize(row);
   }
 
-  async getByOrder(userId: string, orderId: string) {
-    const order = await this.prisma.order.findFirst({
-      where: { id: orderId, userId },
-      select: { bookingId: true },
-    });
-    if (!order?.bookingId) throw new NotFoundException('Booking not found');
-    return this.get(userId, order.bookingId);
-  }
-
   async cancel(userId: string, id: string, reason?: string) {
     const booking = await this.prisma.booking.findFirst({
       where: { id, userId },
@@ -164,6 +165,11 @@ export class BookingsService {
       booking.status === BookingStatus.COMPLETED
     ) {
       throw new BadRequestException('Booking cannot be cancelled');
+    }
+    if (booking.fulfilmentStatus !== BookingFulfilmentStatus.NOT_STARTED) {
+      throw new BadRequestException(
+        'Booking can only be cancelled before preparation starts',
+      );
     }
     const note = reason?.trim() || 'Cancelled by customer';
     await this.prisma.$transaction(async (tx) => {
@@ -221,7 +227,6 @@ export class BookingsService {
   serialize(booking: BookingWithDetails) {
     const payments = booking.payments.map((payment) => ({
       id: payment.id,
-      orderId: payment.orderId,
       bookingId: payment.bookingId,
       amount: payment.amount.toFixed(2),
       paymentStatus: payment.paymentStatus,

@@ -93,7 +93,7 @@ test('payment snapshot preserves fixed-package menu before any order exists', as
   };
   const carts = new CartService(
     prisma as never,
-    { generateOrderDocuments: async () => undefined } as never,
+    { generateBookingDocuments: async () => undefined } as never,
     {} as never,
   );
   carts.quoteAll = async () =>
@@ -130,6 +130,7 @@ test('payment snapshot preserves fixed-package menu before any order exists', as
   assert.equal(prepared.carts[0].packageImageUrl, '/pkg-lunch.png');
   assert.equal(prepared.carts[0].selectedItems[0].menuItemName, 'Paneer curry');
   assert.equal(prepared.carts[0].selectedItems[0].role, 'INCLUDED');
+  assert.equal(prepared.carts[0].selectedItems[0].quantity, 1);
 });
 
 test('payment snapshot preserves booking cutlery on its selected cart', async () => {
@@ -300,7 +301,7 @@ test('50% cart payment keeps carts active and creates a partially paid booking a
   const payments = new PaymentsService(
     prisma as never,
     { get: () => undefined } as never,
-    { generateOrderDocuments: async () => undefined } as never,
+    { generateBookingDocuments: async () => undefined } as never,
     undefined,
     { preparePayment: async () => snapshot } as never,
   );
@@ -322,7 +323,7 @@ test('50% cart payment keeps carts active and creates a partially paid booking a
     razorpaySignature: 'local_success',
   });
   assert.equal(verified.success, true);
-  assert.equal(verified.orderId, 'confirmed-order-1');
+  assert.equal(verified.bookingId, createdBooking?.id);
   assert.equal(createdOrders.length, 1);
   assert.equal(createdOrders[0].orderStatus, OrderStatus.AWAITING_APPROVAL);
   assert.equal(createdOrders[0].paymentStatus, PaymentStatus.PARTIALLY_PAID);
@@ -338,7 +339,7 @@ test('50% cart payment keeps carts active and creates a partially paid booking a
     razorpayPaymentId: 'local-payment-1',
     razorpaySignature: 'local_success',
   });
-  assert.equal(repeated.orderId, 'confirmed-order-1');
+  assert.equal(repeated.bookingId, createdBooking?.id);
   assert.equal(createdOrders.length, 1);
 });
 
@@ -460,7 +461,7 @@ test('pay later creates an unpaid booking awaiting kitchen approval', async () =
         }),
     } as never,
     { get: () => undefined } as never,
-    { generateOrderDocuments: async () => undefined } as never,
+    { generateBookingDocuments: async () => undefined } as never,
     {
       notifyBookingRequest: async (orderId: string) => {
         notified.push(orderId);
@@ -472,7 +473,6 @@ test('pay later creates an unpaid booking awaiting kitchen approval', async () =
   );
 
   const result = await payments.createPayLaterBooking('user-1');
-  assert.equal(result.orderId, 'order-pay-later');
   assert.equal(result.bookingId, createdBooking?.id);
   assert.equal(result.paymentPlan, PaymentPlan.PAY_LATER);
   assert.equal(createdBooking?.paymentStatus, PaymentStatus.UNPAID);

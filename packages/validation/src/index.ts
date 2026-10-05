@@ -150,7 +150,7 @@ export const upsertPackageMenuItemSchema = z.object({
   displayOrder: z.number().int().min(0).default(0),
 });
 
-export const createOrderNoteSchema = z.object({
+export const createBookingNoteSchema = z.object({
   body: z.string().trim().min(1).max(2000),
 });
 
@@ -184,5 +184,5 @@ export type UpdatePackageVersionInput = z.infer<
 export type UpsertPackageMenuItemInput = z.infer<
   typeof upsertPackageMenuItemSchema
 >;
-export type CreateOrderNoteInput = z.infer<typeof createOrderNoteSchema>;
+export type CreateBookingNoteInput = z.infer<typeof createBookingNoteSchema>;
 export type UpdateSettingsInput = z.infer<typeof updateSettingsSchema>;

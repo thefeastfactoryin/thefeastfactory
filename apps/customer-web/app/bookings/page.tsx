@@ -6,7 +6,11 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { AuthRequiredPanel, StatePanel } from '../../components/ui/state-panel';
 import { apiRequest } from '../../lib/api';
-import { formatCurrency, formatStatus } from '../../lib/format';
+import {
+  formatCurrency,
+  formatCustomerBookingStatus,
+  formatStatus,
+} from '../../lib/format';
 import { useSessionStore } from '../../store/session.store';
 
 export default function BookingsPage() {
@@ -87,7 +91,7 @@ export default function BookingsPage() {
                     </h2>
                   </div>
                   <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
-                    {formatStatus(booking.status)}
+                    {formatCustomerBookingStatus(booking.status)}
                   </span>
                 </div>
                 <div className="mt-4 space-y-2 text-sm text-muted-foreground">

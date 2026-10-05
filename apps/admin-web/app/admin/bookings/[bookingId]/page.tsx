@@ -1,21 +1,44 @@
 'use client';
 
-import type { BookingDetails } from '@aranyam/shared-types';
+import {
+  statusLabels,
+  type BookingDocument,
+  type BookingDetails,
+  type BookingFulfilmentStatus,
+  type BookingNote,
+} from '@aranyam/shared-types';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { AdminPageHeader } from '../../../../components/admin-page-header';
-import { StatusBadge } from '../../../../components/status-badge';
+import {
+  FulfilmentStatusBadge,
+  StatusBadge,
+} from '../../../../components/status-badge';
 import { Button } from '../../../../components/ui/button';
 import { Input } from '../../../../components/ui/input';
-import { apiRequest } from '../../../../lib/api';
+import { apiRequest, downloadAuthenticated } from '../../../../lib/api';
 import { useAdminSessionStore } from '../../../../store/session.store';
+
+const fulfilmentStatuses: BookingFulfilmentStatus[] = [
+  'NOT_STARTED',
+  'PREPARING',
+  'READY_FOR_DELIVERY',
+  'OUT_FOR_DELIVERY',
+  'COMPLETED',
+];
 
 export default function AdminBookingDetailsPage() {
   const { bookingId } = useParams<{ bookingId: string }>();
   const session = useAdminSessionStore((state) => state.session);
   const [booking, setBooking] = useState<BookingDetails>();
+  const [notes, setNotes] = useState<BookingNote[]>([]);
+  const [documents, setDocuments] = useState<BookingDocument[]>([]);
+  const [note, setNote] = useState('');
   const [declineReason, setDeclineReason] = useState('');
+  const [cancelReason, setCancelReason] = useState('');
+  const [fulfilmentStatus, setFulfilmentStatus] =
+    useState<BookingFulfilmentStatus>('NOT_STARTED');
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState('UPI');
   const [reference, setReference] = useState('');
@@ -26,13 +49,27 @@ export default function AdminBookingDetailsPage() {
     if (!session || !bookingId) return;
     setError('');
     try {
-      setBooking(
-        await apiRequest<BookingDetails>(
+      const [nextBooking, nextNotes, nextDocuments] = await Promise.all([
+        apiRequest<BookingDetails>(
           `/admin/bookings/${bookingId}`,
           {},
           session.accessToken,
         ),
-      );
+        apiRequest<BookingNote[]>(
+          `/admin/bookings/${bookingId}/notes`,
+          {},
+          session.accessToken,
+        ),
+        apiRequest<BookingDocument[]>(
+          `/admin/bookings/${bookingId}/documents`,
+          {},
+          session.accessToken,
+        ),
+      ]);
+      setBooking(nextBooking);
+      setNotes(nextNotes);
+      setDocuments(nextDocuments);
+      setFulfilmentStatus(nextBooking.fulfilmentStatus);
     } catch (reason) {
       setError((reason as Error).message);
     }
@@ -42,16 +79,40 @@ export default function AdminBookingDetailsPage() {
     void load();
   }, [load]);
 
-  async function action(path: string, body?: object) {
+  async function action(
+    path: string,
+    body?: object,
+    method: 'POST' | 'PATCH' = 'POST',
+  ) {
     if (!session) return;
     setBusy(path);
     setError('');
     try {
       await apiRequest(
         `/admin/bookings/${bookingId}/${path}`,
-        { method: 'POST', body: body ? JSON.stringify(body) : undefined },
+        { method, body: body ? JSON.stringify(body) : undefined },
         session.accessToken,
       );
+      await load();
+    } catch (reason) {
+      setError((reason as Error).message);
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function addNote(event: React.FormEvent) {
+    event.preventDefault();
+    if (!session || !note.trim()) return;
+    setBusy('note');
+    setError('');
+    try {
+      await apiRequest(
+        `/admin/bookings/${bookingId}/notes`,
+        { method: 'POST', body: JSON.stringify({ body: note.trim() }) },
+        session.accessToken,
+      );
+      setNote('');
       await load();
     } catch (reason) {
       setError((reason as Error).message);
@@ -125,15 +186,127 @@ export default function AdminBookingDetailsPage() {
             )}
           </section>
 
+          {(booking.status === 'CONFIRMED' ||
+            booking.status === 'COMPLETED') && (
+            <section className="admin-card p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-semibold">Fulfilment</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    One status applies to every package in this booking.
+                  </p>
+                </div>
+                <FulfilmentStatusBadge value={booking.fulfilmentStatus} />
+              </div>
+              <ol className="mt-5 grid gap-2 sm:grid-cols-5" aria-label="Booking fulfilment stages">
+                {fulfilmentStatuses.map((value, index) => (
+                  <li
+                    key={value}
+                    className={`rounded-xl border px-3 py-3 text-xs font-semibold ${
+                      value === booking.fulfilmentStatus
+                        ? 'border-primary bg-primary/[0.08] text-primary'
+                        : 'border-border bg-muted/30 text-muted-foreground'
+                    }`}
+                  >
+                    <span className="mb-1 block text-[10px] uppercase tracking-wide opacity-70">
+                      Stage {index + 1}
+                    </span>
+                    {statusLabels.fulfilment[value]}
+                  </li>
+                ))}
+              </ol>
+              <div className="mt-5 flex flex-wrap items-end gap-3 border-t border-border pt-5">
+                <label className="min-w-56 flex-1">
+                  <span className="mb-1.5 block text-sm font-semibold">
+                    Set fulfilment status
+                  </span>
+                  <select
+                    className="h-11 w-full rounded-xl border bg-white px-3"
+                    value={fulfilmentStatus}
+                    onChange={(event) =>
+                      setFulfilmentStatus(
+                        event.target.value as BookingFulfilmentStatus,
+                      )
+                    }
+                  >
+                    {fulfilmentStatuses.map((value) => (
+                      <option key={value} value={value}>
+                        {statusLabels.fulfilment[value]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <Button
+                  disabled={
+                    Boolean(busy) ||
+                    fulfilmentStatus === booking.fulfilmentStatus
+                  }
+                  onClick={() =>
+                    action(
+                      'fulfilment',
+                      { status: fulfilmentStatus },
+                      'PATCH',
+                    )
+                  }
+                >
+                  {busy === 'fulfilment' ? 'Updating…' : 'Update fulfilment'}
+                </Button>
+              </div>
+              <p className="mt-3 text-xs text-muted-foreground">
+                You can move directly to any stage when operations require it.
+              </p>
+              {Boolean(booking.fulfilmentHistory?.length) && (
+                <div className="mt-5 border-t border-border pt-5">
+                  <h3 className="text-sm font-semibold">Fulfilment history</h3>
+                  <div className="mt-3 space-y-3">
+                    {booking.fulfilmentHistory?.map((entry) => (
+                      <div
+                        key={entry.id}
+                        className="flex flex-wrap items-center justify-between gap-2 text-sm"
+                      >
+                        <FulfilmentStatusBadge value={entry.toStatus} />
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(entry.changedAt).toLocaleString('en-IN')}
+                          {entry.notes ? ` · ${entry.notes}` : ''}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {booking.fulfilmentStatus === 'NOT_STARTED' && (
+                <div className="mt-5 grid gap-3 border-t border-border pt-5 md:grid-cols-[1fr_auto] md:items-end">
+                  <Input
+                    value={cancelReason}
+                    onChange={(event) => setCancelReason(event.target.value)}
+                    placeholder="Cancellation reason"
+                  />
+                  <Button
+                    variant="danger"
+                    disabled={!cancelReason.trim() || Boolean(busy)}
+                    onClick={() =>
+                      action('cancel', { reason: cancelReason.trim() })
+                    }
+                  >
+                    {busy === 'cancel' ? 'Cancelling…' : 'Cancel booking'}
+                  </Button>
+                </div>
+              )}
+            </section>
+          )}
+
           <section className="admin-card overflow-hidden">
             <div className="border-b border-border px-5 py-4">
-              <h2 className="text-lg font-semibold">Package orders</h2>
+              <h2 className="text-lg font-semibold">Packages in this booking</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Package rows share the booking fulfilment status above.
+              </p>
             </div>
             <div className="divide-y divide-border">
               {booking.orders.map((order) => (
                 <Link
                   key={order.id}
-                  href={`/admin/orders/${order.id}`}
+                  href={`/admin/bookings/${booking.id}/orders/${order.id}`}
                   className="grid gap-2 p-5 hover:bg-muted/30 md:grid-cols-[1fr_.6fr_.6fr_.5fr] md:items-center"
                 >
                   <div>
@@ -145,7 +318,7 @@ export default function AdminBookingDetailsPage() {
                   <p>
                     {order.guestCount ? `${order.guestCount} guests` : 'By KG'}
                   </p>
-                  <StatusBadge value={order.orderStatus} />
+                  <FulfilmentStatusBadge value={booking.fulfilmentStatus} />
                   <p className="text-right font-semibold">
                     ₹{Number(order.totalAmount).toLocaleString('en-IN')}
                   </p>
@@ -182,6 +355,37 @@ export default function AdminBookingDetailsPage() {
                 <p className="text-muted-foreground">Contact</p>
                 <p className="mt-1 font-medium">{booking.contactNumber}</p>
               </div>
+            </div>
+          </section>
+
+          <section className="admin-card p-5">
+            <h2 className="text-lg font-semibold">Kitchen &amp; operations notes</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Internal notes apply to the complete booking and every package.
+            </p>
+            <form className="mt-4 flex gap-2" onSubmit={addNote}>
+              <Input
+                value={note}
+                onChange={(event) => setNote(event.target.value)}
+                placeholder="Add an internal booking note"
+                maxLength={2000}
+              />
+              <Button type="submit" disabled={!note.trim() || Boolean(busy)}>
+                {busy === 'note' ? 'Adding…' : 'Add note'}
+              </Button>
+            </form>
+            <div className="mt-4 space-y-3">
+              {notes.map((entry) => (
+                <div key={entry.id} className="rounded-lg border border-border p-3 text-sm">
+                  <p className="whitespace-pre-wrap">{entry.body}</p>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {entry.author.name} · {new Date(entry.createdAt).toLocaleString('en-IN')}
+                  </p>
+                </div>
+              ))}
+              {!notes.length && (
+                <p className="text-sm text-muted-foreground">No internal notes yet.</p>
+              )}
             </div>
           </section>
         </div>
@@ -266,7 +470,40 @@ export default function AdminBookingDetailsPage() {
               </div>
             )}
           </section>
-          {booking.status === 'CONFIRMED' && Number(booking.balanceDue) > 0 && (
+          <section className="admin-card p-5">
+            <h2 className="text-lg font-semibold">Invoices &amp; documents</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Receipts, GST invoices, and credit notes cover the complete booking.
+            </p>
+            <div className="mt-4 space-y-2">
+              {documents.map((document) => (
+                <Button
+                  key={document.id}
+                  variant="outline"
+                  className="w-full justify-between"
+                  onClick={() =>
+                    downloadAuthenticated(
+                      `/admin/bookings/${bookingId}/documents/${document.id}/download`,
+                      session.accessToken,
+                    )
+                  }
+                >
+                  <span>{document.documentType.replaceAll('_', ' ')}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {document.documentNumber}
+                  </span>
+                </Button>
+              ))}
+              {!documents.length && (
+                <p className="text-sm text-muted-foreground">
+                  Documents appear after a payment is recorded.
+                </p>
+              )}
+            </div>
+          </section>
+          {(booking.status === 'CONFIRMED' ||
+            booking.status === 'COMPLETED') &&
+            Number(booking.balanceDue) > 0 && (
             <section className="admin-card p-5">
               <h2 className="text-lg font-semibold">Record manual deposit</h2>
               <div className="mt-4 space-y-3">

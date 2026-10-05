@@ -1,7 +1,6 @@
 import {
   Body,
   Controller,
-  Get,
   Headers,
   Param,
   Post,
@@ -13,13 +12,14 @@ import { ApiBearerAuth, ApiBody, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { JwtPayload } from '../../common/auth/jwt-payload';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { RateLimit } from '../../common/decorators/rate-limit.decorator';
 import { CustomerAuthGuard } from '../../common/guards/customer-auth.guard';
+import { RateLimitGuard } from '../../common/guards/rate-limit.guard';
 import { VerifyPaymentDto } from './dto/verify-payment.dto';
 import { PaymentsService } from './payments.service';
 import type { RazorpayWebhookPayload } from './payments.service';
-import { CreateBatchPaymentDto } from './dto/create-batch-payment.dto';
 import { CheckoutCartDto } from '../cart/dto/checkout-cart.dto';
-import { CreateOrderPaymentDto } from './dto/create-order-payment.dto';
+import { CreateBookingPaymentDto } from './dto/create-booking-payment.dto';
 
 @ApiTags('payments')
 @Controller()
@@ -28,7 +28,28 @@ export class PaymentsController {
 
   @Post('payments/razorpay/cart-order')
   @ApiBearerAuth()
-  @UseGuards(CustomerAuthGuard)
+  @RateLimit(
+    {
+      name: 'pay-later-booking',
+      identity: 'user',
+      limit: 3,
+      windowSeconds: 600,
+      when: { bodyField: 'paymentPlan', equals: 'PAY_LATER' },
+    },
+    {
+      name: 'cart-payment-create',
+      identity: 'user',
+      limit: 5,
+      windowSeconds: 60,
+    },
+    {
+      name: 'cart-payment-create-ip',
+      identity: 'ip',
+      limit: 20,
+      windowSeconds: 60,
+    },
+  )
+  @UseGuards(CustomerAuthGuard, RateLimitGuard)
   createFromCart(
     @CurrentUser() user: JwtPayload,
     @Body() dto: CheckoutCartDto,
@@ -42,50 +63,39 @@ export class PaymentsController {
         );
   }
 
-  @Post('orders/:id/payments/razorpay-order')
-  @ApiBearerAuth()
-  @ApiBody({ type: CreateOrderPaymentDto, required: false })
-  @UseGuards(CustomerAuthGuard)
-  create(
-    @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
-    @Body() dto: CreateOrderPaymentDto = new CreateOrderPaymentDto(),
-  ) {
-    return this.payments.createGatewayOrder(user.sub, id, dto.amount);
-  }
-
   @Post('bookings/:id/payments/razorpay-order')
   @ApiBearerAuth()
-  @ApiBody({ type: CreateOrderPaymentDto, required: false })
-  @UseGuards(CustomerAuthGuard)
+  @ApiBody({ type: CreateBookingPaymentDto, required: false })
+  @RateLimit(
+    {
+      name: 'booking-payment-create',
+      identity: 'user',
+      limit: 5,
+      windowSeconds: 60,
+    },
+    {
+      name: 'booking-payment-create-ip',
+      identity: 'ip',
+      limit: 20,
+      windowSeconds: 60,
+    },
+  )
+  @UseGuards(CustomerAuthGuard, RateLimitGuard)
   createBookingPayment(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
-    @Body() dto: CreateOrderPaymentDto = new CreateOrderPaymentDto(),
+    @Body() dto: CreateBookingPaymentDto = new CreateBookingPaymentDto(),
   ) {
     return this.payments.createBookingGatewayOrder(user.sub, id, dto.amount);
   }
 
-  @Get('orders/:id/payment-batch')
-  @ApiBearerAuth()
-  @UseGuards(CustomerAuthGuard)
-  batchSummary(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
-    return this.payments.getPaymentBatchSummary(user.sub, id);
-  }
-
-  @Post('payments/razorpay/batch-order')
-  @ApiBearerAuth()
-  @UseGuards(CustomerAuthGuard)
-  createBatch(
-    @CurrentUser() user: JwtPayload,
-    @Body() dto: CreateBatchPaymentDto,
-  ) {
-    return this.payments.createBatchGatewayOrder(user.sub, dto.orderIds);
-  }
-
   @Post('payments/razorpay/verify')
   @ApiBearerAuth()
-  @UseGuards(CustomerAuthGuard)
+  @RateLimit(
+    { name: 'payment-verify', identity: 'user', limit: 10, windowSeconds: 60 },
+    { name: 'payment-verify-ip', identity: 'ip', limit: 30, windowSeconds: 60 },
+  )
+  @UseGuards(CustomerAuthGuard, RateLimitGuard)
   verify(@CurrentUser() user: JwtPayload, @Body() dto: VerifyPaymentDto) {
     return this.payments.verify(user.sub, dto);
   }

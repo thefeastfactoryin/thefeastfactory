@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { OrderStatus, PaymentStatus } from '@prisma/client';
+import { BookingStatus, OrderStatus, PaymentStatus } from '@prisma/client';
 import { JwtPayload } from '../../common/auth/jwt-payload';
 import { OperatingRegionsService } from '../operating-regions/operating-regions.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -17,9 +17,9 @@ export class ReportsService {
       requestedRegionId,
     );
     const paymentWhere = {
-      order: {
+      booking: {
         ...(regionId ? { regionId } : {}),
-        orderStatus: { not: OrderStatus.PENDING_PAYMENT },
+        status: { not: BookingStatus.PENDING_PAYMENT },
       },
     };
     const [paid, refunded] = await Promise.all([
@@ -38,7 +38,7 @@ export class ReportsService {
       this.prisma.refund.aggregate({
         where: {
           refundStatus: 'SUCCESS',
-          payment: { order: paymentWhere.order },
+          payment: { booking: paymentWhere.booking },
         },
         _sum: { amount: true },
         _count: true,
@@ -87,9 +87,9 @@ export class ReportsService {
       requestedRegionId,
     );
     const paymentWhere = {
-      order: {
+      booking: {
         ...(regionId ? { regionId } : {}),
-        orderStatus: { not: OrderStatus.PENDING_PAYMENT },
+        status: { not: BookingStatus.PENDING_PAYMENT },
       },
     };
     const [byStatus, total] = await Promise.all([

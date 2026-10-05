@@ -2,28 +2,56 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { HttpException } from '@nestjs/common';
 import bcrypt from 'bcrypt';
-import { AuthRateLimitGuard } from '../src/common/guards/auth-rate-limit.guard';
+import {
+  RATE_LIMIT_RULES,
+  RateLimitRule,
+} from '../src/common/decorators/rate-limit.decorator';
+import { RateLimitGuard } from '../src/common/guards/rate-limit.guard';
+import { AuthController } from '../src/modules/auth/auth.controller';
+import { PaymentsController } from '../src/modules/payments/payments.controller';
 import { AuthService } from '../src/modules/auth/auth.service';
 
-function authContext(body: object) {
+function authContext(body: object, user?: { sub: string }) {
+  const headers = new Map<string, string>();
   return {
     switchToHttp: () => ({
       getRequest: () => ({
         body,
+        user,
         ip: '203.0.113.10',
+        ips: [],
+        headers: {},
+        socket: {},
         originalUrl: '/auth/customer/request-otp',
       }),
+      getResponse: () => ({
+        setHeader: (name: string, value: string) => headers.set(name, value),
+      }),
     }),
+    getHandler: () => undefined,
+    getClass: () => undefined,
   } as never;
 }
 
-test('auth rate limiting uses the shared database bucket', async () => {
+test('rate limiting uses the shared database bucket and returns retry timing', async () => {
   let count = 0;
   const prisma = {
-    $queryRaw: async () => [{ requestCount: ++count }],
+    $queryRaw: async () => [
+      { requestCount: ++count, expiresAt: new Date(Date.now() + 60_000) },
+    ],
     authRateLimit: { deleteMany: async () => ({ count: 0 }) },
   };
-  const guard = new AuthRateLimitGuard(prisma as never);
+  const reflector = {
+    getAllAndOverride: () => [
+      {
+        name: 'test-auth',
+        identity: 'mobileNumber',
+        limit: 5,
+        windowSeconds: 60,
+      },
+    ],
+  };
+  const guard = new RateLimitGuard(reflector as never, prisma as never);
   const context = authContext({ mobileNumber: '9999999999' });
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
@@ -34,6 +62,70 @@ test('auth rate limiting uses the shared database bucket', async () => {
     (error: unknown) =>
       error instanceof HttpException && error.getStatus() === 429,
   );
+});
+
+test('rate limiting consumes both user and IP buckets for payments', async () => {
+  let calls = 0;
+  const prisma = {
+    $queryRaw: async () => {
+      calls += 1;
+      return [{ requestCount: 1, expiresAt: new Date(Date.now() + 60_000) }];
+    },
+    authRateLimit: { deleteMany: async () => ({ count: 0 }) },
+  };
+  const reflector = {
+    getAllAndOverride: () => [
+      {
+        name: 'payment-create',
+        identity: 'user',
+        limit: 5,
+        windowSeconds: 60,
+      },
+      {
+        name: 'payment-create-ip',
+        identity: 'ip',
+        limit: 20,
+        windowSeconds: 60,
+      },
+    ],
+  };
+  const guard = new RateLimitGuard(reflector as never, prisma as never);
+
+  assert.equal(
+    await guard.canActivate(authContext({}, { sub: 'customer-1' })),
+    true,
+  );
+  assert.equal(calls, 2);
+});
+
+test('priority auth and payment endpoints declare rate limits', () => {
+  const rulesFor = (method: object) =>
+    Reflect.getMetadata(RATE_LIMIT_RULES, method) as RateLimitRule[];
+
+  assert.deepEqual(
+    rulesFor(AuthController.prototype.requestCustomerOtp).map(
+      ({ identity, limit, windowSeconds }) => [identity, limit, windowSeconds],
+    ),
+    [
+      ['mobileNumber', 3, 600],
+      ['mobileNumber', 10, 86_400],
+      ['ip', 10, 600],
+      ['ip', 50, 86_400],
+    ],
+  );
+  assert.equal(
+    rulesFor(AuthController.prototype.refreshCustomer)[0].identity,
+    'refreshToken',
+  );
+  assert.equal(
+    rulesFor(AuthController.prototype.loginAdmin)[0].windowSeconds,
+    900,
+  );
+  assert.equal(
+    rulesFor(PaymentsController.prototype.createFromCart)[0].name,
+    'pay-later-booking',
+  );
+  assert.equal(rulesFor(PaymentsController.prototype.verify)[0].limit, 10);
 });
 
 test('only one concurrent verifier can claim an OTP', async () => {

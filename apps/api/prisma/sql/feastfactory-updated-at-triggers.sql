@@ -105,9 +105,9 @@ BEFORE INSERT OR UPDATE ON public.operating_regions
 FOR EACH ROW
 EXECUTE FUNCTION public.set_timestamps_to_db_time();
 
-DROP TRIGGER IF EXISTS trg_order_notes_set_timestamps ON public.order_notes;
-CREATE TRIGGER trg_order_notes_set_timestamps
-BEFORE INSERT OR UPDATE ON public.order_notes
+DROP TRIGGER IF EXISTS trg_booking_notes_set_timestamps ON public.booking_notes;
+CREATE TRIGGER trg_booking_notes_set_timestamps
+BEFORE INSERT OR UPDATE ON public.booking_notes
 FOR EACH ROW
 EXECUTE FUNCTION public.set_timestamps_to_db_time();
 

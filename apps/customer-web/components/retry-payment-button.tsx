@@ -10,7 +10,6 @@ import { cn } from '../lib/utils';
 
 export function RetryPaymentButton({
   order,
-  orderIds,
   bookingId,
   className,
   label = 'Retry payment',
@@ -20,8 +19,7 @@ export function RetryPaymentButton({
   onFailure,
 }: {
   order: OrderSummary;
-  orderIds?: string[];
-  bookingId?: string;
+  bookingId: string;
   className?: string;
   label?: string;
   amount?: number;
@@ -53,9 +51,7 @@ export function RetryPaymentButton({
       session!.accessToken,
     );
     window.location.assign(
-      bookingId
-        ? `/payment/status?bookingId=${bookingId}&status=success`
-        : `/payment/status?orderId=${order.id}&status=success`,
+      `/payment/status?bookingId=${bookingId}&status=success`,
     );
   }
   async function retry() {
@@ -63,33 +59,14 @@ export function RetryPaymentButton({
     setBusy(true);
     onStart?.();
     try {
-      const batchIds = [...new Set(orderIds ?? [order.id])];
-      const gateway = bookingId
-        ? await apiRequest<GatewayOrder>(
-            `/bookings/${bookingId}/payments/razorpay-order`,
-            {
-              method: 'POST',
-              body: JSON.stringify(amount === undefined ? {} : { amount }),
-            },
-            session.accessToken,
-          )
-        : batchIds.length > 1
-          ? await apiRequest<GatewayOrder>(
-              '/payments/razorpay/batch-order',
-              {
-                method: 'POST',
-                body: JSON.stringify({ orderIds: batchIds }),
-              },
-              session.accessToken,
-            )
-          : await apiRequest<GatewayOrder>(
-              `/orders/${order.id}/payments/razorpay-order`,
-              {
-                method: 'POST',
-                body: JSON.stringify(amount === undefined ? {} : { amount }),
-              },
-              session.accessToken,
-            );
+      const gateway = await apiRequest<GatewayOrder>(
+        `/bookings/${bookingId}/payments/razorpay-order`,
+        {
+          method: 'POST',
+          body: JSON.stringify(amount === undefined ? {} : { amount }),
+        },
+        session.accessToken,
+      );
       if (gateway.localMode) {
         await verify(gateway, `local_payment_${Date.now()}`, 'local_success');
         return;

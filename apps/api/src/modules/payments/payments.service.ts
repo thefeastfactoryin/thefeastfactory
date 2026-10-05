@@ -331,12 +331,10 @@ export class PaymentsService {
       },
       { timeout: 30_000 },
     );
-    for (const orderId of result.orderIds) {
-      try {
-        await this.operations.generateOrderDocuments(orderId);
-      } catch (error) {
-        console.error('[Payments] Order document generation failed', error);
-      }
+    try {
+      await this.operations.generateBookingDocuments(result.bookingId);
+    } catch (error) {
+      console.error('[Payments] Booking document generation failed', error);
     }
     if (result.orderIds[0]) {
       void this.notifications?.notifyBookingRequest(result.orderIds[0]);
@@ -344,8 +342,6 @@ export class PaymentsService {
     return {
       success: true,
       bookingId: result.bookingId,
-      orderId: result.orderIds[0],
-      orderIds: result.orderIds,
       paymentPlan: PaymentPlan.PAY_LATER,
     };
   }
@@ -425,130 +421,6 @@ export class PaymentsService {
         });
       }
     }
-  }
-
-  async createGatewayOrder(
-    userId: string,
-    orderId: string,
-    requestedAmount?: number,
-  ) {
-    this.assertPaymentModeAvailable();
-    const order = await this.prisma.order.findFirst({
-      where: { id: orderId, userId },
-      include: {
-        payments: {
-          include: { refunds: true },
-          orderBy: { createdAt: 'desc' },
-        },
-      },
-    });
-    if (!order) throw new NotFoundException('Order not found');
-    if (order.bookingId) {
-      return this.createBookingGatewayOrder(
-        userId,
-        order.bookingId,
-        requestedAmount,
-      );
-    }
-    if (
-      order.orderStatus === OrderStatus.DECLINED ||
-      order.orderStatus === OrderStatus.CANCELLED
-    ) {
-      throw new BadRequestException('This order cannot accept payments');
-    }
-    const ledgerSummary = this.paymentLedgerSummary(
-      order.totalAmount,
-      order.payments,
-    );
-    if (!ledgerSummary.balanceDue.greaterThan(0))
-      throw new BadRequestException('This order is already fully paid');
-    const chargeAmount =
-      requestedAmount === undefined
-        ? ledgerSummary.balanceDue
-        : new Prisma.Decimal(requestedAmount);
-    if (chargeAmount.lessThan(1)) {
-      throw new BadRequestException('Payment amount must be at least ₹1.00');
-    }
-    if (chargeAmount.greaterThan(ledgerSummary.balanceDue)) {
-      throw new BadRequestException(
-        `Payment exceeds the remaining balance of ₹${ledgerSummary.balanceDue.toFixed(2)}`,
-      );
-    }
-    const currency = await this.currency();
-
-    const existing = order.payments.find(
-      (payment) =>
-        payment.paymentStatus === PaymentStatus.PENDING &&
-        payment.razorpayOrderId,
-    );
-    if (existing) {
-      const linkedPayments = await this.prisma.payment.findMany({
-        where: {
-          razorpayOrderId: existing.razorpayOrderId,
-          paymentStatus: PaymentStatus.PENDING,
-          order: { userId },
-        },
-      });
-      const linkedAmount = linkedPayments.reduce(
-        (sum, payment) => sum.plus(payment.amount),
-        new Prisma.Decimal(0),
-      );
-      const amount = this.paymentAmountInSubunits(chargeAmount);
-      if (
-        linkedAmount.equals(chargeAmount) &&
-        (!this.isConfigured() ||
-          (await this.canReuseGatewayOrder(
-            existing.razorpayOrderId!,
-            amount,
-            currency,
-          )))
-      ) {
-        return {
-          paymentId: existing.id,
-          keyId: this.keyId() || 'local',
-          id: existing.razorpayOrderId,
-          amount,
-          currency,
-          localMode: !this.isConfigured(),
-          reused: true,
-        };
-      }
-      await this.retireGatewayOrder(existing.razorpayOrderId!);
-    }
-
-    const amount = this.paymentAmountInSubunits(chargeAmount);
-    const gatewayOrder = this.isConfigured()
-      ? await this.createRazorpayOrder(
-          existing
-            ? this.replacementReceipt(order.orderNumber)
-            : order.orderNumber,
-          amount,
-          currency,
-        )
-      : {
-          id: `local_order_${order.id}_${Date.now()}`,
-          amount,
-          currency,
-        };
-
-    const payment = await this.prisma.payment.create({
-      data: {
-        orderId,
-        amount: chargeAmount,
-        razorpayOrderId: gatewayOrder.id,
-        gatewayResponse: {
-          orderCreated: true,
-          localMode: !this.isConfigured(),
-        },
-      },
-    });
-    return {
-      paymentId: payment.id,
-      keyId: this.keyId() || 'local',
-      ...gatewayOrder,
-      localMode: !this.isConfigured(),
-      reused: false,
-    };
   }
 
   async createBookingGatewayOrder(
@@ -664,12 +536,11 @@ export class PaymentsService {
       allocations.push({ orderId: order.id, amount: allocation });
       remaining = remaining.minus(allocation);
     }
-    const primaryOrder = allocations[0]?.orderId ?? booking.orders[0]?.id;
-    if (!primaryOrder) throw new BadRequestException('Booking has no orders');
+    if (!booking.orders.length)
+      throw new BadRequestException('Booking has no orders');
     const payment = await this.prisma.payment.create({
       data: {
         bookingId,
-        orderId: primaryOrder,
         amount: chargeAmount,
         razorpayOrderId: gatewayOrder.id,
         gatewayResponse: {
@@ -690,139 +561,6 @@ export class PaymentsService {
     };
   }
 
-  async getPaymentBatchSummary(userId: string, orderId: string) {
-    const payment = await this.prisma.payment.findFirst({
-      where: { orderId, order: { userId } },
-      orderBy: { createdAt: 'desc' },
-    });
-    if (!payment) {
-      const order = await this.prisma.order.findFirst({
-        where: { id: orderId, userId },
-        select: { id: true, totalAmount: true, checkoutBatchId: true },
-      });
-      if (!order) throw new NotFoundException('Order not found');
-      const batchOrders = order.checkoutBatchId
-        ? await this.prisma.order.findMany({
-            where: { checkoutBatchId: order.checkoutBatchId, userId },
-            select: { id: true, totalAmount: true },
-            orderBy: { createdAt: 'asc' },
-          })
-        : [order];
-      const totalAmount = batchOrders.reduce(
-        (sum, row) => sum.plus(row.totalAmount),
-        new Prisma.Decimal(0),
-      );
-      return {
-        orderCount: batchOrders.length,
-        orderIds: batchOrders.map((row) => row.id),
-        totalAmount: totalAmount.toFixed(2),
-      };
-    }
-    const payments = payment.razorpayOrderId
-      ? await this.prisma.payment.findMany({
-          where: {
-            razorpayOrderId: payment.razorpayOrderId,
-            order: { userId },
-          },
-          include: { order: { select: { id: true, orderNumber: true } } },
-        })
-      : [payment];
-    const totalAmount = payments.reduce(
-      (sum, row) => sum.plus(row.amount),
-      new Prisma.Decimal(0),
-    );
-    return {
-      orderCount: payments.length,
-      orderIds: payments.map((row) => row.orderId),
-      totalAmount: totalAmount.toFixed(2),
-    };
-  }
-
-  async createBatchGatewayOrder(userId: string, orderIds: string[]) {
-    this.assertPaymentModeAvailable();
-    const uniqueIds = [...new Set(orderIds)];
-    const orders = await this.prisma.order.findMany({
-      where: { id: { in: uniqueIds }, userId },
-      include: { payments: { orderBy: { createdAt: 'desc' } } },
-    });
-    if (orders.length !== uniqueIds.length) {
-      throw new NotFoundException('One or more orders were not found');
-    }
-    if (
-      orders.some((order) => order.orderStatus !== OrderStatus.PENDING_PAYMENT)
-    ) {
-      throw new BadRequestException('Every order must be awaiting payment');
-    }
-    const total = orders.reduce(
-      (sum, order) => sum.plus(order.totalAmount),
-      new Prisma.Decimal(0),
-    );
-    const amount = this.paymentAmountInSubunits(total);
-    const currency = await this.currency();
-    const reusableGatewayId = orders[0].payments.find(
-      (payment) =>
-        payment.paymentStatus === PaymentStatus.PENDING &&
-        payment.razorpayOrderId &&
-        orders.every((order) =>
-          order.payments.some(
-            (candidate) =>
-              candidate.paymentStatus === PaymentStatus.PENDING &&
-              candidate.razorpayOrderId === payment.razorpayOrderId,
-          ),
-        ),
-    )?.razorpayOrderId;
-    if (
-      reusableGatewayId &&
-      (!this.isConfigured() ||
-        (await this.canReuseGatewayOrder(reusableGatewayId, amount, currency)))
-    ) {
-      return {
-        keyId: this.keyId() || 'local',
-        id: reusableGatewayId,
-        amount,
-        currency,
-        orderIds: uniqueIds,
-        localMode: !this.isConfigured(),
-        reused: true,
-      };
-    }
-    if (reusableGatewayId) {
-      await this.retireGatewayOrder(reusableGatewayId);
-    }
-    const gatewayOrder = this.isConfigured()
-      ? await this.createRazorpayOrder(
-          reusableGatewayId
-            ? this.replacementReceipt(`batch-${orders[0].orderNumber}`)
-            : `batch-${orders[0].orderNumber}`,
-          amount,
-          currency,
-        )
-      : {
-          id: `local_batch_${Date.now()}`,
-          amount,
-          currency,
-        };
-    await this.prisma.payment.createMany({
-      data: orders.map((order) => ({
-        orderId: order.id,
-        amount: order.totalAmount,
-        razorpayOrderId: gatewayOrder.id,
-        gatewayResponse: {
-          orderCreated: true,
-          batchOrderIds: uniqueIds,
-          localMode: !this.isConfigured(),
-        },
-      })),
-    });
-    return {
-      keyId: this.keyId() || 'local',
-      ...gatewayOrder,
-      orderIds: uniqueIds,
-      localMode: !this.isConfigured(),
-      reused: false,
-    };
-  }
-
   async verify(userId: string, dto: VerifyPaymentDto) {
     this.assertPaymentModeAvailable();
     const cartAttempt = await this.prisma.checkoutAttempt.findUnique({
@@ -832,12 +570,9 @@ export class PaymentsService {
       if (cartAttempt.userId !== userId)
         throw new NotFoundException('Payment not found');
       if (cartAttempt.status === CheckoutAttemptStatus.PAID) {
-        const ids = cartAttempt.orderIds as string[] | null;
         return {
           success: true,
           bookingId: cartAttempt.bookingId ?? undefined,
-          orderId: ids?.[0],
-          orderIds: ids ?? [],
         };
       }
       const expectedSignature = this.isConfigured()
@@ -888,18 +623,12 @@ export class PaymentsService {
       }
     }
     const payment = await this.prisma.payment.findFirst({
-      where: { razorpayOrderId: dto.razorpayOrderId, order: { userId } },
-      include: { order: true },
+      where: { razorpayOrderId: dto.razorpayOrderId, booking: { userId } },
+      include: { booking: true },
     });
     if (!payment) throw new NotFoundException('Payment not found');
-    const batchPayments = await this.prisma.payment.findMany({
-      where: { razorpayOrderId: dto.razorpayOrderId, order: { userId } },
-    });
-    if (
-      batchPayments.length > 0 &&
-      batchPayments.every((row) => row.paymentStatus === PaymentStatus.PAID)
-    ) {
-      return { success: true, orderId: payment.orderId };
+    if (payment.paymentStatus === PaymentStatus.PAID) {
+      return { success: true, bookingId: payment.bookingId };
     }
 
     const expected = this.isConfigured()
@@ -912,14 +641,10 @@ export class PaymentsService {
       throw new BadRequestException('Invalid payment signature');
     }
 
-    const batchAmount = batchPayments.reduce(
-      (sum, row) => sum.plus(row.amount),
-      new Prisma.Decimal(0),
-    );
     let gatewayPayment: GatewayPayment = {
       id: dto.razorpayPaymentId,
       order_id: dto.razorpayOrderId,
-      amount: batchAmount.mul(100).toNumber(),
+      amount: this.paymentAmountInSubunits(payment.amount),
       status: 'captured',
       method: 'local',
     };
@@ -927,7 +652,7 @@ export class PaymentsService {
       gatewayPayment = (await this.client().payments.fetch(
         dto.razorpayPaymentId,
       )) as GatewayPayment;
-      const expectedAmount = this.paymentAmountInSubunits(batchAmount);
+      const expectedAmount = this.paymentAmountInSubunits(payment.amount);
       if (
         gatewayPayment.order_id !== dto.razorpayOrderId ||
         Number(gatewayPayment.amount) !== expectedAmount ||
@@ -939,15 +664,13 @@ export class PaymentsService {
       }
     }
 
-    for (const row of batchPayments) {
-      await this.markPaid(
-        row.id,
-        dto.razorpayPaymentId,
-        dto.razorpaySignature,
-        gatewayPayment,
-      );
-    }
-    return { success: true, orderId: payment.orderId };
+    await this.markPaid(
+      payment.id,
+      dto.razorpayPaymentId,
+      dto.razorpaySignature,
+      gatewayPayment,
+    );
+    return { success: true, bookingId: payment.bookingId };
   }
 
   private async finalizeCartAttempt(
@@ -961,17 +684,20 @@ export class PaymentsService {
           where: { id: attemptId },
         });
         if (attempt.status === CheckoutAttemptStatus.PAID) {
-          const ids = attempt.orderIds as string[] | null;
           return {
             success: true,
             bookingId: attempt.bookingId ?? undefined,
-            orderId: ids?.[0],
-            orderIds: ids ?? [],
             created: false,
+            notificationOrderId: undefined,
           };
         }
         if (attempt.status === CheckoutAttemptStatus.NEEDS_REVIEW) {
-          return { success: false, needsReview: true, created: false };
+          return {
+            success: false,
+            needsReview: true,
+            created: false,
+            notificationOrderId: undefined,
+          };
         }
         const snapshot = attempt.snapshot as unknown as CheckoutSnapshot;
         const expectedCharge = snapshot?.carts?.length
@@ -1005,16 +731,19 @@ export class PaymentsService {
           const current = await tx.checkoutAttempt.findUniqueOrThrow({
             where: { id: attemptId },
           });
-          const ids = current.orderIds as string[] | null;
           return current.status === CheckoutAttemptStatus.PAID
             ? {
                 success: true,
                 bookingId: current.bookingId ?? undefined,
-                orderId: ids?.[0],
-                orderIds: ids ?? [],
                 created: false,
+                notificationOrderId: undefined,
               }
-            : { success: false, needsReview: true, created: false };
+            : {
+                success: false,
+                needsReview: true,
+                created: false,
+                notificationOrderId: undefined,
+              };
         }
         const sourceCartIds = snapshot.carts.map((cart) => cart.cartId);
         const priorOrders = await tx.order.count({
@@ -1029,7 +758,12 @@ export class PaymentsService {
                 'A captured payment already exists for this cart; review for refund',
             },
           });
-          return { success: false, needsReview: true, created: false };
+          return {
+            success: false,
+            needsReview: true,
+            created: false,
+            notificationOrderId: undefined,
+          };
         }
         const checkoutBatchId =
           snapshot.carts.length > 1 ? crypto.randomUUID() : null;
@@ -1215,7 +949,6 @@ export class PaymentsService {
         const payment = await tx.payment.create({
           data: {
             bookingId,
-            orderId: orderIds[0],
             amount: attempt.amount,
             paymentStatus: PaymentStatus.PAID,
             source: PaymentSource.RAZORPAY,
@@ -1310,26 +1043,31 @@ export class PaymentsService {
           success: true,
           bookingId,
           paymentId: payment.id,
-          orderId: orderIds[0],
-          orderIds,
           created: true,
+          notificationOrderId: orderIds[0],
         };
       },
       { timeout: 30_000 },
     );
     if (result.success && result.created) {
-      for (const orderId of result.orderIds ?? []) {
+      if (result.bookingId) {
         try {
-          await this.operations.generateOrderDocuments(orderId);
+          await this.operations.generateBookingDocuments(result.bookingId);
         } catch (error) {
-          console.error('[Payments] Order document generation failed', error);
+          console.error('[Payments] Booking document generation failed', error);
         }
       }
-      const firstOrderId = result.orderIds?.[0];
+      const firstOrderId = result.notificationOrderId;
       if (firstOrderId)
         void this.notifications?.notifyBookingRequest(firstOrderId);
     }
-    return result;
+    return {
+      success: result.success,
+      bookingId: result.bookingId,
+      paymentId: result.paymentId,
+      needsReview: result.needsReview,
+      created: result.created,
+    };
   }
 
   async webhook(
@@ -1402,75 +1140,6 @@ export class PaymentsService {
     }
   }
 
-  async recordManualPayment(
-    adminId: string,
-    orderId: string,
-    input: {
-      amount: number;
-      method: string;
-      receivedAt?: string;
-      reference?: string;
-      note?: string;
-    },
-  ) {
-    const requestedAmount = new Prisma.Decimal(input.amount);
-    const result = await this.prisma.$transaction(
-      async (tx) => {
-        await tx.$queryRaw`SELECT id FROM "orders" WHERE id = ${orderId} FOR UPDATE`;
-        const order = await tx.order.findUnique({
-          where: { id: orderId },
-          include: { payments: { include: { refunds: true } } },
-        });
-        if (!order) throw new NotFoundException('Order not found');
-        if (
-          order.orderStatus === OrderStatus.AWAITING_APPROVAL ||
-          order.orderStatus === OrderStatus.PENDING_PAYMENT ||
-          order.orderStatus === OrderStatus.DECLINED ||
-          order.orderStatus === OrderStatus.CANCELLED
-        ) {
-          throw new BadRequestException(
-            'Approve the booking before recording an offline payment',
-          );
-        }
-        const before = this.paymentLedgerSummary(
-          order.totalAmount,
-          order.payments,
-        );
-        if (requestedAmount.greaterThan(before.balanceDue)) {
-          throw new BadRequestException(
-            `Payment exceeds the remaining balance of ₹${before.balanceDue.toFixed(2)}`,
-          );
-        }
-        const payment = await tx.payment.create({
-          data: {
-            orderId,
-            amount: requestedAmount,
-            paymentStatus: PaymentStatus.PAID,
-            source: PaymentSource.MANUAL,
-            paymentMethod: input.method,
-            externalReference: input.reference?.trim() || null,
-            notes: input.note?.trim() || null,
-            recordedByAdminId: adminId,
-            paidAt: input.receivedAt ? new Date(input.receivedAt) : new Date(),
-            gatewayResponse: { recordedInAdminPortal: true },
-          },
-        });
-        const nextPaid = before.amountPaid.plus(requestedAmount);
-        const paymentStatus = nextPaid.gte(order.totalAmount)
-          ? PaymentStatus.PAID
-          : PaymentStatus.PARTIALLY_PAID;
-        await tx.order.update({
-          where: { id: orderId },
-          data: { paymentStatus },
-        });
-        return payment;
-      },
-      { timeout: 15_000 },
-    );
-    await this.operations.generateOrderDocuments(orderId);
-    return { ...result, amount: result.amount.toFixed(2) };
-  }
-
   async recordManualBookingPayment(
     adminId: string,
     bookingId: string,
@@ -1497,7 +1166,10 @@ export class PaymentsService {
           },
         });
         if (!booking) throw new NotFoundException('Booking not found');
-        if (booking.status !== BookingStatus.CONFIRMED) {
+        if (
+          booking.status !== BookingStatus.CONFIRMED &&
+          booking.status !== BookingStatus.COMPLETED
+        ) {
           throw new BadRequestException(
             'Approve the booking before recording an offline payment',
           );
@@ -1544,13 +1216,11 @@ export class PaymentsService {
           allocations.push({ orderId: order.id, amount });
           remaining = remaining.minus(amount);
         }
-        const primaryOrder = allocations[0]?.orderId ?? booking.orders[0]?.id;
-        if (!primaryOrder)
+        if (!booking.orders.length)
           throw new BadRequestException('Booking has no orders');
         const payment = await tx.payment.create({
           data: {
             bookingId,
-            orderId: primaryOrder,
             amount: requestedAmount,
             paymentStatus: PaymentStatus.PAID,
             source: PaymentSource.MANUAL,
@@ -1589,13 +1259,11 @@ export class PaymentsService {
             },
           });
         }
-        return { payment, orderIds: booking.orders.map((order) => order.id) };
+        return { payment };
       },
       { timeout: 15_000 },
     );
-    for (const orderId of result.orderIds) {
-      await this.operations.generateOrderDocuments(orderId);
-    }
+    await this.operations.generateBookingDocuments(bookingId);
     return { ...result.payment, amount: result.payment.amount.toFixed(2) };
   }
 
@@ -1605,16 +1273,15 @@ export class PaymentsService {
       await tx.$queryRaw`SELECT id FROM "payments" WHERE id = ${paymentId} FOR UPDATE`;
       const payment = await tx.payment.findUnique({
         where: { id: paymentId },
-        include: { refunds: true, order: true, booking: true },
+        include: { refunds: true, booking: true },
       });
       if (!payment)
         throw new BadRequestException('Refundable payment not found');
       if (
-        payment.booking?.status !== BookingStatus.DECLINED &&
-        payment.order.orderStatus !== OrderStatus.DECLINED
+        payment.booking.status !== BookingStatus.DECLINED
       ) {
         throw new BadRequestException(
-          'Only payments for declined orders can be refunded',
+          'Only payments for declined bookings can be refunded',
         );
       }
       const existing = payment.refunds.find(
@@ -1673,7 +1340,7 @@ export class PaymentsService {
       await tx.$queryRaw`SELECT id FROM "payments" WHERE id = ${paymentId} FOR UPDATE`;
       const payment = await tx.payment.findUnique({
         where: { id: paymentId },
-        include: { refunds: true, order: true, booking: true },
+        include: { refunds: true, booking: true },
       });
       if (!payment)
         throw new BadRequestException('Refundable payment not found');
@@ -1697,9 +1364,8 @@ export class PaymentsService {
           gatewayResponse: {
             localMode: !this.isConfigured(),
             audit: {
-              orderStatusAtInitiation: payment.order.orderStatus,
-              bookingStatusAtInitiation: payment.booking?.status,
-              regionId: payment.booking?.regionId ?? payment.order.regionId,
+              bookingStatusAtInitiation: payment.booking.status,
+              regionId: payment.booking.regionId,
               initiatedById: adminId,
             },
           },
@@ -1724,7 +1390,7 @@ export class PaymentsService {
           speed: 'normal',
           notes: {
             reason: reason || 'Admin initiated refund',
-            orderId: payment.orderId,
+            bookingId: payment.bookingId,
           },
         },
       )) as unknown as { id: string; status: string };
@@ -1740,9 +1406,8 @@ export class PaymentsService {
           gatewayResponse: {
             gateway: gateway as unknown as Prisma.InputJsonValue,
             audit: {
-              orderStatusAtInitiation: payment.order.orderStatus,
-              bookingStatusAtInitiation: payment.booking?.status,
-              regionId: payment.booking?.regionId ?? payment.order.regionId,
+              bookingStatusAtInitiation: payment.booking.status,
+              regionId: payment.booking.regionId,
               initiatedById: adminId,
             },
           },
@@ -1774,10 +1439,10 @@ export class PaymentsService {
       await tx.$queryRaw`SELECT id FROM "payments" WHERE id = ${paymentId} FOR UPDATE`;
       const payment = await tx.payment.findFirst({
         where: { id: paymentId, bookingId },
-        include: { refunds: true, booking: true, order: true },
+        include: { refunds: true, booking: true },
       });
       if (!payment) throw new NotFoundException('Payment not found');
-      if (payment.booking?.status !== BookingStatus.DECLINED) {
+      if (payment.booking.status !== BookingStatus.DECLINED) {
         throw new BadRequestException(
           'Manual refunds can only be recorded for declined bookings',
         );
@@ -1873,7 +1538,6 @@ export class PaymentsService {
       }
       const payments = await this.prisma.payment.findMany({
         where: { razorpayOrderId: entity.order_id },
-        include: { order: true },
       });
       const retryable = payments.filter(
         (payment) => payment.paymentStatus !== PaymentStatus.PAID,
@@ -1895,22 +1559,7 @@ export class PaymentsService {
             },
           });
           if (failed.count === 0) continue;
-          if (payment.bookingId) {
-            await this.syncBookingPaymentState(tx, payment.bookingId);
-            continue;
-          }
-          const ledger = await tx.payment.findMany({
-            where: { orderId: payment.orderId },
-            include: { refunds: true },
-          });
-          const summary = this.paymentLedgerSummary(
-            payment.order.totalAmount,
-            ledger,
-          );
-          await tx.order.update({
-            where: { id: payment.orderId },
-            data: { paymentStatus: summary.paymentStatus },
-          });
+          await this.syncBookingPaymentState(tx, payment.bookingId);
         }
       });
       return;
@@ -1953,7 +1602,6 @@ export class PaymentsService {
   ) {
     const payment = await this.prisma.payment.findUnique({
       where: { id: paymentId },
-      include: { order: true },
     });
     if (!payment || payment.paymentStatus === PaymentStatus.PAID) return;
     const marked = await this.prisma.$transaction(async (tx) => {
@@ -1973,42 +1621,17 @@ export class PaymentsService {
         },
       });
       if (claimed.count === 0) return false;
-      const ledger = await tx.payment.findMany({
-        where: { orderId: payment.orderId },
-        include: { refunds: true },
-      });
-      const summary = this.paymentLedgerSummary(
-        payment.order.totalAmount,
-        ledger,
-      );
-      await tx.order.update({
-        where: { id: payment.orderId },
-        data: { paymentStatus: summary.paymentStatus },
-      });
-      if (payment.bookingId) {
-        await this.syncBookingPaymentState(tx, payment.bookingId);
-      }
+      await this.syncBookingPaymentState(tx, payment.bookingId);
       return true;
     });
-    if (marked) {
-      if (payment.bookingId) {
-        const orders = await this.prisma.order.findMany({
-          where: { bookingId: payment.bookingId },
-          select: { id: true },
-        });
-        for (const order of orders) {
-          await this.operations.generateOrderDocuments(order.id);
-        }
-      } else {
-        await this.operations.generateOrderDocuments(payment.orderId);
-      }
-    }
+    if (marked)
+      await this.operations.generateBookingDocuments(payment.bookingId);
   }
 
   private async reconcileRefund(paymentId: string) {
     const payment = await this.prisma.payment.findUnique({
       where: { id: paymentId },
-      include: { refunds: true, order: true },
+      include: { refunds: true },
     });
     if (!payment) return;
     const paymentRefunded = payment.refunds
@@ -2022,33 +1645,9 @@ export class PaymentsService {
         where: { id: paymentId },
         data: { paymentStatus },
       });
-      const ledger = await tx.payment.findMany({
-        where: { orderId: payment.orderId },
-        include: { refunds: true },
-      });
-      const summary = this.paymentLedgerSummary(
-        payment.order.totalAmount,
-        ledger,
-      );
-      await tx.order.update({
-        where: { id: payment.orderId },
-        data: { paymentStatus: summary.paymentStatus },
-      });
-      if (payment.bookingId) {
-        await this.syncBookingPaymentState(tx, payment.bookingId);
-      }
+      await this.syncBookingPaymentState(tx, payment.bookingId);
     });
-    if (payment.bookingId) {
-      const orders = await this.prisma.order.findMany({
-        where: { bookingId: payment.bookingId },
-        select: { id: true },
-      });
-      for (const order of orders) {
-        await this.operations.generateOrderDocuments(order.id);
-      }
-    } else {
-      await this.operations.generateOrderDocuments(payment.orderId);
-    }
+    await this.operations.generateBookingDocuments(payment.bookingId);
   }
 
   private async syncBookingPaymentState(
@@ -2212,10 +1811,6 @@ export class PaymentsService {
           'Gateway order replaced because it is not valid for the active payment account',
       },
     });
-  }
-
-  private replacementReceipt(receipt: string) {
-    return `${receipt.slice(0, 20)}-retry-${Date.now()}`;
   }
 
   private client() {

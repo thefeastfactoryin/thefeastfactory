@@ -20,7 +20,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { AdminAuthGuard } from '../../common/guards/admin-auth.guard';
 import { CustomerAuthGuard } from '../../common/guards/customer-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
-import { CreateOrderNoteDto } from './dto/create-order-note.dto';
+import { CreateBookingNoteDto } from './dto/create-booking-note.dto';
 import { OperationsCalendarQueryDto } from './dto/operations-calendar-query.dto';
 import { UpdateSettingsDto } from './dto/update-settings.dto';
 import { OperationsService } from './operations.service';
@@ -30,28 +30,28 @@ import { OperationsService } from './operations.service';
 export class OperationsController {
   constructor(private readonly operations: OperationsService) {}
 
-  @Get('orders/:orderId/documents')
+  @Get('bookings/:bookingId/documents')
   @ApiBearerAuth()
   @UseGuards(CustomerAuthGuard)
   documents(
     @CurrentUser() user: JwtPayload,
-    @Param('orderId') orderId: string,
+    @Param('bookingId') bookingId: string,
   ) {
-    return this.operations.documents(user.sub, orderId);
+    return this.operations.documents(user.sub, bookingId);
   }
 
-  @Get('orders/:orderId/documents/:documentId/download')
+  @Get('bookings/:bookingId/documents/:documentId/download')
   @ApiBearerAuth()
   @UseGuards(CustomerAuthGuard)
   async download(
     @CurrentUser() user: JwtPayload,
-    @Param('orderId') orderId: string,
+    @Param('bookingId') bookingId: string,
     @Param('documentId') documentId: string,
     @Res() response: Response,
   ) {
     const file = await this.operations.documentPdf(
       user.sub,
-      orderId,
+      bookingId,
       documentId,
     );
     response.setHeader('Content-Type', 'application/pdf');
@@ -62,25 +62,25 @@ export class OperationsController {
     response.send(file.buffer);
   }
 
-  @Get('admin/orders/:orderId/notes')
+  @Get('admin/bookings/:bookingId/notes')
   @ApiBearerAuth()
   @UseGuards(AdminAuthGuard)
   notes(
     @CurrentAdmin() admin: JwtPayload,
-    @Param('orderId') orderId: string,
+    @Param('bookingId') bookingId: string,
   ) {
-    return this.operations.notes(admin, orderId);
+    return this.operations.notes(admin, bookingId);
   }
 
-  @Post('admin/orders/:orderId/notes')
+  @Post('admin/bookings/:bookingId/notes')
   @ApiBearerAuth()
   @UseGuards(AdminAuthGuard)
   addNote(
     @CurrentAdmin() admin: JwtPayload,
-    @Param('orderId') orderId: string,
-    @Body() dto: CreateOrderNoteDto,
+    @Param('bookingId') bookingId: string,
+    @Body() dto: CreateBookingNoteDto,
   ) {
-    return this.operations.addNote(admin, orderId, dto);
+    return this.operations.addNote(admin, bookingId, dto);
   }
 
   @Get('admin/operations/calendar')
@@ -131,28 +131,28 @@ export class OperationsController {
     return this.operations.readiness();
   }
 
-  @Get('admin/orders/:orderId/documents')
+  @Get('admin/bookings/:bookingId/documents')
   @ApiBearerAuth()
   @UseGuards(AdminAuthGuard)
   adminDocuments(
     @CurrentAdmin() admin: JwtPayload,
-    @Param('orderId') orderId: string,
+    @Param('bookingId') bookingId: string,
   ) {
-    return this.operations.documents(admin.sub, orderId, admin);
+    return this.operations.documents(admin.sub, bookingId, admin);
   }
 
-  @Get('admin/orders/:orderId/documents/:documentId/download')
+  @Get('admin/bookings/:bookingId/documents/:documentId/download')
   @ApiBearerAuth()
   @UseGuards(AdminAuthGuard)
   async adminDownload(
     @CurrentAdmin() admin: JwtPayload,
-    @Param('orderId') orderId: string,
+    @Param('bookingId') bookingId: string,
     @Param('documentId') documentId: string,
     @Res() response: Response,
   ) {
     const file = await this.operations.documentPdf(
       admin.sub,
-      orderId,
+      bookingId,
       documentId,
       admin,
     );
