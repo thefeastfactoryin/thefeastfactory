@@ -34,6 +34,14 @@ const fulfilmentOrderStatus: Record<BookingFulfilmentStatus, OrderStatus> = {
   COMPLETED: OrderStatus.DELIVERED,
 };
 
+const fulfilmentSequence: BookingFulfilmentStatus[] = [
+  BookingFulfilmentStatus.NOT_STARTED,
+  BookingFulfilmentStatus.PREPARING,
+  BookingFulfilmentStatus.READY_FOR_DELIVERY,
+  BookingFulfilmentStatus.OUT_FOR_DELIVERY,
+  BookingFulfilmentStatus.COMPLETED,
+];
+
 @Injectable()
 export class AdminOrdersService {
   constructor(
@@ -78,6 +86,11 @@ export class AdminOrdersService {
     }
     if (booking.fulfilmentStatus === dto.status) {
       return this.getBooking(admin, id);
+    }
+    const currentStage = fulfilmentSequence.indexOf(booking.fulfilmentStatus);
+    const requestedStage = fulfilmentSequence.indexOf(dto.status);
+    if (requestedStage <= currentStage) {
+      throw new BadRequestException('Fulfilment status can only move forward');
     }
 
     const nextBookingStatus =

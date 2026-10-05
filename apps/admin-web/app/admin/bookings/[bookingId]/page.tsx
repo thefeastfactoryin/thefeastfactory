@@ -186,118 +186,11 @@ export default function AdminBookingDetailsPage() {
             )}
           </section>
 
-          {(booking.status === 'CONFIRMED' ||
-            booking.status === 'COMPLETED') && (
-            <section className="admin-card p-5">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-lg font-semibold">Fulfilment</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    One status applies to every package in this booking.
-                  </p>
-                </div>
-                <FulfilmentStatusBadge value={booking.fulfilmentStatus} />
-              </div>
-              <ol className="mt-5 grid gap-2 sm:grid-cols-5" aria-label="Booking fulfilment stages">
-                {fulfilmentStatuses.map((value, index) => (
-                  <li
-                    key={value}
-                    className={`rounded-xl border px-3 py-3 text-xs font-semibold ${
-                      value === booking.fulfilmentStatus
-                        ? 'border-primary bg-primary/[0.08] text-primary'
-                        : 'border-border bg-muted/30 text-muted-foreground'
-                    }`}
-                  >
-                    <span className="mb-1 block text-[10px] uppercase tracking-wide opacity-70">
-                      Stage {index + 1}
-                    </span>
-                    {statusLabels.fulfilment[value]}
-                  </li>
-                ))}
-              </ol>
-              <div className="mt-5 flex flex-wrap items-end gap-3 border-t border-border pt-5">
-                <label className="min-w-56 flex-1">
-                  <span className="mb-1.5 block text-sm font-semibold">
-                    Set fulfilment status
-                  </span>
-                  <select
-                    className="h-11 w-full rounded-xl border bg-white px-3"
-                    value={fulfilmentStatus}
-                    onChange={(event) =>
-                      setFulfilmentStatus(
-                        event.target.value as BookingFulfilmentStatus,
-                      )
-                    }
-                  >
-                    {fulfilmentStatuses.map((value) => (
-                      <option key={value} value={value}>
-                        {statusLabels.fulfilment[value]}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <Button
-                  disabled={
-                    Boolean(busy) ||
-                    fulfilmentStatus === booking.fulfilmentStatus
-                  }
-                  onClick={() =>
-                    action(
-                      'fulfilment',
-                      { status: fulfilmentStatus },
-                      'PATCH',
-                    )
-                  }
-                >
-                  {busy === 'fulfilment' ? 'Updating…' : 'Update fulfilment'}
-                </Button>
-              </div>
-              <p className="mt-3 text-xs text-muted-foreground">
-                You can move directly to any stage when operations require it.
-              </p>
-              {Boolean(booking.fulfilmentHistory?.length) && (
-                <div className="mt-5 border-t border-border pt-5">
-                  <h3 className="text-sm font-semibold">Fulfilment history</h3>
-                  <div className="mt-3 space-y-3">
-                    {booking.fulfilmentHistory?.map((entry) => (
-                      <div
-                        key={entry.id}
-                        className="flex flex-wrap items-center justify-between gap-2 text-sm"
-                      >
-                        <FulfilmentStatusBadge value={entry.toStatus} />
-                        <span className="text-xs text-muted-foreground">
-                          {new Date(entry.changedAt).toLocaleString('en-IN')}
-                          {entry.notes ? ` · ${entry.notes}` : ''}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {booking.fulfilmentStatus === 'NOT_STARTED' && (
-                <div className="mt-5 grid gap-3 border-t border-border pt-5 md:grid-cols-[1fr_auto] md:items-end">
-                  <Input
-                    value={cancelReason}
-                    onChange={(event) => setCancelReason(event.target.value)}
-                    placeholder="Cancellation reason"
-                  />
-                  <Button
-                    variant="danger"
-                    disabled={!cancelReason.trim() || Boolean(busy)}
-                    onClick={() =>
-                      action('cancel', { reason: cancelReason.trim() })
-                    }
-                  >
-                    {busy === 'cancel' ? 'Cancelling…' : 'Cancel booking'}
-                  </Button>
-                </div>
-              )}
-            </section>
-          )}
-
           <section className="admin-card overflow-hidden">
             <div className="border-b border-border px-5 py-4">
-              <h2 className="text-lg font-semibold">Packages in this booking</h2>
+              <h2 className="text-lg font-semibold">
+                Packages in this booking
+              </h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 Package rows share the booking fulfilment status above.
               </p>
@@ -359,7 +252,9 @@ export default function AdminBookingDetailsPage() {
           </section>
 
           <section className="admin-card p-5">
-            <h2 className="text-lg font-semibold">Kitchen &amp; operations notes</h2>
+            <h2 className="text-lg font-semibold">
+              Kitchen &amp; operations notes
+            </h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Internal notes apply to the complete booking and every package.
             </p>
@@ -376,21 +271,163 @@ export default function AdminBookingDetailsPage() {
             </form>
             <div className="mt-4 space-y-3">
               {notes.map((entry) => (
-                <div key={entry.id} className="rounded-lg border border-border p-3 text-sm">
+                <div
+                  key={entry.id}
+                  className="rounded-lg border border-border p-3 text-sm"
+                >
                   <p className="whitespace-pre-wrap">{entry.body}</p>
                   <p className="mt-2 text-xs text-muted-foreground">
-                    {entry.author.name} · {new Date(entry.createdAt).toLocaleString('en-IN')}
+                    {entry.author.name} ·{' '}
+                    {new Date(entry.createdAt).toLocaleString('en-IN')}
                   </p>
                 </div>
               ))}
               {!notes.length && (
-                <p className="text-sm text-muted-foreground">No internal notes yet.</p>
+                <p className="text-sm text-muted-foreground">
+                  No internal notes yet.
+                </p>
               )}
             </div>
           </section>
         </div>
 
         <aside className="space-y-5">
+          {(booking.status === 'CONFIRMED' ||
+            booking.status === 'COMPLETED') && (
+            <section className="admin-card p-5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-semibold">Fulfilment</h2>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Applies to every package.
+                  </p>
+                </div>
+                <FulfilmentStatusBadge value={booking.fulfilmentStatus} />
+              </div>
+
+              <ol
+                className="mt-4 space-y-1.5"
+                aria-label="Booking fulfilment stages"
+              >
+                {fulfilmentStatuses.map((value, index) => {
+                  const currentIndex = fulfilmentStatuses.indexOf(
+                    booking.fulfilmentStatus,
+                  );
+                  const completed = index < currentIndex;
+                  const current = index === currentIndex;
+                  return (
+                    <li
+                      key={value}
+                      className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold ${
+                        current
+                          ? 'bg-primary/[0.08] text-primary'
+                          : completed
+                            ? 'text-foreground'
+                            : 'text-muted-foreground'
+                      }`}
+                    >
+                      <span
+                        className={`grid h-5 w-5 shrink-0 place-items-center rounded-full text-[10px] ${
+                          current || completed
+                            ? 'bg-primary text-white'
+                            : 'border border-border bg-white'
+                        }`}
+                      >
+                        {index + 1}
+                      </span>
+                      {statusLabels.fulfilment[value]}
+                    </li>
+                  );
+                })}
+              </ol>
+
+              <label className="mt-4 block border-t border-border pt-4">
+                <span className="mb-1.5 block text-sm font-semibold">
+                  Set fulfilment status
+                </span>
+                <select
+                  className="h-11 w-full rounded-xl border bg-white px-3"
+                  value={fulfilmentStatus}
+                  disabled={booking.fulfilmentStatus === 'COMPLETED'}
+                  onChange={(event) =>
+                    setFulfilmentStatus(
+                      event.target.value as BookingFulfilmentStatus,
+                    )
+                  }
+                >
+                  {fulfilmentStatuses.map((value, index) => (
+                    <option
+                      key={value}
+                      value={value}
+                      disabled={
+                        index <
+                        fulfilmentStatuses.indexOf(booking.fulfilmentStatus)
+                      }
+                    >
+                      {statusLabels.fulfilment[value]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <Button
+                className="mt-3 w-full"
+                disabled={
+                  Boolean(busy) ||
+                  fulfilmentStatus === booking.fulfilmentStatus ||
+                  booking.fulfilmentStatus === 'COMPLETED'
+                }
+                onClick={() =>
+                  action('fulfilment', { status: fulfilmentStatus }, 'PATCH')
+                }
+              >
+                {busy === 'fulfilment' ? 'Updating…' : 'Update fulfilment'}
+              </Button>
+              <p className="mt-2 text-xs text-muted-foreground">
+                You can jump forward when needed, but completed stages cannot be
+                moved backward.
+              </p>
+
+              {Boolean(booking.fulfilmentHistory?.length) && (
+                <details className="mt-4 border-t border-border pt-4">
+                  <summary className="cursor-pointer text-sm font-semibold">
+                    Fulfilment history
+                  </summary>
+                  <div className="mt-3 space-y-3">
+                    {booking.fulfilmentHistory?.map((entry) => (
+                      <div key={entry.id} className="text-xs">
+                        <FulfilmentStatusBadge value={entry.toStatus} />
+                        <p className="mt-1 text-muted-foreground">
+                          {new Date(entry.changedAt).toLocaleString('en-IN')}
+                          {entry.notes ? ` · ${entry.notes}` : ''}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              )}
+
+              {booking.fulfilmentStatus === 'NOT_STARTED' && (
+                <div className="mt-4 space-y-2 border-t border-border pt-4">
+                  <Input
+                    value={cancelReason}
+                    onChange={(event) => setCancelReason(event.target.value)}
+                    placeholder="Cancellation reason"
+                  />
+                  <Button
+                    variant="danger"
+                    className="w-full"
+                    disabled={!cancelReason.trim() || Boolean(busy)}
+                    onClick={() =>
+                      action('cancel', { reason: cancelReason.trim() })
+                    }
+                  >
+                    {busy === 'cancel' ? 'Cancelling…' : 'Cancel booking'}
+                  </Button>
+                </div>
+              )}
+            </section>
+          )}
+
           <section className="admin-card p-5">
             <h2 className="text-lg font-semibold">Payment summary</h2>
             <dl className="mt-4 space-y-3 text-sm">
@@ -448,18 +485,14 @@ export default function AdminBookingDetailsPage() {
                           className="mt-3 w-full"
                           disabled={Boolean(busy)}
                           onClick={() =>
-                            action(
-                              `payments/${payment.id}/manual-refund`,
-                              {
-                                reason:
-                                  booking.declineReason ||
-                                  'Manual refund completed',
-                              },
-                            )
+                            action(`payments/${payment.id}/manual-refund`, {
+                              reason:
+                                booking.declineReason ||
+                                'Manual refund completed',
+                            })
                           }
                         >
-                          {busy ===
-                          `payments/${payment.id}/manual-refund`
+                          {busy === `payments/${payment.id}/manual-refund`
                             ? 'Recording refund…'
                             : 'Confirm manual refund completed'}
                         </Button>
@@ -473,7 +506,8 @@ export default function AdminBookingDetailsPage() {
           <section className="admin-card p-5">
             <h2 className="text-lg font-semibold">Invoices &amp; documents</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Receipts, GST invoices, and credit notes cover the complete booking.
+              Receipts, GST invoices, and credit notes cover the complete
+              booking.
             </p>
             <div className="mt-4 space-y-2">
               {documents.map((document) => (
@@ -501,53 +535,54 @@ export default function AdminBookingDetailsPage() {
               )}
             </div>
           </section>
-          {(booking.status === 'CONFIRMED' ||
-            booking.status === 'COMPLETED') &&
+          {(booking.status === 'CONFIRMED' || booking.status === 'COMPLETED') &&
             Number(booking.balanceDue) > 0 && (
-            <section className="admin-card p-5">
-              <h2 className="text-lg font-semibold">Record manual deposit</h2>
-              <div className="mt-4 space-y-3">
-                <Input
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  max={booking.balanceDue}
-                  value={amount}
-                  onChange={(event) => setAmount(event.target.value)}
-                  placeholder={`Up to ₹${booking.balanceDue}`}
-                />
-                <select
-                  value={method}
-                  onChange={(event) => setMethod(event.target.value)}
-                  className="h-10 w-full rounded-lg border border-input bg-white px-3 text-sm"
-                >
-                  {['UPI', 'CASH', 'CARD_POS', 'BANK_TRANSFER', 'OTHER'].map(
-                    (value) => (
-                      <option key={value}>{value}</option>
-                    ),
-                  )}
-                </select>
-                <Input
-                  value={reference}
-                  onChange={(event) => setReference(event.target.value)}
-                  placeholder="Reference (optional)"
-                />
-                <Button
-                  className="w-full"
-                  disabled={!Number(amount) || Boolean(busy)}
-                  onClick={() =>
-                    action('payments/manual', {
-                      amount: Number(amount),
-                      method,
-                      reference: reference || undefined,
-                    })
-                  }
-                >
-                  {busy === 'payments/manual' ? 'Recording…' : 'Record deposit'}
-                </Button>
-              </div>
-            </section>
-          )}
+              <section className="admin-card p-5">
+                <h2 className="text-lg font-semibold">Record manual deposit</h2>
+                <div className="mt-4 space-y-3">
+                  <Input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    max={booking.balanceDue}
+                    value={amount}
+                    onChange={(event) => setAmount(event.target.value)}
+                    placeholder={`Up to ₹${booking.balanceDue}`}
+                  />
+                  <select
+                    value={method}
+                    onChange={(event) => setMethod(event.target.value)}
+                    className="h-10 w-full rounded-lg border border-input bg-white px-3 text-sm"
+                  >
+                    {['UPI', 'CASH', 'CARD_POS', 'BANK_TRANSFER', 'OTHER'].map(
+                      (value) => (
+                        <option key={value}>{value}</option>
+                      ),
+                    )}
+                  </select>
+                  <Input
+                    value={reference}
+                    onChange={(event) => setReference(event.target.value)}
+                    placeholder="Reference (optional)"
+                  />
+                  <Button
+                    className="w-full"
+                    disabled={!Number(amount) || Boolean(busy)}
+                    onClick={() =>
+                      action('payments/manual', {
+                        amount: Number(amount),
+                        method,
+                        reference: reference || undefined,
+                      })
+                    }
+                  >
+                    {busy === 'payments/manual'
+                      ? 'Recording…'
+                      : 'Record deposit'}
+                  </Button>
+                </div>
+              </section>
+            )}
         </aside>
       </div>
     </main>

@@ -3,6 +3,7 @@
 import { adminCopy, appBrand } from '@aranyam/shared-types';
 import {
   BarChart3,
+  BadgeCheck,
   ClipboardList,
   CreditCard,
   Home,
@@ -27,6 +28,7 @@ const navigationGroups = [
     label: 'Operations',
     links: [
       [adminCopy.navigation.dashboard, '/admin/dashboard', BarChart3],
+      ['Approvals', '/admin/approvals', BadgeCheck],
       ['Bookings', '/admin/bookings', ClipboardList],
       [adminCopy.navigation.payments, '/admin/payments', CreditCard],
     ],

@@ -78,6 +78,10 @@ const rangeFormatter = new Intl.DateTimeFormat('en-IN', {
   month: 'short',
   year: 'numeric',
 });
+const monthFormatter = new Intl.DateTimeFormat('en-IN', {
+  month: 'long',
+  year: 'numeric',
+});
 
 export default function Dashboard() {
   const session = useAdminSessionStore((state) => state.session);
@@ -85,15 +89,30 @@ export default function Dashboard() {
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
   const [regions, setRegions] = useState<OperatingRegion[]>([]);
   const [regionId, setRegionId] = useState('');
-  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
+  const [periodDate, setPeriodDate] = useState(() => new Date());
   const [view, setView] = useState<DashboardView>('agenda');
   const [error, setError] = useState('');
 
+  const weekStart = useMemo(() => startOfWeek(periodDate), [periodDate]);
   const weekDays = useMemo(
     () => Array.from({ length: 7 }, (_, index) => addDays(weekStart, index)),
     [weekStart],
   );
   const weekEnd = weekDays[6];
+  const monthStart = useMemo(() => startOfMonth(periodDate), [periodDate]);
+  const monthEnd = useMemo(() => endOfMonth(periodDate), [periodDate]);
+  const monthGridStart = useMemo(() => startOfWeek(monthStart), [monthStart]);
+  const monthGridEnd = useMemo(() => endOfWeek(monthEnd), [monthEnd]);
+  const monthDays = useMemo(() => {
+    const days: Date[] = [];
+    for (let day = monthGridStart; day <= monthGridEnd; day = addDays(day, 1)) {
+      days.push(day);
+    }
+    return days;
+  }, [monthGridStart, monthGridEnd]);
+  const visibleDays = view === 'agenda' ? weekDays : monthDays;
+  const rangeStart = visibleDays[0];
+  const rangeEnd = visibleDays.at(-1)!;
   const effectiveRegionId =
     session?.admin.role === 'OPERATIONS'
       ? (session.admin.regionId ?? '')
@@ -145,17 +164,17 @@ export default function Dashboard() {
   useEffect(() => {
     if (!session) return;
     apiRequest<CalendarEvent[]>(
-      `/admin/operations/calendar?from=${dateKey(weekStart)}&to=${dateKey(weekEnd)}${regionQuery ? `&${regionQuery}` : ''}`,
+      `/admin/operations/calendar?from=${dateKey(rangeStart)}&to=${dateKey(rangeEnd)}${regionQuery ? `&${regionQuery}` : ''}`,
       {},
       session.accessToken,
     )
       .then(setCalendarEvents)
       .catch((reason) => setError((reason as Error).message));
-  }, [session, weekStart, weekEnd, regionQuery]);
+  }, [session, rangeStart, rangeEnd, regionQuery]);
 
   const eventsByDay = useMemo(() => {
     const grouped = new Map<string, CalendarEvent[]>();
-    for (const day of weekDays) grouped.set(dateKey(day), []);
+    for (const day of visibleDays) grouped.set(dateKey(day), []);
     for (const event of calendarEvents) {
       const key = event.eventDate.slice(0, 10);
       grouped.get(key)?.push(event);
@@ -166,7 +185,7 @@ export default function Dashboard() {
       );
     }
     return grouped;
-  }, [calendarEvents, weekDays]);
+  }, [calendarEvents, visibleDays]);
 
   if (!session) return <main className="admin-page">Sign in to continue.</main>;
   if (error) return <main className="admin-page text-red-700">{error}</main>;
@@ -181,7 +200,7 @@ export default function Dashboard() {
       <AdminPageHeader
         eyebrow="Operations"
         title="Dashboard"
-        description="Review the week, identify orders that need attention, and open fulfilment details."
+        description="Review upcoming bookings, identify orders that need attention, and open fulfilment details."
         filters={
           <>
             <label className="min-w-[220px] flex-1 sm:max-w-xs">
@@ -208,29 +227,45 @@ export default function Dashboard() {
             </label>
             <div className="min-w-[220px] flex-1 sm:max-w-xs">
               <span className="mb-1.5 block text-xs font-semibold text-muted-foreground">
-                Week
+                {view === 'agenda' ? 'Week' : 'Month'}
               </span>
               <div className="flex min-h-11 items-center justify-between rounded-lg border bg-white px-3">
                 <button
                   type="button"
-                  onClick={() => setWeekStart(addDays(weekStart, -7))}
+                  onClick={() =>
+                    setPeriodDate((current) =>
+                      view === 'agenda'
+                        ? addDays(current, -7)
+                        : addMonths(current, -1),
+                    )
+                  }
                   className="grid h-9 w-9 place-items-center rounded-md hover:bg-muted"
-                  aria-label="Previous week"
+                  aria-label={
+                    view === 'agenda' ? 'Previous week' : 'Previous month'
+                  }
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </button>
                 <button
                   type="button"
-                  onClick={() => setWeekStart(startOfWeek(new Date()))}
+                  onClick={() => setPeriodDate(new Date())}
                   className="px-2 text-sm font-semibold text-primary"
                 >
-                  {rangeFormatter.format(weekStart)}
+                  {view === 'agenda'
+                    ? rangeFormatter.format(weekStart)
+                    : monthFormatter.format(monthStart)}
                 </button>
                 <button
                   type="button"
-                  onClick={() => setWeekStart(addDays(weekStart, 7))}
+                  onClick={() =>
+                    setPeriodDate((current) =>
+                      view === 'agenda'
+                        ? addDays(current, 7)
+                        : addMonths(current, 1),
+                    )
+                  }
                   className="grid h-9 w-9 place-items-center rounded-md hover:bg-muted"
-                  aria-label="Next week"
+                  aria-label={view === 'agenda' ? 'Next week' : 'Next month'}
                 >
                   <ChevronRight className="h-4 w-4" />
                 </button>
@@ -272,8 +307,9 @@ export default function Dashboard() {
           <div>
             <h2 className="text-xl font-semibold">Order schedule</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              {rangeFormatter.format(weekStart)} -{' '}
-              {rangeFormatter.format(weekEnd)}
+              {view === 'agenda'
+                ? `${rangeFormatter.format(weekStart)} - ${rangeFormatter.format(weekEnd)}`
+                : monthFormatter.format(monthStart)}
             </p>
           </div>
           <p className="text-sm font-semibold text-muted-foreground">
@@ -288,7 +324,7 @@ export default function Dashboard() {
           className="mt-3 px-2"
           tabs={[
             { value: 'agenda', label: 'Agenda', icon: List },
-            { value: 'calendar', label: 'Week calendar', icon: CalendarDays },
+            { value: 'calendar', label: 'Month calendar', icon: CalendarDays },
           ]}
         />
 
@@ -336,53 +372,73 @@ export default function Dashboard() {
             aria-labelledby="dashboard-view-calendar-tab"
             className="overflow-x-auto p-4"
           >
-            <div className="grid min-w-[1080px] grid-cols-7 gap-2">
-              {weekDays.map((day) => {
-                const events = eventsByDay.get(dateKey(day)) ?? [];
-                return (
-                  <section
-                    key={dateKey(day)}
-                    className="min-h-[300px] rounded-lg border bg-white"
+            <div className="min-w-[980px] overflow-hidden rounded-xl border border-border bg-border">
+              <div className="grid grid-cols-7 gap-px" aria-hidden="true">
+                {weekDays.map((day) => (
+                  <div
+                    key={shortDayFormatter.format(day)}
+                    className="bg-muted px-3 py-2 text-center text-xs font-bold uppercase tracking-wide text-muted-foreground"
                   >
-                    <header className="border-b bg-muted/40 p-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <div>
-                          <h3 className="text-sm font-semibold">
-                            {shortDayFormatter.format(day)}
-                          </h3>
-                          <p className="text-xs text-muted-foreground">
-                            {dateFormatter.format(day)}
-                          </p>
-                        </div>
-                        <span className="rounded-full bg-white px-2 py-1 text-xs font-semibold">
-                          {events.length}
+                    {shortDayFormatter.format(day)}
+                  </div>
+                ))}
+              </div>
+              <div className="grid grid-cols-7 gap-px">
+                {monthDays.map((day) => {
+                  const events = eventsByDay.get(dateKey(day)) ?? [];
+                  const isCurrentMonth =
+                    day.getMonth() === monthStart.getMonth();
+                  const isToday = dateKey(day) === dateKey(new Date());
+                  return (
+                    <section
+                      key={dateKey(day)}
+                      className={`min-h-36 bg-white p-2 ${
+                        isCurrentMonth
+                          ? ''
+                          : 'bg-muted/35 text-muted-foreground'
+                      }`}
+                    >
+                      <header className="mb-2 flex items-center justify-between gap-2">
+                        <span
+                          className={`grid h-7 w-7 place-items-center rounded-full text-xs font-bold ${
+                            isToday ? 'bg-primary text-white' : ''
+                          }`}
+                        >
+                          {day.getDate()}
                         </span>
-                      </div>
-                    </header>
-                    <div className="space-y-2 p-2">
-                      {events.map((event) => {
-                        return (
+                        {events.length > 0 && (
+                          <span className="text-[10px] font-bold text-muted-foreground">
+                            {events.length} booking
+                            {events.length === 1 ? '' : 's'}
+                          </span>
+                        )}
+                      </header>
+                      <div className="space-y-1.5">
+                        {events.slice(0, 3).map((event) => (
                           <Link
                             key={event.id}
                             href={`/admin/bookings/${event.id}`}
-                            className="block rounded-md border-l-4 border-primary bg-muted/40 p-2.5 hover:bg-muted"
+                            title={`${timeLabel(event.eventTimeStart)} · ${event.eventName || event.bookingNumber}`}
+                            className="block rounded-md border border-primary/10 bg-primary/[0.06] px-2 py-1.5 hover:border-primary/25 hover:bg-primary/10"
                           >
-                            <p className="text-xs font-semibold text-primary">
+                            <p className="truncate text-[10px] font-bold text-primary">
                               {timeLabel(event.eventTimeStart)}
                             </p>
-                            <p className="mt-1 line-clamp-2 text-sm font-semibold">
-                              {event.eventName || 'Catering event'}
-                            </p>
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              {event.guestCount} guests · {event.address.city}
+                            <p className="truncate text-xs font-semibold text-foreground">
+                              {event.eventName || event.bookingNumber}
                             </p>
                           </Link>
-                        );
-                      })}
-                    </div>
-                  </section>
-                );
-              })}
+                        ))}
+                        {events.length > 3 && (
+                          <p className="px-2 text-[10px] font-bold text-primary">
+                            +{events.length - 3} more
+                          </p>
+                        )}
+                      </div>
+                    </section>
+                  );
+                })}
+              </div>
             </div>
           </div>
         )}
@@ -442,9 +498,7 @@ function AgendaRow({ event }: { event: CalendarEvent }) {
         <p className="font-semibold text-primary">
           {timeLabel(event.eventTimeStart)}
         </p>
-        <p className="text-xs text-muted-foreground">
-          {event.bookingNumber}
-        </p>
+        <p className="text-xs text-muted-foreground">{event.bookingNumber}</p>
       </div>
       <div className="min-w-0">
         <p className="truncate font-semibold">
@@ -549,6 +603,30 @@ function startOfWeek(date: Date) {
   current.setDate(current.getDate() + diff);
   current.setHours(0, 0, 0, 0);
   return current;
+}
+
+function endOfWeek(date: Date) {
+  return addDays(startOfWeek(date), 6);
+}
+
+function startOfMonth(date: Date) {
+  const current = new Date(date);
+  current.setDate(1);
+  current.setHours(0, 0, 0, 0);
+  return current;
+}
+
+function endOfMonth(date: Date) {
+  const current = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+  current.setHours(0, 0, 0, 0);
+  return current;
+}
+
+function addMonths(date: Date, months: number) {
+  const next = new Date(date);
+  next.setDate(1);
+  next.setMonth(next.getMonth() + months);
+  return next;
 }
 
 function addDays(date: Date, days: number) {

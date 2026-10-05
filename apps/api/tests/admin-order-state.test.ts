@@ -77,10 +77,43 @@ test('booking fulfilment can jump directly to completed and synchronizes every p
   );
   assert.equal(storedFulfilment, BookingFulfilmentStatus.COMPLETED);
   assert.equal(storedBookingStatus, BookingStatus.COMPLETED);
-  assert.deepEqual([...childStatuses.values()], [
-    OrderStatus.DELIVERED,
-    OrderStatus.DELIVERED,
-  ]);
+  assert.deepEqual(
+    [...childStatuses.values()],
+    [OrderStatus.DELIVERED, OrderStatus.DELIVERED],
+  );
+});
+
+test('booking fulfilment cannot move backward after operations advance it', async () => {
+  let transactionStarted = false;
+  const service = new AdminOrdersService(
+    {
+      booking: {
+        findFirst: async () => ({
+          id: 'booking-1',
+          status: BookingStatus.COMPLETED,
+          fulfilmentStatus: BookingFulfilmentStatus.COMPLETED,
+          orders: [],
+        }),
+      },
+      $transaction: async () => {
+        transactionStarted = true;
+      },
+    } as never,
+    {} as never,
+    {} as never,
+    { resolveAdminScope: async () => undefined } as never,
+    {} as never,
+  );
+
+  await assert.rejects(
+    service.updateBookingFulfilment(
+      { sub: 'admin-1', type: 'admin', role: AdminRole.ADMIN },
+      'booking-1',
+      { status: BookingFulfilmentStatus.NOT_STARTED },
+    ),
+    /Fulfilment status can only move forward/,
+  );
+  assert.equal(transactionStarted, false);
 });
 
 test('admin order detail uses the same complete menu as the customer order', async () => {
