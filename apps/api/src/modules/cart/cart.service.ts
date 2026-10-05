@@ -346,6 +346,17 @@ export class CartService implements OnModuleInit, OnModuleDestroy {
     if (dto.contactNumber !== undefined) {
       return this.updateContactNumber(userId, id, dto.contactNumber);
     }
+    if (dto.specialNotes !== undefined) {
+      const updated = await this.prisma.cart.update({
+        where: { id },
+        data: {
+          specialNotes: dto.specialNotes.trim() || null,
+          expiresAt: this.expiryDate(),
+        },
+        include: this.cartInclude(),
+      });
+      return this.serializeCart(updated);
+    }
     return this.serializeCart(cart);
   }
 

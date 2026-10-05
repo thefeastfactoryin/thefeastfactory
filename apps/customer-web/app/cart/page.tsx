@@ -466,6 +466,13 @@ export default function CartPage() {
   const eventSyncVersion = useRef(0);
   const [specialNotes, setSpecialNotes] = useState('');
   const [notesExpanded, setNotesExpanded] = useState(false);
+  const [noteSaveStatus, setNoteSaveStatus] = useState<
+    'idle' | 'saving' | 'saved' | 'error'
+  >('idle');
+  const lastSavedSpecialNotes = useRef('');
+  const noteSaveVersion = useRef(0);
+  const noteSaveQueue = useRef<Promise<boolean>>(Promise.resolve(true));
+  const pendingSpecialNotes = useRef<string | null>(null);
   const [contactNumber, setContactNumber] = useState('');
   const [editingContact, setEditingContact] = useState(false);
   const [savingContact, setSavingContact] = useState(false);
@@ -500,6 +507,11 @@ export default function CartPage() {
     setPendingOrder(undefined);
     setPendingBatch(undefined);
     setSpecialNotes('');
+    noteSaveVersion.current += 1;
+    pendingSpecialNotes.current = null;
+    noteSaveQueue.current = Promise.resolve(true);
+    lastSavedSpecialNotes.current = '';
+    setNoteSaveStatus('idle');
     setNotesExpanded(false);
     setEditingQuantityCartId('');
     setClearCartOpen(false);
@@ -775,7 +787,12 @@ export default function CartPage() {
         setCart(currentCart);
         setPendingOrder(undefined);
         setPendingBatch(undefined);
-        setSpecialNotes(currentCart.specialNotes ?? '');
+        const savedSpecialNotes = currentCart.specialNotes ?? '';
+        noteSaveVersion.current += 1;
+        pendingSpecialNotes.current = null;
+        setSpecialNotes(savedSpecialNotes);
+        lastSavedSpecialNotes.current = savedSpecialNotes;
+        setNoteSaveStatus(savedSpecialNotes ? 'saved' : 'idle');
         setContactNumber(
           currentCart.contactNumber || session!.user.mobileNumber,
         );
@@ -1092,6 +1109,84 @@ export default function CartPage() {
       setSavingContact(false);
     }
   }
+
+  const persistSpecialNotes = useCallback(
+    (value: string) => {
+      const nextNotes = value.slice(0, 1000);
+      if (!session || !cart) return Promise.resolve(false);
+      if (nextNotes === lastSavedSpecialNotes.current) {
+        setNoteSaveStatus(nextNotes ? 'saved' : 'idle');
+        return Promise.resolve(true);
+      }
+      if (nextNotes === pendingSpecialNotes.current) {
+        return noteSaveQueue.current;
+      }
+
+      const saveVersion = ++noteSaveVersion.current;
+      pendingSpecialNotes.current = nextNotes;
+      setNoteSaveStatus('saving');
+      const save = async () => {
+        try {
+          const updatedCarts = await Promise.all(
+            activeCarts.map((packageCart) =>
+              apiRequest<CartSummary>(
+                `/cart/${packageCart.id}`,
+                {
+                  method: 'PUT',
+                  body: JSON.stringify({
+                    packageVersionId: packageCart.packageVersionId,
+                    specialNotes: nextNotes,
+                  }),
+                },
+                session.accessToken,
+              ),
+            ),
+          );
+          if (saveVersion === noteSaveVersion.current) {
+            setActiveCarts(updatedCarts);
+            const updated = updatedCarts.find((entry) => entry.id === cart.id);
+            if (updated) {
+              setCart(updated);
+              hydrate(updated);
+            }
+            lastSavedSpecialNotes.current = nextNotes;
+            setNoteSaveStatus(nextNotes ? 'saved' : 'idle');
+          }
+          return true;
+        } catch (reason) {
+          if (saveVersion === noteSaveVersion.current) {
+            setNoteSaveStatus('error');
+            if (!recoverMissingCart(reason))
+              setError('Kitchen note could not be saved. Please try again.');
+          }
+          return false;
+        } finally {
+          if (pendingSpecialNotes.current === nextNotes) {
+            pendingSpecialNotes.current = null;
+          }
+        }
+      };
+      const queuedSave = noteSaveQueue.current.catch(() => true).then(save);
+      noteSaveQueue.current = queuedSave;
+      return queuedSave;
+    },
+    [activeCarts, cart, hydrate, recoverMissingCart, session],
+  );
+
+  useEffect(() => {
+    if (
+      !notesExpanded ||
+      !session ||
+      !cart ||
+      specialNotes === lastSavedSpecialNotes.current
+    )
+      return;
+    const timer = window.setTimeout(
+      () => void persistSpecialNotes(specialNotes),
+      700,
+    );
+    return () => window.clearTimeout(timer);
+  }, [cart, notesExpanded, persistSpecialNotes, session, specialNotes]);
 
   async function removeCart(cartId: string) {
     if (!session || deletingCartId || pendingOrder) return;
@@ -2139,21 +2234,63 @@ export default function CartPage() {
                       <textarea
                         id="special-kitchen-request"
                         value={specialNotes}
-                        onChange={(event) =>
-                          setSpecialNotes(event.target.value)
-                        }
+                        onChange={(event) => {
+                          setSpecialNotes(event.target.value);
+                          setNoteSaveStatus('idle');
+                        }}
+                        onBlur={() => void persistSpecialNotes(specialNotes)}
                         placeholder="e.g. Keep the food mildly spiced and pack chutney separately."
                         maxLength={1000}
                         rows={3}
                         className="mt-1.5 w-full max-w-2xl resize-y rounded-md border border-border bg-background p-2 text-xs leading-5 outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15"
                       />
-                      <button
-                        type="button"
-                        onClick={() => setNotesExpanded(false)}
-                        className="min-h-8 text-xs font-semibold text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-                      >
-                        Done
-                      </button>
+                      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                        <p
+                          className={cn(
+                            'flex min-h-6 items-center gap-1.5 text-xs',
+                            noteSaveStatus === 'error'
+                              ? 'font-semibold text-red-700'
+                              : noteSaveStatus === 'saved'
+                                ? 'font-semibold text-emerald-700'
+                                : 'text-muted-foreground',
+                          )}
+                          role="status"
+                        >
+                          {noteSaveStatus === 'saving' ? (
+                            'Saving note…'
+                          ) : noteSaveStatus === 'saved' ? (
+                            <>
+                              <Check
+                                className="h-3.5 w-3.5"
+                                aria-hidden="true"
+                              />
+                              Note saved
+                            </>
+                          ) : noteSaveStatus === 'error' ? (
+                            <>
+                              <AlertCircle
+                                className="h-3.5 w-3.5"
+                                aria-hidden="true"
+                              />
+                              Note not saved
+                            </>
+                          ) : (
+                            'Saves automatically as you type'
+                          )}
+                        </p>
+                        <button
+                          type="button"
+                          disabled={noteSaveStatus === 'saving'}
+                          onClick={async () => {
+                            const saved =
+                              await persistSpecialNotes(specialNotes);
+                            if (saved) setNotesExpanded(false);
+                          }}
+                          className="inline-flex min-h-10 items-center justify-center rounded-full bg-primary px-5 text-xs font-bold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60"
+                        >
+                          {noteSaveStatus === 'saving' ? 'Saving…' : 'Done'}
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
