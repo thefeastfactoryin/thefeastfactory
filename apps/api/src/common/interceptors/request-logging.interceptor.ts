@@ -1,13 +1,15 @@
 import {
   CallHandler,
   ExecutionContext,
+  HttpException,
+  HttpStatus,
   Injectable,
   Logger,
   NestInterceptor,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { randomUUID } from 'node:crypto';
-import { Observable, finalize } from 'rxjs';
+import { Observable, finalize, tap } from 'rxjs';
 
 @Injectable()
 export class RequestLoggingInterceptor implements NestInterceptor {
@@ -24,18 +26,29 @@ export class RequestLoggingInterceptor implements NestInterceptor {
     request.requestId = requestId;
     response.setHeader('x-request-id', requestId);
 
+    const logRequest = (statusCode: number) => {
+      this.logger.log(
+        JSON.stringify({
+          requestId,
+          method: request.method,
+          path: request.originalUrl,
+          statusCode,
+          durationMs: Date.now() - startedAt,
+        }),
+      );
+    };
+
+    let errorStatusCode: number | undefined;
     return next.handle().pipe(
-      finalize(() => {
-        this.logger.log(
-          JSON.stringify({
-            requestId,
-            method: request.method,
-            path: request.originalUrl,
-            statusCode: response.statusCode,
-            durationMs: Date.now() - startedAt,
-          }),
-        );
+      tap({
+        error: (error: unknown) => {
+          errorStatusCode =
+            error instanceof HttpException
+              ? error.getStatus()
+              : HttpStatus.INTERNAL_SERVER_ERROR;
+        },
       }),
+      finalize(() => logRequest(errorStatusCode ?? response.statusCode)),
     );
   }
 }

@@ -10,13 +10,16 @@ import type {
 import {
   ArrowRight,
   BadgeCheck,
+  CalendarDays,
   Check,
+  CircleCheck,
   CircleOff,
   Clock,
   CreditCard,
   Flame,
   Leaf,
   Sprout,
+  Utensils,
   Users,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -352,7 +355,7 @@ export default function HomePage() {
 
       <section
         id="ordering-styles"
-        className="scroll-mt-14 bg-ivory py-7 sm:scroll-mt-[78px] sm:py-10 lg:py-12"
+        className="scroll-mt-[104px] bg-ivory py-7 sm:scroll-mt-[78px] sm:py-10 lg:py-12"
       >
         <div className="mx-auto w-full max-w-[1440px] px-4 sm:px-6 lg:px-10">
           <div className="mb-3 max-w-[540px] sm:mb-4">
@@ -635,52 +638,115 @@ export default function HomePage() {
         variant="compact"
       />
 
-      <section className="bg-background py-5 lg:py-7">
-        <div className="mx-auto w-full max-w-[1440px] px-4 sm:px-6 lg:px-10">
-          <div className="mb-4 max-w-[540px]">
-            <p className="eyebrow">Simple process</p>
-            <h2 className="mt-2 font-serif text-[24px] font-bold leading-[1.1] tracking-[-0.02em] text-foreground sm:text-[28px]">
+      <section
+        id="how-it-works"
+        className="scroll-mt-24 bg-background py-5 sm:py-12 lg:scroll-mt-28 lg:py-16"
+      >
+        <div className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-8">
+          <div className="mb-4 max-w-[640px] sm:mb-9 lg:mb-12">
+            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-gold-text sm:text-[12px]">
+              Simple process
+            </p>
+            <h2 className="mt-1.5 font-serif text-[28px] font-bold leading-[1.05] tracking-[-0.025em] text-primary sm:mt-3 sm:text-[40px] lg:text-[48px]">
               How it works
             </h2>
+            <p className="mt-3 hidden max-w-[610px] text-[15px] leading-6 text-muted-foreground sm:block sm:text-[16px] sm:leading-7 lg:text-[17px]">
+              From menu to doorstep in three steps. Pick your food, tell us
+              about your event, and confirm before you pay.
+            </p>
           </div>
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="grid gap-2.5 sm:gap-5 md:grid-cols-3 lg:gap-6">
             {[
               {
                 step: '01',
                 title: 'Choose your food',
                 description:
                   'Pick a package, meal boxes, bulk dishes or create your own menu.',
+                details: ['Packages', 'Meal boxes', 'Order by KG'],
+                icon: Utensils,
               },
               {
                 step: '02',
                 title: 'Add event details',
                 description:
                   'Tell us your guest count, delivery location, date and time.',
+                details: ['Guest count', 'Location', 'Date & time'],
+                icon: CalendarDays,
               },
               {
                 step: '03',
                 title: 'Review & confirm',
                 description:
                   'Review your menu, total and delivery details before payment.',
+                details: ['Menu', 'Total', 'Delivery details'],
+                icon: CircleCheck,
               },
-            ].map((item) => (
-              <div
-                key={item.step}
-                className="rounded-[12px] border border-border bg-card p-3 sm:p-4"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="grid h-8 w-8 place-items-center rounded-full bg-primary/10 text-[11px] font-extrabold text-primary">
-                    {item.step}
-                  </span>
-                  <h3 className="text-base font-bold text-foreground">
+            ].map((item) => {
+              const Icon = item.icon;
+              return (
+                <article
+                  key={item.step}
+                  className="flex flex-col rounded-[14px] border border-border bg-card p-3 shadow-[0_3px_14px_rgba(74,43,35,0.035)] sm:min-h-[310px] sm:rounded-[18px] sm:p-6 lg:min-h-[336px] lg:p-8"
+                >
+                  <div className="flex items-center gap-2.5 sm:gap-4">
+                    <span className="shrink-0 font-serif text-[24px] font-bold leading-none text-gold-text sm:text-[36px] lg:text-[40px]">
+                      {item.step}
+                    </span>
+                    <h3 className="shrink-0 font-serif text-[18px] font-bold leading-tight tracking-[-0.02em] text-foreground sm:hidden">
+                      {item.title}
+                    </h3>
+                    <span
+                      className="h-px flex-1 bg-accent/45"
+                      aria-hidden="true"
+                    />
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary text-white sm:h-12 sm:w-12 lg:h-[52px] lg:w-[52px]">
+                      <Icon className="h-3.5 w-3.5 sm:h-5 sm:w-5 lg:h-[22px] lg:w-[22px]" aria-hidden="true" />
+                    </span>
+                  </div>
+                  <h3 className="mt-3 hidden font-serif text-[20px] font-bold leading-tight tracking-[-0.02em] text-foreground sm:mt-7 sm:block sm:text-[25px] lg:text-[29px]">
                     {item.title}
                   </h3>
-                </div>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  {item.description}
-                </p>
-              </div>
-            ))}
+                  <p className="mt-2 text-[12px] leading-[18px] text-muted-foreground sm:mt-4 sm:text-[15px] sm:leading-6 lg:text-[16px] lg:leading-7">
+                    {item.description}
+                  </p>
+                  <div className="mt-auto hidden flex-wrap gap-1.5 pt-3 sm:flex sm:gap-2 sm:pt-5">
+                    {item.details.map((detail) => (
+                      <span
+                        key={detail}
+                        className="rounded-full bg-primary/[0.07] px-2.5 py-1 text-[10px] font-semibold leading-none text-primary sm:px-3 sm:py-1.5 sm:text-[11px] lg:text-[12px]"
+                      >
+                        {detail}
+                      </span>
+                    ))}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+
+          <div className="mt-4 flex flex-col items-start justify-between gap-2.5 rounded-[14px] bg-primary px-3.5 py-3.5 text-white sm:mt-10 sm:flex-row sm:items-center sm:gap-6 sm:rounded-[18px] sm:px-8 sm:py-7 lg:px-10">
+            <div>
+              <h3 className="font-serif text-[18px] font-bold leading-tight sm:text-[24px] lg:text-[27px]">
+                Plan your feast in three steps.
+              </h3>
+              <p className="mt-1 hidden text-[13px] text-white/80 sm:block lg:text-sm">
+                Get guidance before you place your order.
+              </p>
+            </div>
+            <div className="grid w-full grid-cols-2 items-center gap-2 sm:flex sm:w-auto sm:shrink-0 sm:gap-3">
+              <Link
+                href="/packages"
+                className="inline-flex min-h-9 items-center justify-center rounded-full bg-background px-4 text-center text-[11px] font-bold text-primary transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-primary sm:min-h-12 sm:px-6 sm:text-sm"
+              >
+                Browse packages
+              </Link>
+              <Link
+                href="/contact"
+                className="inline-flex min-h-9 items-center justify-center rounded-full border border-white/55 px-4 text-center text-[11px] font-bold text-white transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-primary sm:min-h-12 sm:px-6 sm:text-sm"
+              >
+                Talk to us
+              </Link>
+            </div>
           </div>
         </div>
       </section>

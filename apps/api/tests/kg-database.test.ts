@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { randomUUID } from 'node:crypto';
+import { ConfigService } from '@nestjs/config';
 import {
   PrismaClient,
   Prisma,
@@ -9,6 +10,8 @@ import {
   SelectedItemRole,
 } from '@prisma/client';
 import { CartService } from '../src/modules/cart/cart.service';
+import { OrdersService } from '../src/modules/orders/orders.service';
+import { PaymentsService } from '../src/modules/payments/payments.service';
 import { PricingService } from '../src/modules/pricing/pricing.service';
 import { PackagesService } from '../src/modules/packages/packages.service';
 import { MenuService } from '../src/modules/menu/menu.service';
@@ -40,6 +43,14 @@ test(
             const pricing = new PricingService(prisma);
             const regions = new OperatingRegionsService(prisma);
             const carts = new CartService(prisma, pricing, regions);
+            const orders = new OrdersService(prisma, regions);
+            const payments = new PaymentsService(
+              prisma,
+              new ConfigService({}),
+              { generateBookingDocuments: async () => undefined } as never,
+              undefined,
+              carts,
+            );
             const packages = new PackagesService(prisma, pricing);
             const menus = new MenuService(prisma);
             const user = await tx.user.create({
@@ -262,13 +273,40 @@ test(
               (cart) => cart.packageType === PackageType.ORDER_BY_KG,
             )!;
             assert.equal(kgSnapshot.guestCount, null);
-            assert.equal(prepared.contactNumber, editedContactNumber);
+            assert.deepEqual(
+              prepared.carts.map((cart) => cart.contactNumber),
+              [editedContactNumber, editedContactNumber],
+            );
             assert.equal(kgSnapshot.finalPerPlatePrice, null);
-            assert.equal(kgSnapshot.subtotalAmount, '750.00');
+            assert.equal(kgSnapshot.totalAmount, '750.00');
             assert.equal(kgSnapshot.selectedItems?.[0].weightGrams, 1500);
             assert.equal(kgSnapshot.selectedItems?.[0].pricePerKg, '500.00');
             assert.equal(kgSnapshot.selectedItems?.[0].lineTotal, '750.00');
+            const checkout = await payments.createPayLaterBooking(user.id);
+            const completed = await tx.booking.findUniqueOrThrow({
+              where: { id: checkout.bookingId },
+              include: { orders: { include: { selectedItems: true } } },
+            });
+            assert.equal(completed.contactNumber, editedContactNumber);
+            assert.equal(completed.orders.length, 2);
+            const kgOrder = completed.orders.find(
+              (order) => order.packageType === PackageType.ORDER_BY_KG,
+            )!;
+            assert.equal(kgOrder.guestCount, null);
+            assert.equal(kgOrder.contactNumber, editedContactNumber);
+            assert.equal(kgOrder.finalPerPlatePrice, null);
+            assert.equal(kgOrder.totalAmount.toFixed(2), '750.00');
+            assert.equal(kgOrder.selectedItems[0].weightGrams, 1500);
+            assert.equal(kgOrder.selectedItems[0].pricePerKg?.toFixed(2), '500.00');
+            assert.equal(kgOrder.selectedItems[0].lineTotal?.toFixed(2), '750.00');
             await menus.updateItem(item.id, { pricePerKg: null });
+            const historical = await orders.get(
+              user.id,
+              completed.id,
+              kgOrder.id,
+            );
+            assert.equal(historical.totalAmount, '750.00');
+            assert.equal(historical.selectedItems?.[0].itemPrice, '500.00');
             await assert.rejects(() =>
               pricing.quote(version.id, 1, selections),
             );

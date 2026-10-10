@@ -22,7 +22,7 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import type { CartSummary } from '@aranyam/shared-types';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useSessionStore } from '../store/session.store';
 import { useOrderBuilderStore } from '../store/order-builder.store';
 import { cn } from '../lib/utils';
@@ -103,6 +103,7 @@ export function CustomerShell({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   const pathname = usePathname();
+  const previousPathname = useRef(pathname);
   const session = useSessionStore((s) => s.session);
   const currentPackage = useOrderBuilderStore((state) => state.package);
   const [mounted, setMounted] = useState(false);
@@ -111,6 +112,14 @@ export function CustomerShell({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [desktopAccountOpen, setDesktopAccountOpen] = useState(false);
+
+  useLayoutEffect(() => {
+    const routeChanged = previousPathname.current !== pathname;
+    previousPathname.current = pathname;
+
+    if (!routeChanged || window.location.hash) return;
+    window.scrollTo({ top: 0, left: 0 });
+  }, [pathname]);
 
   useEffect(() => {
     setMounted(true);
