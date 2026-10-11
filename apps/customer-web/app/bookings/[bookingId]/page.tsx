@@ -1,7 +1,13 @@
 'use client';
 
 import type { BookingDetails, BookingDocument } from '@aranyam/shared-types';
-import { CalendarDays, Download, MapPin, Package, WalletCards } from 'lucide-react';
+import {
+  CalendarDays,
+  Download,
+  MapPin,
+  Package,
+  WalletCards,
+} from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -215,7 +221,7 @@ export default function BookingDetailsPage() {
                 <Button
                   key={document.id}
                   variant="outline"
-                  className="w-full justify-start"
+                  className="h-auto min-h-11 w-full justify-between gap-3 py-2 text-left"
                   onClick={() =>
                     downloadAuthenticated(
                       `/bookings/${bookingId}/documents/${document.id}/download`,
@@ -223,8 +229,13 @@ export default function BookingDetailsPage() {
                     )
                   }
                 >
-                  <Download className="mr-2 h-4 w-4" />
-                  {formatStatus(document.documentType)}
+                  <span className="flex min-w-0 items-center gap-2">
+                    <Download className="h-4 w-4 shrink-0" />
+                    <span>{formatStatus(document.documentType)}</span>
+                  </span>
+                  <span className="truncate text-xs font-medium text-muted-foreground">
+                    {document.documentNumber}
+                  </span>
                 </Button>
               ))}
               {!documents.length && (

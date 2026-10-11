@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  BookingStatus,
   DocumentType,
   PaymentStatus,
   Prisma,
@@ -8,11 +9,12 @@ import {
 } from '@prisma/client';
 import { OperationsService } from '../src/modules/operations/operations.service';
 
-test('booking documents aggregate every package and create one receipt per payment', async () => {
+test('booking documents aggregate every package and keep one receipt per payment', async () => {
   const created: Array<Record<string, unknown>> = [];
   const booking = {
     id: 'booking-1',
     bookingNumber: 'BKG-1001',
+    status: BookingStatus.COMPLETED,
     userId: 'user-1',
     addressLine1: '1 Test Road',
     city: 'Hyderabad',
@@ -136,9 +138,29 @@ test('booking documents aggregate every package and create one receipt per payme
     (document) => document.documentType === DocumentType.PAYMENT_RECEIPT,
   );
   const snapshot = receipt?.snapshot as {
-    booking: { totalAmount: string; packages: unknown[]; payment: { amount: string } };
+    booking: {
+      totalAmount: string;
+      amountPaid: string;
+      balanceDue: string;
+      packages: unknown[];
+      payment: { amount: string };
+      payments: Array<{ amount: string; status: string }>;
+    };
   };
   assert.equal(snapshot.booking.totalAmount, '1150.00');
+  assert.equal(snapshot.booking.amountPaid, '1150.00');
+  assert.equal(snapshot.booking.balanceDue, '0.00');
   assert.equal(snapshot.booking.packages.length, 2);
   assert.equal(snapshot.booking.payment.amount, '575.00');
+  assert.equal(snapshot.booking.payments.length, 2);
+
+  created.length = 0;
+  booking.status = BookingStatus.CONFIRMED;
+  await operations.generateBookingDocuments(booking.id);
+  assert.equal(
+    created.filter(
+      (document) => document.documentType === DocumentType.GST_INVOICE,
+    ).length,
+    0,
+  );
 });
