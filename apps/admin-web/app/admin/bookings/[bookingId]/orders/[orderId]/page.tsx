@@ -65,6 +65,14 @@ export default function AdminOrderDetail() {
   ]
     .filter(Boolean)
     .join(', ');
+  const replacedMenuItemIds = new Set(
+    order.selectedItems
+      .map((item) => item.replacedMenuItemId)
+      .filter((id): id is string => Boolean(id)),
+  );
+  const kitchenTicketItems = order.selectedItems.filter(
+    (item) => !replacedMenuItemIds.has(item.menuItemId),
+  );
   return (
     <main className="admin-page">
       <section className="print-ticket" aria-label="Kitchen print ticket">
@@ -86,6 +94,10 @@ export default function AdminOrderDetail() {
           <strong>{eventTime}</strong>
         </div>
         <div className="print-ticket-row">
+          <span>Package</span>
+          <strong>{order.packageName}</strong>
+        </div>
+        <div className="print-ticket-row">
           <span>
             {order.packageType === 'ORDER_BY_KG' ? 'Ordering' : 'Guests'}
           </span>
@@ -100,19 +112,15 @@ export default function AdminOrderDetail() {
         {order.event?.eventName && <p>{order.event.eventName}</p>}
         {venue && <p>{venue}</p>}
         <div className="print-ticket-rule" />
-        <p className="print-ticket-label">ITEMS</p>
-        {order.selectedItems.map((item) => (
+        <p className="print-ticket-label">ITEMS TO PREPARE</p>
+        {kitchenTicketItems.map((item) => (
           <div className="print-ticket-item" key={item.id}>
             <span>
               {item.weightGrams != null
                 ? `${item.weightGrams / 1000} kg`
                 : `${item.role === 'EXTRA' ? item.quantity : (order.guestCount ?? item.quantity)} x`}{' '}
               {item.menuItemName}
-              {item.role === 'EXTRA'
-                ? ' (EXTRA)'
-                : item.role === 'SWAP'
-                  ? ` (SWAP${item.replacedMenuItemName ? ` FOR ${item.replacedMenuItemName}` : ''})`
-                  : ''}
+              {item.role === 'EXTRA' ? ' (EXTRA)' : ''}
             </span>
             <span>{item.isVeg ? 'VEG' : 'NON-VEG'}</span>
           </div>

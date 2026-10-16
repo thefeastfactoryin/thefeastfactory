@@ -128,12 +128,16 @@ textarea {
 @media print {
   @page {
     size: 80mm auto;
-    margin: 4mm;
+    margin: 0;
   }
 
+  html,
   body {
     background: white;
+    width: 80mm;
     min-width: 0;
+    margin: 0;
+    padding: 0;
   }
 
   body * {
@@ -150,12 +154,18 @@ textarea {
     position: absolute;
     top: 0;
     left: 0;
-    width: 72mm;
+    box-sizing: border-box;
+    width: 80mm;
+    padding: 3mm 4mm 5mm;
     color: #000;
-    font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+    background: #fff;
+    font-family: "Courier New", Courier, monospace;
     font-variant-numeric: tabular-nums;
-    font-size: 11px;
-    line-height: 1.35;
+    font-size: 10.5pt;
+    font-weight: 500;
+    line-height: 1.25;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
   }
 
   .print-ticket-header {
@@ -168,42 +178,77 @@ textarea {
   }
 
   .print-ticket-header strong:first-child {
-    font-size: 15px;
+    font-size: 14pt;
+    line-height: 1.1;
+  }
+
+  .print-ticket-header span {
+    font-size: 10pt;
+    font-weight: 700;
+    letter-spacing: 0.08em;
   }
 
   .print-ticket-row,
   .print-ticket-item {
     display: flex;
     justify-content: space-between;
-    gap: 8px;
+    align-items: flex-start;
+    gap: 2mm;
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 
-  .print-ticket-order {
-    font-size: 14px;
-  }
-
-  .print-ticket-item span:first-child {
-    max-width: 58mm;
+  .print-ticket-row > :first-child,
+  .print-ticket-item > :first-child {
+    min-width: 0;
     overflow-wrap: anywhere;
   }
 
+  .print-ticket-row > :last-child,
+  .print-ticket-item > :last-child {
+    flex-shrink: 0;
+    text-align: right;
+  }
+
+  .print-ticket-order {
+    font-size: 12pt;
+  }
+
+  .print-ticket-item span:first-child {
+    max-width: 54mm;
+    overflow-wrap: anywhere;
+  }
+
+  .print-ticket-item {
+    margin: 1.5mm 0;
+  }
+
+  .print-ticket-item span:last-child {
+    font-size: 8.5pt;
+    font-weight: 700;
+  }
+
   .print-ticket-rule {
-    border-top: 1px dashed #000;
-    margin: 8px 0;
+    border-top: 0.3mm dashed #000;
+    margin: 2.5mm 0;
   }
 
   .print-ticket p {
-    margin: 2px 0;
+    margin: 0.8mm 0;
     overflow-wrap: anywhere;
   }
 
   .print-ticket-label {
     font-weight: 700;
-    margin-top: 6px;
+    letter-spacing: 0.04em;
+    margin-top: 1.5mm;
   }
 
   .print-ticket-footer {
-    margin-top: 10px;
+    margin-top: 3mm;
+    padding-top: 2mm;
+    border-top: 0.3mm solid #000;
     text-align: center;
+    font-weight: 700;
   }
 }
