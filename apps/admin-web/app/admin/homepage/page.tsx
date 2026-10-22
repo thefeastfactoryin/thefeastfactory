@@ -379,6 +379,116 @@ export default function AdminHomepage() {
                         </span>
                       </div>
                     </Field>
+                    <Field label="Maximum serving distance">
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          min={0.01}
+                          step={0.01}
+                          defaultValue={region.serviceRadiusKm}
+                          onBlur={(event) => {
+                            const value = event.target.value.trim();
+                            const distance = Number(value);
+                            if (!Number.isFinite(distance) || distance <= 0) {
+                              event.target.value = region.serviceRadiusKm;
+                              setError(
+                                'Maximum serving distance must be greater than 0 km.',
+                              );
+                              return;
+                            }
+                            if (distance !== Number(region.serviceRadiusKm)) {
+                              updateRegion(region, {
+                                serviceRadiusKm: value,
+                              });
+                            }
+                          }}
+                        />
+                        <span className="shrink-0 text-sm text-muted-foreground">
+                          km
+                        </span>
+                      </div>
+                    </Field>
+                    <Field label="Delivery fee per km">
+                      <div className="flex items-center gap-2">
+                        <span className="shrink-0 text-sm text-muted-foreground">
+                          ₹
+                        </span>
+                        <Input
+                          type="number"
+                          min={0}
+                          step={0.01}
+                          defaultValue={region.deliveryFeePerKm}
+                          onBlur={(event) => {
+                            const value = event.target.value.trim();
+                            const fee = Number(value);
+                            if (!Number.isFinite(fee) || fee < 0) {
+                              event.target.value = region.deliveryFeePerKm;
+                              setError(
+                                'Delivery fee per km must be 0 or greater.',
+                              );
+                              return;
+                            }
+                            if (fee !== Number(region.deliveryFeePerKm)) {
+                              updateRegion(region, { deliveryFeePerKm: value });
+                            }
+                          }}
+                        />
+                      </div>
+                    </Field>
+                    <Field label="Kitchen latitude">
+                      <Input
+                        type="number"
+                        min={-90}
+                        max={90}
+                        step="any"
+                        defaultValue={region.centerLatitude}
+                        onBlur={(event) => {
+                          const value = event.target.value.trim();
+                          const latitude = Number(value);
+                          if (
+                            !Number.isFinite(latitude) ||
+                            latitude < -90 ||
+                            latitude > 90
+                          ) {
+                            event.target.value = region.centerLatitude;
+                            setError(
+                              'Kitchen latitude must be between -90 and 90.',
+                            );
+                            return;
+                          }
+                          if (latitude !== Number(region.centerLatitude)) {
+                            updateRegion(region, { centerLatitude: value });
+                          }
+                        }}
+                      />
+                    </Field>
+                    <Field label="Kitchen longitude">
+                      <Input
+                        type="number"
+                        min={-180}
+                        max={180}
+                        step="any"
+                        defaultValue={region.centerLongitude}
+                        onBlur={(event) => {
+                          const value = event.target.value.trim();
+                          const longitude = Number(value);
+                          if (
+                            !Number.isFinite(longitude) ||
+                            longitude < -180 ||
+                            longitude > 180
+                          ) {
+                            event.target.value = region.centerLongitude;
+                            setError(
+                              'Kitchen longitude must be between -180 and 180.',
+                            );
+                            return;
+                          }
+                          if (longitude !== Number(region.centerLongitude)) {
+                            updateRegion(region, { centerLongitude: value });
+                          }
+                        }}
+                      />
+                    </Field>
                     <Field label="Kitchen address">
                       <Textarea
                         rows={4}
